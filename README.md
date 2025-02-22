@@ -164,7 +164,8 @@ pip install -e .
 ## Quick Start
 
 ```python
-from src.utils.promptchaining import PromptChain
+# Import the main class
+from promptchain import PromptChain
 
 # Create a simple chain
 chain = PromptChain(
@@ -178,6 +179,15 @@ chain = PromptChain(
 
 # Run the chain
 result = chain.process_prompt("AI in healthcare")
+```
+
+For more advanced usage, you can also import the prompt loading utilities:
+```python
+from promptchain import load_prompts, get_prompt_by_name
+
+# Load prompts from files
+prompts = load_prompts()
+analysis_prompt = get_prompt_by_name("ANALYSIS_INITIAL_ANALYSIS")
 ```
 
 ## Advanced Usage
@@ -807,3 +817,86 @@ This approach:
 - Stores step outputs for later reference
 - Allows selective access to intermediate results
 - Maintains clean API while preserving history
+
+### Listing Available Prompts
+You can list all available prompts and their categories:
+
+```python
+from promptchain import list_available_prompts, print_available_prompts
+
+# Get dictionary of prompts
+prompts = list_available_prompts()
+for category, prompt_list in prompts.items():
+    print(f"\nCategory: {category}")
+    for prompt in prompt_list:
+        print(f"  - {prompt['name']}: {prompt['description']}")
+
+# Or use the pretty print function
+print_available_prompts()
+```
+
+Example output:
+```
+Available Prompts:
+=================
+
+ANALYSIS:
+---------
+  ANALYSIS_INITIAL_ANALYSIS:
+    Description: Perform a detailed analysis of the given topic
+    Path: prompts/analysis/initial_analysis.md
+
+  ANALYSIS_REFINEMENT:
+    Description: Enhance and structure the previous analysis
+    Path: prompts/analysis/refinement.md
+
+STORY:
+------
+  STORY_OUTLINE:
+    Description: Create a structured outline for a story
+    Path: prompts/story/outline.md
+...
+```
+
+### Single Model Simplification
+When using the same model for all steps, you can provide just one model:
+
+```python
+# All instructions will use GPT-4
+chain = PromptChain(
+    models=["openai/gpt-4"],  # Single model for all instructions
+    instructions=[
+        "Initial analysis: {input}",
+        "Detailed expansion: {input}",
+        "Final summary: {input}"
+    ]
+)
+
+# Same with custom parameters
+chain = PromptChain(
+    models=[{
+        "name": "openai/gpt-4",
+        "params": {
+            "temperature": 0.7,
+            "max_tokens": 150
+        }
+    }],  # Same model and parameters for all instructions
+    instructions=[
+        "Write initial draft: {input}",
+        "Improve content: {input}",
+        "Create summary: {input}"
+    ]
+)
+
+# Mixed with functions
+chain = PromptChain(
+    models=["openai/gpt-4"],  # Will be used for both non-function instructions
+    instructions=[
+        "Generate content: {input}",
+        analyze_text,  # Function doesn't need a model
+        "Summarize analysis: {input}"
+    ]
+)
+```
+
+This simplifies chain creation when you want to use the same model throughout the process.
