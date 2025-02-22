@@ -31,8 +31,8 @@ class PromptChain:
         """
         Initialize the PromptChain with optional step storage.
 
-        :param models: List of model names or dicts with model config
-                      Format: [{"name": "model_name", "params": {...}}, ...]
+        :param models: List of model names or dicts with model config. 
+                      If single model provided, it will be used for all instructions.
         :param instructions: List of instruction templates or callable functions
         :param full_history: Whether to pass full chain history
         :param store_steps: If True, stores step outputs in self.step_outputs without returning full history
@@ -41,6 +41,15 @@ class PromptChain:
         self.models = []
         self.model_params = []
         
+        # Count non-function instructions to match with models
+        model_instruction_count = sum(1 for instr in instructions if not callable(instr))
+        
+        # Handle single model case
+        if len(models) == 1:
+            # Replicate the single model for all instructions
+            models = models * model_instruction_count
+        
+        # Process models
         for model in models:
             if isinstance(model, dict):
                 self.models.append(model["name"])
@@ -49,19 +58,18 @@ class PromptChain:
                 self.models.append(model)
                 self.model_params.append({})
 
-        # Count non-function instructions to match with models
-        model_instruction_count = sum(1 for instr in instructions if not callable(instr))
-        
+        # Validate model count
         if len(self.models) != model_instruction_count:
             raise ValueError(
                 f"Number of models ({len(self.models)}) must match number of non-function instructions ({model_instruction_count})"
+                "\nOr provide a single model to use for all instructions."
             )
             
         self.instructions = instructions
         self.full_history = full_history
         self.model_index = 0
         self.store_steps = store_steps
-        self.step_outputs = {}  # Dictionary to store step outputs
+        self.step_outputs = {}
 
     def is_function(self, instruction: Union[str, Callable]) -> bool:
         """Check if an instruction is actually a function"""
