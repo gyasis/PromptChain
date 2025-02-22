@@ -144,8 +144,21 @@ final_prompt = refinement_chain.process_prompt("Generate marketing copy")
 
 ## Installation
 
+### From PyPI (Coming Soon)
 ```bash
-pip install -r requirements.txt
+pip install promptchain
+```
+
+### From GitHub
+```bash
+pip install git+https://github.com/yourusername/promptchain.git
+```
+
+### Development Installation
+```bash
+git clone https://github.com/yourusername/promptchain.git
+cd promptchain
+pip install -e .
 ```
 
 ## Quick Start
