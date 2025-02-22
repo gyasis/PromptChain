@@ -27,16 +27,19 @@ class PromptChain:
     def __init__(self, models: List[Union[str, dict]], 
                  instructions: List[Union[str, Callable]], 
                  full_history: bool = False,
-                 store_steps: bool = False):
+                 store_steps: bool = False,
+                 verbose: bool = False):
         """
-        Initialize the PromptChain with optional step storage.
+        Initialize the PromptChain with optional step storage and verbose output.
 
         :param models: List of model names or dicts with model config. 
                       If single model provided, it will be used for all instructions.
         :param instructions: List of instruction templates or callable functions
         :param full_history: Whether to pass full chain history
         :param store_steps: If True, stores step outputs in self.step_outputs without returning full history
+        :param verbose: If True, prints detailed output for each step with formatting
         """
+        self.verbose = verbose
         # Extract model names and parameters
         self.models = []
         self.model_params = []
@@ -76,8 +79,16 @@ class PromptChain:
         return callable(instruction)
 
     def process_prompt(self, initial_input: str):
-        """Execute the prompt chain with optional step storage."""
+        """Execute the prompt chain with optional step storage and verbose output."""
         result = initial_input
+        
+        if self.verbose:
+            print("\n" + "="*50)
+            print("🔄 Starting Prompt Chain")
+            print("="*50)
+            print("\n📝 Initial Input:")
+            print(f"{initial_input}\n")
+        
         chain_history = [{
             "step": 0, 
             "input": initial_input, 
@@ -93,6 +104,11 @@ class PromptChain:
             }
         
         for step, instruction in enumerate(self.instructions):
+            if self.verbose:
+                print("\n" + "-"*50)
+                print(f"Step {step + 1}:")
+                print("-"*50)
+            
             if self.full_history:
                 history_text = "\n".join([
                     f"Step {entry['step']}: {entry['output']}" 
@@ -104,8 +120,15 @@ class PromptChain:
 
             # Check if this step is a function or an instruction
             if self.is_function(instruction):
+                if self.verbose:
+                    print(f"\n🔧 Executing Function: {instruction.__name__}")
+                    print(f"\nInput:\n{content_to_process}")
+                
                 result = instruction(content_to_process)
                 step_type = "function"
+                
+                if self.verbose:
+                    print(f"\nOutput:\n{result}")
             else:
                 # Load instruction if it's a file path
                 if os.path.isfile(str(instruction)):
@@ -117,7 +140,15 @@ class PromptChain:
                 self.model_index += 1  # Move to next model
                 result = self.run_model(model, prompt, self.model_params[self.model_index - 1])
                 step_type = "model"
-                print(f"\nStep {step + 1}: Using model {model}")
+                if self.verbose:
+                    print(f"\n🤖 Using Model: {model}")
+                    if self.model_params[self.model_index - 1]:
+                        print(f"Parameters: {self.model_params[self.model_index - 1]}")
+                    print(f"\nPrompt:\n{instruction.replace('{input}', '...')}")
+                    print(f"\nInput:\n{content_to_process}")
+                
+                if self.verbose:
+                    print(f"\nOutput:\n{result}")
 
             chain_history.append({
                 "step": step + 1,
@@ -135,6 +166,13 @@ class PromptChain:
                     "model_params": self.model_params[self.model_index - 1] if step_type == "model" else None
                 }
 
+        if self.verbose:
+            print("\n" + "="*50)
+            print("✅ Chain Completed")
+            print("="*50)
+            print("\n📊 Final Output:")
+            print(f"{result}\n")
+        
         return result if not self.full_history else chain_history
 
     @staticmethod
