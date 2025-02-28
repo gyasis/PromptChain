@@ -39,7 +39,7 @@ Dynamic: requires-dist
 Dynamic: requires-python
 Dynamic: summary
 
-# PromptChain
+# PromptChain 
 
 A flexible prompt engineering library designed to create, refine, and specialize prompts for LLM applications and agent frameworks. While it can be used as a simple sequential chain processor, its primary strength lies in dynamic prompt engineering and optimization.
 
@@ -485,6 +485,165 @@ Check the `src/examples` directory for various use cases:
 - Basic chain examples (`chain_examples.py`)
 - Function injection examples (`function_chain_example.py`)
 - Advanced processing examples (`advanced_chain_example.py`)
+
+These examples serve as starting points for building more complex prompt chains tailored to specific use cases and requirements.
+
+### Prompt Engineering Techniques
+
+PromptChain provides a simple yet powerful way to enhance your prompts using various techniques. Each technique can be added using a simple string format: `technique:parameter` (when parameters are needed).
+
+#### Technique Categories
+
+1. **Techniques Requiring Parameters**
+```python
+chain.add_techniques([
+    "role_playing:scientist",                # Adopts a specific professional role
+    "style_mimicking:Richard Feynman",      # Mimics a specific writing style
+    "persona_emulation:Warren Buffett",     # Emulates a specific expert
+    "forbidden_words:maybe,probably,perhaps" # Specifies words to avoid
+])
+```
+
+2. **Techniques with Optional Parameters**
+```python
+chain.add_techniques([
+    "few_shot:3",                    # Number of examples to include
+    "reverse_prompting:5",           # Number of questions to generate
+    "context_expansion:historical",   # Type of context to consider
+    "comparative_answering:3",        # Number of aspects to compare
+    "tree_of_thought:4"              # Number of solution paths
+])
+```
+
+3. **Techniques Without Parameters**
+```python
+chain.add_techniques([
+    "step_by_step",           # Step-by-step reasoning
+    "chain_of_thought",       # Multiple-step reasoning
+    "iterative_refinement",   # Progressive improvement
+    "contrarian_perspective", # Challenge common beliefs
+    "react"                  # Reason-Act-Observe process
+])
+```
+
+#### Validation Rules
+
+The library enforces strict validation for technique usage:
+
+1. **Required Parameters**
+```python
+# ❌ This will raise an error
+chain.add_techniques(["role_playing"])  
+# Error: Technique 'role_playing' requires a profession/role parameter.
+
+# ✅ This is correct
+chain.add_techniques(["role_playing:quantum physicist"])
+```
+
+2. **Optional Parameters**
+```python
+# ✅ Both are valid
+chain.add_techniques(["few_shot"])         # Uses default
+chain.add_techniques(["few_shot:3"])       # Uses specified number
+```
+
+3. **No Parameters**
+```python
+# ⚠️ This will show a warning
+chain.add_techniques(["step_by_step:detailed"])  
+# Warning: Technique 'step_by_step' doesn't use parameters
+
+# ✅ This is correct
+chain.add_techniques(["step_by_step"])
+```
+
+#### Examples
+
+1. **Expert Analysis Chain**
+```python
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Analyze this topic: {input}"]
+)
+
+chain.add_techniques([
+    "role_playing:data scientist",
+    "step_by_step",
+    "tree_of_thought:3"
+])
+
+result = chain.process_prompt("Analyze customer churn patterns")
+```
+
+2. **Creative Writing Chain**
+```python
+chain = PromptChain(
+    models=["anthropic/claude-3-sonnet-20240229"],
+    instructions=["Write a story about: {input}"]
+)
+
+chain.add_techniques([
+    "style_mimicking:Ernest Hemingway",
+    "forbidden_words:very,really,quite",
+    "context_expansion:emotional"
+])
+
+story = chain.process_prompt("A fisherman's last voyage")
+```
+
+3. **Problem-Solving Chain**
+```python
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=[
+        "Analyze the problem: {input}",
+        "Generate solutions: {input}"
+    ]
+)
+
+chain.add_techniques([
+    "persona_emulation:Systems Engineer",
+    "react",
+    "comparative_answering:5",
+    "tree_of_thought:3"
+])
+
+solution = chain.process_prompt("Optimize server response times")
+```
+
+4. **Educational Content Chain**
+```python
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Explain this concept: {input}"]
+)
+
+chain.add_techniques([
+    "role_playing:professor",
+    "few_shot:3",
+    "step_by_step",
+    "context_expansion:historical"
+])
+
+explanation = chain.process_prompt("Quantum entanglement")
+```
+
+#### Best Practices
+
+1. **Combine Techniques Thoughtfully**
+   - Mix different types of techniques for better results
+   - Consider how techniques complement each other
+   - Don't overload with too many techniques
+
+2. **Parameter Usage**
+   - Use specific, relevant parameters
+   - Keep parameters concise and clear
+   - Test different parameter values
+
+3. **Validation Awareness**
+   - Always provide parameters for required techniques
+   - Use optional parameters when more specificity is needed
+   - Remove parameters from techniques that don't use them
 
 ## Future Roadmap
 
@@ -941,3 +1100,48 @@ chain = PromptChain(
 ```
 
 This simplifies chain creation when you want to use the same model throughout the process.
+
+## Multimodal Input Processing
+
+PromptChain can be extended to handle multimodal inputs such as documents, images, videos, and audio. This is achieved by introducing a preprocessing function that converts these inputs into a text format suitable for the prompt chain.
+
+### Example: Preprocessing Multimodal Inputs
+
+Here's how you can set up a preprocessing function and integrate it into a prompt chain:
+
+```python
+def preprocess_multimodal_input(input_data):
+    # Example function to process different types of media
+    if isinstance(input_data, str):
+        # Assume it's a document
+        return extract_text_from_document(input_data)
+    elif isinstance(input_data, Image):
+        return extract_text_from_image(input_data)
+    elif isinstance(input_data, Video):
+        return extract_text_from_video(input_data)
+    elif isinstance(input_data, Audio):
+        return transcribe_audio(input_data)
+    else:
+        raise ValueError("Unsupported input type")
+
+# Initialize the PromptChain with the preprocessing function as the first step
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=[
+        preprocess_multimodal_input,  # Preprocessing step
+        "Analyze the processed text: {input}",
+        "Generate insights based on the analysis: {input}"
+    ]
+)
+
+# Run the chain with a multimodal input
+result = chain.process_prompt(multimodal_input)
+```
+
+### Considerations
+
+- **Function Integration**: Ensure that the `PromptChain` can handle functions as part of its instructions. This might require checking or modifying the library's implementation.
+  
+- **Error Handling**: Implement robust error handling within the preprocessing function to manage different input types and potential processing errors.
+
+- **Performance**: Consider the performance implications of processing large or complex media files, and optimize the preprocessing function accordingly.
