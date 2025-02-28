@@ -1,0 +1,80 @@
+2025-02-27 13:01:20,441 - extras.gemini_multimedia - INFO - Available models: ['models/chat-bison-001', 'models/text-bison-001', 'models/embedding-gecko-001', 'models/gemini-1.0-pro-vision-latest', 'models/gemini-pro-vision', 'models/gemini-1.5-pro-latest', 'models/gemini-1.5-pro-001', 'models/gemini-1.5-pro-002', 'models/gemini-1.5-pro', 'models/gemini-1.5-flash-latest', 'models/gemini-1.5-flash-001', 'models/gemini-1.5-flash-001-tuning', 'models/gemini-1.5-flash', 'models/gemini-1.5-flash-002', 'models/gemini-1.5-flash-8b', 'models/gemini-1.5-flash-8b-001', 'models/gemini-1.5-flash-8b-latest', 'models/gemini-1.5-flash-8b-exp-0827', 'models/gemini-1.5-flash-8b-exp-0924', 'models/gemini-2.0-flash-exp', 'models/gemini-2.0-flash', 'models/gemini-2.0-flash-001', 'models/gemini-2.0-flash-lite-001', 'models/gemini-2.0-flash-lite', 'models/gemini-2.0-flash-lite-preview-02-05', 'models/gemini-2.0-flash-lite-preview', 'models/gemini-2.0-pro-exp', 'models/gemini-2.0-pro-exp-02-05', 'models/gemini-exp-1206', 'models/gemini-2.0-flash-thinking-exp-01-21', 'models/gemini-2.0-flash-thinking-exp', 'models/gemini-2.0-flash-thinking-exp-1219', 'models/learnlm-1.5-pro-experimental', 'models/embedding-001', 'models/text-embedding-004', 'models/aqa', 'models/imagen-3.0-generate-002']
+2025-02-27 13:01:20,441 - extras.gemini_multimedia - INFO - Processing audio file: /home/gyasis/Downloads/AcuteCoronarySyndromeAudio-221220-101118.mp3
+2025-02-27 13:01:20,441 - extras.gemini_multimedia - INFO - Processing media file of size: 28.66 MB
+2025-02-27 13:01:20,442 - extras.gemini_multimedia - INFO - Detected supported audio format: audio/mpeg
+2025-02-27 13:01:20,442 - extras.gemini_multimedia - INFO - Using File API for large file
+2025-02-27 13:03:51,485 - extras.gemini_multimedia - INFO - Cleaned up uploaded file: files/aatz2h5fr6ad
+2025-02-27 13:03:52,843 - __main__ - ERROR - Error during processing: litellm.ContextWindowExceededError: litellm.BadRequestError: ContextWindowExceededError: OpenAIException - Error code: 400 - {'error': {'message': "This model's maximum context length is 8192 tokens. However, your messages resulted in 9310 tokens. Please reduce the length of the messages.", 'type': 'invalid_request_error', 'param': 'messages', 'code': 'context_length_exceeded'}}
+Traceback (most recent call last):
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 726, in completion
+    raise e
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 653, in completion
+    self.make_sync_openai_chat_completion_request(
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/litellm_core_utils/logging_utils.py", line 145, in sync_wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 472, in make_sync_openai_chat_completion_request
+    raise e
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 454, in make_sync_openai_chat_completion_request
+    raw_response = openai_client.chat.completions.with_raw_response.create(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/_legacy_response.py", line 364, in wrapped
+    return cast(LegacyAPIResponse[R], func(*args, **kwargs))
+                                      ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/_utils/_utils.py", line 279, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 879, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/_base_client.py", line 1290, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/_base_client.py", line 967, in request
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/openai/_base_client.py", line 1071, in _request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'error': {'message': "This model's maximum context length is 8192 tokens. However, your messages resulted in 9310 tokens. Please reduce the length of the messages.", 'type': 'invalid_request_error', 'param': 'messages', 'code': 'context_length_exceeded'}}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/main.py", line 1724, in completion
+    raise e
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/main.py", line 1697, in completion
+    response = openai_chat_completions.completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 736, in completion
+    raise OpenAIError(
+litellm.llms.openai.common_utils.OpenAIError: Error code: 400 - {'error': {'message': "This model's maximum context length is 8192 tokens. However, your messages resulted in 9310 tokens. Please reduce the length of the messages.", 'type': 'invalid_request_error', 'param': 'messages', 'code': 'context_length_exceeded'}}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/gyasis/Documents/code/PromptChain/tests/tests_multimodal_input.py", line 132, in <module>
+    final_result = run_analysis_chain(extracted_text)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/Documents/code/PromptChain/tests/tests_multimodal_input.py", line 89, in run_analysis_chain
+    result = analysis_chain.process_prompt(extracted_text)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/Documents/code/PromptChain/promptchain/utils/promptchaining.py", line 141, in process_prompt
+    result = self.run_model(model, prompt, self.model_params[self.model_index - 1])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/Documents/code/PromptChain/promptchain/utils/promptchaining.py", line 190, in run_model
+    response = completion(**model_params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/utils.py", line 1190, in wrapper
+    raise e
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/utils.py", line 1068, in wrapper
+    result = original_function(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/main.py", line 3085, in completion
+    raise exception_type(
+          ^^^^^^^^^^^^^^^
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2202, in exception_type
+    raise e
+  File "/home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 283, in exception_type
+    raise ContextWindowExceededError(
+litellm.exceptions.ContextWindowExceededError: litellm.ContextWindowExceededError: litellm.BadRequestError: ContextWindowExceededError: OpenAIException - Error code: 400 - {'error': {'message': "This model's maximum context length is 8192 tokens. However, your messages resulted in 9310 tokens. Please reduce the length of the messages.", 'type': 'invalid_request_error', 'param': 'messages', 'code': 'context_length_exceeded'}}
+2025-02-27 13:03:52,952 - extras.gemini_multimedia - WARNING - Error cleaning up file files/aatz2h5fr6ad: 403 You do not have permission to access the File aatz2h5fr6ad or it may not exist.
