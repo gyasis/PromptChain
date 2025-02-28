@@ -15,7 +15,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/promptchain",
-    packages=find_packages(),
+    packages=find_packages() + ['ingestors', 'extras'],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -32,5 +32,7 @@ setup(
     include_package_data=True,
     package_data={
         "promptchain": ["prompts/**/*.md"],
+        "ingestors": ["**/*.py"],
+        "extras": ["**/*.py"],
     },
 ) 
