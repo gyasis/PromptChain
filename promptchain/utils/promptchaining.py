@@ -201,6 +201,131 @@ class PromptChain:
         
         return self.step_outputs[step_key]
 
+    def add_techniques(self, techniques: List[str]) -> None:
+        """
+        Injects additional prompt engineering techniques into all string-based instructions.
+        Each technique can include an optional parameter using the format "technique:parameter"
+        
+        Some techniques REQUIRE parameters:
+        - role_playing: requires profession/role (e.g., "role_playing:scientist")
+        - style_mimicking: requires author/style (e.g., "style_mimicking:Richard Feynman")
+        - persona_emulation: requires expert name (e.g., "persona_emulation:Warren Buffett")
+        - forbidden_words: requires comma-separated words (e.g., "forbidden_words:maybe,probably,perhaps")
+        
+        :param techniques: List of technique strings (e.g., ["step_by_step", "role_playing:scientist"])
+        """
+        # Define which techniques require parameters
+        REQUIRED_PARAMS = {
+            "role_playing": "profession/role",
+            "style_mimicking": "author/style",
+            "persona_emulation": "expert name",
+            "forbidden_words": "comma-separated words"
+        }
+        
+        # Define which techniques accept optional parameters
+        OPTIONAL_PARAMS = {
+            "few_shot": "number of examples",
+            "reverse_prompting": "number of questions",
+            "context_expansion": "context type",
+            "comparative_answering": "aspects to compare",
+            "tree_of_thought": "number of paths"
+        }
+        
+        # Techniques that don't use parameters
+        NO_PARAMS = {
+            "step_by_step",
+            "chain_of_thought",
+            "iterative_refinement",
+            "contrarian_perspective",
+            "react"
+        }
+
+        prompt_techniques = {
+            "role_playing": lambda param: (
+                f"You are an experienced {param} explaining in a clear and simple way. "
+                "Use relatable examples."
+            ),
+            "step_by_step": lambda _: (
+                "Explain your reasoning step-by-step before providing the final answer."
+            ),
+            "few_shot": lambda param: (
+                f"Include {param or 'a few'} examples to demonstrate the pattern before generating your answer."
+            ),
+            "chain_of_thought": lambda _: (
+                "Outline your reasoning in multiple steps before delivering the final result."
+            ),
+            "persona_emulation": lambda param: (
+                f"Adopt the persona of {param} in this field."
+            ),
+            "context_expansion": lambda param: (
+                f"Consider {param or 'additional background'} context and relevant details in your explanation."
+            ),
+            "reverse_prompting": lambda param: (
+                f"First, generate {param or 'key'} questions about this topic before answering."
+            ),
+            "style_mimicking": lambda param: (
+                f"Emulate the writing style of {param} in your response."
+            ),
+            "iterative_refinement": lambda _: (
+                "Iteratively refine your response to improve clarity and detail."
+            ),
+            "forbidden_words": lambda param: (
+                f"Avoid using these words in your response: {param}. "
+                "Use more precise alternatives."
+            ),
+            "comparative_answering": lambda param: (
+                f"Compare and contrast {param or 'relevant'} aspects thoroughly in your answer."
+            ),
+            "contrarian_perspective": lambda _: (
+                "Argue a contrarian viewpoint that challenges common beliefs."
+            ),
+            "tree_of_thought": lambda param: (
+                f"Explore {param or 'multiple'} solution paths and evaluate each before concluding."
+            ),
+            "react": lambda _: (
+                "Follow this process: \n"
+                "1. Reason about the problem\n"
+                "2. Act based on your reasoning\n"
+                "3. Observe the results"
+            )
+        }
+
+        # Process each technique
+        for tech in techniques:
+            # Split technique and parameter if provided
+            parts = tech.split(":", 1)
+            tech_name = parts[0]
+            tech_param = parts[1] if len(parts) > 1 else None
+
+            # Validate technique exists
+            if tech_name not in prompt_techniques:
+                raise ValueError(
+                    f"Technique '{tech_name}' not recognized.\n"
+                    f"Available techniques:\n"
+                    f"- Required parameters: {list(REQUIRED_PARAMS.keys())}\n"
+                    f"- Optional parameters: {list(OPTIONAL_PARAMS.keys())}\n"
+                    f"- No parameters: {list(NO_PARAMS)}"
+                )
+
+            # Validate required parameters
+            if tech_name in REQUIRED_PARAMS and not tech_param:
+                raise ValueError(
+                    f"Technique '{tech_name}' requires a {REQUIRED_PARAMS[tech_name]} parameter.\n"
+                    f"Use format: {tech_name}:parameter"
+                )
+
+            # Warning for unexpected parameters
+            if tech_name in NO_PARAMS and tech_param:
+                print(f"Warning: Technique '{tech_name}' doesn't use parameters, ignoring '{tech_param}'")
+
+            # Generate technique text with parameter
+            technique_text = prompt_techniques[tech_name](tech_param)
+
+            # Apply to all string instructions
+            for i, instruction in enumerate(self.instructions):
+                if isinstance(instruction, str):
+                    self.instructions[i] = instruction.strip() + "\n" + technique_text
+
 # Example usage
 if __name__ == "__main__":
     models = [
