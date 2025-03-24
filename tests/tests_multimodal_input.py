@@ -79,8 +79,17 @@ def run_analysis_chain(extracted_text: str, analysis_prompt: str = "medical educ
     analysis_chain = PromptChain(
         models=["openai/gpt-4o-mini"],
         instructions=[
-            f"Format this text into a markdown structured teaching lesson. DO NOT ADD ANYTHING ELSE TO THE TEXT. DO NOTE LEAVE ANYTHING OUT: {{input}}\n\nFocus on: {analysis_prompt}",
-            "Expand on the less talked about but highly specialized or significant medical terms important for the overall subject by italicizing new content and explain the term and giving a deeper background: the output should be a word for word recreation of the text with extra content boxes interdispered to explain a medical term when it is mentioned in the text.DO NOTE LEAVE ANYTHING OUT FROM THE PREVIOUS INPUT WHILE INLCUDE THE ADDITIONAL CONTENT: {input}"
+            f"""Format this text into a markdown structured teaching lesson. DO NOT ADD ANYTHING ELSE TO THE TEXT. DO NOTE LEAVE ANYTHING OUT: {{input}}\n\nFocus on: {analysis_prompt}",
+            "Expand on the less talked about but highly specialized or significant medical terms important for the overall subject by italicizing new content and explain the term and giving a deeper background:
+
+            Examples of expanded content:
+
+            - medications or categories of medications - giving common medicatoisn and mechanism of actions, expnad on anmes, MOA, side effects, etc.
+            -diseasee pathologies - giving a detailed explanation of the disease and the pathologies associated with the disease sort of like a quick amboss
+            - flesh out any anacronym explanations
+            - any procedures or any other content that is not usually covered in a basic medical education setting but is recognized as more specialied. for example 12 lead ekc shoud be ignored and not expanded on. but a central venous catheter should be expanded on and pic lines should be expanded on
+            
+             the output should be a word for word recreation of the text with extra content boxes interdispered to explain a medical term when it is mentioned in the text.DO NOTE LEAVE ANYTHING OUT FROM THE PREVIOUS INPUT WHILE INLCUDE THE ADDITIONAL CONTENT: {input}"""
         ],
         full_history=False
     )
