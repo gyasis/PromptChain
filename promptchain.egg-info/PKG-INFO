@@ -1,6 +1,6 @@
 Metadata-Version: 2.2
 Name: promptchain
-Version: 0.1.0
+Version: 0.2.0
 Summary: A flexible prompt engineering library for LLM applications and agent frameworks
 Home-page: https://github.com/yourusername/promptchain
 Author: Your Name
@@ -267,7 +267,7 @@ for step in history:
     print(f"Step {step['step']}: {step['output']}")
 ```
 
-### Using Structured Prompts
+### Structured Prompts
 For more complex instructions, you can define prompts as variables:
 
 ```python
@@ -488,162 +488,194 @@ Check the `src/examples` directory for various use cases:
 
 These examples serve as starting points for building more complex prompt chains tailored to specific use cases and requirements.
 
-### Prompt Engineering Techniques
+### Prompt Engineering Tools
 
-PromptChain provides a simple yet powerful way to enhance your prompts using various techniques. Each technique can be added using a simple string format: `technique:parameter` (when parameters are needed).
+### Interactive Prompt Improver
 
-#### Technique Categories
+The package includes a powerful command-line tool for iteratively improving prompts. Located at `examples/prompt_improver.py`, this tool provides multiple ways to input and improve prompts with different focus areas.
 
-1. **Techniques Requiring Parameters**
-```python
-chain.add_techniques([
-    "role_playing:scientist",                # Adopts a specific professional role
-    "style_mimicking:Richard Feynman",      # Mimics a specific writing style
-    "persona_emulation:Warren Buffett",     # Emulates a specific expert
-    "forbidden_words:maybe,probably,perhaps" # Specifies words to avoid
-])
+#### Basic Usage
+
+```bash
+# Improve a simple prompt
+python examples/prompt_improver.py "Write a story about space exploration"
+
+# Use interactive mode for multiline prompts
+python examples/prompt_improver.py -i
+
+# Read prompt from clipboard
+python examples/prompt_improver.py -c
 ```
 
-2. **Techniques with Optional Parameters**
-```python
-chain.add_techniques([
-    "few_shot:3",                    # Number of examples to include
-    "reverse_prompting:5",           # Number of questions to generate
-    "context_expansion:historical",   # Type of context to consider
-    "comparative_answering:3",        # Number of aspects to compare
-    "tree_of_thought:4"              # Number of solution paths
-])
+#### Input Methods
+
+1. **Interactive Mode** (`-i` or `--interactive`):
+   - Enter multiline prompts directly
+   - Use Ctrl+D (Unix) or Ctrl+Z (Windows) to finish input
+   ```bash
+   python examples/prompt_improver.py -i
+   ```
+
+2. **Clipboard Mode** (`-c` or `--clipboard`):
+   - Read prompt directly from system clipboard
+   - Supports pbpaste (macOS) and xclip (Linux)
+   ```bash
+   python examples/prompt_improver.py -c
+   ```
+
+3. **Direct Input**:
+   - Pass prompt as command line argument
+   ```bash
+   python examples/prompt_improver.py "Your prompt here"
+   ```
+
+4. **Pipe Input**:
+   - Pipe content from another command
+   ```bash
+   pbpaste | python examples/prompt_improver.py
+   ```
+
+#### Improvement Modes
+
+1. **LLM Evaluation** (default):
+   ```bash
+   python examples/prompt_improver.py -i --mode llm
+   ```
+
+2. **Human Evaluation**:
+   ```bash
+   python examples/prompt_improver.py -i --mode human
+   ```
+
+3. **Continuous Improvement** (no evaluation):
+   ```bash
+   python examples/prompt_improver.py -i --mode continuous
+   ```
+
+#### Focus Areas
+
+Specify improvement focus with `--focus`:
+
+- `clarity`: Enhance clarity and specificity
+- `completeness`: Add comprehensive details
+- `creativity`: Make prompts more engaging
+- `technical`: Optimize for technical accuracy
+
+```bash
+python examples/prompt_improver.py -i --focus technical
 ```
 
-3. **Techniques Without Parameters**
-```python
-chain.add_techniques([
-    "step_by_step",           # Step-by-step reasoning
-    "chain_of_thought",       # Multiple-step reasoning
-    "iterative_refinement",   # Progressive improvement
-    "contrarian_perspective", # Challenge common beliefs
-    "react"                  # Reason-Act-Observe process
-])
+##### Focus Area Details
+
+Each focus area comes with specific improvement criteria:
+
+1. **Clarity** (`--focus clarity`):
+   ```text
+   - Eliminate ambiguity
+   - Use precise language
+   - Provide clear examples
+   - Structure information logically
+   - Define unfamiliar terms or acronyms
+   - Use active voice for direct instructions
+   - Prioritize key information first
+   - Specify the intended audience's knowledge level
+   - Include visual/spatial descriptors for technical prompts
+   - Use consistent terminology throughout
+   ```
+
+2. **Completeness** (`--focus completeness`):
+   ```text
+   - Add missing requirements
+   - Include edge cases
+   - Specify constraints
+   - Define success criteria
+   - Anticipate and address potential misinterpretations
+   - Add validation criteria for outputs
+   - Specify required data sources/materials
+   - Include time/scope boundaries
+   - Define acceptable abstraction levels
+   - Add fallback options for ambiguous situations
+   - Require progress checkpoints for multi-step tasks
+   ```
+
+3. **Creativity** (`--focus creativity`):
+   ```text
+   - Add interesting scenarios
+   - Include thought-provoking elements
+   - Encourage innovative thinking
+   - Balance creativity with practicality
+   - Incorporate metaphorical frameworks
+   - Add constraints to spark ingenuity
+   - Request multiple alternative solutions
+   - Include cross-domain inspiration sources
+   - Use narrative/storytelling elements
+   - Add "what-if" hypothetical modifiers
+   - Encourage redefinition of problem boundaries
+   ```
+
+4. **Technical** (`--focus technical`):
+   ```text
+   - Add technical specifications
+   - Include implementation details
+   - Specify input/output formats
+   - Define error handling requirements
+   - Include performance benchmarks/metrics
+   - Specify security/privacy requirements
+   - Define compatibility constraints
+   - Add versioning/update considerations
+   - Include failure mode analysis
+   - Specify testing/validation protocols
+   - Define documentation requirements
+   - Add resource optimization targets
+   ```
+
+Example using focus with other options:
+```bash
+# Improve a prompt with technical focus and human evaluation
+python examples/prompt_improver.py -i \
+    --focus technical \
+    --mode human \
+    --verbose
+
+# Read from clipboard and improve for clarity
+python examples/prompt_improver.py -c \
+    --focus clarity \
+    --max-iterations 5
+
+# Pipe content and improve for completeness
+cat prompt.txt | python examples/prompt_improver.py \
+    --focus completeness \
+    --mode continuous
 ```
 
-#### Validation Rules
+#### Additional Options
 
-The library enforces strict validation for technique usage:
+- `--max-iterations`: Set maximum improvement iterations (default: 5)
+- `--verbose`: Show detailed improvement process
 
-1. **Required Parameters**
-```python
-# ❌ This will raise an error
-chain.add_techniques(["role_playing"])  
-# Error: Technique 'role_playing' requires a profession/role parameter.
+#### Complete Example
 
-# ✅ This is correct
-chain.add_techniques(["role_playing:quantum physicist"])
+```bash
+# Interactive mode with technical focus, human evaluation, and verbose output
+python examples/prompt_improver.py -i \
+    --mode human \
+    --focus technical \
+    --max-iterations 3 \
+    --verbose
 ```
 
-2. **Optional Parameters**
-```python
-# ✅ Both are valid
-chain.add_techniques(["few_shot"])         # Uses default
-chain.add_techniques(["few_shot:3"])       # Uses specified number
-```
+#### Requirements
 
-3. **No Parameters**
-```python
-# ⚠️ This will show a warning
-chain.add_techniques(["step_by_step:detailed"])  
-# Warning: Technique 'step_by_step' doesn't use parameters
-
-# ✅ This is correct
-chain.add_techniques(["step_by_step"])
-```
-
-#### Examples
-
-1. **Expert Analysis Chain**
-```python
-chain = PromptChain(
-    models=["openai/gpt-4"],
-    instructions=["Analyze this topic: {input}"]
-)
-
-chain.add_techniques([
-    "role_playing:data scientist",
-    "step_by_step",
-    "tree_of_thought:3"
-])
-
-result = chain.process_prompt("Analyze customer churn patterns")
-```
-
-2. **Creative Writing Chain**
-```python
-chain = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],
-    instructions=["Write a story about: {input}"]
-)
-
-chain.add_techniques([
-    "style_mimicking:Ernest Hemingway",
-    "forbidden_words:very,really,quite",
-    "context_expansion:emotional"
-])
-
-story = chain.process_prompt("A fisherman's last voyage")
-```
-
-3. **Problem-Solving Chain**
-```python
-chain = PromptChain(
-    models=["openai/gpt-4"],
-    instructions=[
-        "Analyze the problem: {input}",
-        "Generate solutions: {input}"
-    ]
-)
-
-chain.add_techniques([
-    "persona_emulation:Systems Engineer",
-    "react",
-    "comparative_answering:5",
-    "tree_of_thought:3"
-])
-
-solution = chain.process_prompt("Optimize server response times")
-```
-
-4. **Educational Content Chain**
-```python
-chain = PromptChain(
-    models=["openai/gpt-4"],
-    instructions=["Explain this concept: {input}"]
-)
-
-chain.add_techniques([
-    "role_playing:professor",
-    "few_shot:3",
-    "step_by_step",
-    "context_expansion:historical"
-])
-
-explanation = chain.process_prompt("Quantum entanglement")
-```
-
-#### Best Practices
-
-1. **Combine Techniques Thoughtfully**
-   - Mix different types of techniques for better results
-   - Consider how techniques complement each other
-   - Don't overload with too many techniques
-
-2. **Parameter Usage**
-   - Use specific, relevant parameters
-   - Keep parameters concise and clear
-   - Test different parameter values
-
-3. **Validation Awareness**
-   - Always provide parameters for required techniques
-   - Use optional parameters when more specificity is needed
-   - Remove parameters from techniques that don't use them
+For clipboard support:
+- macOS: Uses built-in `pbpaste`
+- Linux: Requires `xclip`
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install xclip
+  
+  # CentOS/RHEL
+  sudo yum install xclip
+  ```
 
 ## Future Roadmap
 
@@ -1145,3 +1177,360 @@ result = chain.process_prompt(multimodal_input)
 - **Error Handling**: Implement robust error handling within the preprocessing function to manage different input types and potential processing errors.
 
 - **Performance**: Consider the performance implications of processing large or complex media files, and optimize the preprocessing function accordingly.
+
+## Prompt Engineering Tools
+
+### Interactive Prompt Improver
+
+The package includes a powerful command-line tool for iteratively improving prompts. Located at `examples/prompt_improver.py`, this tool provides multiple ways to input and improve prompts with different focus areas.
+
+#### Basic Usage
+
+```bash
+# Improve a simple prompt
+python examples/prompt_improver.py "Write a story about space exploration"
+
+# Use interactive mode for multiline prompts
+python examples/prompt_improver.py -i
+
+# Read prompt from clipboard
+python examples/prompt_improver.py -c
+```
+
+#### Input Methods
+
+1. **Interactive Mode** (`-i` or `--interactive`):
+   - Enter multiline prompts directly
+   - Use Ctrl+D (Unix) or Ctrl+Z (Windows) to finish input
+   ```bash
+   python examples/prompt_improver.py -i
+   ```
+
+2. **Clipboard Mode** (`-c` or `--clipboard`):
+   - Read prompt directly from system clipboard
+   - Supports pbpaste (macOS) and xclip (Linux)
+   ```bash
+   python examples/prompt_improver.py -c
+   ```
+
+3. **Direct Input**:
+   - Pass prompt as command line argument
+   ```bash
+   python examples/prompt_improver.py "Your prompt here"
+   ```
+
+4. **Pipe Input**:
+   - Pipe content from another command
+   ```bash
+   pbpaste | python examples/prompt_improver.py
+   ```
+
+#### Improvement Modes
+
+1. **LLM Evaluation** (default):
+   ```bash
+   python examples/prompt_improver.py -i --mode llm
+   ```
+
+2. **Human Evaluation**:
+   ```bash
+   python examples/prompt_improver.py -i --mode human
+   ```
+
+3. **Continuous Improvement** (no evaluation):
+   ```bash
+   python examples/prompt_improver.py -i --mode continuous
+   ```
+
+#### Focus Areas
+
+Specify improvement focus with `--focus`:
+
+- `clarity`: Enhance clarity and specificity
+- `completeness`: Add comprehensive details
+- `creativity`: Make prompts more engaging
+- `technical`: Optimize for technical accuracy
+
+```bash
+python examples/prompt_improver.py -i --focus technical
+```
+
+##### Focus Area Details
+
+Each focus area comes with specific improvement criteria:
+
+1. **Clarity** (`--focus clarity`):
+   ```text
+   - Eliminate ambiguity
+   - Use precise language
+   - Provide clear examples
+   - Structure information logically
+   - Define unfamiliar terms or acronyms
+   - Use active voice for direct instructions
+   - Prioritize key information first
+   - Specify the intended audience's knowledge level
+   - Include visual/spatial descriptors for technical prompts
+   - Use consistent terminology throughout
+   ```
+
+2. **Completeness** (`--focus completeness`):
+   ```text
+   - Add missing requirements
+   - Include edge cases
+   - Specify constraints
+   - Define success criteria
+   - Anticipate and address potential misinterpretations
+   - Add validation criteria for outputs
+   - Specify required data sources/materials
+   - Include time/scope boundaries
+   - Define acceptable abstraction levels
+   - Add fallback options for ambiguous situations
+   - Require progress checkpoints for multi-step tasks
+   ```
+
+3. **Creativity** (`--focus creativity`):
+   ```text
+   - Add interesting scenarios
+   - Include thought-provoking elements
+   - Encourage innovative thinking
+   - Balance creativity with practicality
+   - Incorporate metaphorical frameworks
+   - Add constraints to spark ingenuity
+   - Request multiple alternative solutions
+   - Include cross-domain inspiration sources
+   - Use narrative/storytelling elements
+   - Add "what-if" hypothetical modifiers
+   - Encourage redefinition of problem boundaries
+   ```
+
+4. **Technical** (`--focus technical`):
+   ```text
+   - Add technical specifications
+   - Include implementation details
+   - Specify input/output formats
+   - Define error handling requirements
+   - Include performance benchmarks/metrics
+   - Specify security/privacy requirements
+   - Define compatibility constraints
+   - Add versioning/update considerations
+   - Include failure mode analysis
+   - Specify testing/validation protocols
+   - Define documentation requirements
+   - Add resource optimization targets
+   ```
+
+Example using focus with other options:
+```bash
+# Improve a prompt with technical focus and human evaluation
+python examples/prompt_improver.py -i \
+    --focus technical \
+    --mode human \
+    --verbose
+
+# Read from clipboard and improve for clarity
+python examples/prompt_improver.py -c \
+    --focus clarity \
+    --max-iterations 5
+
+# Pipe content and improve for completeness
+cat prompt.txt | python examples/prompt_improver.py \
+    --focus completeness \
+    --mode continuous
+```
+
+#### Additional Options
+
+- `--max-iterations`: Set maximum improvement iterations (default: 5)
+- `--verbose`: Show detailed improvement process
+
+#### Complete Example
+
+```bash
+# Interactive mode with technical focus, human evaluation, and verbose output
+python examples/prompt_improver.py -i \
+    --mode human \
+    --focus technical \
+    --max-iterations 3 \
+    --verbose
+```
+
+#### Requirements
+
+For clipboard support:
+- macOS: Uses built-in `pbpaste`
+- Linux: Requires `xclip`
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install xclip
+  
+  # CentOS/RHEL
+  sudo yum install xclip
+  ```
+
+### Chain Breakers
+
+Chain breakers allow you to interrupt the prompt chain processing when certain conditions are met. This is useful for:
+
+- Stopping on error conditions
+- Halting when confidence is too low
+- Limiting output length
+- Validating domain-specific data
+- Detecting quality issues
+
+```python
+from promptchain.utils.promptchaining import PromptChain
+
+# Define a chain breaker function
+def break_on_keywords(step: int, output: str):
+    """Break the chain if specific keywords are found in the output."""
+    keywords = ["error", "invalid", "cannot", "impossible"]
+    
+    for keyword in keywords:
+        if keyword.lower() in output.lower():
+            return (
+                True,  # Yes, break the chain
+                f"Keyword '{keyword}' detected in output",  # Reason
+                f"CHAIN INTERRUPTED: The process was stopped because '{keyword}' was detected."  # Modified output
+            )
+    
+    # If no keywords found, continue the chain
+    return (False, "", None)
+
+# Create a chain with the breaker
+chain = PromptChain(
+    models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+    instructions=[
+        "Analyze this problem: {input}",
+        "Propose solutions for this problem: {input}"
+    ],
+    chainbreakers=[break_on_keywords]  # Add the chain breaker
+)
+
+result = chain.process_prompt("How to implement a perpetual motion machine?")
+```
+
+#### Creating Factory Functions for Configurable Chain Breakers
+
+You can create factory functions that return configured chain breakers:
+
+```python
+def break_after_steps(max_steps: int):
+    """Create a chainbreaker that stops after a specific number of steps."""
+    def _breaker(step: int, output: str):
+        if step >= max_steps:
+            return (
+                True,  # Yes, break the chain
+                f"Maximum step count reached ({max_steps})",  # Reason
+                output  # Keep the original output
+            )
+        return (False, "", None)
+    
+    return _breaker
+
+# Use the factory function to create a breaker that stops after 2 steps
+chain = PromptChain(
+    models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229", "openai/gpt-4"],
+    instructions=[
+        "Step 1: Outline a story about: {input}",
+        "Step 2: Develop the characters: {input}",
+        "Step 3: Write the first chapter: {input}"
+    ],
+    chainbreakers=[break_after_steps(2)]  # Only run first 2 steps
+)
+```
+
+#### Using Multiple Chain Breakers
+
+You can use multiple chain breakers together:
+
+```python
+chain = PromptChain(
+    models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+    instructions=[
+        "Analyze this data: {input}",
+        "Make predictions based on the analysis: {input}"
+    ],
+    chainbreakers=[
+        break_on_keywords,
+        break_on_low_confidence,
+        break_on_length(max_length=1000)
+    ]
+)
+```
+
+#### Breaking on Functions
+
+You can also create chainbreakers that specifically target function steps in your chain:
+
+```python
+# Define a chainbreaker that stops when a specific function is encountered
+def break_on_function(function_name: str):
+    """Create a chainbreaker that stops when a specific function is encountered."""
+    def _breaker(step: int, output: str, step_info: dict = None) -> Tuple[bool, str, Any]:
+        # Check if step_info is provided and contains function information
+        if step_info and step_info.get('type') == 'function':
+            # Get the function name from the step info
+            current_function = step_info.get('function_name', '')
+            
+            # Check if this is the function we want to break on
+            if current_function == function_name:
+                return (
+                    True,  # Yes, break the chain
+                    f"Function '{function_name}' encountered",  # Reason
+                    output  # Keep the original output
+                )
+        
+        return (False, "", None)
+    
+    return _breaker
+
+# Define a chainbreaker that stops when a function output meets a condition
+def break_on_function_condition(condition_func):
+    """Create a chainbreaker that stops when a function output meets a condition."""
+    def _breaker(step: int, output: str, step_info: dict = None) -> Tuple[bool, str, Any]:
+        # Only check function steps
+        if step_info and step_info.get('type') == 'function':
+            # Check if the condition is met
+            if condition_func(output, step_info):
+                return (
+                    True,  # Yes, break the chain
+                    "Function condition met",  # Reason
+                    output  # Keep the original output
+                )
+        
+        return (False, "", None)
+    
+    return _breaker
+
+# Example usage with functions
+def analyze_sentiment(text: str) -> str:
+    """Analyze sentiment of text."""
+    # Sentiment analysis logic here
+    return f"Sentiment Analysis: The text has a positive sentiment."
+
+# Define a condition: break if sentiment is negative
+def negative_sentiment_condition(output: str, step_info: dict) -> bool:
+    return "negative sentiment" in output.lower()
+
+# Create a chain with function chainbreakers
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=[
+        "Write a review of: {input}",
+        analyze_sentiment,  # Function that might trigger the break
+        "Provide recommendations based on the review: {input}"
+    ],
+    chainbreakers=[
+        break_on_function("analyze_sentiment"),  # Break on specific function
+        break_on_function_condition(negative_sentiment_condition)  # Break on condition
+    ]
+)
+```
+
+This allows you to:
+- Stop processing when specific functions are encountered
+- Break the chain based on function output conditions
+- Implement domain-specific validation logic
+- Create complex decision trees in your processing flow
+
+See `examples/chainbreaker_examples.py` for more detailed examples of chain breakers.

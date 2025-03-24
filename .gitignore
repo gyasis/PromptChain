@@ -6,3 +6,9 @@ logs
 ingestors
 examples
 experiments
+__pycache__
+rag_logs
+memory-bank
+.cursorrules
+.cursor
+tests
