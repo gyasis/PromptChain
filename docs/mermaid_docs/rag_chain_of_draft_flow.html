@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RAG Chain of Draft Flow - Improved</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        .diagram-container {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            margin-bottom: 2rem;
+        }
+        .info-card {
+            margin-bottom: 1.5rem;
+        }
+        .legend-item {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            margin: 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-4 text-center">RAG-Enhanced Chain of Draft Flow</h1>
+                <p class="lead text-center text-muted">Improved Sequential Logic with Validation</p>
+            </div>
+        </div>
+
+        <!-- Info Cards -->
+        <div class="row mb-4">
+            <!-- Key Features -->
+            <div class="col-md-6">
+                <div class="card info-card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">Key Features</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">✨ Each draft has isolated context</li>
+                            <li class="list-group-item">🔗 Questions tightly coupled to drafts</li>
+                            <li class="list-group-item">🔄 Sequential processing prevents pollution</li>
+                            <li class="list-group-item">✅ Built-in validation checks</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- Process Stats -->
+            <div class="col-md-6">
+                <div class="card info-card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">Process Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">⚡ Average processing time: 2-3s per draft</li>
+                            <li class="list-group-item">📊 Similarity threshold: 0.15 - 0.8</li>
+                            <li class="list-group-item">🔄 Max retries per question: 3</li>
+                            <li class="list-group-item">📝 Draft word limit: 5</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagram -->
+        <div class="diagram-container p-4">
+            <div class="mermaid">
+            graph TB
+                %% Initial Problem Processing
+                Input[User Input Problem] --> InitialRAG[Initial RAG Context Retrieval]
+                Input --> DraftCount[Determine Draft Count]
+                
+                %% Draft Generation with Initial Context
+                InitialRAG --> DraftGen[Draft Generation]
+                DraftCount --> DraftGen
+                DraftGen --> Drafts[Generated Drafts]
+                
+                %% Mirror Process for Each Draft
+                subgraph MirrorProcess [Mirror Process - Sequential for Each Draft]
+                    direction TB
+                    Drafts --> |For each draft| DraftNode[Current Draft]
+                    
+                    subgraph DraftProcessing [Draft-Specific Processing]
+                        direction TB
+                        DraftNode --> DraftRAG[Get Draft-Specific RAG Context]
+                        
+                        subgraph QAGeneration [Question & Answer Generation]
+                            direction TB
+                            DraftRAG --> |Use draft content + context| MirrorQ[Generate Mirror Question]
+                            DraftRAG --> |Same context| ValidateQ[Validate Question Relevance]
+                            ValidateQ --> |If relevant| MirrorA[Generate Answer]
+                            ValidateQ --> |If not relevant| Retry[Retry Question Generation]
+                            Retry --> MirrorQ
+                        end
+                    end
+                end
+                
+                %% Results Compilation
+                MirrorProcess --> CompileResults[Compile Draft Results]
+                CompileResults --> FinalValidation[Validate All Q&A Pairs]
+                FinalValidation --> Display[Display Enhanced Output]
+                
+                %% Styling
+                classDef process fill:#f9f,stroke:#333,stroke-width:2px
+                classDef data fill:#bbf,stroke:#333,stroke-width:2px
+                classDef rag fill:#bfb,stroke:#333,stroke-width:2px
+                classDef validation fill:#ffb,stroke:#333,stroke-width:2px
+                
+                class Input,Display,Drafts,DraftNode data
+                class DraftCount,DraftGen,MirrorQ,MirrorA process
+                class InitialRAG,DraftRAG rag
+                class ValidateQ,FinalValidation validation
+            </div>
+
+            <!-- Legend -->
+            <div class="mt-4">
+                <h5 class="text-muted mb-3">Legend</h5>
+                <div class="legend-item" style="background-color: #bbf">Data Nodes</div>
+                <div class="legend-item" style="background-color: #f9f">Process Nodes</div>
+                <div class="legend-item" style="background-color: #bfb">RAG Operations</div>
+                <div class="legend-item" style="background-color: #ffb">Validation Steps</div>
+            </div>
+        </div>
+
+        <!-- Timing Information -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Process Timing</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Time</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>t=0</td>
+                                <td>Initial Input</td>
+                                <td>Problem received and RAG context retrieval starts</td>
+                            </tr>
+                            <tr>
+                                <td>t=1</td>
+                                <td>Draft Planning</td>
+                                <td>Context retrieved and draft count determined</td>
+                            </tr>
+                            <tr>
+                                <td>t=2</td>
+                                <td>Draft Generation</td>
+                                <td>Initial drafts created with context</td>
+                            </tr>
+                            <tr>
+                                <td>t=3 to n</td>
+                                <td>Mirror Processing</td>
+                                <td>Sequential processing of each draft</td>
+                            </tr>
+                            <tr>
+                                <td>t=n+1</td>
+                                <td>Compilation</td>
+                                <td>Results gathered and validated</td>
+                            </tr>
+                            <tr>
+                                <td>t=n+2</td>
+                                <td>Output</td>
+                                <td>Final enhanced output displayed</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+    
+    <!-- Mermaid Initialization -->
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html> 

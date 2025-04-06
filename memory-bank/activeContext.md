@@ -14,14 +14,17 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Refining the core PromptChain class implementation
    - Enhancing function injection capabilities
    - Improving chainbreaker logic
+   - Expanding PromptEngineer configuration options
 
 2. **Integration Examples**: 
    - Developing examples for major agent frameworks (AutoGen, LangChain, CrewAI)
    - Creating specialized prompt templates for common agent tasks
+   - Implementing comprehensive prompt improvement techniques
 
 3. **Documentation**: 
    - Documenting the API and usage patterns
    - Creating examples and tutorials
+   - Comprehensive documentation of PromptEngineer parameters and techniques
 
 4. **Multimodal Processing**:
    - Enhancing the multimodal_ingest.py implementation
@@ -31,21 +34,28 @@ The PromptChain project is focused on building a flexible prompt engineering lib
 
 ## Recent Changes
 
-1. **Core Implementation**:
+1. **PromptEngineer Enhancements**:
+   - Added comprehensive documentation for command line parameters
+   - Implemented configurable model parameters (temperature, max_tokens, etc.)
+   - Added support for multiple improvement techniques
+   - Created focus areas for targeted prompt enhancement
+   - Improved interactive mode functionality
+
+2. **Core Implementation**:
    - Implemented the primary PromptChain class in `promptchain/utils/promptchaining.py`
    - Added support for multiple model providers through LiteLLM
    - Implemented function injection, history tracking, and chainbreakers
 
-2. **Support Utilities**:
+3. **Support Utilities**:
    - Added logging utilities in `logging_utils.py`
    - Created prompt loading functionality in `prompt_loader.py`
 
-3. **Project Structure**:
+4. **Project Structure**:
    - Established core package structure
    - Created initial examples and test directories
    - Set up development environment with requirements
 
-4. **Ingestors Implementation**:
+5. **Ingestors Implementation**:
    - Developed specialized ingestors for different content types:
      - ArXiv papers (`arxiv.py`)
      - Web content (`crawler.py`, `singlepage_advanced.py`)
@@ -54,20 +64,20 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Created `multimodal_ingest.py` for handling various content types
    - Implemented Gemini integration for multimedia processing
 
-5. **Dynamic Chain Execution**:
+6. **Dynamic Chain Execution**:
    - Implemented three execution modes (serial, parallel, independent)
    - Added group-based chain organization
    - Created execution group management
    - Added parallel execution support
    - Enhanced chain merging capabilities
 
-6. **Documentation Updates**:
+7. **Documentation Updates**:
    - Created comprehensive examples documentation
    - Updated system patterns documentation
    - Added best practices and common patterns
    - Documented parallel execution patterns
 
-7. **Core Implementation**:
+8. **Core Implementation**:
    - Enhanced DynamicChainBuilder class
    - Added execution mode validation
    - Implemented group-based execution

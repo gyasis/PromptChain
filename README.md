@@ -279,11 +279,6 @@ analysis_chain = PromptChain(
 result = analysis_chain.process_prompt("Impact of quantum computing on cryptography")
 ```
 
-This approach helps:
-- Keep prompts organized and reusable
-- Make instructions more detailed and structured
-- Maintain consistent formatting across chain steps
-- Improve readability of chain definitions
 
 ### Loading Prompts from Files
 You can organize complex prompts in markdown files:
@@ -373,14 +368,6 @@ analysis_chain = PromptChain(
     full_history=True
 )
 ```
-
-Benefits of this approach:
-- Organize prompts in a clear directory structure
-- Use markdown formatting for better readability
-- Version control your prompts
-- Share and reuse prompts across projects
-- Easier collaboration on prompt development
-- Support for prompt documentation and metadata
 
 ### Automatic Prompt Loading
 The system can automatically load prompts from the prompts directory structure:
@@ -793,38 +780,6 @@ Check the `src/examples/` directory for complete examples:
 - `mixed_params_example.py`: Mixed default and custom parameters
 - `chain_examples.py`: Various chain configurations
 
-## API Key Setup
-
-There are two ways to set up your API keys:
-
-### 1. Using .env File (Recommended)
-
-1. Copy the sample environment file:
-```bash
-cp .env.sample .env
-```
-
-2. Edit .env and add your API keys:
-```env
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-# Add other API keys as needed
-```
-
-3. The keys will be automatically loaded when you run the application
-
-### 2. Setting Keys Programmatically
-
-You can also set API keys during runtime:
-
-```python
-import os
-os.environ["OPENAI_API_KEY"] = "your_key_here"
-os.environ["ANTHROPIC_API_KEY"] = "your_key_here"
-
-# Then create your chain
-chain = PromptChain(...)
-```
 
 ### Available API Keys
 
@@ -1003,11 +958,6 @@ for step_num in range(len(chain.step_outputs)):
     print(f"Step {step_num}: {step_data['type']}")
 ```
 
-This approach:
-- Returns only the final result for efficiency
-- Stores step outputs for later reference
-- Allows selective access to intermediate results
-- Maintains clean API while preserving history
 
 ### Listing Available Prompts
 You can list all available prompts and their categories:
@@ -1201,102 +1151,7 @@ python examples/prompt_improver.py -c
    python examples/prompt_improver.py -i --mode continuous
    ```
 
-#### Focus Areas
-
-Specify improvement focus with `--focus`:
-
-- `clarity`: Enhance clarity and specificity
-- `completeness`: Add comprehensive details
-- `creativity`: Make prompts more engaging
-- `technical`: Optimize for technical accuracy
-
-```bash
-python examples/prompt_improver.py -i --focus technical
-```
-
-##### Focus Area Details
-
-Each focus area comes with specific improvement criteria:
-
-1. **Clarity** (`--focus clarity`):
-   ```text
-   - Eliminate ambiguity
-   - Use precise language
-   - Provide clear examples
-   - Structure information logically
-   - Define unfamiliar terms or acronyms
-   - Use active voice for direct instructions
-   - Prioritize key information first
-   - Specify the intended audience's knowledge level
-   - Include visual/spatial descriptors for technical prompts
-   - Use consistent terminology throughout
-   ```
-
-2. **Completeness** (`--focus completeness`):
-   ```text
-   - Add missing requirements
-   - Include edge cases
-   - Specify constraints
-   - Define success criteria
-   - Anticipate and address potential misinterpretations
-   - Add validation criteria for outputs
-   - Specify required data sources/materials
-   - Include time/scope boundaries
-   - Define acceptable abstraction levels
-   - Add fallback options for ambiguous situations
-   - Require progress checkpoints for multi-step tasks
-   ```
-
-3. **Creativity** (`--focus creativity`):
-   ```text
-   - Add interesting scenarios
-   - Include thought-provoking elements
-   - Encourage innovative thinking
-   - Balance creativity with practicality
-   - Incorporate metaphorical frameworks
-   - Add constraints to spark ingenuity
-   - Request multiple alternative solutions
-   - Include cross-domain inspiration sources
-   - Use narrative/storytelling elements
-   - Add "what-if" hypothetical modifiers
-   - Encourage redefinition of problem boundaries
-   ```
-
-4. **Technical** (`--focus technical`):
-   ```text
-   - Add technical specifications
-   - Include implementation details
-   - Specify input/output formats
-   - Define error handling requirements
-   - Include performance benchmarks/metrics
-   - Specify security/privacy requirements
-   - Define compatibility constraints
-   - Add versioning/update considerations
-   - Include failure mode analysis
-   - Specify testing/validation protocols
-   - Define documentation requirements
-   - Add resource optimization targets
-   ```
-
-Example using focus with other options:
-```bash
-# Improve a prompt with technical focus and human evaluation
-python examples/prompt_improver.py -i \
-    --focus technical \
-    --mode human \
-    --verbose
-
-# Read from clipboard and improve for clarity
-python examples/prompt_improver.py -c \
-    --focus clarity \
-    --max-iterations 5
-
-# Pipe content and improve for completeness
-cat prompt.txt | python examples/prompt_improver.py \
-    --focus completeness \
-    --mode continuous
-```
-
+#
 #### Additional Options
 
 - `--max-iterations`: Set maximum improvement iterations (default: 5)
@@ -1493,3 +1348,7 @@ This allows you to:
 - Create complex decision trees in your processing flow
 
 See `examples/chainbreaker_examples.py` for more detailed examples of chain breakers.
+
+### Circular Processing
+
+For detailed documentation on using circular processing patterns in PromptChain, see `docs/circular_runs.md`. This feature allows you to create iterative refinement loops by feeding chain outputs back into the beginning of the chain.

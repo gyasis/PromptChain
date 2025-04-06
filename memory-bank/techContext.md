@@ -14,6 +14,7 @@ tags: []
 2. **LiteLLM**: For abstracting calls to various LLM providers
 3. **Pydantic**: For data validation and settings management
 4. **Python-dotenv**: For environment variable management
+5. **PromptEngineer**: For advanced prompt improvement and optimization
 
 ### LLM Provider Support
 
@@ -177,4 +178,46 @@ PromptChain can integrate with various agent frameworks:
 3. **Error Handling**:
    - Implement proper error handling for API failures
    - Consider fallback models or retry strategies
-   - Cache intermediate results for long chains when possible 
+   - Cache intermediate results for long chains when possible
+
+## PromptEngineer Configuration
+
+### Command Line Parameters
+```bash
+# Basic usage
+python -m promptchain.utils.prompt_engineer --initial-prompt "Your prompt" --techniques "chain_of_thought,step_by_step"
+
+# With model configuration
+python -m promptchain.utils.prompt_engineer \
+    --evaluator-model '{"name": "openai/gpt-4", "params": {"temperature": 0.7}}' \
+    --improver-model '{"name": "anthropic/claude-3", "params": {"max_tokens": 1000}}'
+```
+
+### Available Techniques
+
+1. **Required Parameter Techniques**:
+   - `role_playing`: Adopts specific personas for responses
+   - `style_mimicking`: Imitates particular writing styles
+   - `persona_emulation`: Emulates specific character traits
+   - `forbidden_words`: Excludes specified terms
+
+2. **Optional Parameter Techniques**:
+   - `few_shot`: Uses examples for better understanding
+   - `reverse_prompting`: Works backwards from desired output
+   - `context_expansion`: Broadens context consideration
+   - `comparative_answering`: Evaluates multiple approaches
+   - `tree_of_thought`: Explores multiple reasoning paths
+
+3. **No-Parameter Techniques**:
+   - `step_by_step`: Breaks down complex tasks
+   - `chain_of_thought`: Shows reasoning process
+   - `iterative_refinement`: Gradually improves output
+   - `contrarian_perspective`: Considers opposing views
+   - `react`: Combines reasoning and actions
+
+### Focus Areas
+- `clarity`: Improve prompt clarity and specificity
+- `completeness`: Ensure all requirements are covered
+- `task_alignment`: Align output with intended task
+- `output_quality`: Enhance quality of generated content
+- `general`: Overall improvement across all aspects 
