@@ -10,12 +10,87 @@ from rich.markdown import Markdown
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.style import Style
+import sys
 
 # Load environment variables
 load_dotenv()
 
 # Initialize rich console
 console = Console()
+
+# Initialize argument parser
+parser = argparse.ArgumentParser(description='Prompt Engineering Tool')
+parser.add_argument('--techniques',
+                   type=str,
+                   nargs='+',
+                   default=[],
+                   help='''Space-separated list of techniques to apply. Use --interactive for guided selection.
+Available techniques:
+
+Required parameters:
+- role_playing:profession      (e.g., role_playing:scientist)
+- style_mimicking:author      (e.g., style_mimicking:Richard Feynman)
+- persona_emulation:expert    (e.g., persona_emulation:Warren Buffett)
+- forbidden_words:words       (e.g., forbidden_words:maybe,probably,perhaps)
+
+Optional parameters:
+- few_shot:[examples]         (number of examples)
+- reverse_prompting:[questions] (number of questions)
+- context_expansion:[type]    (context type)
+- comparative_answering:[aspects] (aspects to compare)
+- tree_of_thought:[paths]     (number of paths)
+
+No parameters:
+- step_by_step               (step-by-step reasoning)
+- chain_of_thought          (detailed thought process)
+- iterative_refinement      (iterative improvement)
+- contrarian_perspective    (challenge common beliefs)
+- react                     (reason-act-observe process)
+
+Multiple techniques can be combined. Example:
+--techniques role_playing:scientist step_by_step few_shot:3''')
+parser.add_argument('--feedback',
+                   type=str,
+                   default='llm',
+                   choices=['llm', 'human'],
+                   help='Type of feedback to use (llm or human)')
+parser.add_argument('--max-iterations',
+                   type=int,
+                   default=3,
+                   help='Maximum number of improvement iterations')
+parser.add_argument('--verbose',
+                   action='store_true',
+                   help='Enable verbose output')
+parser.add_argument('--task',
+                   type=str,
+                   help='Task description for prompt creation')
+parser.add_argument('--initial-prompt',
+                   type=str,
+                   help='Initial prompt to improve. Use "-" to read from stdin')
+parser.add_argument('--evaluator-model',
+                   type=str,
+                   help='Model to use for evaluation')
+parser.add_argument('--improver-model',
+                   type=str,
+                   help='Model to use for improvements')
+parser.add_argument('--test',
+                   action='store_true',
+                   help='Enable prompt testing')
+parser.add_argument('--test-inputs',
+                   type=str,
+                   nargs='+',
+                   help='Test inputs for prompt testing')
+parser.add_argument('--focus',
+                   type=str,
+                   default='all',
+                   choices=['clarity', 'completeness', 'task_alignment', 'output_quality', 'all'],
+                   help='Focus area for improvements')
+parser.add_argument('-i', '--interactive',
+                   action='store_true',
+                   help='Use interactive mode to select techniques and parameters')
+parser.add_argument('--output-file',
+                   type=str,
+                   help='File to save the final prompt to')
 
 def display_final_prompt(prompt: str):
     """Display the final prompt in a rich formatted panel."""
@@ -765,45 +840,20 @@ def get_interactive_techniques():
     
     return selected_techniques, config
 
+# Add stdin support
+def read_stdin_if_dash(value):
+    """Read from stdin if value is '-'"""
+    if value == '-':
+        return sys.stdin.read().strip()
+    return value
+
 # Example usage
 if __name__ == "__main__":
-    parser.add_argument('--techniques',
-                       type=str,
-                       nargs='+',
-                       default=[],
-                       help='''Additional techniques to apply. Use --interactive for guided selection.
-Available techniques:
-
-Required parameters:
-- role_playing:profession      (e.g., role_playing:scientist)
-- style_mimicking:author      (e.g., style_mimicking:Richard Feynman)
-- persona_emulation:expert    (e.g., persona_emulation:Warren Buffett)
-- forbidden_words:words       (e.g., forbidden_words:maybe,probably,perhaps)
-
-Optional parameters:
-- few_shot:[examples]         (number of examples)
-- reverse_prompting:[questions] (number of questions)
-- context_expansion:[type]    (context type)
-- comparative_answering:[aspects] (aspects to compare)
-- tree_of_thought:[paths]     (number of paths)
-
-No parameters:
-- step_by_step               (step-by-step reasoning)
-- chain_of_thought          (detailed thought process)
-- iterative_refinement      (iterative improvement)
-- contrarian_perspective    (challenge common beliefs)
-- react                     (reason-act-observe process)
-
-Multiple techniques can be combined. Example:
---techniques role_playing:scientist step_by_step few_shot:3''')
-    parser.add_argument('-i', '--interactive',
-                       action='store_true',
-                       help='Use interactive mode to select techniques and parameters')
-    parser.add_argument('--output-file',
-                       type=str,
-                       help='File to save the final prompt to')
-    
     args = parser.parse_args()
+    
+    # Handle stdin for initial prompt
+    if args.initial_prompt:
+        args.initial_prompt = read_stdin_if_dash(args.initial_prompt)
     
     # If interactive mode is selected, get techniques interactively
     if args.interactive:
