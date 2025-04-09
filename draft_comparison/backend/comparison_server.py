@@ -5,6 +5,7 @@ import signal
 import sys
 import os
 import logging
+import socket
 from ..examples.chain_of_draft_comparison import ChainOfDraftComparison
 
 # Configure logging
@@ -16,10 +17,23 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def find_available_port(start_port, max_attempts=100):
+    """Find the next available port starting from start_port."""
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', port))
+                return port
+        except OSError:
+            continue
+    raise RuntimeError(f"Could not find an available port after {max_attempts} attempts")
+
 class ComparisonServer:
-    def __init__(self):
+    def __init__(self, start_port=8765):
         self.comparison = ChainOfDraftComparison()
         self.stop_event = asyncio.Event()
+        self.port = None
+        self.start_port = start_port
 
     async def handle_message(self, websocket):
         """Handle incoming WebSocket messages."""
@@ -89,9 +103,10 @@ class ComparisonServer:
 
     async def start(self):
         """Start the WebSocket server."""
-        async with websockets.serve(self.handle_message, "localhost", 8765):
-            logger.info("server listening on 127.0.0.1:8765")
-            print("Comparison server running at ws://localhost:8765")
+        self.port = find_available_port(self.start_port)
+        async with websockets.serve(self.handle_message, "localhost", self.port):
+            logger.info(f"server listening on 127.0.0.1:{self.port}")
+            print(f"Comparison server running at ws://localhost:{self.port}")
             await self.stop_event.wait()  # Wait until stop event is set
 
 if __name__ == '__main__':

@@ -580,3 +580,127 @@ python -m promptchain.utils.prompt_engineer \
     --initial-prompt "Base prompt to improve" \
     --feedback human
 ```
+
+## Protected Content Features
+
+When engineering prompts that include code, technical examples, or formatting instructions, you often need to preserve specific content exactly as it is. The `PromptEngineer` provides two methods to protect content from modifications during the improvement process.
+
+### Protection Methods
+
+| Method | Syntax | Use Case | Example |
+|--------|--------|----------|---------|
+| Triple Backticks | <code>```language<br>content<br>```</code> | Code blocks, SQL queries, data samples | <code>```sql<br>SELECT * FROM users<br>```</code> |
+| Variable Protection | `${n}content${n}` | Formatting instructions, specific terms | `${1}bold text${1}` |
+
+### Using Triple Backticks Protection
+
+Triple backticks protection is ideal for preserving code snippets, SQL queries, or other technical content:
+
+```python
+# Create a prompt with protected SQL query
+prompt = """
+Please optimize this SQL query:
+
+```sql
+WITH RankedQuestions AS (
+  SELECT 
+    pcw.PATIENTID,
+    q.questionnaire_type
+  FROM table_name
+  WHERE condition = true
+)
+```
+
+The query should be more efficient by:
+1. Reducing unnecessary JOINs
+2. Optimizing the WHERE clause
+"""
+
+# The SQL code between backticks will be preserved exactly
+engineer = PromptEngineer(protect_content=True)
+improved_prompt = engineer.create_specialized_prompt(prompt)
+```
+
+### Using Variable Protection
+
+Variable protection uses `${n}content${n}` syntax to preserve formatting instructions or other specific content:
+
+```python
+prompt = """
+Create a mini-lesson with the answer in ${1}bold${1} text
+and the explanation in ${2}italics${2}.
+
+Example:
+Question: What is photosynthesis?
+Answer: ${3}The process by which plants convert light energy to chemical energy${3}
+"""
+
+# The ${n}...${n} markers will be preserved
+engineer = PromptEngineer(protect_content=True)
+improved_prompt = engineer.create_specialized_prompt(prompt)
+```
+
+### Combining Both Methods
+
+You can use both protection methods in the same prompt:
+
+```python
+prompt = """
+Create documentation for this code:
+
+```python
+def calculate_bmi(weight_kg, height_m):
+    return weight_kg / (height_m ** 2)
+```
+
+Include examples formatted in ${1}table format${1} with
+results highlighted in ${2}bold${2}.
+"""
+```
+
+### Enabling/Disabling Protection
+
+Protection is enabled by default but can be controlled through several methods:
+
+#### In Code
+
+```python
+# Enabled (default)
+engineer = PromptEngineer(protect_content=True)
+
+# Disabled
+engineer = PromptEngineer(protect_content=False)
+```
+
+#### Command Line
+
+```bash
+# Enabled (default)
+python -m promptchain.utils.prompt_engineer --initial-prompt "prompt.txt"
+
+# Explicitly enabled
+python -m promptchain.utils.prompt_engineer --protect-content --initial-prompt "prompt.txt"
+
+# Disabled
+python -m promptchain.utils.prompt_engineer --no-protect-content --initial-prompt "prompt.txt"
+```
+
+#### Interactive Mode
+
+In interactive mode, select option 13 to toggle protected content on or off.
+
+### How It Works
+
+The protection system:
+1. Detects protected content (triple backticks or variable markers)
+2. Temporarily replaces this content with unique markers
+3. Instructs the AI model not to modify these markers
+4. Restores the original content after prompt improvement
+5. Preserves the exact formatting and structure of protected content
+
+This feature is especially valuable for:
+- SQL queries and database examples
+- Code snippets that must remain syntactically valid
+- Technical examples with precise formatting
+- Medical or scientific notation that must be preserved exactly
+- Formatting instructions (bold, italic, etc.) that should remain intact

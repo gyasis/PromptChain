@@ -1,6 +1,6 @@
 """A module for iterative prompt engineering with meta-evaluation."""
 
-from typing import List, Dict, Union, Callable, Optional
+from typing import List, Dict, Union, Callable, Optional, Any, Tuple
 from promptchain.utils.promptchaining import PromptChain
 from dotenv import load_dotenv
 import argparse
@@ -11,6 +11,7 @@ from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.style import Style
 import sys
+import re
 
 # Load environment variables
 load_dotenv()
@@ -91,6 +92,14 @@ parser.add_argument('-i', '--interactive',
 parser.add_argument('--output-file',
                    type=str,
                    help='File to save the final prompt to')
+parser.add_argument('--protect-content',
+                   action='store_true',
+                   default=True,
+                   help='Protect content between triple backticks from modification')
+parser.add_argument('--no-protect-content',
+                   action='store_false',
+                   dest='protect_content',
+                   help='Disable protection of content between triple backticks')
 
 def display_final_prompt(prompt: str):
     """Display the final prompt in a rich formatted panel."""
@@ -105,350 +114,226 @@ def display_final_prompt(prompt: str):
     # Return the prompt instead of exiting
     return prompt
 
-class PromptEngineer:
-    # Generic prompt for continuous improvement
-    GENERIC_IMPROVEMENT_PROMPT = """│                                                                                                                                                                                                                                   │
-│  Your task is to evaluate and improve given prompt by assessing its clarity and effectiveness. Follow these improved steps:                                                                                                                 │
-│                                                                                                                                                                                                                                   │
-│   1 Define the Objective: Clearly state what the prompt aims to accomplish.                                                                                                                                                       │
-│   2 Assess Positives: Identify what the prompt does well, such as clarity and engagement.                                                                                                                                         │
-│   3 Identify Areas for Improvement: Note where the prompt lacks clarity or effectiveness.                                                                                                                                         │
-│   4 Consider Scenarios for Use: List situations where the prompt would excel and where it may face challenges.                                                                                                                    │
-│   5 Enhance the Prompt: Rewrite it to maintain its strengths and address identified weaknesses.                                                                                                                                   │
-│   6 Conclude Your Analysis:                                                                                                                                                                                                       │
-│      • Summarize the initial prompt briefly.                                                                                                                                                                                      │
-│      • Outline positives and areas needing enhancement.                                                                                                                                                                           │
-│      • Discuss suitable scenarios and limitations.                                                                                                                                                                                │
-│      • Provide the refined prompt with an explanation of its improvements.                                                                                                                                                        │
-│     
+class PromptEvaluator:
+    """Evaluates and improves prompts based on specific techniques."""
+    
+    def __init__(self, model: str):
+        self.model = model
+        self.techniques = []
+    
+    def add_techniques(self, techniques: List[str]):
+        """Add evaluation techniques to use."""
+        self.techniques = techniques
+    
+    def evaluate(self, prompt: str) -> dict:
+        """Evaluate a prompt using the configured techniques."""
+        evaluation = {
+            'score': 0,
+            'suggestions': []
+        }
+        
+        for technique in self.techniques:
+            if technique == "step_by_step":
+                if "step" not in prompt.lower() and "first" not in prompt.lower():
+                    evaluation['suggestions'].append("Add step-by-step instructions")
+                    
+            elif technique.startswith("comparative_answering:"):
+                aspect = technique.split(":")[1]
+                if aspect not in prompt.lower():
+                    evaluation['suggestions'].append(f"Add comparison criteria for {aspect}")
+                    
+            elif technique.startswith("forbidden_words:"):
+                words = technique.split(":")[1].split(",")
+                found_words = [word for word in words if word in prompt.lower()]
+                if found_words:
+                    evaluation['suggestions'].append(f"Remove ambiguous words: {', '.join(found_words)}")
+        
+        evaluation['score'] = max(0, 5 - len(evaluation['suggestions']))
+        return evaluation
 
-    This is the prompt to modify and improve:                                                                                                                                                                                                                               │
-│     """
+class PromptEngineer:
+    """Engineers better prompts through iterative improvement."""
 
     def __init__(self, 
                  max_iterations: int = 3,
-                 use_human_evaluation: bool = False,
-                 verbose: bool = False):
-        """
-        Initialize the PromptEngineer.
-        
-        Args:
-            max_iterations: Maximum number of improvement iterations
-            use_human_evaluation: Whether to use human evaluation instead of LLM
-            verbose: Whether to print detailed output
-        """
+                 verbose: bool = False,
+                 evaluator_model: str = "openai/gpt-4",
+                 protect_content: bool = True):
         self.max_iterations = max_iterations
-        self.use_human_evaluation = use_human_evaluation
         self.verbose = verbose
+        self.evaluator = PromptEvaluator(evaluator_model)
+        self.protect_content = protect_content
         
-        # Initialize the evaluation chain with simple pass/fail evaluation
-        self.evaluator = PromptChain(
-            models=["anthropic/claude-3-sonnet-20240229"],
-            instructions=["""Evaluate if this prompt is acceptable or needs improvement.
-Consider:
-1. Clarity: Are the instructions clear and specific?
-2. Completeness: Are all necessary guidelines included?
-3. Task Alignment: Does it match the intended task?
-4. Output Quality: Will it generate high quality outputs?
-
-Respond with either:
-PASS: [Brief explanation why it's acceptable]
-or
-FAIL: [List specific improvements needed]
-
-Prompt to evaluate: {input}"""],
-            store_steps=True
-        )
+    def _extract_protected_content(self, text: str) -> Tuple[str, Dict[str, str]]:
+        """
+        Extract content between triple backticks and replace with placeholders.
         
-        self.evaluator.add_techniques([
-            "role_playing:prompt engineering expert"
-        ])
+        Args:
+            text: The input text to process
+            
+        Returns:
+            Tuple containing:
+                - Modified text with placeholders
+                - Dictionary mapping placeholders to original content
+        """
+        # Only process if triple backticks are present
+        if '```' not in text and not any(f"${{{i}}}" in text for i in range(1, 100)) and not self.protect_content:
+            return text, {}
+            
+        protected_sections = {}
+        counter = 0
         
-        # Initialize the improvement chain with a more structured improvement prompt
-        self.improver = PromptChain(
-            models=["openai/gpt-4o"],
-            instructions=["""You are a prompt engineering expert. Your task is to improve the given prompt based on specific feedback.
-
-IMPORTANT: Do NOT change the core purpose or domain of the prompt. Maintain the original intent and subject matter.
-
-Current Prompt:
-{input}
-
-Follow these steps to improve the prompt:
-1. Understand the original prompt's purpose and domain
-2. Apply the specific feedback provided
-3. Make targeted improvements while preserving the original intent
-4. Return ONLY the improved prompt without explanations
-
-The improved prompt should be clearly formatted and ready to use.
-
-Feedback to address:
-"""],
-            store_steps=True
-        )
+        # First, handle triple backticks
+        def replace_backticks(match):
+            nonlocal counter
+            # Create a unique variable name (not visible in text)
+            variable_name = f"__PROTECTED_CONTENT_{counter}__"
+            protected_sections[variable_name] = match.group(1)
+            counter += 1
+            # Return a special marker that won't appear naturally in text
+            return f"__CONTENT_MARKER_{counter-1}__"
         
-        self.improver.add_techniques([
-            "role_playing:prompt engineer"
-        ])
-
-    def get_human_evaluation(self, prompt: str) -> tuple[bool, str]:
-        """Get evaluation from human user."""
+        # Extract content between triple backticks
+        modified_text = re.sub(r'```(.*?)```', replace_backticks, text, flags=re.DOTALL)
+        
+        # Handle explicit variable protection like ${1}, ${2}, etc.
+        def replace_variables(match):
+            var_id = match.group(1)
+            var_content = match.group(2)
+            variable_name = f"__PROTECTED_VAR_{var_id}__"
+            protected_sections[variable_name] = var_content
+            return f"__VAR_MARKER_{var_id}__"
+            
+        # Look for ${n}content${n} patterns
+        modified_text = re.sub(r'\${(\d+)}(.*?)\${(\1)}', replace_variables, modified_text, flags=re.DOTALL)
+        
+        if self.verbose and protected_sections:
+            print(f"Protected {len(protected_sections)} content blocks")
+            
+        return modified_text, protected_sections
+    
+    def _restore_protected_content(self, text: str, protected_sections: Dict[str, str]) -> str:
+        """
+        Restore protected content from placeholders.
+        
+        Args:
+            text: Text with placeholders
+            protected_sections: Dictionary mapping placeholders to original content
+            
+        Returns:
+            Text with original content restored
+        """
+        if not protected_sections:
+            return text
+            
+        result = text
+        
+        # Restore backtick content
+        for i, (variable_name, content) in enumerate(protected_sections.items()):
+            if variable_name.startswith("__PROTECTED_CONTENT_"):
+                marker = f"__CONTENT_MARKER_{i}__"
+                # Replace marker with original content wrapped in backticks
+                result = result.replace(marker, f"```{content}```")
+            elif variable_name.startswith("__PROTECTED_VAR_"):
+                var_id = variable_name.split("_")[3].rstrip("__")
+                marker = f"__VAR_MARKER_{var_id}__"
+                # Replace marker with original content (no wrapping)
+                result = result.replace(marker, content)
+            
         if self.verbose:
-            print("\n=== Current Prompt ===")
-            print(prompt)
-            print("\n=== Evaluation Options ===")
-            print("1: Accept prompt (PASS)")
-            print("2: Request improvements (FAIL)")
+            print(f"Restored {len(protected_sections)} protected content blocks")
+            
+        return result
         
-        while True:
-            choice = input("\nEnter your choice (1 or 2): ").strip()
-            if choice == "1":
-                # Return PASS result without exiting
-                return True, "PASS: Prompt accepted by human evaluator."
-            elif choice == "2":
+    def create_specialized_prompt(self, base_prompt: str) -> str:
+        """
+        Create a specialized prompt through iterative improvement.
+        
+        Args:
+            base_prompt: The starting prompt to improve
+            
+        Returns:
+            The improved prompt
+        """
+        # Handle protected content if enabled
+        current_prompt, protected_sections = self._extract_protected_content(base_prompt)
+            
+        best_score = 0
+        best_prompt = current_prompt
+        
+        for i in range(self.max_iterations):
+            # Evaluate current prompt
+            evaluation = self.evaluator.evaluate(current_prompt)
+            
+            if self.verbose:
+                print(f"\nIteration {i+1}:")
+                print(f"Current score: {evaluation['score']}")
+                print("Suggestions:", evaluation['suggestions'])
+            
+            # If perfect score or no suggestions, restore protected content and return
+            if evaluation['score'] == 5 or not evaluation['suggestions']:
+                return self._restore_protected_content(current_prompt, protected_sections)
+            
+            # If this is the best score so far, save it
+            if evaluation['score'] > best_score:
+                best_score = evaluation['score']
+                best_prompt = current_prompt
+            
+            # Create improvement chain with protection awareness
+            improvement_chain = PromptChain(
+                models=[self.evaluator.model],
+                instructions=[
+                    f"""
+                    Improve this prompt based on the following suggestions.
+                    Return ONLY the improved prompt without any introductory text or explanations.
+                    Do NOT start with phrases like 'Here is' or 'The improved prompt'.
+                    
+                    {"IMPORTANT: Do NOT modify any content marked with __CONTENT_MARKER_X__ or __VAR_MARKER_X__." if protected_sections else ""}
+                    
+                    Suggestions to address:
+                    {evaluation['suggestions']}
+                    
+                    Current prompt:
+                    {current_prompt}
+                    """
+                ],
+                verbose=self.verbose
+            )
+            
+            # Get improved version and handle different result formats
+            try:
+                result = improvement_chain.process_prompt("")
+                
+                # Handle different result formats
+                if isinstance(result, dict):
+                    current_prompt = result.get('output', '')
+                elif isinstance(result, list) and result:
+                    current_prompt = result[-1].get('output', '') if isinstance(result[-1], dict) else str(result[-1])
+                else:
+                    current_prompt = str(result)
+                
+                # Strip any unwanted prefix text
+                common_prefixes = [
+                    "here is the improved prompt:",
+                    "here is the improved version:",
+                    "the improved prompt:",
+                    "improved prompt:",
+                    "here's the improved prompt:"
+                ]
+                
+                result_lower = current_prompt.lower()
+                for prefix in common_prefixes:
+                    if result_lower.startswith(prefix):
+                        current_prompt = current_prompt[len(prefix):].strip()
+                        break
+                        
+            except Exception as e:
                 if self.verbose:
-                    print("\n=== Improvement Suggestions ===")
-                    print("Please enter your suggestions for improving the prompt.")
-                    print("Consider:")
-                    print("- Clarity of instructions")
-                    print("- Completeness of guidelines")
-                    print("- Task alignment")
-                    print("- Output quality")
-                print("\nEnter your suggestions below:")
-                feedback = input("> ").strip()
-                while not feedback:
-                    print("Please provide some suggestions for improvement:")
-                    feedback = input("> ").strip()
-                return False, f"FAIL: {feedback}"
-            else:
-                print("Invalid choice. Please enter 1 or 2.")
-
-    def create_specialized_prompt(self, task_description: str) -> str:
-        """
-        Create and iteratively improve a specialized prompt for a given task.
+                    print(f"Error in improvement iteration {i+1}: {str(e)}")
+                continue
         
-        Args:
-            task_description: Description of the task to create a prompt for
-            
-        Returns:
-            The final optimized prompt
-        """
-        # Initial prompt creation chain
-        creator = PromptChain(
-            models=[
-                "anthropic/claude-3-sonnet-20240229",
-                "openai/gpt-4o-mini",
-            ],
-            instructions=[
-                """Analyze this task and identify:
-                    - Key capabilities needed
-                    - Constraints and requirements
-                    - Expected input/output formats
-                    - Edge cases to handle
-
-                    Task to analyze: {input}""",
-                                    
-                                    """Create a specialized prompt based on the analysis:
-                    - Include clear instructions
-                    - Specify constraints and guidelines
-                    - Define expected output format
-                    - Add relevant examples
-                    - Include error handling guidance
-
-                    Analysis: {input}"""
-            ],
-            full_history=False,  # Don't store history
-            store_steps=False    # Don't store steps
-        )
-        
-        creator.add_techniques([
-            "role_playing:task analyst",
-            "role_playing:prompt engineer"
-        ])
-        
-        # Generate initial prompt
-        result = creator.process_prompt(task_description)
-        current_prompt = result[-1]['output'] if isinstance(result, list) else result
-        
-        if self.verbose:
-            print("\n=== Initial Prompt ===")
-            print(current_prompt)
-        
-        # Iterative improvement loop
-        for iteration in range(self.max_iterations):
-            if self.verbose and not iteration == 0:
-                print(f"\n=== Iteration {iteration + 1} ===")
-            
-            # Get evaluation (either human or LLM)
-            if self.use_human_evaluation:
-                passed, evaluation = self.get_human_evaluation(current_prompt)
-                if passed:
-                    # Display final prompt in rich format and exit
-                    return display_final_prompt(current_prompt)
-            else:
-                evaluation = self.evaluator.process_prompt(current_prompt)
-                passed = evaluation.startswith("PASS:")
-                if passed:
-                    # Display final prompt in rich format and exit
-                    return display_final_prompt(current_prompt)
-            
-            if self.verbose:
-                print("\nEvaluation:")
-                print(evaluation)
-            
-            # Extract improvement feedback
-            feedback = evaluation.replace("FAIL:", "").strip()
-            
-            if self.verbose:
-                print("\nImproving prompt based on feedback...")
-            
-            # Improve the prompt with the feedback
-            # Construct a complete input with both the prompt and feedback
-            improvement_input = f"""Current Prompt:
-{current_prompt}
-
-Feedback to address:
-{feedback}"""
-            
-            # Process the improvement
-            improved = self.improver.process_prompt(improvement_input)
-            current_prompt = improved[-1]['output'] if isinstance(improved, list) else improved
-        
-        # Display final prompt in rich format if max iterations reached
-        return display_final_prompt(current_prompt)
-
-    def test_prompt(self, prompt: str, test_inputs: List[str]) -> Dict:
-        """
-        Test a prompt with multiple inputs and evaluate consistency.
-        
-        Args:
-            prompt: The prompt to test
-            test_inputs: List of test inputs
-            
-        Returns:
-            Evaluation results
-        """
-        # Create test chain
-        tester = PromptChain(
-            models=["openai/gpt-4o-mini"] * len(test_inputs),
-            instructions=[prompt] * len(test_inputs),
-            store_steps=True
-        )
-        
-        tester.add_techniques([
-            "role_playing:test executor"
-        ])
-        
-        # Generate outputs for all test inputs
-        outputs = []
-        for input_text in test_inputs:
-            tester.reset_model_index()
-            result = tester.process_prompt(input_text)
-            output = result[-1]['output'] if isinstance(result, list) else result
-            outputs.append(output)
-        
-        if self.use_human_evaluation:
-            print("\n=== Test Outputs ===")
-            for i, (input_text, output) in enumerate(zip(test_inputs, outputs), 1):
-                print(f"\nTest {i}:")
-                print("Input:", input_text)
-                print("Output:", output)
-            
-            passed, feedback = self.get_human_evaluation("\n".join(outputs))
-            return {
-                "passed": passed,
-                "feedback": feedback.replace("PASS:", "").replace("FAIL:", "").strip(),
-                "outputs": outputs
-            }
-        
-        # Use LLM evaluation
-        consistency_evaluator = PromptChain(
-            models=["anthropic/claude-3-sonnet-20240229"],
-            instructions=["""Evaluate if these outputs are consistently high quality.
-                            Consider:
-                            1. Format Consistency
-                            2. Style Consistency
-                            3. Quality Consistency
-                            4. Logic Consistency
-
-                            Respond with either:
-                            PASS: [Brief explanation of consistency]
-                            or
-                            FAIL: [List specific consistency issues]
-
-                            Test Inputs:
-                            {input}
-
-                            Generated Outputs:
-                            {outputs}"""],
-            store_steps=True
-        )
-        
-        consistency_evaluator.add_techniques([
-            "role_playing:consistency evaluator"
-        ])
-        
-        consistency_evaluator.reset_model_index()
-        
-        # Evaluate consistency
-        evaluation = consistency_evaluator.process_prompt(
-            f"Test Inputs: {test_inputs}\n\nOutputs: {outputs}"
-        )
-        
-        return {
-            "passed": evaluation.startswith("PASS:"),
-            "feedback": evaluation.replace("PASS:", "").replace("FAIL:", "").strip(),
-            "outputs": outputs
-        }
-
-    def improve_prompt_continuously(self, initial_prompt: str) -> str:
-        """
-        Continuously improve a prompt using the improvement prompt without human evaluation.
-        
-        Args:
-            initial_prompt: The initial prompt to improve
-            
-        Returns:
-            The final improved prompt after max_iterations
-        """
-        current_prompt = initial_prompt
-        
-        if self.verbose:
-            print("\n=== Initial Prompt ===")
-            print(current_prompt)
-        
-        # Iterative improvement loop
-        for iteration in range(self.max_iterations):
-            if self.verbose:
-                print(f"\n=== Iteration {iteration + 1} ===")
-            
-            # Improve the prompt using the improvement prompt
-            result = self.improver.process_prompt(current_prompt)
-            
-            # Extract the final prompt from the structured output
-            output = result[-1]['output'] if isinstance(result, list) else result
-            
-            # Try to extract the improved prompt using various methods
-            # Method 1: Look for tags
-            start_tag = "<final_prompt>"
-            end_tag = "</final_prompt>"
-            start_idx = output.find(start_tag)
-            end_idx = output.find(end_tag)
-            
-            if start_idx != -1 and end_idx != -1:
-                # Extract the prompt between tags
-                current_prompt = output[start_idx + len(start_tag):end_idx].strip()
-            else:
-                # Method 2: If no tags, use the entire output as the improved prompt
-                # This assumes the model followed instructions to return only the improved prompt
-                current_prompt = output.strip()
-            
-            if self.verbose:
-                print("\nImproved Prompt:")
-                print(current_prompt)
-        
-        # Return the final prompt
-        return current_prompt
+        # Return the best prompt with protected content restored
+        return self._restore_protected_content(best_prompt, protected_sections)
 
 def get_interactive_techniques():
     """Interactive prompt for selecting techniques and their parameters."""
@@ -659,11 +544,12 @@ def get_interactive_techniques():
             console.print("10. Test inputs")
             console.print("11. Focus area")
             console.print("12. Output file")
-            console.print("13. Back to main menu")
+            console.print("13. Protected content")
+            console.print("14. Back to main menu")
             
-            choice = Prompt.ask("Choose setting to configure", choices=[str(i) for i in range(1, 14)])
+            choice = Prompt.ask("Choose setting to configure", choices=[str(i) for i in range(1, 15)])
             
-            if choice == "13":
+            if choice == "14":
                 break
                 
             if choice == "1":
@@ -718,6 +604,11 @@ def get_interactive_techniques():
                 )
             elif choice == "12":
                 config["output_file"] = Prompt.ask("Enter output file path", default=config["output_file"] or "")
+            elif choice == "13":
+                config["protect_content"] = Confirm.ask(
+                    "Enable protection of content between triple backticks?",
+                    default=config.get("protect_content", True)
+                )
 
     # Show current status
     if selected_techniques:
@@ -868,21 +759,18 @@ if __name__ == "__main__":
     # Initialize prompt engineer with command line arguments
     engineer = PromptEngineer(
         max_iterations=args.max_iterations,
-        use_human_evaluation=(args.feedback == 'human'),
-        verbose=args.verbose
+        verbose=args.verbose,
+        evaluator_model=args.evaluator_model if args.evaluator_model else "openai/gpt-4",
+        protect_content=args.protect_content
     )
     
     # Override default models if specified
     if args.evaluator_model:
-        engineer.evaluator.models = [args.evaluator_model]
-    
-    if args.improver_model:
-        engineer.improver.models = [args.improver_model]
+        engineer.evaluator.model = args.evaluator_model
     
     # Apply additional techniques
     if args.techniques:
         engineer.evaluator.add_techniques(args.techniques)
-        engineer.improver.add_techniques(args.techniques)
     
     # Example task if not provided
     task = args.task if args.task else """Create a prompt for an AI agent that helps users analyze financial data.
@@ -895,28 +783,15 @@ if __name__ == "__main__":
     if args.verbose:
         print(f"\nUsing {'human' if args.feedback == 'human' else 'LLM'} feedback")
         print(f"Maximum iterations: {args.max_iterations}")
+        print(f"Protected content: {'enabled' if args.protect_content else 'disabled'}")
     
     # Process based on mode
     if args.initial_prompt:
         # Improve existing prompt
-        optimized_prompt = engineer.improve_prompt_continuously(args.initial_prompt)
+        optimized_prompt = engineer.create_specialized_prompt(args.initial_prompt)
     else:
         # Create specialized prompt and exit when accepted
         optimized_prompt = engineer.create_specialized_prompt(task)
-    
-    # Test prompt if requested
-    if args.test and args.test_inputs:
-        test_results = engineer.test_prompt(optimized_prompt, args.test_inputs)
-        if args.verbose:
-            print("\n=== Test Results ===")
-            print(f"Passed: {test_results['passed']}")
-            print(f"Feedback: {test_results['feedback']}")
-            
-            print("\n=== Test Outputs ===")
-            for i, (input_text, output) in enumerate(zip(args.test_inputs, test_results['outputs']), 1):
-                print(f"\nTest {i}:")
-                print("Input:", input_text)
-                print("Output:", output)
     
     # Save to output file if specified
     if args.output_file:

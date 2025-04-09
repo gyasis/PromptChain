@@ -1,10 +1,24 @@
-from litellm import completion
+from litellm import completion, acompletion
 import os
-from typing import Union, Callable, List, Literal, Dict, Optional
+from typing import Union, Callable, List, Literal, Dict, Optional, Any
 from dotenv import load_dotenv
 import inspect
 from pydantic import BaseModel, Field, validator
 from enum import Enum
+import json
+import asyncio
+from contextlib import AsyncExitStack
+
+# Try importing MCP components, handle gracefully if not installed
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    ClientSession = None # Define dummy types for annotations if MCP not available
+    StdioServerParameters = None
+    stdio_client = None
 
 # Load environment variables from .env file
 load_dotenv("../../.env")
@@ -20,7 +34,7 @@ class ChainStep(BaseModel):
     step: int
     input: str
     output: str
-    type: Literal["initial", "model", "function"]
+    type: Literal["initial", "model", "function", "mcp_tool"]
 
 class PromptChain:
     def __init__(self, models: List[Union[str, dict]], 
@@ -28,7 +42,8 @@ class PromptChain:
                  full_history: bool = False,
                  store_steps: bool = False,
                  verbose: bool = False,
-                 chainbreakers: List[Callable] = None):
+                 chainbreakers: List[Callable] = None,
+                 mcp_servers: Optional[List[Dict[str, Any]]] = None):
         """
         Initialize the PromptChain with optional step storage and verbose output.
 
@@ -41,6 +56,8 @@ class PromptChain:
         :param chainbreakers: List of functions that can break the chain if conditions are met
                              Each function should take (step_number, current_output) and return
                              (should_break: bool, break_reason: str, final_output: Any)
+        :param mcp_servers: Optional list of MCP server configurations.
+                            Each dict should have 'id', 'type' ('stdio' supported), and type-specific args (e.g., 'script_path').
         """
         self.verbose = verbose
         # Extract model names and parameters
@@ -76,18 +93,95 @@ class PromptChain:
         self.store_steps = store_steps
         self.step_outputs = {}
         self.chainbreakers = chainbreakers or []
+        self.tools = []  # Combined list of local and MCP tool schemas (prefixed for MCP)
+        self.tool_functions = {} # Local Python functions map
+        self.mcp_servers = mcp_servers or []
+        self.mcp_sessions: Dict[str, ClientSession] = {} # Maps server_id to MCP session
+        # Maps prefixed_tool_name -> {'original_schema': ..., 'server_id': ...}
+        self.mcp_tools_map: Dict[str, Dict[str, Any]] = {}
+        # Initialize exit_stack conditionally
+        self.exit_stack = AsyncExitStack() if MCP_AVAILABLE and self.mcp_servers else None
         self.reset_model_index()
+
+        if self.mcp_servers and not MCP_AVAILABLE:
+            print("Warning: mcp_servers configured but 'mcp' library not installed. MCP tools will not be available.")
 
     def reset_model_index(self):
         """Reset the model index counter."""
         self.model_index = 0
+
+    def add_tools(self, tools: List[Dict]):
+        """
+        Add LOCAL tool definitions (schemas) that the LLM can call via registered Python functions.
+        These should be in the format expected by litellm (e.g., OpenAI tool format).
+        MCP tools are added separately via discover_mcp_tools after connection.
+
+        :param tools: A list of tool schema dictionaries for LOCAL functions.
+        """
+        # Check for name conflicts with existing local or MCP tools
+        existing_tool_names = set(t['function']['name'] for t in self.tools) | set(self.tool_functions.keys())
+        for tool in tools:
+            tool_name = tool.get("function", {}).get("name")
+            if not tool_name:
+                print("Warning: Skipping tool schema with missing function name.")
+                continue
+            if tool_name in existing_tool_names:
+                 print(f"Warning: Tool name '{tool_name}' conflicts with an existing local or MCP tool. Overwriting/Ignoring depends on registration order.")
+            self.tools.append(tool)
+            existing_tool_names.add(tool_name)
+
+        if self.verbose:
+            print(f"🛠️ Added {len(tools)} local tool schemas.")
+
+    def register_tool_function(self, func: Callable):
+        """
+        Register the Python function that implements a LOCAL tool.
+        The function's __name__ must match the 'name' defined in the tool schema added via add_tools.
+
+        :param func: The callable function implementing the tool.
+        """
+        tool_name = func.__name__
+        # Ensure a schema exists for this function
+        if not any(t.get("function", {}).get("name") == tool_name for t in self.tools):
+             print(f"Warning: Registering function '{tool_name}' but no corresponding schema found in self.tools. Add schema via add_tools().")
+
+        if tool_name in self.tool_functions:
+             print(f"Warning: Overwriting registered local tool function '{tool_name}'")
+        # Check for conflicts with MCP tool names (prefixed) - unlikely but possible
+        if tool_name in self.mcp_tools_map:
+             print(f"Warning: Local function name '{tool_name}' conflicts with a prefixed MCP tool name.")
+
+        self.tool_functions[tool_name] = func
+        if self.verbose:
+            print(f"🔧 Registered local function for tool: {tool_name}")
 
     def is_function(self, instruction: Union[str, Callable]) -> bool:
         """Check if an instruction is actually a function"""
         return callable(instruction)
 
     def process_prompt(self, initial_input: str):
-        """Execute the prompt chain with optional step storage and verbose output."""
+        """
+        Synchronous version of process_prompt.
+        Wraps the async version using asyncio.run() for backward compatibility.
+        """
+        try:
+            return asyncio.run(self.process_prompt_async(initial_input))
+        except RuntimeError as e:
+            if "cannot be called from a running event loop" in str(e):
+                # We're already in an event loop, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(self.process_prompt_async(initial_input))
+                finally:
+                    loop.close()
+            raise
+
+    async def process_prompt_async(self, initial_input: str):
+        """
+        Asynchronous version of process_prompt.
+        This is the main implementation that handles MCP and async operations.
+        """
         # Reset model index at the start of each chain
         self.reset_model_index()
         
@@ -114,48 +208,61 @@ class PromptChain:
                 "output": initial_input
             }
         
+        # Keep track of messages *within* the current chain execution
+        # This is separate from the optional full_history across multiple runs
+        current_messages = [{"role": "user", "content": initial_input}]
+        
         try:
             for step, instruction in enumerate(self.instructions):
+                step_num = step + 1
                 if self.verbose:
                     print("\n" + "-"*50)
-                    print(f"Step {step + 1}:")
+                    print(f"Step {step_num}:")
                     print("-"*50)
                 
+                # Determine input for this step
+                # Note: Tool calling currently uses the latest message content. 
+                # Full history integration with tool calling might need refinement.
                 if self.full_history:
-                    history_text = "\n".join([
+                     # Simplified history for now when full_history is true
+                     # Proper message history building needed for complex tool interactions
+                    history_text = "\n".join(
                         f"Step {entry['step']}: {entry['output']}" 
-                        for entry in chain_history
-                    ])
-                    content_to_process = f"Previous steps:\n{history_text}\n\nCurrent input: {result}"
+                        for entry in chain_history if entry['type'] != 'initial' # Exclude initial input
+                    )
+                    content_to_process = f"Previous steps summary:\n{history_text}\n\nCurrent input: {result}"
+                    # Update current_messages for model call if needed
+                    # For simplicity, we'll use just the latest result as input if history is on.
+                    # A more robust implementation would build a proper message list.
+                    step_input_messages = [{"role": "user", "content": content_to_process}]
+
                 else:
                     content_to_process = result
+                    # Use the latest result as the user message for this step
+                    step_input_messages = [{"role": "user", "content": content_to_process}]
 
-                # Initialize step info dictionary for chainbreakers
-                step_info = {
-                    "step": step + 1,
-                    "input": content_to_process
-                }
+
+                step_type = "unknown" # Initialize step type
+                step_model_params = None # Initialize model params for the step
+                step_output = None # Initialize step output
 
                 # Check if this step is a function or an instruction
                 if self.is_function(instruction):
+                    step_type = "function"
                     if self.verbose:
-                        print(f"\n🔧 Executing Function: {instruction.__name__}")
+                        print(f"\n🔧 Executing Local Function: {instruction.__name__}")
                         print(f"\nInput:\n{content_to_process}")
                     
-                    result = instruction(content_to_process)
-                    step_type = "function"
-                    model_params = None
-                    
-                    # Add function-specific info to step_info
-                    step_info.update({
-                        "type": "function",
-                        "function_name": instruction.__name__,
-                        "function": instruction
-                    })
+                    step_output = instruction(content_to_process)
                     
                     if self.verbose:
-                        print(f"\nOutput:\n{result}")
-                else:
+                        print(f"\nOutput:\n{step_output}")
+                    
+                    # Add function output as an assistant message for the next step
+                    current_messages.append({"role": "assistant", "content": str(step_output)})
+
+                else: # It's a model instruction
+                    step_type = "model"
                     # Load instruction if it's a file path
                     if os.path.isfile(str(instruction)):
                         with open(instruction, 'r') as file:
@@ -164,49 +271,130 @@ class PromptChain:
                     prompt = instruction.replace("{input}", content_to_process)
                     
                     if self.model_index >= len(self.models):
-                        raise IndexError(f"Not enough models provided for instruction at step {step + 1}")
+                        raise IndexError(f"Not enough models provided for instruction at step {step_num}")
                     
                     model = self.models[self.model_index]
-                    model_params = self.model_params[self.model_index]
+                    step_model_params = self.model_params[self.model_index]
                     self.model_index += 1
-                    
-                    result = self.run_model(model, prompt, model_params)
-                    step_type = "model"
-                    
-                    # Add model-specific info to step_info
-                    step_info.update({
-                        "type": "model",
-                        "model": model,
-                        "model_params": model_params,
-                        "prompt": prompt
-                    })
                     
                     if self.verbose:
                         print(f"\n🤖 Using Model: {model}")
-                        if model_params:
-                            print(f"Parameters: {model_params}")
-                        print(f"\nPrompt:\n{instruction.replace('{input}', '...')}")
-                        print(f"\nInput:\n{content_to_process}")
-                        print(f"\nOutput:\n{result}")
+                        if step_model_params:
+                            print(f"Parameters: {step_model_params}")
+                        print(f"\nInstruction Prompt:\n{instruction.replace('{input}', '...')}")
+                        # print(f"\nFull Prompt (Messages):\n{step_input_messages}") # Can be verbose
 
-                # Update step_info with output
-                step_info["output"] = result
 
-                # Add to chain history
+                    # ===== Tool Calling Logic Start =====
+                    # Initial model call
+                    response_message = await self.run_model(
+                        model_name=model, 
+                        messages=step_input_messages, # Use messages constructed for this step
+                        params=step_model_params,
+                        tools=self.tools if self.tools else None, # Pass tools if any
+                        tool_choice="auto" if self.tools else None # Let model decide
+                    )
+
+                    # Append the assistant's response (potentially including tool calls)
+                    current_messages.append(response_message) 
+
+                    # Use getattr for safe access to potential 'tool_calls' attribute
+                    tool_calls = getattr(response_message, 'tool_calls', None)
+
+                    if tool_calls:
+                        if self.verbose:
+                            # Access function name via attributes
+                            print(f"\n🛠️ Model requested tool calls: {[tc.function.name for tc in tool_calls]}")
+                        
+                        # Execute tools and collect results
+                        tool_results_messages = []
+                        for tool_call in tool_calls:
+                            # Access attributes: function.name, function.arguments, id
+                            function_name = tool_call.function.name
+                            function_args_str = tool_call.function.arguments 
+                            tool_call_id = tool_call.id
+
+                            if function_name not in self.tool_functions:
+                                print(f"Error: Tool function '{function_name}' not registered.")
+                                tool_output = f"Error: Tool function '{function_name}' is not available."
+                            else:
+                                try:
+                                    function_to_call = self.tool_functions[function_name]
+                                    # Arguments are often a JSON string
+                                    try:
+                                        function_args = json.loads(function_args_str)
+                                    except json.JSONDecodeError:
+                                         print(f"Error: Could not decode arguments for {function_name}: {function_args_str}")
+                                         tool_output = f"Error: Invalid arguments format for {function_name}."
+                                         function_args = None
+
+                                    if function_args is not None:
+                                        if self.verbose:
+                                            print(f"  - Calling: {function_name}({function_args})")
+                                        tool_output = function_to_call(**function_args)
+                                        if self.verbose:
+                                            print(f"  - Result: {tool_output}")
+                                    
+                                except Exception as e:
+                                    print(f"Error executing tool {function_name}: {e}")
+                                    tool_output = f"Error executing tool {function_name}: {str(e)}"
+
+                            tool_results_messages.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call_id,
+                                "name": function_name,
+                                "content": str(tool_output), # Ensure content is string
+                            })
+                        
+                        # Append tool results to messages
+                        current_messages.extend(tool_results_messages)
+
+                        # Make the second call only if there were actual tool calls that required it.
+                        if self.verbose:
+                                print("\n🔄 Sending tool results back to model...")
+
+                        # Second model call with tool results
+                        final_response_message = await self.run_model(
+                            model_name=model,
+                            messages=current_messages, # Pass the whole conversation including tool calls and results
+                            params=step_model_params,
+                            tools=self.tools, # Pass tools again in case model wants to chain them
+                            tool_choice="auto"
+                        )
+                        # Use getattr for safe access to potential 'content' attribute
+                        step_output = getattr(final_response_message, 'content', '')
+                        current_messages.append(final_response_message) # Add final response to history
+
+                    else: # No tool calls in the initial response
+                         # Use getattr for safe access to potential 'content' attribute
+                        step_output = getattr(response_message, 'content', '')
+                        # No need to append response_message again as it was already appended
+
+
+                    # ===== Tool Calling Logic End =====
+
+                    if self.verbose:
+                        # print(f"\nRaw Model Output Message:\n{response_message}") # Debugging
+                        print(f"\nFinal Output for Step: {step_output}")
+                
+                # Update result for the next step or final output
+                result = step_output
+
+                # Add to chain history (for external review/full_history return)
                 chain_history.append({
-                    "step": step + 1,
-                    "input": content_to_process,
-                    "output": result,
+                    "step": step_num,
+                    "input": content_to_process, # Input *to* the step
+                    "output": result, # Final output *of* the step
                     "type": step_type,
-                    "model_params": model_params if step_type == "model" else None
+                    "model_params": step_model_params if step_type == "model" else None
                 })
 
                 # Store step output if requested
                 if self.store_steps:
-                    self.step_outputs[f"step_{step + 1}"] = {
+                    self.step_outputs[f"step_{step_num}"] = {
                         "type": step_type,
                         "output": result,
-                        "model_params": model_params if step_type == "model" else None
+                        "model_params": step_model_params if step_type == "model" else None
                     }
                 
                 # Check chainbreakers to see if we should stop processing
@@ -215,15 +403,15 @@ class PromptChain:
                     sig = inspect.signature(breaker)
                     if len(sig.parameters) >= 3:
                         # New style breaker with step_info
-                        should_break, break_reason, break_output = breaker(step + 1, result, step_info)
+                        should_break, break_reason, break_output = breaker(step_num, result, step_info)
                     else:
                         # Legacy breaker without step_info
-                        should_break, break_reason, break_output = breaker(step + 1, result)
+                        should_break, break_reason, break_output = breaker(step_num, result)
                     
                     if should_break:
                         if self.verbose:
                             print("\n" + "="*50)
-                            print(f"⛔ Chain Broken at Step {step + 1}: {break_reason}")
+                            print(f"⛔ Chain Broken at Step {step_num}: {break_reason}")
                             print("="*50)
                             if break_output != result:
                                 print("\n📊 Modified Output:")
@@ -238,7 +426,7 @@ class PromptChain:
                             
                             # Update step output if storing steps
                             if self.store_steps:
-                                self.step_outputs[f"step_{step + 1}"]["output"] = result
+                                self.step_outputs[f"step_{step_num}"]["output"] = result
                         
                         # Return early with the current result
                         return result if not self.full_history else chain_history
@@ -246,6 +434,8 @@ class PromptChain:
         except Exception as e:
             if self.verbose:
                 print(f"\n❌ Error in chain processing: {str(e)}")
+            # Add more detailed error context if possible
+            print(f"Error occurred at step {step_num if 'step_num' in locals() else 'unknown'}.") 
             raise
 
         if self.verbose:
@@ -258,22 +448,84 @@ class PromptChain:
         return result if not self.full_history else chain_history
 
     @staticmethod
-    def run_model(model_name: str, prompt: str, params: dict = None) -> str:
-        """Execute model using LiteLLM with custom parameters."""
+    def run_model(model_name: str, messages: List[Dict], params: dict = None,
+                  tools: List[Dict] = None, tool_choice: str = None) -> Dict:
+        """
+        Synchronous version of run_model.
+        Wraps the async version using asyncio.run() for backward compatibility.
+        """
+        try:
+            return asyncio.run(PromptChain.run_model_async(
+                model_name, messages, params, tools, tool_choice
+            ))
+        except RuntimeError as e:
+            if "cannot be called from a running event loop" in str(e):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        PromptChain.run_model_async(
+                            model_name, messages, params, tools, tool_choice
+                        )
+                    )
+                finally:
+                    loop.close()
+            raise
+
+    @staticmethod
+    async def run_model_async(model_name: str, messages: List[Dict], params: dict = None,
+                           tools: List[Dict] = None, tool_choice: str = None) -> Dict:
+        """
+        Asynchronous version of run_model.
+        This is the main implementation that handles async LLM calls.
+        """
         try:
             model_params = {
                 "model": model_name,
-                "messages": [{"content": prompt, "role": "user"}]
+                "messages": messages
             }
             
-            # Add any custom parameters
+            # Add any custom parameters from the chain definition
             if params:
                 model_params.update(params)
+
+            # Add tools if provided
+            if tools:
+                model_params["tools"] = tools
+                if tool_choice:
+                     model_params["tool_choice"] = tool_choice
             
-            response = completion(**model_params)
-            return response['choices'][0]['message']['content']
+            response = await acompletion(**model_params)
+            
+            # Check if response structure is as expected
+            if not response or 'choices' not in response or not response['choices']:
+                # Handle case where response might be streaming chunks if stream=True was used
+                if params and params.get("stream"):
+                     print("Warning: run_model received streaming response chunks. Returning combined content.")
+                     # Attempt to accumulate content from streaming response (basic example)
+                     full_content = ""
+                     async for chunk in response:
+                         content = chunk.choices[0].delta.content
+                         if content:
+                             full_content += content
+                     # Return a simulated message dictionary
+                     return {"role": "assistant", "content": full_content}
+                else:
+                    raise ValueError("Invalid response structure received from LiteLLM.")
+            
+            # Return the full message object which might contain 'content' or 'tool_calls'
+            message = response['choices'][0]['message']
+            return message
+
         except Exception as e:
-            raise Exception(f"Error running model {model_name}: {str(e)}")
+            # Provide more context in the error
+            error_context = f"Error running model {model_name} asynchronously with {len(messages)} messages"
+            if tools:
+                error_context += f" and {len(tools)} tools"
+            error_context += f": {str(e)}"
+            # Consider logging the messages/params/tools here for debugging if needed
+            # print(f"DEBUG: LiteLLM async call failed. Params: {model_params}") 
+            raise Exception(error_context)
 
     def get_step_output(self, step_number: int) -> dict:
         """Retrieve output for a specific step."""
@@ -411,6 +663,125 @@ class PromptChain:
                 if isinstance(instruction, str):
                     self.instructions[i] = instruction.strip() + "\n" + technique_text
 
+    def connect_mcp(self):
+        """
+        Synchronous version of connect_mcp.
+        Wraps the async version using asyncio.run() for backward compatibility.
+        """
+        try:
+            return asyncio.run(self.connect_mcp_async())
+        except RuntimeError as e:
+            if "cannot be called from a running event loop" in str(e):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(self.connect_mcp_async())
+                finally:
+                    loop.close()
+            raise
+
+    async def connect_mcp_async(self):
+        """
+        Asynchronous version of connect_mcp.
+        This is the main implementation that handles MCP connections.
+        """
+        if not MCP_AVAILABLE:
+            if self.mcp_servers: # Only warn if servers were configured
+                 print("Info: MCP library not installed, skipping MCP server connections.")
+            return
+
+        if not self.mcp_servers:
+            if self.verbose:
+                print("🔌 No MCP servers configured.")
+            return
+
+        if self.verbose:
+            print(f"🔌 Connecting to {len(self.mcp_servers)} MCP server(s)...")
+
+        for server_config in self.mcp_servers:
+            server_id = server_config.get("id")
+            server_type = server_config.get("type")
+            # --- Read command, args, env from config --- START
+            command = server_config.get("command")
+            args = server_config.get("args")
+            env = server_config.get("env") # Can be None or a dict
+            # --- Read command, args, env from config --- END
+
+            if not server_id:
+                 print("Warning: Skipping MCP server config with missing 'id'.")
+                 continue
+            if server_id in self.mcp_sessions:
+                 print(f"Warning: Server ID '{server_id}' already connected, skipping duplicate.")
+                 continue
+
+            try:
+                if server_type == "stdio":
+                    # --- Validate stdio specific params --- START
+                    if not command:
+                        print(f"Warning: Skipping stdio server '{server_id}' due to missing 'command'.")
+                        continue
+                    if not args or not isinstance(args, list):
+                         print(f"Warning: Skipping stdio server '{server_id}' due to missing or invalid 'args' (must be a list).")
+                         continue
+                    # Env is optional, defaults handled by StdioServerParameters if None
+                    # --- Validate stdio specific params --- END
+
+                    server_params = StdioServerParameters(
+                        command=command, # Use command from config
+                        args=args,       # Use args list from config
+                        env=env          # Use env from config (can be None)
+                    )
+                    # stdio_client returns (reader, writer)
+                    stdio_transport = await stdio_client(server_params)
+                    # ClientSession takes reader, writer
+                    session = ClientSession(*stdio_transport)
+                    # Use exit stack to manage session lifecycle
+                    await self.exit_stack.enter_async_context(session)
+                    self.mcp_sessions[server_id] = session
+                    if self.verbose:
+                        print(f"  ✅ Connected to MCP server '{server_id}' via stdio (Command: {command} {' '.join(args)})")
+                else:
+                    print(f"Warning: Unsupported MCP server type '{server_type}' for server '{server_id}'.")
+
+            except Exception as e:
+                print(f"Error connecting to MCP server '{server_id}': {e}")
+
+    def close_mcp(self):
+        """
+        Synchronous version of close_mcp.
+        Wraps the async version using asyncio.run() for backward compatibility.
+        """
+        try:
+            return asyncio.run(self.close_mcp_async())
+        except RuntimeError as e:
+            if "cannot be called from a running event loop" in str(e):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(self.close_mcp_async())
+                finally:
+                    loop.close()
+            raise
+
+    async def close_mcp_async(self):
+        """
+        Asynchronous version of close_mcp.
+        This is the main implementation that handles closing MCP connections.
+        """
+        # Check if exit_stack was initialized
+        if not self.exit_stack:
+            if self.verbose:
+                 print("🔌 No MCP connections were established or exit_stack not initialized.")
+            return
+
+        if self.verbose:
+            print("🔌 Closing MCP connections...")
+        # The actual closing happens here
+        await self.exit_stack.aclose()
+        self.mcp_sessions = {}
+        if self.verbose:
+             print("  ✅ MCP connections closed.")
+
 class ChainTechnique(str, Enum):
     NORMAL = "normal"
     HEAD_TAIL = "head-tail"
@@ -449,7 +820,7 @@ class DynamicChainBuilder:
         self.chain_outputs = {}
         self.chain_registry = {}
         self.execution_groups = {}
-        self.memory_bank = {}  # Add memory bank for persistent storage
+        self.memory_bank = {}
         
         # Validate base instruction template
         self._validate_template(base_instruction)

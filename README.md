@@ -190,7 +190,56 @@ prompts = load_prompts()
 analysis_prompt = get_prompt_by_name("ANALYSIS_INITIAL_ANALYSIS")
 ```
 
-## Advanced Usage
+## Advanced Features
+
+### Protected Content
+
+When engineering prompts that include code blocks, SQL queries, or formatting instructions, you can protect specific content from being modified during the improvement process:
+
+#### Triple Backticks Protection
+
+```python
+from promptchain.utils.prompt_engineer import PromptEngineer
+
+prompt = """
+Optimize this SQL query:
+
+```sql
+SELECT * FROM users WHERE active = TRUE
+```
+
+Make it more efficient and readable.
+"""
+
+engineer = PromptEngineer()
+improved_prompt = engineer.create_specialized_prompt(prompt)
+# The SQL query between backticks remains unchanged
+```
+
+#### Variable Protection
+
+```python
+prompt = """
+Create a guide with:
+1. Introduction in normal text
+2. Key facts in ${1}bold text${1}
+3. Statistics in ${2}table format${2}
+"""
+
+# The ${n}...${n} markers remain unchanged
+```
+
+#### Enabling/Disabling Protection
+
+```python
+# Enabled (default)
+engineer = PromptEngineer(protect_content=True)
+
+# Disabled
+engineer = PromptEngineer(protect_content=False)
+```
+
+For more details, see the [Protected Content Tutorial](examples/protected_content_tutorial.py).
 
 ### Function Injection
 You can inject custom processing functions into the chain:
