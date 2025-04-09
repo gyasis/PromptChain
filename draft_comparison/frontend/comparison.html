@@ -564,7 +564,10 @@
         }
 
         function connect() {
-            ws = new WebSocket('ws://localhost:8765');
+            // Get WebSocket port from query parameter or default to 8765
+            const urlParams = new URLSearchParams(window.location.search);
+            const wsPort = urlParams.get('ws_port') || '8765';
+            ws = new WebSocket(`ws://localhost:${wsPort}`);
             
             ws.onopen = () => {
                 statusElem.textContent = 'Connected to server';
