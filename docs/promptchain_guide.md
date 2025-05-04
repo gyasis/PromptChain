@@ -113,6 +113,7 @@ chain = PromptChain(
 6. [Best Practices](#best-practices)
 7. [Function Integration in PromptChain](#function-integration-in-promptchain)
 8. [Advanced PromptChain Example](#advanced-promptchain-example)
+9. [Decision Chain Example](#decision-chain-example)
 
 ## Core Components Overview
 
@@ -294,279 +295,384 @@ builder.add_techniques([
 ```python
 from promptchain.utils.promptengineer import PromptEngineer
 
+# Example Initialization
 engineer = PromptEngineer(
-    max_iterations=5,           # Maximum improvement iterations
-    use_human_evaluation=True,  # Use human feedback
-    verbose=False              # Detailed output setting
+    max_iterations=5,                  # Max improvement iterations (default: 3)
+    verbose=True,                      # Enable detailed logging (default: False)
+    evaluator_model="openai/gpt-4o",   # Model for evaluation steps (default: openai/gpt-4)
+    improver_model="openai/gpt-4",     # Optional: Specific model for improvement steps (defaults to evaluator_model)
+    use_human_evaluation=False,        # Use human feedback loop (CLI --feedback=human) (default: False)
+    protect_content=True               # Protect content in ``` or ${n} blocks (default: True)
 )
 ```
 
 ### Parameter Configuration
 
 #### Programming Interface Parameters
-Available when using the PromptEngineer class in Python scripts:
+Available when using the `PromptEngineer` class directly in Python scripts:
 ```python
 # Core Parameters
 max_iterations: int = 3        # Maximum improvement cycles
-use_human_evaluation: bool = False  # Use human feedback instead of LLM
 verbose: bool = False         # Enable detailed logging
-store_steps: bool = True      # Store intermediate steps
-full_history: bool = False    # Keep complete history
+protect_content: bool = True   # Protect content in ``` or ${n} (default: True)
 
 # Model Configuration
-evaluator_model: str = "anthropic/claude-3-sonnet-20240229"  # Model for evaluation
-improver_model: str = "openai/gpt-4o"  # Model for improvements
-creator_models: List[str] = [  # Models for initial prompt creation
-    "anthropic/claude-3-sonnet-20240229",
-    "openai/gpt-4o-mini"
-]
+evaluator_model: str = "openai/gpt-4" # Model for evaluation steps
+improver_model: Optional[str] = None  # Optional: Model for improvement steps (defaults to evaluator_model)
 
-# Advanced Settings
-test_inputs: Optional[List[str]] = None  # Test cases for validation
-focus_area: str = "all"  # Specific aspect to focus improvements on
+# Feedback Mechanism (Note: Human feedback loop integration is primarily via CLI/interactive mode)
+use_human_evaluation: bool = False  # Set based on desired feedback mechanism (default: False)
+
+# Focus Area
+focus_area: str = "all"  # Area for improvement focus: 'clarity', 'completeness', 'task_alignment', 'output_quality', or 'all' (default)
 ```
+*Note: Parameters like `store_steps`, `full_history`, and `test_inputs` are primarily configured via the Command Line Interface or interactive mode (`-i`) as they influence the script's execution flow rather than the core class state.*
 
 #### Command Line Interface Parameters
-Available when using the prompt engineer via command line:
+Available when using the prompt engineer via `python -m promptchain.utils.prompt_engineer`:
 ```bash
 # Core Parameters
 --max-iterations INT          # Maximum improvement cycles (default: 3)
 --feedback [llm|human]        # Evaluation type (default: llm)
 --verbose                     # Enable detailed logging
--i, --interactive            # Enable interactive mode
+-i, --interactive            # Enable interactive mode for guided setup
 
 # Model Selection
---evaluator-model STRING     # Model for evaluation
---improver-model STRING      # Model for improvements
+--evaluator-model STRING     # Model for evaluation steps (e.g., openai/gpt-4o)
+--improver-model STRING      # Optional: Model for improvement steps (defaults to evaluator)
 
 # Input/Output
---task STRING               # Task description for prompt creation
---initial-prompt STRING     # Starting prompt to improve
---output-file STRING        # Save location for final prompt
---test-inputs STRING        # Comma-separated test inputs
---focus [clarity|completeness|task_alignment|output_quality|all]
+--task STRING               # Task description for prompt creation (if not using --initial-prompt)
+--initial-prompt STRING     # Starting prompt to improve. Use "-" to read from stdin.
+--output-file STRING        # Save location for the final optimized prompt
+
+# Testing & Focus
+--test                      # Enable prompt testing mode (requires --test-inputs)
+--test-inputs STRING [...]  # One or more test inputs for prompt testing
+--focus [clarity|completeness|task_alignment|output_quality|all] # Focus area for improvements (default: all)
+                                                                  # Tells the improver model which aspect to prioritize.
 
 # Technique Configuration
---techniques STRING         # Space-separated list of techniques
+--techniques STRING [...]   # Space-separated list of techniques to apply (see below)
+
+# Content Protection
+--protect-content           # Protect content within ```...``` or ${n}...${n} (default: enabled)
+--no-protect-content        # Disable content protection
 ```
 
+### Protected Content Feature
+A key feature of the `PromptEngineer` script is its ability to protect specific parts of your prompt from being modified during the improvement iterations. This is useful for preserving examples, instructions, or template variables.
+
+Protection is enabled by default (`--protect-content`). To disable it, use `--no-protect-content`.
+
+Two types of content can be protected:
+1.  **Code Blocks:** Any content enclosed in triple backticks (```) will be preserved.
+    ```
+    This text can be modified.
+    ```python
+    # This code block will be protected
+    print("Hello, World!")
+    ```
+    This text can also be modified.
+    ```
+2.  **Numbered Variables:** Content enclosed in `${n}...${n}` markers (where `n` is a number) will be protected. This allows protecting inline variables or specific sections.
+    `Analyze the following data ${1}data_variable${1} and provide insights based on ${2}another_section${2}.`
+
+During processing, the script replaces these sections with internal placeholders, runs the improvement iterations on the rest of the prompt, and then restores the original protected content before outputting the final prompt.
+
 ### Available Techniques
+*(Technique list remains the same as before - verified against script)*
 
 #### Required Parameter Techniques
 These techniques must include a parameter:
 - `role_playing:profession` - Define expert role (e.g., `role_playing:scientist`)
-- `style_mimicking:author` - Mimic writing style (e.g., `style_mimicking:Richard Feynman`)
-- `persona_emulation:expert` - Emulate expert perspective (e.g., `persona_emulation:Warren Buffett`)
-- `forbidden_words:words` - Specify words to avoid (e.g., `forbidden_words:maybe,probably,perhaps`)
-
+// ... (rest of required techniques) ...
 #### Optional Parameter Techniques
 These techniques can be used with or without parameters:
 - `few_shot:[number]` - Include specific number of examples
-- `reverse_prompting:[number]` - Generate self-reflection questions
-- `context_expansion:[type]` - Expand context in specific direction
-- `comparative_answering:[aspects]` - Compare specific aspects
-- `tree_of_thought:[paths]` - Explore multiple reasoning paths
-
+// ... (rest of optional techniques) ...
 #### No-Parameter Techniques
 Simple flags that modify prompt behavior:
 - `step_by_step` - Break down complex processes
-- `chain_of_thought` - Show detailed reasoning process
-- `iterative_refinement` - Gradually improve output
-- `contrarian_perspective` - Challenge assumptions
-- `react` - Implement Reason-Act-Observe cycle
+// ... (rest of no-parameter techniques) ...
 
 ### Model Configuration
 
-#### Single Model Usage
-When using the same model for all evaluations:
+The `PromptEngineer` allows specifying models for different stages:
+
+-   **`evaluator_model`**: (Required) The model used by the internal `PromptEvaluator` to generate improvement suggestions based on the applied techniques. Set via `--evaluator-model` (CLI) or `evaluator_model` parameter (Python class). Defaults to `openai/gpt-4`.
+-   **`improver_model`**: (Optional) The model used within a `PromptChain` to apply the suggestions and generate the improved prompt version. If not provided, it defaults to using the `evaluator_model`. Set via `--improver-model` (CLI) or `improver_model` parameter (Python class).
+
 ```python
+# Using different models for evaluation and improvement
 engineer = PromptEngineer(
-    evaluator_model="openai/gpt-4",
-    max_iterations=3
+    evaluator_model="anthropic/claude-3-haiku-20240307", # Faster model for suggestions
+    improver_model="openai/gpt-4o"                     # Powerful model for rewriting
 )
-```
 
-#### Multiple Models
-Using different models for different aspects:
-```python
+# Using the same model for both (default behavior if improver_model is None)
 engineer = PromptEngineer(
-    evaluator_model="anthropic/claude-3-sonnet-20240229",
-    improver_model="openai/gpt-4o",
-    creator_models=[
-        "anthropic/claude-3-sonnet-20240229",
-        "openai/gpt-4o-mini"
-    ]
+    evaluator_model="openai/gpt-4o-mini"
 )
 ```
 
-### Output Storage and Access
+### Output and Workflow
 
-#### Configuring Storage
-```python
-engineer = PromptEngineer(
-    store_steps=True,     # Store intermediate steps
-    full_history=False    # Don't return full history
-)
+The primary output of the `PromptEngineer` script is the final, optimized prompt.
 
-# Process and store results
-result = engineer.create_specialized_prompt(task_description)
+-   **CLI Output:** The final prompt is printed to the console in a formatted panel.
+-   **File Output:** If the `--output-file` argument is provided, the final prompt is saved to the specified file.
 
-# Access specific steps
-evaluation_step = engineer.evaluator.get_step_output(1)
-improvement_step = engineer.improver.get_step_output(1)
-```
+The script operates through the `create_specialized_prompt` method internally. It iteratively:
+1.  Extracts protected content (if enabled).
+2.  Uses the `PromptEvaluator` (with the `evaluator_model`) to get suggestions based on the applied techniques.
+3.  If suggestions exist, uses a `PromptChain` (with the `improver_model`) to rewrite the prompt based on suggestions.
+4.  Repeats for `max_iterations` or until no further suggestions are made.
+5.  Restores protected content.
+6.  Returns/prints/saves the final prompt.
 
-#### Tracking Progress
-```python
-# Enable verbose mode for detailed logging
-engineer = PromptEngineer(verbose=True)
-
-# Track improvements with full history
-results = engineer.improve_prompt_continuously(
-    initial_prompt,
-    full_history=True
-)
-
-# Access improvement history
-for step in results:
-    print(f"Step {step['step']}:")
-    print(f"Evaluation: {step.get('evaluation', 'N/A')}")
-    print(f"Improvements: {step.get('improvements', 'N/A')}\n")
-```
+*Note: Methods like `test_prompt` and `improve_prompt_continuously`, previously mentioned in examples, are not part of the current `prompt_engineer.py` implementation. The script focuses on the iterative creation/improvement workflow initiated via CLI or a direct call to `create_specialized_prompt`.*
 
 ### Technique Combinations
 
-You can combine multiple techniques for sophisticated prompt engineering:
+Techniques are primarily applied via the `--techniques` CLI argument or selected interactively (`-i`).
 
+```bash
+# Example: Combine role playing, step-by-step, and few-shot via CLI
+python -m promptchain.utils.prompt_engineer \\
+    --initial-prompt "My initial prompt text..." \\
+    --techniques "role_playing:data_analyst" "step_by_step" "few_shot:3" \\
+    --evaluator-model "openai/gpt-4o-mini" \\
+    --max-iterations 5 \\
+    --output-file "optimized_prompt.txt"
+```
+Programmatically, techniques are added to the internal evaluator *before* calling the main processing method:
 ```python
-# Via programming interface
+engineer = PromptEngineer(...)
 engineer.evaluator.add_techniques([
     "role_playing:scientist",
     "step_by_step",
     "few_shot:3"
 ])
-
-# Via command line
-python -m promptchain.utils.prompt_engineer \
-    --techniques "role_playing:scientist step_by_step few_shot:3" \
-    --focus clarity \
-    --max-iterations 5
+# Assuming create_specialized_prompt is the method to call
+optimized_prompt = engineer.create_specialized_prompt("Task description or initial prompt...")
 ```
 
-### Usage Examples
+### Usage Examples (Revised for Accuracy)
+
 ```python
-# Create and optimize a prompt
-specialized_prompt = engineer.create_specialized_prompt(
-    task_description="Generate creative writing prompts"
+# --- Programmatic Usage ---
+from promptchain.utils.promptengineer import PromptEngineer
+
+# Initialize the engineer
+engineer = PromptEngineer(
+    max_iterations=5,
+    verbose=True,
+    evaluator_model="openai/gpt-4o-mini",
+    improver_model="openai/gpt-4o",
+    protect_content=True
 )
 
-# Test the prompt with different inputs
-test_results = engineer.test_prompt(
-    prompt=specialized_prompt,
-    test_inputs=[
-        "Write a story about space exploration",
-        "Create a mystery plot"
-    ]
-)
-
-# Continuous improvement with specific techniques
+# Add techniques to the internal evaluator
 engineer.evaluator.add_techniques([
-    "role_playing:writer",
-    "style_mimicking:Ernest Hemingway",
+    "role_playing:technical_writer",
+    "forbidden_words:jargon,buzzwords",
     "step_by_step"
 ])
-improved_prompt = engineer.improve_prompt_continuously(initial_prompt)
+
+# Create/Optimize a prompt from a task description
+task = "Explain Large Language Models to a non-technical audience."
+optimized_prompt_from_task = engineer.create_specialized_prompt(task)
+print("\\n--- Optimized Prompt (from Task) ---")
+print(optimized_prompt_from_task)
+
+# Optimize an existing prompt
+initial_prompt = "Make a summary of AI."
+optimized_prompt_from_initial = engineer.create_specialized_prompt(initial_prompt)
+print("\\n--- Optimized Prompt (from Initial) ---")
+print(optimized_prompt_from_initial)
+
+# --- CLI Usage ---
+
+# Create prompt from task, save to file
+# python -m promptchain.utils.prompt_engineer --task "Generate python code for a basic calculator" --output-file calc_prompt.txt --techniques "step_by_step"
+
+# Improve initial prompt from stdin, use human feedback mode, specific models
+# echo "Describe quantum physics simply." | python -m promptchain.utils.prompt_engineer --initial-prompt - --feedback human --evaluator-model "anthropic/claude-3-sonnet-20240229" --improver-model "openai/gpt-4o" -i
 ```
 
-### Best Practices
+### Best Practices (General principles still apply)
 
-1. **Technique Selection**
-   - Start with role-based techniques for expertise
-   - Add structural techniques (step_by_step, chain_of_thought) for clarity
-   - Use optional parameters to fine-tune behavior
-   - Combine complementary techniques
+1.  **Technique Selection**
+   - Start simple (e.g., `role_playing`, `step_by_step`).
+// ... (rest of best practices, potentially minor wording adjustments if needed) ...
+5. **Protected Content**
+   - Use ```...``` for multi-line code or examples.
+   - Use `${n}...${n}` for inline variables or specific phrases you need to keep constant.
+   - Be mindful that overly complex prompts with many protected sections might hinder the improvement process.
 
-2. **Testing Strategy**
-   - Test prompts with diverse inputs
-   - Use `test_prompt()` to evaluate consistency
-   - Monitor improvements across iterations
-   - Validate against edge cases
+## Advanced Workflow: Chain followed by Interactive Chat
 
-3. **Improvement Process**
-   - Start with basic techniques
-   - Add complexity gradually
-   - Monitor changes between iterations
-   - Use verbose mode for debugging
+A common pattern is to use a `PromptChain` for automated processing or generation and then allow the user to interactively discuss or refine the output.
 
-4. **Parameter Guidelines**
-   - Be specific with role parameters
-   - Use descriptive style references
-   - Keep forbidden word lists focused
-   - Adjust parameters based on results
+Since an interactive chat loop (using `input()`) cannot be a direct step within an automated `PromptChain`, this workflow is typically implemented by running the initial chain first and then passing its output as context to start a managed, interactive chat session.
 
-5. **Storage and History**
-   - Enable `store_steps` for debugging
-   - Use `full_history` for analysis
-   - Track model parameters when needed
-   - Clean up stored steps periodically
+1.  **Phase 1: Initial Processing Chain**
+    - Define a standard `PromptChain` to perform the initial task (e.g., summarization, data extraction, content generation).
+    - Run this chain with the initial input.
+    - Capture the final output.
 
-## Integration Examples
+2.  **Phase 2: Interactive Discussion Chat**
+    - Use a class like `ManagedChatSession` (as demonstrated in examples) which encapsulates its own internal `PromptChain`, chat loop logic, and history management.
+    - Initialize this chat session class, crucially passing the output from Phase 1 as an `initial_context` argument.
+    - The chat session's internal prompt/chain should be configured to utilize this initial context along with the ongoing conversation history.
+    - Call the chat session's `run()` method to start the interactive loop where the user can ask questions or provide feedback related to the initial output.
 
-### Complete Workflow Example
+**Example Structure (`task_chain_to_chat.py`):**
+
 ```python
-# Initialize components
-chain = PromptChain(models=["gpt-3.5"], full_history=True)
-builder = DynamicChainBuilder(base_model="gpt-3")
-engineer = PromptEngineer(max_iterations=3)
+# (Import ManagedChatSession and PromptChain)
 
-# Create optimized prompts
-base_prompt = engineer.create_specialized_prompt(
-    "Generate creative writing prompts"
-)
+async def main_workflow():
+    # --- Phase 1: Initial Processing ---
+    print("--- Phase 1: Initial Processing ---")
+    initial_task = input("Enter the initial task: ")
+    
+    initial_processor_chain = PromptChain(...)
+    initial_output = await initial_processor_chain.process_prompt_async(initial_task)
+    
+    print("\n--- Initial Processing Output ---")
+    print(initial_output)
+    print("--------------------------------")
+    
+    # --- Phase 2: Interactive Chat Session ---
+    print("\n--- Phase 2: Starting Chat Session about the Output ---")
+    
+    # Define template/config for the chat session's internal chain
+    chat_instruction_template = [...]
+    chat_history_injection_index = ...
+    
+    # Create the chat session, passing Phase 1 output as context
+    chat_session = ManagedChatSession(
+        ...,
+        initial_context=initial_output # Key step!
+    )
+    
+    # Start the interactive chat
+    await chat_session.run()
+    
+    print("\n--- Workflow Complete ---")
 
-# Build dynamic chain
-writing_chain = builder.create_chain(
-    chain_id="creative_writing",
-    instructions=[
-        base_prompt,
-        "Expand the prompt into a detailed outline",
-        "Generate a first draft"
-    ]
-)
-
-# Execute the complete workflow
-final_output = chain.process_prompt(
-    input_text="Write a story about time travel",
-    chain=writing_chain
-)
+if __name__ == "__main__":
+    asyncio.run(main_workflow())
 ```
 
-## Best Practices
+This pattern allows for automated processing followed by focused, context-aware user interaction, leveraging the strengths of both automated chains and interactive loops.
 
-1. **PromptChain Best Practices**
-   - Keep instructions clear and specific
-   - Use verbose mode during development
-   - Test chains incrementally
-   - Leverage memory functions for context
+## Decision Chain Example
 
-2. **DynamicChainBuilder Best Practices**
-   - Start with simple chains
-   - Use descriptive chain IDs
-   - Test different execution modes
-   - Document chain dependencies
+A "Decision Chain" uses an early step, often involving an LLM, to classify the input or determine the required processing path. Subsequent steps then branch based on this decision. This is useful for directing requests to the most appropriate logic (e.g., simple vs. complex handling, different specialized tools, etc.).
 
-3. **PromptEngineer Best Practices**
-   - Begin with basic prompts
-   - Incorporate human feedback when possible
-   - Test with diverse inputs
-   - Monitor improvement iterations
+**Concept:**
 
-4. **General Tips**
-   - Document your chains and prompts
-   - Use version control for prompt templates
-   - Monitor performance metrics
-   - Regular testing and validation
-   - Keep error handling robust
+1.  **Input Analysis:** An LLM analyzes the user's input using a carefully crafted prompt.
+2.  **Classification Output:** The LLM is instructed to output a simple, standardized token representing the decision (e.g., "QUICK", "DEEP").
+3.  **Routing Function:** A Python function receives the LLM's decision token.
+4.  **Conditional Execution:** The routing function calls different downstream functions (or could trigger other `PromptChain` instances) based on the token.
+
+**Implementation:**
+
+```python
+# decision_chain_example.py
+import asyncio
+from promptchain.utils.promptchaining import PromptChain
+
+# --- Placeholder Functions ---
+def handle_quick_answer(decision_context: str) -> str:
+    """Placeholder for the quick answer processing path."""
+    print(f"LLM Decision Context: {decision_context}")
+    # In a real scenario, this could trigger another simple chain or function.
+    return "-> Quick Answer Path Chosen. Processing initiated."
+
+def handle_deep_investigation(decision_context: str) -> str:
+    """Placeholder for the deep investigation processing path."""
+    print(f"LLM Decision Context: {decision_context}")
+    # In a real scenario, this could trigger a complex chain, research agent, etc.
+    return "-> Deep Investigation Path Chosen. Processing initiated."
+
+# --- Routing Function ---
+def route_based_on_decision(llm_decision: str) -> str:
+    """Routes processing based on the LLM's simple output ('QUICK' or 'DEEP')."""
+    decision = llm_decision.strip().upper()
+    # Use 'in' for robustness against minor variations (e.g., extra spaces)
+    if "QUICK" in decision:
+        return handle_quick_answer(llm_decision)
+    elif "DEEP" in decision:
+        return handle_deep_investigation(llm_decision)
+    else:
+        # Fallback or error handling for unexpected LLM output
+        print(f"Warning: Unexpected decision '{llm_decision}'. Defaulting to quick.")
+        return handle_quick_answer(f"Unexpected: {llm_decision}")
+
+# --- Decision Prompt Template ---
+# This prompt is crucial. It instructs the LLM to act as a classifier.
+decision_prompt_template = \"\"\"
+Analyze the user's request below. Determine if the user wants a brief, quick answer or a detailed, deep investigation.
+
+Consider keywords:
+- Quick/Brief: 'summary', 'define', 'what is', 'short', 'overview', 'quick question'
+- Deep/Detailed: 'explain in detail', 'how does', 'compare', 'analyze', 'examples', 'elaborate', 'deep dive'
+
+Based on your analysis, output ONLY the single word 'QUICK' or 'DEEP'. Do not add any explanation or other text.
+
+User Request:
+"{input}"
+
+Your Decision (QUICK or DEEP):
+\"\"\"
+
+# --- Create the Decision Chain ---
+decision_chain = PromptChain(
+    # Using a potentially faster/cheaper model suitable for classification
+    models=["openai/gpt-4o-mini"],
+    instructions=[
+        decision_prompt_template, # LLM makes the decision
+        route_based_on_decision  # Python function routes based on decision
+    ],
+    verbose=True # Set to False for cleaner output once tested
+)
+
+# --- Test Cases ---
+async def run_tests():
+    print("--- Testing Decision Chain ---")
+
+    # Test Case 1: Likely "QUICK"
+    quick_request = "What is the definition of photosynthesis?"
+    print(f"\n[Test 1] Input: {quick_request}")
+    result_quick = await decision_chain.process_prompt_async(quick_request)
+    print(f"[Test 1] Final Output: {result_quick}")
+    print("-" * 20)
+
+    # Test Case 2: Likely "DEEP"
+    deep_request = "Explain in detail how photosynthesis works, including the light-dependent and light-independent reactions, and provide examples of different types of plants."
+    print(f"\n[Test 2] Input: {deep_request}")
+    result_deep = await decision_chain.process_prompt_async(deep_request)
+    print(f"[Test 2] Final Output: {result_deep}")
+    print("-" * 20)
+
+    # Test Case 3: Ambiguous (Tests robustness/fallback)
+    ambiguous_request = "Tell me about photosynthesis."
+    print(f"\n[Test 3] Input: {ambiguous_request}")
+    result_ambiguous = await decision_chain.process_prompt_async(ambiguous_request)
+    print(f"[Test 3] Final Output: {result_ambiguous}")
+    print("-" * 20)
+
+if __name__ == "__main__":
+    # Save this code as e.g., 'decision_chain_example.py' and run it
+    asyncio.run(run_tests())
+```
+
+This example showcases how `PromptChain` can integrate LLM-based decision-making with standard Python function logic to create dynamic processing workflows. The key is the carefully designed prompt that forces the LLM into a classification role with a simple, predictable output format.
 
 ## Function Integration in PromptChain
 

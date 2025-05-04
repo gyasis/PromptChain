@@ -17,6 +17,8 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Expanding PromptEngineer configuration options
    - Implementing comprehensive async support
    - Adding MCP server integration
+   - Enhancing Memory Bank capabilities
+   - Implementing robust tool integration in agentic steps
 
 2. **Integration Examples**: 
    - Developing examples for major agent frameworks (AutoGen, LangChain, CrewAI)
@@ -24,6 +26,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Implementing comprehensive prompt improvement techniques
    - Demonstrating async/MCP usage patterns
    - Building tool integration examples
+   - Creating examples for using AgenticStepProcessor with tools
 
 3. **Documentation**: 
    - Documenting the API and usage patterns
@@ -31,6 +34,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Comprehensive documentation of PromptEngineer parameters and techniques
    - Detailing async capabilities and best practices
    - Explaining MCP server integration
+   - Documenting AgenticStepProcessor usage and best practices
 
 4. **Multimodal Processing**:
    - Enhancing the multimodal_ingest.py implementation
@@ -54,33 +58,50 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Added tool discovery and management
    - Created async connection handling with proper lifecycle management
    - Enhanced error handling for MCP operations
+   - Integrated Context7 for library documentation
+   - Added support for sequential thinking tools
 
-3. **PromptEngineer Enhancements**:
+3. **Memory Bank Implementation**:
+   - Added comprehensive Memory Bank functionality for state persistence
+   - Implemented namespace-based memory organization
+   - Created core memory operations (store, retrieve, check, list, clear)
+   - Added memory function creation for chain steps
+   - Implemented specialized memory chains with built-in memory capabilities
+   - Integrated with async operations for concurrent contexts
+   - Added MCP server integration with memory capabilities
+   - Created documentation in memory_bank_guide.md
+   - Implemented chat context management for conversational applications
+   - Added memory-based conversation history tracking
+   - Created specialized chat memory namespaces for user preferences and session data
+   - Integrated with WebSocket servers for real-time chat applications
+
+4. **PromptEngineer Enhancements**:
    - Added comprehensive documentation for command line parameters
    - Implemented configurable model parameters (temperature, max_tokens, etc.)
    - Added support for multiple improvement techniques
    - Created focus areas for targeted prompt enhancement
    - Improved interactive mode functionality
 
-4. **Core Implementation**:
+5. **Core Implementation**:
    - Implemented the primary PromptChain class in `promptchain/utils/promptchaining.py`
    - Added support for multiple model providers through LiteLLM
    - Implemented function injection, history tracking, and chainbreakers
    - Added async/sync dual interface support
    - Integrated MCP server management
+   - Improved tool execution with robust function name extraction
 
-5. **Support Utilities**:
+6. **Support Utilities**:
    - Added logging utilities in `logging_utils.py`
    - Created prompt loading functionality in `prompt_loader.py`
    - Implemented async utility functions
    - Added MCP connection management utilities
 
-6. **Project Structure**:
+7. **Project Structure**:
    - Established core package structure
    - Created initial examples and test directories
    - Set up development environment with requirements
 
-7. **Ingestors Implementation**:
+8. **Ingestors Implementation**:
    - Developed specialized ingestors for different content types:
      - ArXiv papers (`arxiv.py`)
      - Web content (`crawler.py`, `singlepage_advanced.py`)
@@ -89,25 +110,38 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Created `multimodal_ingest.py` for handling various content types
    - Implemented Gemini integration for multimedia processing
 
-8. **Dynamic Chain Execution**:
+9. **Dynamic Chain Execution**:
    - Implemented three execution modes (serial, parallel, independent)
    - Added group-based chain organization
    - Created execution group management
    - Added parallel execution support
    - Enhanced chain merging capabilities
 
-9. **Documentation Updates**:
+10. **Documentation Updates**:
    - Created comprehensive examples documentation
    - Updated system patterns documentation
    - Added best practices and common patterns
    - Documented parallel execution patterns
 
-10. **Core Implementation**:
+11. **Core Implementation**:
    - Enhanced DynamicChainBuilder class
    - Added execution mode validation
    - Implemented group-based execution
    - Added status tracking and monitoring
    - Enhanced chain insertion and merging
+
+12. **Agent Orchestration**: Implemented and documented the `AgentChain` class for orchestrating multiple agents.
+13. **Key Features Added**: Flexible routing (simple rules, configurable LLM/custom function), direct agent execution (`@agent_name:` syntax), structured logging.
+
+14. **AgenticStepProcessor**:
+   - Added support for an optional model_name parameter
+   - Updated llm_runner_callback to support this
+   - Ensured backward compatibility
+   - Fixed tool execution with robust function name extraction
+   - Added comprehensive documentation on usage patterns
+   - Implemented proper integration with PromptChain
+   - Fixed issues with endless loops in tool execution
+   - Added support for various tool call formats
 
 ## Next Steps
 
@@ -119,6 +153,11 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Add monitoring for async operations
    - Expand test coverage for async functionality
    - Implement graceful shutdown for MCP connections
+   - Implement persistent storage backends for Memory Bank
+   - Add memory expiration and TTL features
+   - Create examples demonstrating Memory Bank usage patterns
+   - Develop comprehensive examples for AgenticStepProcessor usage
+   - Enhance error handling for tool execution
 
 2. **Medium-term Goals**:
    - Develop advanced MCP server management
@@ -128,6 +167,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Implement sophisticated error recovery for MCP
    - Add support for more MCP server types
    - Create MCP server templates for common use cases
+   - Improve tool handling with more advanced extraction and execution patterns
 
 3. **Long-term Vision**:
    - Create a community-contributed prompt template repository
@@ -137,6 +177,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Support additional media types (3D models, specialized documents)
    - Implement content chunking for very large files
    - Create distributed MCP server architecture
+   - Develop advanced agentic capabilities with multi-step reasoning
 
 4. **Performance Optimization**:
    - Optimize parallel execution
@@ -144,6 +185,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Add resource usage monitoring
    - Enhance async operation efficiency
    - Optimize MCP server communication
+   - Improve tool execution performance
 
 5. **Error Handling**:
    - Enhance error recovery mechanisms
@@ -151,6 +193,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Implement chain rollback capabilities
    - Improve async error handling
    - Add MCP server error recovery
+   - Enhance tool execution error handling
 
 6. **Monitoring and Debugging**:
    - Add detailed execution logging
@@ -158,6 +201,7 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Implement performance metrics collection
    - Monitor async operations
    - Track MCP server health
+   - Add detailed logging for tool executions
 
 7. **Integration Features**:
    - Add support for distributed execution
@@ -165,6 +209,16 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Create chain templates system
    - Enhance MCP tool integration
    - Support advanced async patterns
+   - Improve integration with external tool ecosystems
+
+8. **AgentChain Development**: Test `AgentChain` with more complex scenarios, potentially refine the default LLM router prompt, explore passing refined queries from router to agents.
+
+9. **AgenticStepProcessor Enhancements**:
+   - Add support for memory persistence across steps
+   - Implement more sophisticated tool selection logic
+   - Enhance context management between steps
+   - Create specialized templates for common agentic tasks
+   - Develop visualization tools for agentic reasoning flow
 
 ## Active Decisions and Considerations
 
@@ -196,6 +250,20 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Integrating multimodal capabilities across different providers
    - Supporting async operations across providers
 
+5. **Memory Bank Architecture**:
+   - Evaluating persistent storage options (Redis, SQLite)
+   - Determining best approaches for memory lifecycle management
+   - Balancing memory persistence vs. performance
+   - Designing secure memory storage for sensitive information
+   - Implementing efficient memory sharing between chains
+
+6. **Tool Integration Strategy**:
+   - Balancing between different tool call formats
+   - Standardizing function name and argument extraction
+   - Handling errors in tool execution gracefully
+   - Supporting diverse tool response formats
+   - Integrating with external tool ecosystems
+
 ## Current Challenges
 
 1. **Async Operation Management**:
@@ -213,29 +281,15 @@ The PromptChain project is focused on building a flexible prompt engineering lib
    - Supporting various server configurations
 
 3. **Performance Optimization**:
-   - Reducing latency in multi-step chains
-   - Managing memory efficiently for long chains
-   - Implementing caching strategies for expensive steps
-   - Handling large media files without exceeding token limits
-   - Optimizing async operations
+   - Improving response times for long chains
+   - Optimizing memory usage during execution
+   - Enhancing parallel processing efficiency
+   - Managing provider rate limits effectively
+   - Balancing flexibility vs. performance
 
-4. **Provider Compatibility**:
-   - Handling provider-specific features and limitations
-   - Ensuring consistent behavior across different models
-   - Managing different rate limits and throttling approaches
-   - Adapting to varying multimodal capabilities across providers
-   - Supporting async operations consistently
-
-5. **Error Handling**:
-   - Implementing robust error handling for API failures
-   - Creating recovery mechanisms for failed steps
-   - Providing clear error messages and debugging information
-   - Managing timeouts and retries for media processing
-   - Handling async and MCP errors effectively
-
-6. **Testing Strategy**:
-   - Developing effective testing approaches for LLM-based functionality
-   - Creating reproducible test cases with expected outputs
-   - Balancing unit tests vs. integration tests
-   - Testing multimodal processing without excessive API costs
-   - Testing async and MCP functionality effectively 
+4. **Tool Execution Reliability**:
+   - Handling different tool call formats consistently
+   - Managing errors during tool execution
+   - Preventing infinite loops in tool calls
+   - Supporting different model providers' tool calling formats
+   - Optimizing tool execution performance 

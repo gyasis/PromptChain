@@ -25,6 +25,7 @@ Each step can be either:
 3. **Utility Functions**: Supporting components for model execution and data handling
 4. **Chainbreakers**: Optional functions that can conditionally terminate chain execution
 5. **Prompt Templates**: Reusable prompt patterns stored as instructions
+6. **Memory Bank**: Persistent storage system for maintaining state across chain executions
 
 ## Key Technical Decisions
 
@@ -96,6 +97,47 @@ chain = PromptChain(
   - Group result aggregation
   - Status history
 
+### 7. Memory Bank Architecture
+- **Namespace Organization**:
+  - Memories organized into logical namespaces
+  - Default namespace for common storage
+  - Specialized namespaces for isolating memory contexts
+- **Core Operations**:
+  - Store: `store_memory(key, value, namespace)`
+  - Retrieve: `retrieve_memory(key, namespace, default)`
+  - Check: `memory_exists(key, namespace)`
+  - List: `list_memories(namespace)`
+  - Clear: `clear_memories(namespace)`
+- **Memory Functions**:
+  - Specialized memory access functions for chain steps
+  - Command parsing for storing and retrieving from memory
+  - Integration with prompt templates
+- **Memory Chains**:
+  - Dedicated chains with memory capabilities
+  - Built-in memory processing
+  - Template-based memory operations
+- **Chat Integration**:
+  - Conversation history storage across sessions
+  - User preference management in dedicated namespaces
+  - Contextual memory for maintaining conversation state
+  - WebSocket server integration for real-time applications
+  - Session identification and management
+
+### 8. Chat Architecture
+- **WebSocket Integration**:
+  - Real-time message processing through WebSocket connections
+  - Session management for persistent conversations
+  - Event-driven message handling
+- **Conversation Context**:
+  - Memory-based conversation history tracking
+  - Context windowing for focusing on relevant history
+  - User and session identification
+- **Message Processing Pipeline**:
+  - Message preprocessing and normalization
+  - Prompt construction with conversation context
+  - Response generation and formatting
+  - Memory updates for context maintenance
+
 ## Design Patterns
 
 ### 1. Builder Pattern
@@ -113,6 +155,11 @@ chain = PromptChain(
 ### 4. Decorator Pattern (for function steps)
 - Function steps act as decorators that transform data between model calls
 - They can add, remove, or modify information without changing the core flow
+
+### 5. Repository Pattern (for Memory Bank)
+- Memory Bank acts as a repository for storing and retrieving persistent data
+- Provides a consistent interface for memory operations regardless of backend
+- Abstracts the details of memory storage from chain execution
 
 ## Component Relationships
 
@@ -132,6 +179,18 @@ chain = PromptChain(
    - Chainbreakers conditionally interrupt chain execution
    - They have access to step information for making decisions
 
+5. **PromptChain and Memory Bank**:
+   - Memory Bank provides persistent storage across chain executions
+   - Chains can store and retrieve information using the Memory Bank
+   - Memory functions enable direct memory operations within chain steps
+   - Chat applications use Memory Bank for conversation state management
+
+6. **PromptChain and Chat Systems**:
+   - WebSocket servers interface with PromptChain for message processing
+   - Conversation history maintained in Memory Bank namespaces
+   - Asynchronous processing handles concurrent chat sessions
+   - MCP servers provide specialized tools for chat operations
+
 ## Technical Constraints
 
 1. **API Dependencies**:
@@ -148,4 +207,78 @@ chain = PromptChain(
 
 4. **Memory Management**:
    - Full history tracking increases memory usage with chain length
-   - For very long chains, selective history or step storage is recommended 
+   - For very long chains, selective history or step storage is recommended
+
+5. **Memory Persistence**:
+   - Current implementation uses in-memory storage (non-persistent between processes)
+   - Memory access is synchronous and immediate
+   - Future implementations will support persistent storage with potential latency
+   - Memory operations require proper error handling for missing or invalid values 
+
+## Agent Orchestration (AgentChain)
+
+- **Purpose**: To manage and route tasks between multiple specialized `PromptChain` agents.
+- **Structure**: 
+    - Uses a central `AgentChain` class.
+    - Contains a dictionary of named `PromptChain` agent instances.
+    - Employs a configurable routing mechanism.
+- **Routing**: 
+    1. **Simple Router**: First checks input against basic rules (e.g., regex for math).
+    2. **Complex Router**: If no simple match, invokes either:
+        - A default 2-step LLM chain (Prepare Prompt -> Execute LLM for JSON decision).
+        - A user-provided custom asynchronous Python function.
+    3. **Direct Execution**: Allows bypassing routing via `@agent_name:` syntax in `run_chat`.
+- **Agent Responsibility**: Individual agents handle their own logic, tools, and MCP connections; they must be pre-configured. 
+
+## Agentic Step Pattern
+
+- **Concept:** To handle complex tasks within a single logical step of a `PromptChain`, the `AgenticStepProcessor` class provides an internal execution loop.
+- **Core Components:**
+  - **AgenticStepProcessor**: Encapsulates the internal agentic loop logic
+  - **Tool Integration**: Uses functions registered in parent PromptChain
+  - **Robust Function Name Extraction**: Helper utility to handle different tool call formats
+  - **Internal Tool Execution**: Manages tool calls within the agentic step
+
+- **Mechanism:**
+  - An instance of `AgenticStepProcessor` is included in the `PromptChain`'s `instructions` list.
+  - `PromptChain.process_prompt_async` detects this type and calls its `run_async` method.
+  - `run_async` manages an internal loop involving:
+    - LLM calls to determine the next action (tool call or final answer).
+    - Execution of necessary tools (local or MCP) via callbacks provided by `PromptChain`.
+    - Evaluation of results to decide whether to continue the loop or finalize the step.
+
+- **Configuration:**
+  - **objective**: Defines the specific goal for the agentic step
+  - **max_internal_steps**: Controls loop termination to prevent infinite execution
+  - **model_name**: Optional parameter to specify a different model than the parent chain
+  - **model_params**: Optional parameters for the LLM model used in the step
+
+- **Function Name Extraction Logic:**
+  - New helper function `get_function_name_from_tool_call` extracts function names from:
+    - Dictionary format (common in direct API responses)
+    - Object with attributes (common in LiteLLM's response objects)
+    - Nested objects with various property structures
+    - Objects with model_dump capability (Pydantic models)
+  - This robust extraction prevents infinite loops and improves reliability
+
+- **Tool Execution Flow:**
+  1. LLM generates a tool call based on the objective and context
+  2. `get_function_name_from_tool_call` extracts the function name
+  3. Arguments are extracted from the tool call
+  4. The tool is executed via callbacks to the parent PromptChain
+  5. Results are formatted and incorporated into the next LLM call
+  6. Process repeats until a final answer is reached or max steps are hit
+
+- **PromptChain Integration:**
+  - When using `AgenticStepProcessor`, set `models=[]` in PromptChain initialization
+  - Model is set directly on the AgenticStepProcessor using `model_name` parameter
+  - Tools must be registered with the parent PromptChain using `add_tools()` and `register_tool_function()`
+
+- **Error Handling:**
+  - Robust error handling for failed function name extraction
+  - Clear error messages for missing tool functions
+  - Proper handling of tool execution failures
+  - Prevention of infinite loops through max_internal_steps
+
+- **Purpose:** Allows for dynamic, multi-turn reasoning and tool use to accomplish a specific sub-goal defined by the agentic step's objective, before the main chain proceeds.
+- **Location:** `promptchain/utils/agentic_step_processor.py` with supporting code in `promptchain/utils/promptchaining.py` 
