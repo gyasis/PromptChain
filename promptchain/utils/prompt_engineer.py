@@ -126,30 +126,53 @@ class PromptEvaluator:
         self.techniques = techniques
     
     def evaluate(self, prompt: str) -> dict:
-        """Evaluate a prompt using the configured techniques."""
-        evaluation = {
-            'score': 0,
-            'suggestions': []
-        }
-        
+        """Translate selected techniques into actionable suggestions for the improver."""
+        suggestions = []
+
+        # Directly generate suggestions based on the enabled techniques
         for technique in self.techniques:
             if technique == "step_by_step":
-                if "step" not in prompt.lower() and "first" not in prompt.lower():
-                    evaluation['suggestions'].append("Add step-by-step instructions")
-                    
-            elif technique.startswith("comparative_answering:"):
-                aspect = technique.split(":")[1]
-                if aspect not in prompt.lower():
-                    evaluation['suggestions'].append(f"Add comparison criteria for {aspect}")
-                    
+                suggestions.append("Add step-by-step instructions")
+            elif technique == "chain_of_thought":
+                suggestions.append("Add Chain of Thought reasoning (e.g., 'Think step by step')")
+            elif technique == "iterative_refinement" or technique == "self_refine":
+                suggestions.append("Add instructions for iterative refinement or self-critique")
+            elif technique.startswith("role_playing:"):
+                param = technique.split(":", 1)[1]
+                suggestions.append(f"Assign the specific role: '{param}' (e.g., 'Act as a {param}')")
+            elif technique.startswith("style_mimicking:"):
+                param = technique.split(":", 1)[1]
+                suggestions.append(f"Specify the writing style to mimic: '{param}' (e.g., 'Write in the style of {param}')")
+            elif technique.startswith("persona_emulation:"):
+                param = technique.split(":", 1)[1]
+                suggestions.append(f"Instruct the prompt to emulate the persona: '{param}' (e.g., 'Emulate {param}')")
+            elif technique.startswith("few_shot"):
+                suggestions.append("Include relevant few-shot examples")
+            elif technique.startswith("tree_of_thought"):
+                 suggestions.append("Encourage exploring multiple reasoning paths (Tree of Thought)")
+            elif technique.startswith("context_expansion"):
+                 suggestions.append("Add instructions to provide relevant context")
+            elif technique.startswith("reverse_prompting"):
+                 suggestions.append("Add instructions for the prompt to ask clarifying questions or reflect")
+            elif technique == "contrarian_perspective":
+                 suggestions.append("Add instructions to consider a contrarian perspective")
+            elif technique == "react":
+                 suggestions.append("Structure the prompt using the Reason-Act-Observe (ReAct) cycle")
             elif technique.startswith("forbidden_words:"):
-                words = technique.split(":")[1].split(",")
-                found_words = [word for word in words if word in prompt.lower()]
-                if found_words:
-                    evaluation['suggestions'].append(f"Remove ambiguous words: {', '.join(found_words)}")
-        
-        evaluation['score'] = max(0, 5 - len(evaluation['suggestions']))
-        return evaluation
+                 param = technique.split(":", 1)[1]
+                 suggestions.append(f"Ensure the following words are avoided: {param}")
+            elif technique.startswith("comparative_answering:"):
+                 param = technique.split(":", 1)[1]
+                 suggestions.append(f"Add comparison criteria based on: {param}")
+            # Add other techniques if needed
+
+        # The score is less meaningful now, but we can keep the structure
+        score = max(0, 5 - len(suggestions)) # Less relevant score calculation
+
+        return {
+            'score': score, # Score might not be very useful with this logic
+            'suggestions': suggestions
+        }
 
 class PromptEngineer:
     """Engineers better prompts through iterative improvement."""
@@ -158,11 +181,17 @@ class PromptEngineer:
                  max_iterations: int = 3,
                  verbose: bool = False,
                  evaluator_model: str = "openai/gpt-4",
-                 protect_content: bool = True):
+                 improver_model: Optional[str] = None,
+                 use_human_evaluation: bool = False,
+                 protect_content: bool = True,
+                 focus_area: str = "all"):
         self.max_iterations = max_iterations
         self.verbose = verbose
         self.evaluator = PromptEvaluator(evaluator_model)
+        self.improver_model = improver_model if improver_model else evaluator_model
+        self.use_human_evaluation = use_human_evaluation
         self.protect_content = protect_content
+        self.focus_area = focus_area
         
     def _extract_protected_content(self, text: str) -> Tuple[str, Dict[str, str]]:
         """
@@ -231,9 +260,12 @@ class PromptEngineer:
         # Restore backtick content
         for i, (variable_name, content) in enumerate(protected_sections.items()):
             if variable_name.startswith("__PROTECTED_CONTENT_"):
-                marker = f"__CONTENT_MARKER_{i}__"
-                # Replace marker with original content wrapped in backticks
-                result = result.replace(marker, f"```{content}```")
+                marker_match = re.search(f"__CONTENT_MARKER_(\d+)__", variable_name)
+                if marker_match:
+                    marker_index = marker_match.group(1)
+                    marker = f"__CONTENT_MARKER_{marker_index}__"
+                    # Replace marker with original content wrapped in backticks
+                    result = result.replace(marker, f"```{content}```")
             elif variable_name.startswith("__PROTECTED_VAR_"):
                 var_id = variable_name.split("_")[3].rstrip("__")
                 marker = f"__VAR_MARKER_{var_id}__"
@@ -258,40 +290,78 @@ class PromptEngineer:
         # Handle protected content if enabled
         current_prompt, protected_sections = self._extract_protected_content(base_prompt)
             
-        best_score = 0
+        best_score = -1 # Initialize best score to allow improvement even with 0 suggestions initially
         best_prompt = current_prompt
         
         for i in range(self.max_iterations):
-            # Evaluate current prompt
-            evaluation = self.evaluator.evaluate(current_prompt)
+            # Evaluate current prompt based on selected techniques
+            evaluation = self.evaluator.evaluate(current_prompt) # Evaluate method now ignores prompt content
             
+            # Handle human feedback simulation/warning
+            if self.use_human_evaluation:
+                 warning_msg = "[Warning] Human feedback mode requested but not implemented for interactive use. Proceeding with LLM evaluation."
+                 print(warning_msg) # Also print to server console
+                 # Potential: Send warning back via logs if a mechanism exists
+                 if self.verbose:
+                     print("--- Human Feedback Point (Simulated) ---")
+                     print(f"Current Prompt:\n{current_prompt}")
+                     print(f"Suggestions:\n{evaluation['suggestions']}")
+                     print("--- (Proceeding Automatically) ---")
+                     # NOTE: No actual waiting or input is handled here.
+
             if self.verbose:
-                print(f"\nIteration {i+1}:")
-                print(f"Current score: {evaluation['score']}")
-                print("Suggestions:", evaluation['suggestions'])
+                print(f"\nIteration {i+1}: Suggestions based on selected techniques: {evaluation['suggestions']}")
+                # print(f"Current score: {evaluation['score']}") # Score is less relevant now
             
-            # If perfect score or no suggestions, restore protected content and return
-            if evaluation['score'] == 5 or not evaluation['suggestions']:
-                return self._restore_protected_content(current_prompt, protected_sections)
+            # If no suggestions were generated based on selected techniques, break the loop
+            if not evaluation['suggestions']:
+                if i == 0: # If no suggestions on the first try, return original
+                    best_prompt = current_prompt 
+                # else: best_prompt already holds the result from the previous iteration
+                break 
             
-            # If this is the best score so far, save it
-            if evaluation['score'] > best_score:
-                best_score = evaluation['score']
-                best_prompt = current_prompt
-            
-            # Create improvement chain with protection awareness
+            # --- Improvement Step --- 
+            # Prepare focus instruction if applicable
+            focus_instruction = ""
+            if self.focus_area != "all":
+                focus_map = {
+                    "task_alignment": "alignment with the original task",
+                    "output_quality": "quality and relevance of the expected output"
+                }
+                focus_display = focus_map.get(self.focus_area, self.focus_area) 
+                focus_instruction = f"Focus specifically on improving the prompt's {focus_display}."
+
+            # Create improvement chain with protection and focus awareness
             improvement_chain = PromptChain(
-                models=[self.evaluator.model],
+                models=[self.improver_model], 
                 instructions=[
                     f"""
                     Improve this prompt based on the following suggestions.
                     Return ONLY the improved prompt without any introductory text or explanations.
                     Do NOT start with phrases like 'Here is' or 'The improved prompt'.
                     
+                    You are an expert prompt engineer. Refine the 'Current prompt' below by carefully applying the 'Suggestions to address'. 
+                    Integrate these suggestions thoughtfully to enhance the prompt's effectiveness according to the specified 'Focus area' (if any), 
+                    while preserving the original core intent. Ensure the final output is clear, concise, and directly usable.
+                    
+                    Follow this thinking process while applying the suggestions:
+                    '''
+                    Think step by step:
+                    1) Analyze the given techniques (represented by the suggestions) and understand their purpose and significance in the context of the current prompt.
+                    2) Translate each suggestion into concrete changes or additions to the prompt text.
+                    3) Implement the suggestions iteratively if multiple are present, ensuring coherence.
+                    4) After applying suggestions, mentally critique the result: Does it clearly reflect the technique's intent? Is it well-integrated?
+                    5) Refine the implementation based on this self-critique before finalizing the output for this iteration.
+                    6) Consider if the applied techniques could be combined or phrased more effectively.
+                    7) Reflect on the overall clarity and effectiveness of the resulting prompt.
+                    '''
+                    
                     {"IMPORTANT: Do NOT modify any content marked with __CONTENT_MARKER_X__ or __VAR_MARKER_X__." if protected_sections else ""}
                     
                     Suggestions to address:
                     {evaluation['suggestions']}
+                    
+                    {focus_instruction}
                     
                     Current prompt:
                     {current_prompt}
@@ -302,7 +372,8 @@ class PromptEngineer:
             
             # Get improved version and handle different result formats
             try:
-                result = improvement_chain.process_prompt("")
+                # Provide a non-empty placeholder input to avoid Anthropic API error
+                result = improvement_chain.process_prompt("Improve the prompt based on the instructions.") 
                 
                 # Handle different result formats
                 if isinstance(result, dict):
@@ -326,13 +397,20 @@ class PromptEngineer:
                     if result_lower.startswith(prefix):
                         current_prompt = current_prompt[len(prefix):].strip()
                         break
+                
+                # Update best prompt after a successful improvement iteration
+                best_prompt = current_prompt
                         
             except Exception as e:
                 if self.verbose:
                     print(f"Error in improvement iteration {i+1}: {str(e)}")
-                continue
+                # If an error occurs during improvement, stop iterating and use the previous best
+                break 
+
+            # Optional: Add a check here to see if the prompt *actually* changed. 
+            # If current_prompt == best_prompt after improvement, could break early.
         
-        # Return the best prompt with protected content restored
+        # Return the best prompt found, with protected content restored
         return self._restore_protected_content(best_prompt, protected_sections)
 
 def get_interactive_techniques():
@@ -761,7 +839,10 @@ if __name__ == "__main__":
         max_iterations=args.max_iterations,
         verbose=args.verbose,
         evaluator_model=args.evaluator_model if args.evaluator_model else "openai/gpt-4",
-        protect_content=args.protect_content
+        improver_model=args.improver_model,
+        use_human_evaluation=args.feedback == 'human',
+        protect_content=args.protect_content,
+        focus_area=args.focus
     )
     
     # Override default models if specified
@@ -801,4 +882,4 @@ if __name__ == "__main__":
             print(f"\nPrompt saved to {args.output_file}")
     
     # Program ends in display_final_prompt
-    exit(0) 
+    display_final_prompt(optimized_prompt) 
