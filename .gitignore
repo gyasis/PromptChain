@@ -12,3 +12,39 @@ memory-bank
 .cursorrules
 .cursor
 tests
+memory-bank
+prompts/*
+frontend
+cogniui
+backend
+process_prompt.py
+randomquestion.py
+draft_comparison
+shared
+dspy_prompt_engineering_example.py
+        git_commit_helper.py
+        git_helper/
+        lib/
+        managed_chat_session.py
+        mcp_client.py
+        mcp_client_with_memory.py
+        mini_lesson_chat.py
+        minilesson.py
+        minilesson_output/
+        notepad_sq_wrangler_cheatsheet.md
+        other_projects/
+        project_prompts/
+        promptchain/workdirs/
+        queryable_circular_chain.py
+        question_generator.py
+        repomix-output.xml
+        scripts/
+        task_chain_to_chat.py
+        task_process
+        advanced_router_web_chat/
+        bin/
+        chat_chain.py
+        chat_multilang.py
+        context7_prompt.md
+        cursor_instruction.md
+        cursor_instruction.txt
