@@ -1,4 +1,0 @@
-websockets>=10.0
-tiktoken>=0.5.0
-promptchain  # Your local package
-# Add any other dependencies needed by chain_of_draft_comparison.py 
