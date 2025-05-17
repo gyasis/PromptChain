@@ -16,4 +16,9 @@ mypy>=1.7.0          # For type checking
 
 # Documentation
 mkdocs>=1.5.0        # For documentation generation (optional)
-mkdocs-material>=9.5.0  # For documentation theme (optional) 
+mkdocs-material>=9.5.0  # For documentation theme (optional)
+
+# PromptChain and MCP requirements
+promptchain
+mcp
+asyncio 

@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 # Determine the directory where this file (preprompt.py) is located
 _UTILS_DIR = os.path.dirname(os.path.abspath(__file__))
 # Define the standard relative paths for prompts and strategies relative to utils/
-_STANDARD_PROMPT_DIR = os.path.join(_UTILS_DIR, "../prompts") # Up one level to project root, then into prompts
+# Go up TWO levels from utils to reach the project root, then into prompts
+_STANDARD_PROMPT_DIR = os.path.join(_UTILS_DIR, "../../prompts") 
 _STANDARD_STRATEGY_DIR = os.path.join(_STANDARD_PROMPT_DIR, "strategies")
 # Define common prompt file extensions
 _PROMPT_EXTENSIONS = ('.txt', '.md', '.xml', '.json')
@@ -46,20 +47,27 @@ class PrePrompt:
 
     def _validate_dirs(self):
         """Checks if configured directories exist."""
+        # Only warn about missing standard prompt dir if NO additional dirs were given
         if not os.path.isdir(self.standard_prompt_dir):
-            logger.warning(
-                f"Standard prompt directory not found or not a directory at: "
-                f"{self.standard_prompt_dir}. Loading standard prompts by ID might fail."
-            )
-            # Don't set to None, allow load to fail later if needed
+            if not self.additional_prompt_dirs:
+                logger.warning(
+                    f"Standard prompt directory not found or not a directory at: "
+                    f"{self.standard_prompt_dir}. Loading standard prompts by ID might fail."
+                )
+            # else: # If additional dirs are present, don't warn about standard one
+            #     logger.debug(f"Standard prompt dir not found, but additional dirs provided: {self.standard_prompt_dir}")
         else:
             logger.info(f"PrePrompt: Using standard prompts dir: {self.standard_prompt_dir}")
 
+        # Only warn about missing standard strategy dir if NO additional dirs were given
+        # (Strategies are currently ONLY loaded from standard dir, so maybe always warn? Let's keep the conditional logic for consistency)
         if not os.path.isdir(self.standard_strategy_dir):
-             logger.warning(f"Standard strategy directory not found at: {self.standard_strategy_dir}. Strategies cannot be loaded by ID.")
-             # Don't set to None, allow load to fail later
+            if not self.additional_prompt_dirs:
+                logger.warning(f"Standard strategy directory not found at: {self.standard_strategy_dir}. Strategies cannot be loaded by ID.")
+            # else:
+            #     logger.debug(f"Standard strategy dir not found, but additional prompt dirs provided: {self.standard_strategy_dir}")
         else:
-             logger.info(f"PrePrompt: Using standard strategies dir: {self.standard_strategy_dir}")
+            logger.info(f"PrePrompt: Using standard strategies dir: {self.standard_strategy_dir}")
 
         valid_additional_dirs = []
         for i, dir_path in enumerate(self.additional_prompt_dirs):

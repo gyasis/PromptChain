@@ -1,9 +1,9 @@
 import os
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 def load_prompts(prompts_dir: str = "src/prompts") -> Dict[str, Tuple[str, str]]:
     """
-    Automatically load all prompts from the prompts directory structure.
+    Automatically load all prompts from the specified prompts directory structure.
     Returns a dictionary of (category, prompt_text) tuples keyed by uppercase variable names.
     """
     prompts = {}
@@ -30,19 +30,20 @@ def load_prompts(prompts_dir: str = "src/prompts") -> Dict[str, Tuple[str, str]]
     return prompts
 
 # Example usage in a chain:
-def get_prompt_by_name(name: str) -> str:
-    """Get prompt content by its variable name"""
-    prompts = load_prompts()
+def get_prompt_by_name(name: str, prompts_dir: Optional[str] = None) -> str:
+    """Get prompt content by its variable name, optionally specifying the directory."""
+    # Use the provided prompts_dir if given, otherwise use the default in load_prompts
+    prompts = load_prompts(prompts_dir=prompts_dir) if prompts_dir else load_prompts()
     if name in prompts:
         return prompts[name][1]
-    raise ValueError(f"Prompt {name} not found")
+    raise ValueError(f"Prompt {name} not found in directory '{prompts_dir or 'default'}'")
 
-def list_available_prompts() -> dict:
+def list_available_prompts(prompts_dir: Optional[str] = None) -> dict:
     """
-    List all available prompts organized by category.
+    List all available prompts organized by category from a specific directory.
     Returns a dictionary of categories and their prompts with descriptions.
     """
-    prompts = load_prompts()
+    prompts = load_prompts(prompts_dir=prompts_dir) if prompts_dir else load_prompts()
     organized_prompts = {}
     
     for var_name, (category, content) in prompts.items():
@@ -66,9 +67,9 @@ def list_available_prompts() -> dict:
     
     return organized_prompts
 
-def print_available_prompts():
-    """Pretty print all available prompts organized by category."""
-    prompts = list_available_prompts()
+def print_available_prompts(prompts_dir: Optional[str] = None):
+    """Pretty print all available prompts organized by category from a specific directory."""
+    prompts = list_available_prompts(prompts_dir=prompts_dir)
     
     print("\nAvailable Prompts:")
     print("=================")
