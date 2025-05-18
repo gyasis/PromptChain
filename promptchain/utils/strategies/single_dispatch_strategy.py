@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import re
+import traceback
 from typing import TYPE_CHECKING, Optional, Dict, Any
 
 if TYPE_CHECKING:
@@ -9,12 +9,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 async def execute_single_dispatch_strategy_async(agent_chain_instance: 'AgentChain', user_input: str, strategy_data: Optional[Dict[str, Any]] = None) -> str:
-    """Handles the default router logic: select one agent and execute it."""
+    """
+    Execute the single agent dispatch router strategy.
+    
+    This strategy takes a user query and dispatches it to a single agent,
+    potentially with a refined version of the query.
+    
+    1. Try simple router first
+    2. If no match, use complex router (LLM or custom)
+    3. Execute the chosen agent with the input (refined if available)
+    
+    Args:
+        agent_chain_instance: The AgentChain instance
+        user_input: The user's input message
+        strategy_data: Additional data for the strategy including:
+          - include_history: Whether to include conversation history
+
+    Returns:
+        The response from the chosen agent
+    """
     if agent_chain_instance.verbose: print(f"\n--- Executing Router Strategy: single_agent_dispatch ---")
     current_turn_input = user_input
-    final_response = "" # Initialize final_response for this strategy
-    loop_broken = False # Initialize loop_broken for this strategy
-    agent_for_this_turn: Optional[str] = None # Holds the agent chosen for the current turn/reroute cycle
+    final_response = ""
+    loop_broken = False
+    agent_for_this_turn: Optional[str] = None
     
     # Get include_history setting from strategy_data or default to auto_include_history
     include_history = False
