@@ -141,6 +141,7 @@ final_prompt = refinement_chain.process_prompt("Generate marketing copy")
 - **Multiple Model Support**: Use different models (GPT-4, Claude, etc.) in the same chain
 - **History Tracking**: Optional tracking of full chain history
 - **Simple API**: Easy-to-use interface for creating and running prompt chains
+- **StateAgent**: Advanced conversation history management and search
 
 ## Installation
 

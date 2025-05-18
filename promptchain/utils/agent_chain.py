@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.theme import Theme
+import sqlite3
 
 # Strategy imports
 from .strategies.single_dispatch_strategy import execute_single_dispatch_strategy_async
@@ -62,6 +63,7 @@ class AgentChain:
                                                        Example: {"model": "gpt-4o-mini", "prompt": "Synthesize: {agent_responses}"}
         router_strategy (str): The strategy for selecting the decision prompt template.
         auto_include_history (bool): When True, automatically include conversation history in all agent calls.
+        cache_config (Optional[Dict[str, Any]]): Configuration for caching conversation history.
     """
     def __init__(self,
                  # Required arguments first
@@ -74,6 +76,8 @@ class AgentChain:
                  log_dir: Optional[str] = None,
                  additional_prompt_dirs: Optional[List[str]] = None,
                  verbose: bool = False,
+                 # Replace separate cache parameters with a single dict
+                 cache_config: Optional[Dict[str, Any]] = None,
                  **kwargs): # Use kwargs for new optional parameters
 
         # --- Validation ---
@@ -99,6 +103,30 @@ class AgentChain:
         self.max_internal_steps = kwargs.get("max_internal_steps", 3) # For router internal loop
         self.synthesizer_config = kwargs.get("synthesizer_config", None) # For broadcast mode
         
+        # Cache configuration - from dict
+        self.cache_config = cache_config or {}
+        self.enable_cache = bool(self.cache_config)
+        
+        # Set default cache config values
+        if self.enable_cache:
+            import os
+            
+            # Set default name if not provided (random UUID)
+            if 'name' not in self.cache_config:
+                self.cache_config['name'] = str(uuid.uuid4())
+                
+            # Set default directory path if not provided
+            if 'path' not in self.cache_config:
+                self.cache_config['path'] = os.path.join(os.getcwd(), '.cache')
+                
+            # Construct database path: directory/name.db
+            db_filename = f"{self.cache_config['name']}.db"
+            self.cache_path = os.path.join(self.cache_config['path'], db_filename)
+        else:
+            self.cache_path = None
+            
+        self.db_connection = None
+        
         # <<< New: Router Strategy >>>
         self.router_strategy = kwargs.get("router_strategy", "single_agent_dispatch")
         # Enable auto-history inclusion when set
@@ -116,7 +144,10 @@ class AgentChain:
             "max_internal_steps": self.max_internal_steps if execution_mode == 'router' else 'N/A',
             "synthesizer_configured": bool(self.synthesizer_config) if execution_mode == 'broadcast' else 'N/A',
             "router_strategy": self.router_strategy if self.execution_mode == 'router' else 'N/A',
-            "auto_include_history": self.auto_include_history
+            "auto_include_history": self.auto_include_history,
+            "enable_cache": self.enable_cache,
+            "cache_path": self.cache_path if self.enable_cache else 'N/A',
+            "cache_config": self.cache_config
         }
         # <<< End New: Router Strategy >>>
         
@@ -128,6 +159,10 @@ class AgentChain:
         self._round_robin_index = 0 # For round_robin mode
         self._conversation_history: List[Dict[str, str]] = []
         self._tokenizer = None # Initialize tokenizer
+
+        # Setup cache if enabled
+        if self.enable_cache:
+            self._setup_cache()
 
         # --- Configure Router ---
         if self.execution_mode == 'router':
@@ -154,6 +189,88 @@ class AgentChain:
         except ImportError:
             logging.warning("tiktoken not installed. Using character count for history truncation.")
             self.logger.log_run({"event": "warning", "message": "tiktoken not installed, using char count for history"})
+
+    def _setup_cache(self):
+        """Sets up the SQLite database for caching conversation history."""
+        import os
+        import sqlite3
+        
+        # Create cache directory if it doesn't exist
+        cache_dir = os.path.dirname(self.cache_path)
+        if cache_dir and not os.path.exists(cache_dir):
+            if self.verbose: print(f"Creating cache directory: {cache_dir}")
+            try:
+                os.makedirs(cache_dir, exist_ok=True)
+                self.logger.log_run({"event": "cache_dir_created", "path": cache_dir})
+            except Exception as e:
+                logging.error(f"Failed to create cache directory {cache_dir}: {e}")
+                self.logger.log_run({"event": "cache_dir_create_error", "path": cache_dir, "error": str(e)})
+                self.enable_cache = False  # Disable cache if directory creation fails
+                return
+        
+        # Initialize the SQLite database
+        try:
+            # Connect to the database (will create it if it doesn't exist)
+            self.db_connection = sqlite3.connect(self.cache_path)
+            cursor = self.db_connection.cursor()
+            
+            # Create the sessions table if it doesn't exist
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                session_instance_uuid TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                config TEXT
+            )
+            ''')
+            
+            # Create the conversation table if it doesn't exist
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversation_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                session_instance_uuid TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+            ''')
+            
+            # Use the name from config as session_id
+            session_id = self.cache_config.get("name")
+            
+            # Generate a new session instance UUID for this run
+            import uuid
+            self.session_instance_uuid = str(uuid.uuid4())
+            
+            # Create a new session instance record
+            import datetime
+            import json
+            
+            now = datetime.datetime.now().isoformat()
+            cursor.execute(
+                "INSERT INTO sessions (session_id, session_instance_uuid, created_at, config) VALUES (?, ?, ?, ?)",
+                (session_id, self.session_instance_uuid, now, json.dumps(self.cache_config))
+            )
+            
+            self.logger.log_run({
+                "event": "cache_db_initialized", 
+                "path": self.cache_path, 
+                "session_id": session_id,
+                "session_instance_uuid": self.session_instance_uuid
+            })
+            if self.verbose: 
+                print(f"SQLite cache initialized with session ID: {session_id}")
+                print(f"Session instance UUID: {self.session_instance_uuid}")
+            
+            self.db_connection.commit()
+        except Exception as e:
+            logging.error(f"Failed to initialize SQLite cache database {self.cache_path}: {e}")
+            self.logger.log_run({"event": "cache_db_init_error", "path": self.cache_path, "error": str(e)})
+            self.enable_cache = False  # Disable cache if database initialization fails
+            self.db_connection = None
+            self.session_instance_uuid = None
 
     def _configure_default_llm_router(self, config: Dict[str, Any]):
         """Initializes the default 2-step LLM decision maker chain."""
@@ -302,18 +419,172 @@ class AgentChain:
                 return "No previous conversation history."
         return final_history_str
 
-    def _add_to_history(self, role: str, content: str):
-        """Adds a message to the conversation history, ensuring role and content are present."""
+    def _add_to_history(self, role: str, content: str, agent_name: Optional[str] = None):
+        """Adds a message to the conversation history, ensuring role and content are present.
+        
+        Args:
+            role (str): The role of the message (user, assistant, system)
+            content (str): The content of the message
+            agent_name (Optional[str]): If role is "assistant", the name of the agent that generated the response
+        """
         if not role or not content:
             self.logger.log_run({"event": "history_add_skipped", "reason": "Missing role or content"})
             return
 
+        # Store the original role for the conversation history
         entry = {"role": role, "content": content}
         self._conversation_history.append(entry)
-        if self.verbose:
-            print(f"History updated - Role: {role}, Content: {content[:100]}...")
+        
+        # Add agent name to role for the database if this is an assistant message
+        db_role = role
+        if role == "assistant" and agent_name:
+            db_role = f"assistant:{agent_name}"
+            if self.verbose:
+                print(f"History updated - Role: {role} (Agent: {agent_name}), Content: {content[:100]}...")
+        else:
+            if self.verbose:
+                print(f"History updated - Role: {role}, Content: {content[:100]}...")
+                
         # Log history addition minimally to avoid excessive logging
-        self.logger.log_run({"event": "history_add", "role": role, "content_length": len(content)})
+        self.logger.log_run({"event": "history_add", "role": db_role, "content_length": len(content)})
+        
+        # Append to cache if enabled
+        if self.enable_cache:
+            try:
+                # Pass the db_role to append_to_cache
+                self._append_to_cache({"role": db_role, "content": content})
+            except Exception as e:
+                logging.error(f"Failed to append to cache: {e}")
+                self.logger.log_run({"event": "cache_append_error", "error": str(e)})
+    
+    def _append_to_cache(self, entry: Dict[str, str]):
+        """Appends a history entry to the SQLite database."""
+        if not self.db_connection:
+            if self.verbose: print("Cannot append to cache: database connection not established")
+            return
+            
+        import datetime
+        
+        try:
+            cursor = self.db_connection.cursor()
+            
+            # Get the session ID
+            session_id = self.cache_config.get("name", "default")
+            now = datetime.datetime.now().isoformat()
+            
+            # Insert the entry with session instance UUID
+            cursor.execute(
+                "INSERT INTO conversation_entries (session_id, session_instance_uuid, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+                (session_id, self.session_instance_uuid, entry["role"], entry["content"], now)
+            )
+            
+            self.db_connection.commit()
+            
+            if self.verbose:
+                print(f"Cache updated - Added entry for role: {entry['role']}")
+            self.logger.log_run({"event": "cache_updated", "entry_role": entry["role"]})
+        except Exception as e:
+            # Log error but don't stop execution
+            logging.error(f"Error appending to SQLite cache {self.cache_path}: {e}")
+            self.logger.log_run({"event": "cache_append_error", "error": str(e)})
+    
+    def get_cached_history(self, include_all_instances: bool = False) -> Dict[str, Any]:
+        """
+        Retrieves the cached conversation history from SQLite.
+        
+        Args:
+            include_all_instances: If True, includes entries from all session instances.
+                                  If False (default), only includes entries from the current instance.
+        """
+        if not self.enable_cache:
+            return {"error": "Cache is not enabled", "conversation": []}
+            
+        if not self.db_connection:
+            return {"error": "Database connection not established", "conversation": []}
+            
+        try:
+            cursor = self.db_connection.cursor()
+            
+            # Get the session ID
+            session_id = self.cache_config.get("name", "default")
+            
+            # Get all session instances for this session_id
+            cursor.execute(
+                "SELECT session_instance_uuid, created_at FROM sessions WHERE session_id = ? ORDER BY created_at",
+                (session_id,)
+            )
+            instances = cursor.fetchall()
+            
+            if not instances:
+                return {"error": f"Session {session_id} not found", "conversation": []}
+            
+            # Build a list of instances
+            instance_list = []
+            for instance_uuid, created_at in instances:
+                instance_list.append({
+                    "uuid": instance_uuid,
+                    "created_at": created_at,
+                    "is_current": instance_uuid == self.session_instance_uuid
+                })
+            
+            # Get conversation entries based on filter parameter
+            if include_all_instances:
+                # Get all entries for this session_id
+                cursor.execute(
+                    """SELECT session_instance_uuid, role, content, timestamp 
+                       FROM conversation_entries 
+                       WHERE session_id = ? 
+                       ORDER BY id""",
+                    (session_id,)
+                )
+            else:
+                # Get only entries for current instance
+                cursor.execute(
+                    """SELECT session_instance_uuid, role, content, timestamp 
+                       FROM conversation_entries 
+                       WHERE session_id = ? AND session_instance_uuid = ? 
+                       ORDER BY id""",
+                    (session_id, self.session_instance_uuid)
+                )
+            
+            # Build the result
+            entries = []
+            for instance_uuid, role, content, timestamp in cursor.fetchall():
+                entries.append({
+                    "session_instance_uuid": instance_uuid,
+                    "role": role,
+                    "content": content,
+                    "timestamp": timestamp
+                })
+                
+            return {
+                "session_id": session_id,
+                "current_instance_uuid": self.session_instance_uuid,
+                "instances": instance_list,
+                "conversation": entries,
+                "include_all_instances": include_all_instances
+            }
+        except Exception as e:
+            logging.error(f"Error reading from SQLite cache {self.cache_path}: {e}")
+            self.logger.log_run({"event": "cache_read_error", "error": str(e)})
+            return {"error": str(e), "conversation": []}
+    
+    def close_cache(self):
+        """Closes the database connection."""
+        if self.db_connection:
+            try:
+                self.db_connection.close()
+                self.db_connection = None
+                if self.verbose:
+                    print("SQLite cache connection closed")
+                self.logger.log_run({"event": "cache_connection_closed"})
+            except Exception as e:
+                logging.error(f"Error closing SQLite cache connection: {e}")
+                self.logger.log_run({"event": "cache_close_error", "error": str(e)})
+
+    def __del__(self):
+        """Destructor to ensure database connection is closed."""
+        self.close_cache()
 
     def _clean_json_output(self, output: str) -> str:
         """Strips markdown code fences from potential JSON output."""
@@ -483,6 +754,7 @@ class AgentChain:
 
         final_response = ""
         agent_order = list(self.agents.keys()) # Defined once for pipeline/round_robin
+        chosen_agent_name = None  # To track which agent was used
 
         if self.execution_mode == 'pipeline':
             if self.verbose: print(f"\n--- Executing in Pipeline Mode ---")
@@ -537,6 +809,7 @@ class AgentChain:
                     break
             if not pipeline_failed:
                 final_response = current_input
+                chosen_agent_name = agent_order[-1]  # Last agent in the pipeline
             if not final_response:
                 final_response = "[Pipeline completed but produced an empty final response.]"
                 self.logger.log_run({"event": "pipeline_empty_response"})
@@ -549,6 +822,7 @@ class AgentChain:
             else:
                 # Choose the next agent in the rotation
                 selected_agent_name = agent_order[self._round_robin_index]
+                chosen_agent_name = selected_agent_name  # Track the agent name
                 # Update the index for next call
                 self._round_robin_index = (self._round_robin_index + 1) % len(agent_order)
                 
@@ -600,19 +874,31 @@ class AgentChain:
                     "user_input": user_input,
                     "include_history": include_history
                 }
-                final_response = await execute_single_dispatch_strategy_async(self, user_input, strategy_data)
+                
+                # Get the agent name from router via simple or complex routing
+                chosen_agent_name = await self._get_agent_name_from_router(user_input)
+                
+                # Execute the agent if we got a valid name
+                if chosen_agent_name and chosen_agent_name in self.agents:
+                    final_response = await execute_single_dispatch_strategy_async(self, user_input, strategy_data)
+                else:
+                    final_response = "I couldn't determine which agent should handle your request."
             
             elif self.router_strategy == "static_plan":
                 # Execute with the static plan strategy
                 if self.verbose: print(f"\n--- Executing in Router Mode (Strategy: static_plan) ---")
                 self.logger.log_run({"event": "router_strategy", "strategy": "static_plan"})
-                final_response = await execute_static_plan_strategy_async(self, user_input)
+                plan_response = await execute_static_plan_strategy_async(self, user_input)
+                final_response = plan_response  # Use the string result directly
+                chosen_agent_name = "state"  # For static plan, use the last agent as the chosen agent
             
             elif self.router_strategy == "dynamic_decomposition":
                 # Execute with the dynamic decomposition strategy
                 if self.verbose: print(f"\n--- Executing in Router Mode (Strategy: dynamic_decomposition) ---")
                 self.logger.log_run({"event": "router_strategy", "strategy": "dynamic_decomposition"})
-                final_response = await execute_dynamic_decomposition_strategy_async(self, user_input)
+                decomp_response = await execute_dynamic_decomposition_strategy_async(self, user_input)
+                final_response = decomp_response  # Use the string result directly
+                chosen_agent_name = "state"  # For dynamic decomposition, also use a default agent name
             
             else:
                 # This shouldn't happen due to validation in __init__ but just in case
@@ -663,6 +949,7 @@ class AgentChain:
                     # Simple concatenation if no synthesizer is configured
                     sections = [f"### {name} Response:\n{response}" for name, response in processed_results.items()]
                     final_response = "\n\n".join(sections)
+                    chosen_agent_name = "broadcast"  # Special case for broadcast mode
                     if self.verbose: print(f"  Broadcast completed without synthesizer.")
                     self.logger.log_run({"event": "broadcast_concatenation"})
                 else:
@@ -690,6 +977,7 @@ class AgentChain:
                         )
                         
                         final_response = await synthesizer.process_prompt_async("")
+                        chosen_agent_name = "synthesizer"  # Special case for broadcast with synthesizer
                         if self.verbose: print(f"  Synthesis complete.")
                         self.logger.log_run({"event": "broadcast_synthesis_success"})
                     except Exception as e:
@@ -700,15 +988,19 @@ class AgentChain:
                         sections = [f"### {name} Response:\n{response}" for name, response in processed_results.items()]
                         sections.append(f"### Synthesis Error:\n{error_msg}")
                         final_response = "\n\n".join(sections)
+                        chosen_agent_name = "broadcast"  # Fallback to broadcast
         else:
             final_response = f"Unsupported execution mode: {self.execution_mode}"
             self.logger.log_run({"event": "error", "reason": "Unsupported mode", "mode": self.execution_mode})
 
-        self._add_to_history("assistant", final_response)
+        # Add to history with the agent name
+        self._add_to_history("assistant", final_response, agent_name=chosen_agent_name)
+        
         self.logger.log_run({
             "event": "process_input_end",
             "mode": self.execution_mode,
-            "response_length": len(final_response)
+            "response_length": len(final_response),
+            "agent_used": chosen_agent_name
         })
         return final_response
 
@@ -766,7 +1058,8 @@ class AgentChain:
                 print(f"--- Finished Agent: {agent_name} ---")
             self.logger.log_run({"event": "direct_agent_finished", "agent_name": agent_name, "response_length": len(agent_response)})
 
-            self._add_to_history("assistant", agent_response)
+            # Add to history with the agent name
+            self._add_to_history("assistant", agent_response, agent_name=agent_name)
 
             end_time = asyncio.get_event_loop().time()
             duration = int((end_time - start_time) * 1000)
@@ -912,6 +1205,97 @@ class AgentChain:
             turn += 1
 
         print("\n--- Chat Finished ---")
+
+    def add_agent(self, name: str, agent: PromptChain, description: str):
+        """
+        Adds a new agent to the AgentChain.
+        Args:
+            name (str): The unique name for the agent.
+            agent (PromptChain): The PromptChain instance for the agent.
+            description (str): Description of the agent's purpose.
+        """
+        if name in self.agents:
+            raise ValueError(f"Agent '{name}' already exists.")
+        self.agents[name] = agent
+        self.agent_descriptions[name] = description
+        self.agent_names = list(self.agents.keys())
+        if self.verbose:
+            print(f"Agent '{name}' added.")
+        self.logger.log_run({"event": "add_agent", "agent": name})
+
+    def remove_agent(self, name: str):
+        """
+        Removes an agent from the AgentChain by name.
+        Args:
+            name (str): The name of the agent to remove.
+        """
+        if name not in self.agents:
+            raise ValueError(f"Agent '{name}' does not exist.")
+        del self.agents[name]
+        if name in self.agent_descriptions:
+            del self.agent_descriptions[name]
+        self.agent_names = list(self.agents.keys())
+        if self.verbose:
+            print(f"Agent '{name}' removed.")
+        self.logger.log_run({"event": "remove_agent", "agent": name})
+
+    async def _get_agent_name_from_router(self, user_input: str) -> Optional[str]:
+        """
+        Determines the agent name to use for the current input using the router.
+        Used to track which agent generated a response for history tracking.
+        
+        Args:
+            user_input (str): The user's input message
+            
+        Returns:
+            Optional[str]: The name of the chosen agent, or None if no agent could be determined
+        """
+        # Try simple router first (pattern matching)
+        chosen_agent_name = self._simple_router(user_input)
+        if chosen_agent_name:
+            if self.verbose: 
+                print(f"  Simple router selected: {chosen_agent_name}")
+            return chosen_agent_name
+            
+        # If simple router didn't match, use complex router
+        if self.verbose: 
+            print(f"  Simple router didn't match, using complex router to get agent name...")
+        
+        try:
+            # Format the conversation history for the router
+            formatted_history = self._format_chat_history()
+            
+            # Prepare decision maker prompt or use custom router
+            if self.custom_router_function:
+                if self.verbose: 
+                    print(f"  Executing custom router function to get agent name...")
+                try:
+                    decision_output = await self.custom_router_function(
+                        user_input, 
+                        self._conversation_history,
+                        self.agent_descriptions
+                    )
+                except Exception as router_error:
+                    logging.error(f"Custom router function failed: {router_error}", exc_info=router_error)
+                    return None
+            else:
+                if self.verbose: 
+                    print(f"  Executing LLM decision maker chain to get agent name...")
+                decision_output = await self.decision_maker_chain.process_prompt_async(user_input)
+            
+            # Parse the decision output to get chosen agent
+            parsed_decision_dict = self._parse_decision(decision_output)
+            chosen_agent_name = parsed_decision_dict.get("chosen_agent")
+            
+            if chosen_agent_name:
+                if self.verbose: 
+                    print(f"  Complex router selected: {chosen_agent_name}")
+                return chosen_agent_name
+                
+        except Exception as e:
+            logging.error(f"Error getting agent name from router: {e}", exc_info=True)
+            
+        return None
 
 
 # Example usage (remains the same, using default router mode)

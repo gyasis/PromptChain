@@ -28,7 +28,12 @@ agent_orchestrator = AgentChain(
     max_history_tokens=4000,           # Optional
     log_dir="logs",                    # Optional
     additional_prompt_dirs=None,       # Optional (for default router)
-    verbose=True                       # Optional
+    verbose=True,                      # Optional
+    cache_config={                     # Optional: SQLite caching configuration
+        "name": "session_name",        # Session ID and database filename
+        "path": "./cache",             # Directory to store database
+        "include_all_instances": False # Whether to include all program runs
+    }
 )
 ```
 
@@ -66,6 +71,128 @@ agent_orchestrator = AgentChain(
 -   `log_dir` (Optional): Directory for saving JSON run logs.
 -   `additional_prompt_dirs` (Optional): Used by the default LLM router if its templates reference prompts loadable by ID/filename.
 -   `verbose` (Optional): Enables detailed console printing during execution.
+-   `cache_config` (Optional): Configures SQLite-based conversation caching (see Conversation Caching section for details).
+
+## Conversation Caching
+
+AgentChain includes a robust SQLite-based conversation caching system that automatically persists all conversation history to a database file. This provides:
+
+1. **Persistence**: Conversation history is preserved across application restarts
+2. **Organization**: Sessions and instances are tracked separately
+3. **Reliability**: SQLite handles special characters and code snippets properly
+4. **Agent Tracking**: The responding agent's name is stored with each assistant message
+
+### Caching Configuration
+
+The caching system can be configured through the `cache_config` parameter:
+
+```python
+agent_orchestrator = AgentChain(
+    # ... other parameters ...
+    cache_config={
+        "name": "customer_support",    # Session name (used as DB filename)
+        "path": "./cache",             # Directory to store DB files
+        "include_all_instances": False # Only include current instance by default
+    }
+)
+```
+
+### Session and Instance Tracking
+
+The caching system uses a two-level organization approach:
+
+1. **Session**: Identified by the `name` parameter in cache_config
+   - Each session gets its own SQLite database file (`name.db`)
+   - Use different sessions for different conversation topics
+   
+2. **Instance**: A unique UUID automatically generated each time the application runs
+   - Each program run creates a new instance within the session
+   - Allows tracking which messages belong to which execution
+   - Query either just the current instance or all instances
+
+### Agent Role Tracking
+
+The system automatically stores which agent generated each response:
+
+1. **Database Storage**: For assistant messages, the role is stored as `assistant:agent_name` 
+2. **History Display**: When viewing history, agent names are shown in parentheses: `assistant (agent_name)`
+3. **Direct Access**: In the web interface, use `@history:get` or `@history:get all` to view history with agent names
+
+This feature makes it easy to track which specialized agent handled each request, particularly useful in applications with multiple agent types.
+
+### Accessing Cached History
+
+To retrieve cached history from the database:
+
+```python
+# Get history from current instance only
+history = agent_orchestrator.get_cached_history()
+
+# Get history from all instances in this session
+history = agent_orchestrator.get_cached_history(include_all_instances=True)
+
+# Access individual entries
+for entry in history["conversation"]:
+    # Check if this is an assistant message with agent name
+    role = entry['role']
+    if ":" in role and role.startswith("assistant:"):
+        base_role, agent_name = role.split(":", 1)
+        print(f"{base_role} ({agent_name}): {entry['content'][:50]}...")
+    else:
+        print(f"{role}: {entry['content'][:50]}...")
+
+# Get metadata
+print(f"Session ID: {history['session_id']}")
+print(f"Current Instance: {history['current_instance_uuid']}")
+print(f"Number of instances: {len(history['instances'])}")
+```
+
+### Default Configuration in Web Applications
+
+In the Advanced Router Web Chat application, caching is enabled by default with these settings:
+
+```python
+DEFAULT_CACHE_ENABLED = True
+DEFAULT_CACHE_CONFIG = {
+    "name": "router_chat",             # Default session name 
+    "path": os.path.join(os.getcwd(), ".cache"),  # Default directory
+    "include_all_instances": False
+}
+```
+
+### Command Line Control
+
+The Advanced Router Web Chat application supports command-line options to control caching:
+
+```bash
+# Disable caching
+python main.py --disable-cache
+
+# Use a custom session name
+python main.py --cache-name="customer_support" 
+
+# Use a custom storage directory
+python main.py --cache-path="/data/cache"
+
+# Include all instances when retrieving history
+python main.py --all-instances
+```
+
+### Special History Commands
+
+In the web chat interface, you can use special commands to retrieve history:
+
+```
+@history:get         # Get current instance history
+@history:get all     # Get all instances' history
+```
+
+### Resource Management
+
+The SQLite connection is automatically closed when:
+- The application shuts down properly
+- The AgentChain object is garbage collected
+- The `close_cache()` method is called explicitly
 
 ## Core Methods
 
