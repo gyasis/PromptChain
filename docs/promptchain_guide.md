@@ -291,225 +291,59 @@ builder.add_techniques([
 
 ## PromptEngineer: Optimizing Prompts
 
-### Initialization
-```python
-from promptchain.utils.promptengineer import PromptEngineer
+PromptChain includes a powerful prompt engineering system for systematic prompt optimization. For comprehensive documentation on prompt engineering features, techniques, and usage examples, see:
 
-# Example Initialization
-engineer = PromptEngineer(
-    max_iterations=5,                  # Max improvement iterations (default: 3)
-    verbose=True,                      # Enable detailed logging (default: False)
-    evaluator_model="openai/gpt-4o",   # Model for evaluation steps (default: openai/gpt-4)
-    improver_model="openai/gpt-4",     # Optional: Specific model for improvement steps (defaults to evaluator_model)
-    use_human_evaluation=False,        # Use human feedback loop (CLI --feedback=human) (default: False)
-    protect_content=True               # Protect content in ``` or ${n} blocks (default: True)
-)
-```
+**📚 [Complete Prompt Engineering Guide](prompt_engineer.md)**
 
-### Parameter Configuration
+### Quick Overview
 
-#### Programming Interface Parameters
-Available when using the `PromptEngineer` class directly in Python scripts:
-```python
-# Core Parameters
-max_iterations: int = 3        # Maximum improvement cycles
-verbose: bool = False         # Enable detailed logging
-protect_content: bool = True   # Protect content in ``` or ${n} (default: True)
+The PromptEngineer component provides:
+- **Iterative Prompt Improvement**: Automated refinement through multiple iterations
+- **Technique Library**: 20+ prompt engineering techniques (role playing, chain of thought, etc.)
+- **Human & LLM Evaluation**: Choose between automated or human-guided feedback
+- **Protected Content**: Keep code blocks and variables unchanged during improvement
+- **CLI & Programmatic Access**: Use via command line or Python API
 
-# Model Configuration
-evaluator_model: str = "openai/gpt-4" # Model for evaluation steps
-improver_model: Optional[str] = None  # Optional: Model for improvement steps (defaults to evaluator_model)
-
-# Feedback Mechanism (Note: Human feedback loop integration is primarily via CLI/interactive mode)
-use_human_evaluation: bool = False  # Set based on desired feedback mechanism (default: False)
-
-# Focus Area
-focus_area: str = "all"  # Area for improvement focus: 'clarity', 'completeness', 'task_alignment', 'output_quality', or 'all' (default)
-```
-*Note: Parameters like `store_steps`, `full_history`, and `test_inputs` are primarily configured via the Command Line Interface or interactive mode (`-i`) as they influence the script's execution flow rather than the core class state.*
-
-#### Command Line Interface Parameters
-Available when using the prompt engineer via `python -m promptchain.utils.prompt_engineer`:
-```bash
-# Core Parameters
---max-iterations INT          # Maximum improvement cycles (default: 3)
---feedback [llm|human]        # Evaluation type (default: llm)
---verbose                     # Enable detailed logging
--i, --interactive            # Enable interactive mode for guided setup
-
-# Model Selection
---evaluator-model STRING     # Model for evaluation steps (e.g., openai/gpt-4o)
---improver-model STRING      # Optional: Model for improvement steps (defaults to evaluator)
-
-# Input/Output
---task STRING               # Task description for prompt creation (if not using --initial-prompt)
---initial-prompt STRING     # Starting prompt to improve. Use "-" to read from stdin.
---output-file STRING        # Save location for the final optimized prompt
-
-# Testing & Focus
---test                      # Enable prompt testing mode (requires --test-inputs)
---test-inputs STRING [...]  # One or more test inputs for prompt testing
---focus [clarity|completeness|task_alignment|output_quality|all] # Focus area for improvements (default: all)
-                                                                  # Tells the improver model which aspect to prioritize.
-
-# Technique Configuration
---techniques STRING [...]   # Space-separated list of techniques to apply (see below)
-
-# Content Protection
---protect-content           # Protect content within ```...``` or ${n}...${n} (default: enabled)
---no-protect-content        # Disable content protection
-```
-
-### Protected Content Feature
-A key feature of the `PromptEngineer` script is its ability to protect specific parts of your prompt from being modified during the improvement iterations. This is useful for preserving examples, instructions, or template variables.
-
-Protection is enabled by default (`--protect-content`). To disable it, use `--no-protect-content`.
-
-Two types of content can be protected:
-1.  **Code Blocks:** Any content enclosed in triple backticks (```) will be preserved.
-    ```
-    This text can be modified.
-    ```python
-    # This code block will be protected
-    print("Hello, World!")
-    ```
-    This text can also be modified.
-    ```
-2.  **Numbered Variables:** Content enclosed in `${n}...${n}` markers (where `n` is a number) will be protected. This allows protecting inline variables or specific sections.
-    `Analyze the following data ${1}data_variable${1} and provide insights based on ${2}another_section${2}.`
-
-During processing, the script replaces these sections with internal placeholders, runs the improvement iterations on the rest of the prompt, and then restores the original protected content before outputting the final prompt.
-
-### Available Techniques
-*(Technique list remains the same as before - verified against script)*
-
-#### Required Parameter Techniques
-These techniques must include a parameter:
-- `role_playing:profession` - Define expert role (e.g., `role_playing:scientist`)
-// ... (rest of required techniques) ...
-#### Optional Parameter Techniques
-These techniques can be used with or without parameters:
-- `few_shot:[number]` - Include specific number of examples
-// ... (rest of optional techniques) ...
-#### No-Parameter Techniques
-Simple flags that modify prompt behavior:
-- `step_by_step` - Break down complex processes
-// ... (rest of no-parameter techniques) ...
-
-### Model Configuration
-
-The `PromptEngineer` allows specifying models for different stages:
-
--   **`evaluator_model`**: (Required) The model used by the internal `PromptEvaluator` to generate improvement suggestions based on the applied techniques. Set via `--evaluator-model` (CLI) or `evaluator_model` parameter (Python class). Defaults to `openai/gpt-4`.
--   **`improver_model`**: (Optional) The model used within a `PromptChain` to apply the suggestions and generate the improved prompt version. If not provided, it defaults to using the `evaluator_model`. Set via `--improver-model` (CLI) or `improver_model` parameter (Python class).
+### Basic Usage
 
 ```python
-# Using different models for evaluation and improvement
-engineer = PromptEngineer(
-    evaluator_model="anthropic/claude-3-haiku-20240307", # Faster model for suggestions
-    improver_model="openai/gpt-4o"                     # Powerful model for rewriting
-)
+from promptchain.utils.prompt_engineer import PromptEngineer
 
-# Using the same model for both (default behavior if improver_model is None)
-engineer = PromptEngineer(
-    evaluator_model="openai/gpt-4o-mini"
-)
-```
-
-### Output and Workflow
-
-The primary output of the `PromptEngineer` script is the final, optimized prompt.
-
--   **CLI Output:** The final prompt is printed to the console in a formatted panel.
--   **File Output:** If the `--output-file` argument is provided, the final prompt is saved to the specified file.
-
-The script operates through the `create_specialized_prompt` method internally. It iteratively:
-1.  Extracts protected content (if enabled).
-2.  Uses the `PromptEvaluator` (with the `evaluator_model`) to get suggestions based on the applied techniques.
-3.  If suggestions exist, uses a `PromptChain` (with the `improver_model`) to rewrite the prompt based on suggestions.
-4.  Repeats for `max_iterations` or until no further suggestions are made.
-5.  Restores protected content.
-6.  Returns/prints/saves the final prompt.
-
-*Note: Methods like `test_prompt` and `improve_prompt_continuously`, previously mentioned in examples, are not part of the current `prompt_engineer.py` implementation. The script focuses on the iterative creation/improvement workflow initiated via CLI or a direct call to `create_specialized_prompt`.*
-
-### Technique Combinations
-
-Techniques are primarily applied via the `--techniques` CLI argument or selected interactively (`-i`).
-
-```bash
-# Example: Combine role playing, step-by-step, and few-shot via CLI
-python -m promptchain.utils.prompt_engineer \\
-    --initial-prompt "My initial prompt text..." \\
-    --techniques "role_playing:data_analyst" "step_by_step" "few_shot:3" \\
-    --evaluator-model "openai/gpt-4o-mini" \\
-    --max-iterations 5 \\
-    --output-file "optimized_prompt.txt"
-```
-Programmatically, techniques are added to the internal evaluator *before* calling the main processing method:
-```python
-engineer = PromptEngineer(...)
-engineer.evaluator.add_techniques([
-    "role_playing:scientist",
-    "step_by_step",
-    "few_shot:3"
-])
-# Assuming create_specialized_prompt is the method to call
-optimized_prompt = engineer.create_specialized_prompt("Task description or initial prompt...")
-```
-
-### Usage Examples (Revised for Accuracy)
-
-```python
-# --- Programmatic Usage ---
-from promptchain.utils.promptengineer import PromptEngineer
-
-# Initialize the engineer
+# Initialize with custom settings
 engineer = PromptEngineer(
     max_iterations=5,
     verbose=True,
-    evaluator_model="openai/gpt-4o-mini",
-    improver_model="openai/gpt-4o",
+    evaluator_model="anthropic/claude-3-sonnet-20240229",
     protect_content=True
 )
 
-# Add techniques to the internal evaluator
-engineer.evaluator.add_techniques([
-    "role_playing:technical_writer",
-    "forbidden_words:jargon,buzzwords",
-    "step_by_step"
-])
-
-# Create/Optimize a prompt from a task description
-task = "Explain Large Language Models to a non-technical audience."
-optimized_prompt_from_task = engineer.create_specialized_prompt(task)
-print("\\n--- Optimized Prompt (from Task) ---")
-print(optimized_prompt_from_task)
-
-# Optimize an existing prompt
-initial_prompt = "Make a summary of AI."
-optimized_prompt_from_initial = engineer.create_specialized_prompt(initial_prompt)
-print("\\n--- Optimized Prompt (from Initial) ---")
-print(optimized_prompt_from_initial)
-
-# --- CLI Usage ---
-
-# Create prompt from task, save to file
-# python -m promptchain.utils.prompt_engineer --task "Generate python code for a basic calculator" --output-file calc_prompt.txt --techniques "step_by_step"
-
-# Improve initial prompt from stdin, use human feedback mode, specific models
-# echo "Describe quantum physics simply." | python -m promptchain.utils.prompt_engineer --initial-prompt - --feedback human --evaluator-model "anthropic/claude-3-sonnet-20240229" --improver-model "openai/gpt-4o" -i
+# Generate optimized prompt
+task = "Create a technical documentation writer agent"
+optimized_prompt = engineer.create_specialized_prompt(task)
 ```
 
-### Best Practices (General principles still apply)
+### Command Line Usage
 
-1.  **Technique Selection**
-   - Start simple (e.g., `role_playing`, `step_by_step`).
-// ... (rest of best practices, potentially minor wording adjustments if needed) ...
-5. **Protected Content**
-   - Use ```...``` for multi-line code or examples.
-   - Use `${n}...${n}` for inline variables or specific phrases you need to keep constant.
-   - Be mindful that overly complex prompts with many protected sections might hinder the improvement process.
+```bash
+# Interactive mode with technique selection
+python -m promptchain.utils.prompt_engineer -i
+
+# Direct prompt improvement
+python -m promptchain.utils.prompt_engineer \
+    --task "Generate SQL queries from natural language" \
+    --techniques role_playing:database_expert step_by_step \
+    --max-iterations 5 \
+    --output-file optimized_prompt.txt
+```
+
+### Available Techniques
+- **Role Playing**: `role_playing:scientist`, `role_playing:teacher`
+- **Reasoning**: `chain_of_thought`, `step_by_step`, `tree_of_thought:3`
+- **Examples**: `few_shot:3`, `reverse_prompting:5`
+- **Style**: `style_mimicking:technical`, `persona_emulation:expert`
+- **Quality Control**: `forbidden_words:maybe,probably`, `iterative_refinement`
+
+For detailed technique documentation, parameters, and advanced usage patterns, see the [Complete Prompt Engineering Guide](prompt_engineer.md).
 
 ## Advanced Workflow: Chain followed by Interactive Chat
 
