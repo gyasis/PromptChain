@@ -24,7 +24,7 @@ async def execute_mcp_tool(
     mcp_tools_map: Dict[str, Dict[str, Any]],
     verbose: bool = False
 ) -> str:
-    \"\"\"
+    """
     Executes an MCP tool based on the tool_call object using provided context.
 
     Args:
@@ -35,9 +35,9 @@ async def execute_mcp_tool(
 
     Returns:
         A string representing the tool's output (usually JSON stringified).
-    \"\"\"
+    """
     function_name = getattr(getattr(tool_call, 'function', None), 'name', None) # Prefixed name
-    function_args_str = getattr(getattr(tool_call, 'function', None), 'arguments', \"{}\")
+    function_args_str = getattr(getattr(tool_call, 'function', None), 'arguments', "{}")
     tool_call_id = getattr(tool_call, 'id', 'N/A')
     tool_output = f'Error: MCP tool {function_name} execution failed.'
 
@@ -59,7 +59,7 @@ async def execute_mcp_tool(
 
         if not session:
             logger.error(f"[MCP Manager] MCP Session '{server_id}' not found for tool '{function_name}'.")
-            return json.dumps({\"error\": f\"MCP session '{server_id}' unavailable.\"})\
+            return json.dumps({"error": f"MCP session '{server_id}' unavailable."})
 
         original_schema = mcp_info['original_schema']
         original_tool_name = original_schema['function']['name']
@@ -87,7 +87,7 @@ async def execute_mcp_tool(
         elif call_result: # Handle cases where result might not have the expected structure
             tool_output = str(call_result)
         else:
-            tool_output = json.dumps({\"warning\": f\"MCP tool {original_tool_name} executed but returned no structured content.\"})
+            tool_output = json.dumps({"warning": f"MCP tool {original_tool_name} executed but returned no structured content."})
 
         log_msg = f"  [MCP Manager] MCP Result (ID: {tool_call_id}): {tool_output[:150]}..."
         logger.debug(log_msg)
@@ -97,6 +97,6 @@ async def execute_mcp_tool(
     except Exception as e:
         err_msg = f"Error executing MCP tool {function_name} (Original: {original_tool_name}, ID: {tool_call_id}) on {server_id}: {str(e)}"
         logger.error(f"[MCP Manager] {err_msg}", exc_info=verbose) # Log traceback only if verbose
-        tool_output = json.dumps({\"error\": err_msg})
+        tool_output = json.dumps({"error": err_msg})
 
     return tool_output 
