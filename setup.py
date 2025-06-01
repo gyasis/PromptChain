@@ -8,13 +8,13 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="promptchain",
-    version="0.2.2",
-    author="Your Name",
-    author_email="your.email@example.com",
+    version="0.2.4",
+    author="Gyasi Sutton",
+    author_email="gyasis@gmail.com",
     description="A flexible prompt engineering library for LLM applications and agent frameworks",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/promptchain",
+    url="https://github.com/gyasis/promptchain",
     packages=find_packages() + ['ingestors', 'extras'],
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -1,10 +1,12 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: promptchain
-Version: 0.2.2
+Version: 0.2.4
 Summary: A flexible prompt engineering library for LLM applications and agent frameworks
-Home-page: https://github.com/yourusername/promptchain
-Author: Your Name
-Author-email: your.email@example.com
+Home-page: https://github.com/gyasis/promptchain
+Author: Gyasi Sutton
+Author-email: gyasis@gmail.com
+License: UNKNOWN
+Platform: UNKNOWN
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
@@ -17,28 +19,6 @@ Classifier: Programming Language :: Python :: 3.11
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: litellm>=1.0.0
-Requires-Dist: python-dotenv>=1.0.0
-Requires-Dist: pydantic>=2.0.0
-Requires-Dist: requests>=2.31.0
-Requires-Dist: typing-extensions>=4.8.0
-Requires-Dist: pytest>=7.4.0
-Requires-Dist: black>=23.12.0
-Requires-Dist: isort>=5.13.0
-Requires-Dist: flake8>=6.1.0
-Requires-Dist: mypy>=1.7.0
-Requires-Dist: mkdocs>=1.5.0
-Requires-Dist: mkdocs-material>=9.5.0
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: license-file
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary
 
 # PromptChain 
 
@@ -183,6 +163,7 @@ final_prompt = refinement_chain.process_prompt("Generate marketing copy")
 - **Multiple Model Support**: Use different models (GPT-4, Claude, etc.) in the same chain
 - **History Tracking**: Optional tracking of full chain history
 - **Simple API**: Easy-to-use interface for creating and running prompt chains
+- **StateAgent**: Advanced conversation history management and search
 
 ## Installation
 
@@ -1443,3 +1424,5 @@ See `examples/chainbreaker_examples.py` for more detailed examples of chain brea
 ### Circular Processing
 
 For detailed documentation on using circular processing patterns in PromptChain, see `docs/circular_runs.md`. This feature allows you to create iterative refinement loops by feeding chain outputs back into the beginning of the chain.
+
+
