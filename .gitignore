@@ -1,86 +1,123 @@
-.DS_Store
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
 .env
-extras
-tests
-logs
-ingestors
-examples
-experiments
-__pycache__
-rag_logs
-memory-bank
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.cursor/
 .cursorrules
-.cursor
-tests
-memory-bank
-prompts/*
-frontend
-cogniui
-backend
-process_prompt.py
-randomquestion.py
-draft_comparison
-shared
-dspy_prompt_engineering_example.py
-        git_commit_helper.py
-        git_helper/
-        lib/
-        managed_chat_session.py
-        mcp_client.py
-        mcp_client_with_memory.py
-        mini_lesson_chat.py
-        minilesson.py
-        minilesson_output/
-        notepad_sq_wrangler_cheatsheet.md
-        other_projects/
-        project_prompts/
-        promptchain/workdirs/
-        queryable_circular_chain.py
-        question_generator.py
-        repomix-output.xml
-        scripts/
-        task_chain_to_chat.py
-        task_process
-        advanced_router_web_chat/
-        bin/
-        chat_chain.py
-        chat_multilang.py
-        context7_prompt.md
-        cursor_instruction.md
-        cursor_instruction.txt
-        .cache/
-        .chainlit/
-        FinAI/
-        advanced_router_web_chat/
-        bin/
-        build/
-        chainlit.md
-        chainlit_cookbook/
-        chat_chain.py
-        chat_multilang.py
-        context7_prompt.md
-        cursor_instruction.md
-        cursor_instruction.txt
-        docs/simple_agent_user_chat.md
-        git_commit_helper.py
-        git_helper/
-        lib/
-        managed_chat_session.py
-        mcp_client.py
-        mcp_client_with_memory.py
-        mini_lesson_chat.py
-        minilesson.py
-        minilesson_output/
-        notepad_sq_wrangler_cheatsheet.md
-        other_projects/
-        plans/
-        project_prompts/
-        promptchain/workdirs/
-        promptchain_quickstart_multistep.md
-        queryable_circular_chain.py
-        question_generator.py
-        repomix-output.xml
-        scripts/
-        task_chain_to_chat.py
-        task_processor.py
-        tmp_edit.py
+
+# Logs
+logs/
+rag_logs/
+*.log
+
+# Project specific directories that are not in remote
+.chainlit/
+FinAI/
+advanced_router_web_chat/
+ag_ui_chat_project/
+bin/
+browser-tools-server-fixed/
+chainlit_cookbook/
+cogniui/
+draft_comparison/
+git_helper/
+minilesson_output/
+other_projects/
+plans/
+project_prompts/
+promptchain-a2a/
+promptchain/workdirs/
+scripts/
+ui_agent_project/
+shared/
+backend/
+frontend/
+memory-bank/
+docs/auxiliary_projects/
+
+# Temporary and generated files
+repomix-output.xml
+cursor_instruction.txt
+tmp_edit.py
+
+# Markdown folder (contains moved markdown files)
+markdown/
+examples/
+experiments/
+ingestors/
+prompts/
+ingestors/
+extras/
+notebooks/
+prompts
+
+CLAUDE.md
+# Note: The following directories ARE tracked in the remote repository:
+# - docs/
+# - promptchain/
+# - utils/
+# - tests/
+# - prompts/
