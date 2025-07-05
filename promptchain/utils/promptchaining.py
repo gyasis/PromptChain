@@ -28,8 +28,12 @@ try:
     # from .mcp_helpers import AsyncProcessContextManager
     from .agentic_step_processor import AgenticStepProcessor
     from .mcp_helpers import MCPHelper # Import the new helper class
+    from .model_management import ModelManagerFactory, ModelProvider, ModelManagementConfig, get_global_config
+    from .ollama_model_manager import OllamaModelManager
+    MODEL_MANAGEMENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import dependencies relative to current file: {e}")
+    MODEL_MANAGEMENT_AVAILABLE = False
     # Define dummy classes/types if needed
     class AgenticStepProcessor:
         objective = "Dummy Objective" # Add objective attribute for process_prompt_async
@@ -44,6 +48,16 @@ except ImportError as e:
         async def execute_mcp_tool(self, *args, **kwargs): return json.dumps({"error": "MCP Helper dummy"})
         def get_mcp_tool_schemas(self): return []
         def get_mcp_tools_map(self): return {}
+    
+    # Dummy model management classes
+    class ModelManagerFactory:
+        @staticmethod
+        def create_from_config(config): return None
+    class ModelProvider:
+        OLLAMA = "ollama"
+    class ModelManagementConfig:
+        def __init__(self): self.enabled = False
+    def get_global_config(): return ModelManagementConfig()
 
     ChainStep = Dict
     ChainTechnique = str
@@ -89,7 +103,9 @@ class PromptChain:
                  verbose: bool = False,
                  chainbreakers: List[Callable] = None,
                  mcp_servers: Optional[List[Dict[str, Any]]] = None,
-                 additional_prompt_dirs: Optional[List[str]] = None):
+                 additional_prompt_dirs: Optional[List[str]] = None,
+                 model_management: Optional[Dict[str, Any]] = None,
+                 auto_unload_models: bool = None):
         """
         Initialize the PromptChain with optional step storage and verbose output.
 
@@ -105,6 +121,9 @@ class PromptChain:
         :param mcp_servers: Optional list of MCP server configurations.
                             Each dict should have 'id', 'type' ('stdio' supported), and type-specific args (e.g., 'command', 'args').
         :param additional_prompt_dirs: Optional list of paths to directories containing custom prompts for PrePrompt.
+        :param model_management: Optional dict with model management config. 
+                                Keys: 'enabled' (bool), 'provider' (str), 'config' (dict)
+        :param auto_unload_models: Whether to automatically unload models between steps (overrides global config)
         """
         self.verbose = verbose
         # Setup logger level based on verbosity
@@ -173,6 +192,55 @@ class PromptChain:
         # ADDED: Initialize memory bank and shared context (Keep as these are not MCP related)
         self.memory_bank: Dict[str, Dict[str, Any]] = {}
         self.shared_context: Dict[str, Dict[str, Any]] = {"global": {}} # Example structure
+        
+        # Initialize Model Management
+        self.model_manager = None
+        self.model_management_enabled = False
+        self.auto_unload_models = auto_unload_models
+        
+        if MODEL_MANAGEMENT_AVAILABLE:
+            # Get global config
+            global_config = get_global_config()
+            
+            # Determine if model management should be enabled
+            if model_management is not None:
+                # Use explicit config if provided
+                self.model_management_enabled = model_management.get('enabled', False)
+                if self.model_management_enabled:
+                    try:
+                        # Add verbose to config if not present
+                        model_management_with_verbose = model_management.copy()
+                        if 'verbose' not in model_management_with_verbose:
+                            model_management_with_verbose['verbose'] = self.verbose
+                        self.model_manager = ModelManagerFactory.create_from_config(model_management_with_verbose)
+                        if self.verbose:
+                            logger.info(f"Model management enabled with {model_management.get('provider', 'default')} provider")
+                    except Exception as e:
+                        logger.warning(f"Failed to initialize model manager: {e}")
+                        self.model_management_enabled = False
+            elif global_config.enabled:
+                # Use global config if no explicit config provided
+                self.model_management_enabled = True
+                try:
+                    provider_config = global_config.provider_configs.get(global_config.default_provider, {})
+                    provider_config['provider'] = global_config.default_provider.value
+                    provider_config['verbose'] = self.verbose  # Pass verbose to model manager
+                    self.model_manager = ModelManagerFactory.create_from_config(provider_config)
+                    if self.verbose:
+                        logger.info(f"Model management enabled with global config ({global_config.default_provider.value})")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize model manager from global config: {e}")
+                    self.model_management_enabled = False
+            
+            # Set auto_unload default if not specified
+            if self.auto_unload_models is None:
+                self.auto_unload_models = global_config.auto_unload if self.model_management_enabled else False
+        
+        elif model_management is not None and model_management.get('enabled', False):
+            logger.warning("Model management requested but model_management module not available")
+        
+        if self.verbose and self.model_management_enabled:
+            logger.info(f"Model management: enabled={self.model_management_enabled}, auto_unload={self.auto_unload_models}")
 
     def reset_model_index(self):
         """Reset the model index counter."""
@@ -297,6 +365,45 @@ class PromptChain:
         """
         # Reset model index at the start of each chain
         self.reset_model_index()
+        
+        # ===== Model Management: Initial cleanup if enabled =====
+        if self.model_management_enabled and self.model_manager and self.auto_unload_models:
+            try:
+                if self.verbose:
+                    logger.debug("🔄 Model Management: Initial cleanup - checking for loaded models")
+                
+                # Get currently loaded models
+                loaded_models = await self.model_manager.get_loaded_models_async()
+                
+                # Check if any loaded model is NOT in our chain's model list
+                chain_models = set()
+                for model_name in self.models:
+                    if "ollama/" in model_name:
+                        actual_model = model_name.replace("ollama/", "")
+                        chain_models.add(actual_model)
+                
+                # Unload any models not needed for this chain
+                for model_info in loaded_models:
+                    if model_info.name not in chain_models:
+                        if self.verbose:
+                            logger.debug(f"🔄 Model Management: Unloading {model_info.name} (not needed for this chain)")
+                        await self.model_manager.unload_model_async(model_info.name)
+                
+                # If the first model is different from what's loaded, unload all
+                if self.models and loaded_models:
+                    first_model_needed = self.models[0].replace("ollama/", "") if "ollama/" in self.models[0] else self.models[0]
+                    # Check if first model matches any loaded model
+                    first_model_loaded = any(m.name == first_model_needed for m in loaded_models)
+                    
+                    if not first_model_loaded and loaded_models:
+                        # First model is different, unload everything for clean start
+                        if self.verbose:
+                            logger.debug(f"🔄 Model Management: First step needs {first_model_needed}, unloading all current models")
+                        for model_info in loaded_models:
+                            await self.model_manager.unload_model_async(model_info.name)
+                            
+            except Exception as e:
+                logger.warning(f"Model management initial cleanup failed: {e}")
 
         # Ensure MCP is connected if configured and not already connected, via helper
         if self.mcp_helper and not self.mcp_helper.mcp_sessions:
@@ -597,6 +704,27 @@ class PromptChain:
                         messages_for_llm = [user_message_this_step]
 
 
+                    # ===== Model Management: Pre-load model if enabled =====
+                    if self.model_management_enabled and self.model_manager:
+                        try:
+                            if self.verbose:
+                                logger.debug(f"🔄 Model Management: Loading {model}")
+                            
+                            # Load model and get its info (including context length)
+                            model_info = await self.model_manager.load_model_async(model, step_model_params)
+                            
+                            # If model has context length info, update the step params for LiteLLM
+                            if model_info and hasattr(model_info, 'parameters') and model_info.parameters:
+                                if 'max_context_length' in model_info.parameters:
+                                    # Add context length to LiteLLM params
+                                    if 'num_ctx' not in step_model_params:
+                                        step_model_params['num_ctx'] = model_info.parameters['max_context_length']
+                                        if self.verbose:
+                                            logger.debug(f"🔄 Using max context length: {model_info.parameters['max_context_length']}")
+                                            
+                        except Exception as e:
+                            logger.warning(f"Model management failed to load {model}: {e}")
+                    
                     # ===== Tool Calling Logic integrated with Model Call =====
                     response_message_dict = await self.run_model_async(
                         model_name=model,
@@ -699,7 +827,7 @@ class PromptChain:
                             messages=messages_for_follow_up, # Pass history including tool results
                             params=step_model_params,
                             tools=available_tools, # Pass tools again
-                            tool_choice="auto" # Or maybe "none"? Stick with auto.
+                            tool_choice="none" # Force text response, no more tool calls
                         )
 
                         # Add the final response to history if using full history
@@ -708,6 +836,17 @@ class PromptChain:
 
                         # The final text output for this step is the content of this message
                         step_output = final_response_message_dict.get('content', '')
+                        
+                        # If still no content after tool calls, extract tool results as output
+                        if not step_output and tool_results_messages:
+                            if self.verbose:
+                                logger.debug("No final content from model after tool calls, using tool results as step output")
+                            tool_results = []
+                            for tool_msg in tool_results_messages:
+                                tool_content = tool_msg.get('content', '')
+                                if tool_content:
+                                    tool_results.append(tool_content)
+                            step_output = "\n\n".join(tool_results) if tool_results else ""
 
                     else: # No tool calls in the initial response
                         # The output is simply the content of the first response
@@ -797,12 +936,50 @@ class PromptChain:
                     except Exception as breaker_ex:
                         logger.error(f"Error executing chainbreaker {breaker.__name__}: {breaker_ex}", exc_info=self.verbose)
 
+                # ===== Model Management: Auto-unload if enabled =====
+                if (self.model_management_enabled and self.model_manager and 
+                    step_type == "model" and self.auto_unload_models):
+                    try:
+                        # Determine if we should unload this model
+                        should_unload = True
+                        
+                        # Check if the same model is needed in the next step
+                        if step < len(self.instructions) - 1:  # Not the last step
+                            next_instruction = self.instructions[step + 1]
+                            if not callable(next_instruction) and not isinstance(next_instruction, AgenticStepProcessor):
+                                # Next step is also a model step, check if it's the same model
+                                next_model_index = self.model_index  # Current index for next step
+                                if next_model_index < len(self.models):
+                                    next_model = self.models[next_model_index]
+                                    if next_model == model:
+                                        should_unload = False  # Same model needed next, keep loaded
+                        
+                        if should_unload:
+                            if self.verbose:
+                                logger.debug(f"🔄 Model Management: Unloading {model}")
+                            await self.model_manager.unload_model_async(model)
+                    except Exception as e:
+                        logger.warning(f"Model management failed to unload {model}: {e}")
+                
                 if break_chain:
                     break # Exit the main instruction loop
 
         except Exception as e:
             logger.error(f"\n❌ Error in chain processing at step {step_num}: {e}", exc_info=True) # Use full traceback
             raise # Re-raise the exception after logging
+        finally:
+            # ===== Model Management: Cleanup on completion/error =====
+            if self.model_management_enabled and self.model_manager and self.auto_unload_models:
+                try:
+                    if self.verbose:
+                        logger.debug("🔄 Model Management: Final cleanup - unloading all models")
+                    # Unload all models that were used in this chain
+                    for model_name in set(self.models):  # Use set to avoid duplicates
+                        if "ollama/" in model_name:  # Only unload Ollama models
+                            actual_model = model_name.replace("ollama/", "")
+                            await self.model_manager.unload_model_async(actual_model)
+                except Exception as e:
+                    logger.warning(f"Model management cleanup failed: {e}")
 
         if self.verbose:
             logger.debug("\n" + "="*50)
@@ -1099,3 +1276,86 @@ class PromptChain:
 
     # --- MCP Tool Execution Helper Removed (_execute_mcp_tool_internal) ---
     # --- Calls are now directed to self.mcp_helper.execute_mcp_tool ---
+    
+    # ===== Model Management Utility Methods =====
+    
+    async def cleanup_models_async(self):
+        """Cleanup all loaded models (useful for shutdown)"""
+        if self.model_management_enabled and self.model_manager:
+            try:
+                await self.model_manager.cleanup_async()
+                if self.verbose:
+                    logger.info("Model management cleanup completed")
+            except Exception as e:
+                logger.warning(f"Model management cleanup failed: {e}")
+    
+    def cleanup_models(self):
+        """Synchronous wrapper for cleanup_models_async"""
+        asyncio.run(self.cleanup_models_async())
+    
+    async def get_loaded_models_async(self):
+        """Get list of currently loaded models"""
+        if self.model_management_enabled and self.model_manager:
+            try:
+                return await self.model_manager.get_loaded_models_async()
+            except Exception as e:
+                logger.warning(f"Failed to get loaded models: {e}")
+                return []
+        return []
+    
+    def get_loaded_models(self):
+        """Synchronous wrapper for get_loaded_models_async"""
+        return asyncio.run(self.get_loaded_models_async())
+    
+    async def unload_model_async(self, model_name: str):
+        """Manually unload a specific model"""
+        if self.model_management_enabled and self.model_manager:
+            try:
+                # Handle ollama/ prefix
+                actual_model = model_name.replace("ollama/", "") if "ollama/" in model_name else model_name
+                result = await self.model_manager.unload_model_async(actual_model)
+                if self.verbose:
+                    logger.info(f"Manually unloaded model: {actual_model}")
+                return result
+            except Exception as e:
+                logger.warning(f"Failed to unload model {model_name}: {e}")
+                return False
+        return False
+    
+    def unload_model(self, model_name: str):
+        """Synchronous wrapper for unload_model_async"""
+        return asyncio.run(self.unload_model_async(model_name))
+    
+    async def load_model_async(self, model_name: str, model_params: Optional[Dict] = None):
+        """Manually load a specific model"""
+        if self.model_management_enabled and self.model_manager:
+            try:
+                # Handle ollama/ prefix
+                actual_model = model_name.replace("ollama/", "") if "ollama/" in model_name else model_name
+                result = await self.model_manager.load_model_async(actual_model, model_params)
+                if self.verbose:
+                    logger.info(f"Manually loaded model: {actual_model}")
+                return result
+            except Exception as e:
+                logger.warning(f"Failed to load model {model_name}: {e}")
+                return None
+        return None
+    
+    def load_model(self, model_name: str, model_params: Optional[Dict] = None):
+        """Synchronous wrapper for load_model_async"""
+        return asyncio.run(self.load_model_async(model_name, model_params))
+    
+    def set_auto_unload(self, enabled: bool):
+        """Enable or disable automatic model unloading"""
+        self.auto_unload_models = enabled
+        if self.verbose:
+            logger.info(f"Auto-unload models: {enabled}")
+    
+    def get_model_manager_status(self):
+        """Get model management status information"""
+        return {
+            "enabled": self.model_management_enabled,
+            "auto_unload": self.auto_unload_models,
+            "manager_type": self.model_manager.get_provider_type().value if self.model_manager else None,
+            "available": MODEL_MANAGEMENT_AVAILABLE
+        }

@@ -119,6 +119,7 @@ print(result)
 ### Quick Links
 - **[Quick Start Guide](docs/promptchain_quickstart_multistep.md)** - Get up and running in minutes
 - **[Complete Framework Guide](docs/promptchain_guide.md)** - Comprehensive usage documentation  
+- **[Model Management System](docs/model_management.md)** - 🆕 Automatic VRAM optimization for large models
 - **[Prompt Engineering Guide](docs/prompt_engineer.md)** - Advanced prompt optimization
 - **[Agent Integration Examples](docs/AgentChain_Usage.md)** - Using with agent frameworks
 - **[Function Integration](docs/registering_functions_to_chain.md)** - Custom function examples
