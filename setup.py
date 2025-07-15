@@ -15,7 +15,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/gyasis/promptchain",
-    packages=find_packages() + ['ingestors', 'extras'],
+    packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
@@ -32,7 +32,7 @@ setup(
     include_package_data=True,
     package_data={
         "promptchain": ["prompts/**/*.md"],
-        "ingestors": ["**/*.py"],
-        "extras": ["**/*.py"],
+        "promptchain.ingestors": ["**/*.py"],
+        "promptchain.extras": ["**/*.py"],
     },
 ) 

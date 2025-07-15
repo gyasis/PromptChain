@@ -18,7 +18,10 @@ mypy>=1.7.0          # For type checking
 mkdocs>=1.5.0        # For documentation generation (optional)
 mkdocs-material>=9.5.0  # For documentation theme (optional)
 
-# PromptChain and MCP requirements
-promptchain
-mcp
-asyncio 
+# Additional dependencies based on code imports
+tiktoken>=0.5.0      # For token counting in execution history
+rich>=13.0.0         # For console output in agent_chain
+httpx>=0.25.0        # For HTTP requests in the codebase
+
+# Note: 'mcp' package should be installed separately as it's not on PyPI
+# asyncio is part of Python standard library (3.4+) and doesn't need to be installed 
