@@ -1,0 +1,79 @@
+[project]
+name = "research-agent"
+version = "0.1.0.a"
+description = "Advanced Research Agent System with 3-Tier RAG, Literature Search, and PromptChain Integration"
+readme = "README.md"
+authors = [
+    { name = "gyasis", email = "gyasis@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    # Core PromptChain dependency (local)
+    "promptchain @ file:///${PROJECT_ROOT}/../",
+    
+    # LLM and AI
+    "litellm>=1.40.0",
+    "ollama>=0.1.7",
+    "openai>=1.0.0",
+    "anthropic>=0.25.0",
+    
+    # RAG Libraries
+    "lightrag>=0.1.0",
+    "paper-qa>=0.1.0",
+    "graphrag>=0.3.0",
+    
+    # Vector stores and embeddings
+    "chromadb>=0.4.22",
+    "sentence-transformers>=2.2.2",
+    
+    # Academic APIs (Only ArXiv and PubMed)
+    "arxiv>=2.1.0",
+    "biopython>=1.81",  # For PubMed access
+    "scihub>=0.0.1",  # Sci-Hub library for MCP integration
+    
+    # Web frameworks
+    "fastapi>=0.109.0",
+    "chainlit>=1.0.0",
+    "uvicorn>=0.27.0",
+    
+    # Data processing
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "matplotlib>=3.7.0",
+    "plotly>=5.17.0",
+    
+    # Document processing
+    "pypdf>=3.17.0",
+    "pymupdf>=1.23.0",
+    "pdfplumber>=0.10.0",
+    
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+    "tenacity>=8.2.0",
+    "httpx>=0.25.0",
+    "aiofiles>=23.0.0",
+    "beautifulsoup4>=4.12.0",
+    
+    # Database
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.19.0",
+    
+    # Caching
+    "diskcache>=5.6.0",
+    "redis>=5.0.0",
+    
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+research-agent = "research_agent:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

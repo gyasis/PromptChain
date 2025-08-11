@@ -114,7 +114,20 @@ extras/
 notebooks/
 prompts
 
+# SECURITY CRITICAL - Never track these files
+.specstory/
+claude.md
+cursor.md
 CLAUDE.md
+*.claude
+*.cursor
+
+# Research Agent specific exclusions
+Research_agent/.env
+Research_agent/data/cache/*
+Research_agent/outputs/*
+*.db
+*.sqlite*
 # Note: The following directories ARE tracked in the remote repository:
 # - docs/
 # - promptchain/
