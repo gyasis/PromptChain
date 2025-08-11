@@ -1,6 +1,6 @@
 [project]
 name = "research-agent"
-version = "0.1.0.a"
+version = "0.1.0.b"
 description = "Advanced Research Agent System with 3-Tier RAG, Literature Search, and PromptChain Integration"
 readme = "README.md"
 authors = [
