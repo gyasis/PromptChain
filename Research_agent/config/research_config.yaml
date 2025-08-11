@@ -168,60 +168,191 @@ three_tier_rag:
       concurrent_coroutines: 32
       json_mode: true
 
-# PromptChain Integration
+# PromptChain Integration - Advanced Multi-Agent Research System
 promptchain:
-  # Agent Configuration
+  # Main Agent Chain Configuration
   agent_chain:
-    execution_mode: "router"  # router, pipeline, round_robin, broadcast
-    max_agents: 5
+    execution_mode: "pipeline"  # Sequential execution for research workflow
+    max_agents: 10
     cache_enabled: true
     cache_name: "research_session"
     cache_path: "./data/cache"
     verbose: true
     
-  # Research Agents
+  # Advanced Research Agents
   agents:
+    # Phase 1: Query Generation
+    query_generator:
+      model: "openai/gpt-4o"
+      type: "agentic"
+      instructions:
+        - "Analyze research topic: {topic}"
+        - "Generate 8-12 specific research questions covering different aspects"
+        - "Format as structured query list with priority scores"
+      processor:
+        type: "agentic_step"
+        objective: "Generate comprehensive research questions for multi-query processing"
+        max_internal_steps: 5
+      tools:
+        - "topic_analysis"
+        - "question_generation"
+        - "priority_scoring"
+        
+    # Phase 2: Search Strategy
+    search_strategist:
+      model: "openai/gpt-4o-mini"
+      type: "agentic"
+      instructions:
+        - "Current queries: {queries}"
+        - "Previous findings: {findings}"
+        - "Determine optimal search strategy and keywords"
+        - "Generate search terms for Sci-Hub, ArXiv, and PubMed"
+      processor:
+        type: "agentic_step"
+        objective: "Optimize search strategy based on queries and current findings"
+        max_internal_steps: 3
+      tools:
+        - "search_optimization"
+        - "keyword_generation"
+        - "database_selection"
+        
+    # Phase 3: Literature Search
     literature_searcher:
       model: "openai/gpt-4o-mini"
+      type: "function_calling"
       instructions:
-        - "Search for relevant academic papers: {input}"
-        - "Extract key information and metadata"
+        - "Execute search strategy: {strategy}"
+        - "Find relevant papers using multiple sources"
+        - "Collect and validate paper metadata"
       tools:
         - "mcp_scihub_search_by_keyword"
+        - "mcp_scihub_search_by_title"
         - "arxiv_search"
         - "pubmed_search"
+        - "paper_validation"
+        - "metadata_extraction"
         
-    entity_extractor:
-      model: "openai/gpt-4o-mini"
-      instructions:
-        - "Extract entities and relationships from: {input}"
-      processor: "agentic_step"
-      max_internal_steps: 3
-      
-    research_analyzer:
+    # Phase 4: Multi-Query Coordination
+    multi_query_coordinator:
       model: "anthropic/claude-3-sonnet-20240229"
+      type: "orchestrator"
       instructions:
-        - "Analyze research papers: {input}"
-        - "Generate comprehensive analysis"
-      processor: "agentic_step"
-      max_internal_steps: 5
-      
-    report_generator:
-      model: "openai/gpt-4o"
-      instructions:
-        - "Generate research report: {input}"
-        - "Include statistics, graphs, and tables"
+        - "Coordinate processing of papers across all tiers"
+        - "Manage multiple queries simultaneously"
+        - "Aggregate results from all processing tiers"
+      processor:
+        type: "custom"
+        class: "MultiQueryCoordinator"
+      tools:
+        - "tier_coordination"
+        - "result_aggregation"
+        - "progress_tracking"
         
-  # Router Configuration
+    # Phase 5: ReAct Analysis
+    react_analyzer:
+      model: "anthropic/claude-3-5-sonnet-20240620"
+      type: "agentic"
+      instructions:
+        - "Analyze multi-tier results: {results}"
+        - "Identify research gaps and coverage issues"
+        - "Determine if additional queries are needed"
+        - "Generate new queries or mark research as complete"
+      processor:
+        type: "agentic_step"
+        objective: "Perform ReAct-style gap analysis and iterative query generation"
+        max_internal_steps: 7
+      tools:
+        - "gap_detection"
+        - "coverage_analysis"
+        - "query_generation"
+        - "completeness_assessment"
+        
+    # Phase 6: Synthesis
+    synthesis_agent:
+      model: "openai/gpt-4o"
+      type: "agentic"
+      instructions:
+        - "All research findings: {findings}"
+        - "Original research topic: {topic}"
+        - "Synthesize comprehensive literature review"
+        - "Include cross-cutting themes and statistical analysis"
+      processor:
+        type: "agentic_step"  
+        objective: "Synthesize comprehensive literature review with sections, statistics, and analysis"
+        max_internal_steps: 10
+        store_steps: true
+      tools:
+        - "literature_synthesis"
+        - "statistical_analysis"
+        - "citation_analysis"
+        - "document_generation"
+        
+    # Phase 7: Interactive Chat
+    chat_interface:
+      model: "openai/gpt-4o"
+      type: "interactive"
+      instructions:
+        - "Handle follow-up questions about research: {question}"
+        - "Generate addenda to literature review"
+        - "Assist with document export and formatting"
+      tools:
+        - "intent_classification"
+        - "follow_up_processing"
+        - "addendum_generation"
+        - "document_export"
+        
+  # Router Configuration for Interactive Mode
   router:
     model: "openai/gpt-4o-mini"
     decision_templates:
-      single_agent_dispatch: |
-        Based on the user request: {user_input}
-        Available agents: {agent_details}
-        Conversation history: {history}
-        Choose the most appropriate agent and return JSON:
-        {"chosen_agent": "agent_name", "refined_query": "optional refined query"}
+      research_workflow_dispatch: |
+        User input: {user_input}
+        Current research phase: {current_phase}
+        Session status: {session_status}
+        
+        Available phases:
+        1. new_research - Start new research topic
+        2. continue_research - Continue existing research session
+        3. follow_up_question - Ask question about existing research
+        4. request_analysis - Request specific analysis
+        5. generate_queries - Generate additional queries
+        6. export_document - Export/update literature review
+        7. interactive_chat - Enter chat mode
+        
+        Choose phase and agent: {"phase": "phase_name", "agent": "agent_name", "refined_input": "optional refined input"}
+        
+      chat_mode_dispatch: |
+        User input in chat mode: {user_input}
+        Current research session: {research_session}
+        Chat history: {chat_history}
+        
+        Available actions:
+        1. follow_up - Answer follow-up question using existing research
+        2. expand_search - Find additional papers for specific aspect
+        3. add_section - Add new section to literature review
+        4. update_analysis - Update existing analysis
+        5. export_format - Export in specific format
+        6. end_session - Complete research session
+        
+        Choose action: {"action": "action_name", "parameters": {...}}
+
+# Research Session Management
+research_session:
+  # Session Configuration
+  max_iterations: 5
+  max_queries_per_iteration: 15
+  min_papers_per_query: 5
+  max_papers_total: 100
+  
+  # Quality Thresholds
+  completeness_threshold: 0.85
+  gap_detection_threshold: 0.7
+  citation_minimum: 3
+  
+  # Session Persistence
+  save_intermediate_results: true
+  session_timeout: 7200  # 2 hours
+  auto_save_interval: 300  # 5 minutes
 
 # MCP Server Configuration
 mcp_servers:
