@@ -98,6 +98,10 @@ frontend/
 memory-bank/
 docs/auxiliary_projects/
 
+# Allow Research Agent frontend to be tracked
+!Research_agent/frontend/
+!Research_agent/frontend/src/lib/
+
 # Temporary and generated files
 repomix-output.xml
 cursor_instruction.txt
