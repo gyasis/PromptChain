@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 
 export interface ProgressStep {
   id: string;
@@ -9,6 +9,20 @@ export interface ProgressStep {
   startTime?: Date;
   endTime?: Date;
   substeps?: ProgressStep[];
+}
+
+export interface Paper {
+  id: string;
+  title: string;
+  authors: string[];
+  abstract: string;
+  source: 'arxiv' | 'pubmed' | 'scihub';
+  url?: string;
+  pdfUrl?: string;
+  publishedDate?: string;
+  citationCount?: number;
+  tags: string[];
+  status: 'found' | 'downloading' | 'ready' | 'error';
 }
 
 export interface ProgressSession {
@@ -22,6 +36,7 @@ export interface ProgressSession {
   estimatedCompletion?: Date;
   papersFound: number;
   queriesProcessed: number;
+  papers: Paper[];
 }
 
 export interface ProgressState {
@@ -54,7 +69,8 @@ function createProgressStore() {
         steps: [],
         startTime: new Date(),
         papersFound: 0,
-        queriesProcessed: 0
+        queriesProcessed: 0,
+        papers: []
       };
 
       update(state => ({
@@ -162,6 +178,43 @@ function createProgressStore() {
         }
         return { ...state, sessions };
       });
+    },
+
+    // Paper management
+    addPaper: (sessionId: string, paper: Paper) => {
+      update(state => {
+        const sessions = new Map(state.sessions);
+        const session = sessions.get(sessionId);
+        if (session) {
+          const updatedPapers = [...session.papers, paper];
+          sessions.set(sessionId, {
+            ...session,
+            papers: updatedPapers,
+            papersFound: updatedPapers.length
+          });
+        }
+        return { ...state, sessions };
+      });
+    },
+
+    updatePaper: (sessionId: string, paperId: string, updates: Partial<Paper>) => {
+      update(state => {
+        const sessions = new Map(state.sessions);
+        const session = sessions.get(sessionId);
+        if (session) {
+          const updatedPapers = session.papers.map(paper =>
+            paper.id === paperId ? { ...paper, ...updates } : paper
+          );
+          sessions.set(sessionId, { ...session, papers: updatedPapers });
+        }
+        return { ...state, sessions };
+      });
+    },
+
+    getPapersForSession: (sessionId: string): Paper[] => {
+      const state = get(progressStore);
+      const session = state.sessions.get(sessionId);
+      return session?.papers || [];
     },
 
     // Reset all progress
