@@ -1,4 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
+import { researchSessionStorage } from './sessionStorage';
+// Browser detection for Vite + Svelte (not SvelteKit)
+const browser = typeof window !== 'undefined';
 
 export interface ProgressStep {
   id: string;
@@ -48,12 +51,56 @@ export interface ProgressState {
 
 // Create the main progress store
 function createProgressStore() {
-  const { subscribe, set, update } = writable<ProgressState>({
+  // Initialize with persisted data if available
+  const initialState: ProgressState = {
     sessions: new Map(),
     activeSessionId: null,
     modalOpen: false,
     widgetVisible: false
-  });
+  };
+
+  // Load persisted state on initialization
+  if (browser) {
+    try {
+      const persistedActiveSession = researchSessionStorage.getActiveSession();
+      const persistedSessions = researchSessionStorage.getResearchSessions();
+      
+      if (persistedActiveSession) {
+        initialState.activeSessionId = persistedActiveSession.sessionId;
+        initialState.sessions.set(persistedActiveSession.sessionId, persistedActiveSession);
+      }
+
+      // Load recent sessions into the store
+      persistedSessions.slice(0, 10).forEach((session: ProgressSession) => {
+        initialState.sessions.set(session.sessionId, session);
+      });
+    } catch (error) {
+      console.error('Failed to load persisted progress state:', error);
+    }
+  }
+
+  const { subscribe, set, update } = writable<ProgressState>(initialState);
+
+  // Helper function to persist state changes
+  const persistState = (state: ProgressState) => {
+    if (!browser) return;
+
+    try {
+      // Save active session
+      if (state.activeSessionId) {
+        const activeSession = state.sessions.get(state.activeSessionId);
+        if (activeSession) {
+          researchSessionStorage.storeActiveSession(activeSession);
+        }
+      }
+
+      // Save all sessions
+      const sessionsArray = Array.from(state.sessions.values());
+      researchSessionStorage.storeResearchSessions(sessionsArray);
+    } catch (error) {
+      console.error('Failed to persist progress state:', error);
+    }
+  };
 
   return {
     subscribe,
@@ -73,12 +120,16 @@ function createProgressStore() {
         papers: []
       };
 
-      update(state => ({
-        ...state,
-        sessions: new Map(state.sessions).set(sessionId, newSession),
-        activeSessionId: sessionId,
-        widgetVisible: true
-      }));
+      update(state => {
+        const newState = {
+          ...state,
+          sessions: new Map(state.sessions).set(sessionId, newSession),
+          activeSessionId: sessionId,
+          widgetVisible: true
+        };
+        persistState(newState);
+        return newState;
+      });
     },
 
     updateSession: (sessionId: string, updates: Partial<ProgressSession>) => {
@@ -88,7 +139,9 @@ function createProgressStore() {
         if (existingSession) {
           sessions.set(sessionId, { ...existingSession, ...updates });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -102,7 +155,9 @@ function createProgressStore() {
           );
           sessions.set(sessionId, { ...session, steps: updatedSteps });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -116,7 +171,9 @@ function createProgressStore() {
             steps: [...session.steps, step]
           });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -132,7 +189,9 @@ function createProgressStore() {
             currentStep: 'Research completed successfully!'
           });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -147,7 +206,9 @@ function createProgressStore() {
             currentStep: `Error: ${error}`
           });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -164,7 +225,11 @@ function createProgressStore() {
     })),
 
     setActiveSession: (sessionId: string | null) => {
-      update(state => ({ ...state, activeSessionId: sessionId }));
+      update(state => {
+        const newState = { ...state, activeSessionId: sessionId };
+        persistState(newState);
+        return newState;
+      });
     },
 
     // Clear completed sessions (cleanup)
@@ -176,7 +241,9 @@ function createProgressStore() {
             sessions.set(id, session);
           }
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -193,7 +260,9 @@ function createProgressStore() {
             papersFound: updatedPapers.length
           });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 
@@ -207,7 +276,9 @@ function createProgressStore() {
           );
           sessions.set(sessionId, { ...session, papers: updatedPapers });
         }
-        return { ...state, sessions };
+        const newState = { ...state, sessions };
+        persistState(newState);
+        return newState;
       });
     },
 

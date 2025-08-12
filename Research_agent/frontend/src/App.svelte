@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Search, BookOpen, Brain, Database, BarChart3, Settings, Plus, Play, History, MessageCircle, TrendingUp } from 'lucide-svelte';
+  import { Search, BookOpen, Brain, Database, BarChart3, Settings, Plus, Play, History, MessageCircle, TrendingUp, FileText } from 'lucide-svelte';
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -13,8 +13,11 @@
   import PdfViewer from "$lib/components/PdfViewer.svelte";
   import ChatInterface from "$lib/components/ChatInterface.svelte";
   import ResearchVisualization from "$lib/components/ResearchVisualization.svelte";
+  import ReportGenerator from "$lib/components/ReportGenerator.svelte";
   import { progressStore, activeSession, progressWebSocketManager, type Paper } from "$lib/stores/progress";
   import { startProgressDemo } from "$lib/utils/progressDemo";
+  import { errorHandler, handleApiCall } from "$lib/utils/errorHandler";
+  import { logger, LogCategory, logApiCall } from "$lib/utils/logger";
   
   // API base URL
   const API_BASE = 'http://localhost:8078/api';
@@ -71,41 +74,86 @@
   ];
   
   onMount(async () => {
-    await checkSystemHealth();
-    await loadResearchSessions();
+    try {
+      logger.info('Application initializing', undefined, LogCategory.SYSTEM);
+      await checkSystemHealth();
+      await loadResearchSessions();
+      logger.info('Application initialized successfully', undefined, LogCategory.SYSTEM);
+    } catch (error) {
+      logger.error('Application initialization failed', error, LogCategory.SYSTEM);
+      errorHandler.handleError({
+        type: 'unknown',
+        severity: 'high',
+        message: 'Failed to initialize application'
+      });
+    }
   });
   
   async function checkSystemHealth() {
+    const apiLogger = logApiCall('GET', `${API_BASE}/health`);
+    
     try {
+      logger.info('Checking system health', undefined, LogCategory.API);
       const response = await fetch(`${API_BASE}/health`);
+      
       if (response.ok) {
         systemHealth = await response.json();
+        apiLogger.success(response.status, systemHealth);
+        logger.info('System health check successful', systemHealth, LogCategory.SYSTEM);
+      } else {
+        apiLogger.error(response.status);
+        errorHandler.handleApiError(response, { operation: 'health_check' });
+        systemHealth.status = 'error';
       }
     } catch (error) {
-      console.error('Failed to check system health:', error);
+      apiLogger.error(0, error);
+      logger.error('System health check failed', error, LogCategory.API);
+      errorHandler.handleError({
+        type: 'network',
+        severity: 'medium',
+        message: 'Failed to check system health',
+        details: error
+      });
       systemHealth.status = 'error';
     }
   }
   
   async function loadResearchSessions() {
     try {
+      logger.info('Loading research sessions', undefined, LogCategory.SESSION);
       // For now using mock data, would connect to actual API
       researchSessions = mockRecentSessions;
+      logger.info('Research sessions loaded', { count: researchSessions.length }, LogCategory.SESSION);
     } catch (error) {
-      console.error('Failed to load sessions:', error);
+      logger.error('Failed to load research sessions', error, LogCategory.SESSION);
+      errorHandler.handleError({
+        type: 'session',
+        severity: 'medium',
+        message: 'Failed to load research sessions',
+        details: error
+      });
     }
   }
   
   async function startNewResearch() {
-    if (!newResearchTopic.trim()) return;
+    if (!newResearchTopic.trim()) {
+      logger.warn('Research started with empty topic', undefined, LogCategory.USER);
+      return;
+    }
+    
+    const sessionId = `session-${Date.now()}`;
+    const topic = newResearchTopic;
+    
+    logger.logUserAction('start_research', 'research_input', { topic, sessionId });
+    logger.startPerformanceTracking(`research_session_${sessionId}`);
     
     isLoading = true;
     try {
-      const sessionId = `session-${Date.now()}`;
-      const topic = newResearchTopic;
+      logger.info('Starting new research session', { topic, sessionId }, LogCategory.RESEARCH);
       
       // Start progress tracking
       progressStore.startSession(sessionId, topic);
+      logger.logSessionEvent('session_created', sessionId, { topic });
       
       // For demo purposes, use WebSocket simulation instead of real API
       // In production, this would connect to real WebSocket
@@ -113,23 +161,22 @@
       
       // Start demo progress simulation
       startProgressDemo(sessionId, topic);
+      logger.info('Demo progress simulation started', { sessionId }, LogCategory.RESEARCH);
       
       // Show progress widget
       progressWidgetVisible = true;
+      logger.logUIEvent('progress_widget_shown', 'ProgressWidget', { sessionId });
       
       // Mock API call - would integrate with actual research API
-      console.log('Starting research for:', topic);
+      logger.debug('Research API call (simulated)', { topic, sessionId }, LogCategory.API);
       
       // Simulate API call for demo (comment out for real implementation)
-      // const response = await fetch(`${API_BASE}/research/start`, {
+      // const apiLogger = logApiCall('POST', `${API_BASE}/research/start`);
+      // const response = await handleApiCall(() => fetch(`${API_BASE}/research/start`, {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },
       //   body: JSON.stringify({ topic, session_id: sessionId })
-      // });
-      
-      // if (!response.ok) {
-      //   throw new Error('Failed to start research session');
-      // }
+      // }), { operation: 'start_research', sessionId });
       
       const newSession = {
         id: sessionId,
@@ -145,15 +192,29 @@
       
       // Open progress modal for immediate feedback
       progressModalOpen = true;
+      logger.logUIEvent('progress_modal_opened', 'ProgressModal', { sessionId });
+      
+      logger.info('Research session started successfully', { sessionId, topic }, LogCategory.RESEARCH);
       
     } catch (error) {
-      console.error('Failed to start research:', error);
+      logger.error('Failed to start research session', error, LogCategory.RESEARCH, { sessionId, topic });
+      
+      errorHandler.handleError({
+        type: 'api',
+        severity: 'high',
+        message: 'Failed to start research session',
+        details: error,
+        sessionId,
+        context: { topic, operation: 'start_research' }
+      });
+      
       // Update progress with error
       if (progressStore) {
-        progressStore.errorSession(`session-${Date.now()}`, error.message || 'Unknown error');
+        progressStore.errorSession(sessionId, error?.message || 'Failed to start research');
       }
     } finally {
       isLoading = false;
+      logger.endPerformanceTracking(`research_session_${sessionId}`, { topic }, { operation: 'start_research' });
     }
   }
   
@@ -274,6 +335,37 @@
     const { sessionId } = event.detail;
     console.log('Clearing chat session:', sessionId);
     // In production, this would clear the chat session via API
+  }
+
+  // Report generator event handlers
+  function handleGenerateReport(event: CustomEvent<{ config: any; papers: Paper[]; sessionId: string | null }>) {
+    const { config, papers, sessionId } = event.detail;
+    console.log('Generating report:', config, papers.length, sessionId);
+    
+    // In production, this would call the backend API to generate the report
+    // const response = await fetch(`${API_BASE}/reports/generate`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ config, papers, session_id: sessionId })
+    // });
+  }
+
+  function handlePreviewReport(event: CustomEvent<{ config: any; papers: Paper[] }>) {
+    const { config, papers } = event.detail;
+    console.log('Previewing report:', config, papers.length);
+    // The ReportGenerator handles preview internally
+  }
+
+  function handleExportReport(event: CustomEvent<{ config: any; format: string }>) {
+    const { config, format } = event.detail;
+    console.log('Exporting report:', config, format);
+    
+    // In production, this would trigger the actual file generation and download
+    // const response = await fetch(`${API_BASE}/reports/export`, {
+    //   method: 'POST', 
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ config, format })
+    // });
   }
   
   // Reactive statements for progress store integration
@@ -422,6 +514,13 @@
               Analytics
             </button>
             <button 
+              class="sidebar-item {currentView === 'reports' ? 'sidebar-item-active' : ''}"
+              on:click={() => currentView = 'reports'}
+            >
+              <FileText class="h-4 w-4" />
+              Reports
+            </button>
+            <button 
               class="sidebar-item {currentView === 'chat' ? 'sidebar-item-active' : ''}"
               on:click={() => currentView = 'chat'}
             >
@@ -431,7 +530,7 @@
           </nav>
 
           <!-- Centered Research Input -->
-          <div class="max-w-2xl mx-auto {$activeSession && ($activeSession.status === 'searching' || $activeSession.status === 'processing' || $activeSession.papers.length > 0) ? 'mb-8' : 'mt-16'}">
+          <div class="max-w-7xl mx-auto {$activeSession && ($activeSession.status === 'searching' || $activeSession.status === 'processing' || $activeSession.papers.length > 0) ? 'mb-8' : 'mt-16'}">
             <div class="text-center mb-8">
               <h2 class="text-3xl font-bold text-neutral-900 mb-3">Start New Research</h2>
               <p class="text-lg text-neutral-600">Enter a research topic to begin comprehensive literature analysis</p>
@@ -451,14 +550,15 @@
                   <Button 
                     onclick={startNewResearch}
                     disabled={isLoading || !newResearchTopic.trim()}
-                    class="h-14 px-8 text-lg"
+                    class="h-14 px-8 text-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-lg"
                   >
                     {#if isLoading}
-                      <div class="spinner"></div>
+                      <div class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Processing...
                     {:else}
-                      <Play class="h-5 w-5 mr-3" />
+                      <Play class="h-5 w-5 mr-2" />
+                      Start Research
                     {/if}
-                    Start Research
                   </Button>
                 </div>
               </Card.Content>
@@ -605,6 +705,34 @@
         </div>
       {/if}
 
+      <!-- Reports View -->
+      {#if currentView === 'reports'}
+        <div class="p-8">
+          <div class="section-header mb-6">
+            <div>
+              <h2 class="section-title">Research Reports</h2>
+              <p class="section-subtitle">Generate comprehensive reports from your research findings</p>
+            </div>
+            
+            {#if $activeSession && $activeSession.papers.length > 0}
+              <div class="text-sm text-neutral-600">
+                Ready to generate report from: <span class="font-medium text-primary-600">{$activeSession.papers.length} paper{$activeSession.papers.length !== 1 ? 's' : ''}</span>
+              </div>
+            {/if}
+          </div>
+          
+          <ReportGenerator 
+            papers={$activeSession?.papers || []}
+            sessionId={$activeSession?.sessionId || null}
+            researchTopic={$activeSession?.topic || ''}
+            isVisible={true}
+            on:generateReport={handleGenerateReport}
+            on:previewReport={handlePreviewReport}
+            on:exportReport={handleExportReport}
+          />
+        </div>
+      {/if}
+
       <!-- Chat View -->
       {#if currentView === 'chat'}
         <div class="p-8">
@@ -729,5 +857,31 @@
   /* Dynamic layout for research input */
   .research-input-centered {
     transition: margin-top 0.3s ease-in-out;
+  }
+
+  /* Enhanced button and input styling */
+  :global(.btn-primary) {
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+    border: none;
+    box-shadow: 0 4px 14px 0 rgba(0, 118, 255, 0.39);
+    transition: all 0.2s ease-in-out;
+  }
+
+  :global(.btn-primary:hover) {
+    background: linear-gradient(135deg, var(--primary-700), var(--primary-800));
+    box-shadow: 0 6px 20px rgba(0, 118, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
+  /* Research input card enhancements */
+  :global(.research-card) {
+    border: 2px solid var(--primary-200);
+    background: linear-gradient(135deg, white, var(--primary-50));
+    transition: all 0.3s ease-in-out;
+  }
+
+  :global(.research-card:hover) {
+    border-color: var(--primary-300);
+    box-shadow: 0 10px 25px rgba(0, 118, 255, 0.1);
   }
 </style>
