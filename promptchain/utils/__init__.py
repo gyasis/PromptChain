@@ -8,6 +8,10 @@ from . import execution_history_manager
 from . import logging_utils
 from . import mcp_client_manager
 from . import mcp_helpers
+from . import mcp_tool_hijacker
+from . import mcp_connection_manager
+from . import tool_parameter_manager
+from . import mcp_schema_validator
 from . import models
 from . import preprompt
 from . import prompt_engineer

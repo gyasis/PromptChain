@@ -28,6 +28,7 @@ try:
     # from .mcp_helpers import AsyncProcessContextManager
     from .agentic_step_processor import AgenticStepProcessor
     from .mcp_helpers import MCPHelper # Import the new helper class
+    from .mcp_tool_hijacker import MCPToolHijacker # Import the tool hijacker
     from .model_management import ModelManagerFactory, ModelProvider, ModelManagementConfig, get_global_config
     from .ollama_model_manager import OllamaModelManager
     MODEL_MANAGEMENT_AVAILABLE = True
@@ -48,6 +49,18 @@ except ImportError as e:
         async def execute_mcp_tool(self, *args, **kwargs): return json.dumps({"error": "MCP Helper dummy"})
         def get_mcp_tool_schemas(self): return []
         def get_mcp_tools_map(self): return {}
+    
+    class MCPToolHijacker: # Define dummy if import fails
+        def __init__(self, *args, **kwargs): 
+            self.verbose = False
+            self.is_connected = False
+        async def connect(self): pass
+        async def disconnect(self): pass
+        async def call_tool(self, *args, **kwargs): return json.dumps({"error": "MCP Tool Hijacker not available"})
+        def set_static_params(self, *args, **kwargs): pass
+        def add_param_transformer(self, *args, **kwargs): pass
+        def get_available_tools(self): return []
+        def get_tool_schema(self, *args): return None
     
     # Dummy model management classes
     class ModelManagerFactory:
@@ -105,7 +118,9 @@ class PromptChain:
                  mcp_servers: Optional[List[Dict[str, Any]]] = None,
                  additional_prompt_dirs: Optional[List[str]] = None,
                  model_management: Optional[Dict[str, Any]] = None,
-                 auto_unload_models: bool = None):
+                 auto_unload_models: bool = None,
+                 enable_mcp_hijacker: bool = False,
+                 hijacker_config: Optional[Dict[str, Any]] = None):
         """
         Initialize the PromptChain with optional step storage and verbose output.
 
@@ -124,6 +139,9 @@ class PromptChain:
         :param model_management: Optional dict with model management config. 
                                 Keys: 'enabled' (bool), 'provider' (str), 'config' (dict)
         :param auto_unload_models: Whether to automatically unload models between steps (overrides global config)
+        :param enable_mcp_hijacker: Enable MCP Tool Hijacker for direct tool execution without LLM overhead
+        :param hijacker_config: Optional dict with hijacker configuration.
+                               Keys: 'connection_timeout' (float), 'max_retries' (int), 'parameter_validation' (bool)
         """
         self.verbose = verbose
         # Setup logger level based on verbosity
@@ -186,6 +204,24 @@ class PromptChain:
             )
         elif mcp_servers and not MCP_AVAILABLE:
              logger.warning("mcp_servers configured but 'mcp' library not installed. MCP tools will not be available.")
+
+        # Instantiate MCPToolHijacker if enabled and MCP is available
+        self.mcp_hijacker: Optional[MCPToolHijacker] = None
+        if enable_mcp_hijacker and MCP_AVAILABLE and mcp_servers:
+            hijacker_config = hijacker_config or {}
+            self.mcp_hijacker = MCPToolHijacker(
+                mcp_servers_config=mcp_servers,
+                verbose=self.verbose,
+                connection_timeout=hijacker_config.get('connection_timeout', 30.0),
+                max_retries=hijacker_config.get('max_retries', 3),
+                parameter_validation=hijacker_config.get('parameter_validation', True)
+            )
+            if self.verbose:
+                logger.info("MCP Tool Hijacker initialized for direct tool execution")
+        elif enable_mcp_hijacker and not MCP_AVAILABLE:
+            logger.warning("MCP Tool Hijacker enabled but 'mcp' library not installed. Hijacker will not be available.")
+        elif enable_mcp_hijacker and not mcp_servers:
+            logger.warning("MCP Tool Hijacker enabled but no mcp_servers configured. Hijacker will not be available.")
 
         self.reset_model_index()
 
@@ -1183,13 +1219,17 @@ class PromptChain:
 
     # --- Async Context Manager (Calls MCPHelper methods) ---
     async def __aenter__(self):
-        """Enter context manager, connect MCP if configured via helper."""
+        """Enter context manager, connect MCP and MCP hijacker if configured."""
         if self.mcp_helper:
             await self.mcp_helper.connect_mcp_async()
+        if self.mcp_hijacker:
+            await self.mcp_hijacker.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager, close MCP connections via helper."""
+        """Exit context manager, close MCP and MCP hijacker connections."""
+        if self.mcp_hijacker:
+            await self.mcp_hijacker.disconnect()
         if self.mcp_helper:
             await self.mcp_helper.close_mcp_async()
 
