@@ -102,6 +102,137 @@ async with chain:
 
 ## Advanced Features
 
+### Step-to-Step Parameter Chaining (NEW!)
+
+**The Missing Pieces for True Interchangeability**
+
+The hijacker now supports dynamic parameter passing between PromptChain steps, enabling:
+
+1. **Variable substitution from previous step outputs**
+2. **JSON parsing and key extraction from MCP responses**
+
+#### Dynamic Parameter Templates
+
+Use outputs from previous steps as inputs for current steps:
+
+```python
+# Step 1: Initial search
+result1 = await hijacker.call_tool(
+    "mcp__deeplake__retrieve_context", 
+    query="neural network optimization"
+)
+
+# Store step output for chaining
+hijacker.store_step_output(1, result1, "search_step")
+
+# Step 2: Use previous result's first document ID
+hijacker.param_manager.set_parameter_template(
+    "mcp__deeplake__get_document",
+    "document_id",
+    "{previous.results[0].id}"  # Extract ID from step 1 output
+)
+
+# Execute step 2 with automatic template resolution
+result2 = await hijacker.call_tool_with_chaining(
+    "mcp__deeplake__get_document",
+    current_step=2,
+    title="{previous_first_title}"  # Another template variable
+)
+```
+
+#### Template Variable Patterns
+
+**Previous Step Reference:**
+```python
+"{previous.results[0].id}"          # First result's ID from previous step
+"{previous.metadata.title}"         # Title from previous step metadata
+"{previous_first_text}"             # Shortcut for first result's text
+```
+
+**Numbered Step Reference:**
+```python
+"{step_1.results[0].metadata.title}"  # Specific step by number
+"{step_2.summary}"                     # Output from step 2
+```
+
+**Named Step Reference:**
+```python
+"{search_step.results[0].id}"       # Reference by step name
+"{analysis_step.conclusions}"       # Use meaningful names
+```
+
+**With Default Values:**
+```python
+"{previous.missing_field|default}"  # Provide fallback value
+"{previous.results|[]}"             # Default to empty array
+```
+
+#### JSON Output Parsing
+
+Extract specific values from MCP tool JSON responses:
+
+```python
+from promptchain.utils.json_output_parser import JSONOutputParser, CommonExtractions
+
+parser = JSONOutputParser()
+
+# Single value extraction
+document_id = parser.extract(mcp_output, "results[0].id")
+title = parser.extract(mcp_output, "results[0].metadata.title")
+
+# Multiple extractions at once
+extractions = {
+    "first_id": "results[0].id",
+    "first_title": "results[0].metadata.title", 
+    "result_count": "results"
+}
+extracted = parser.extract_multiple(mcp_output, extractions)
+
+# Common DeepLake patterns
+all_ids = CommonExtractions.deeplake_document_ids(mcp_output)
+all_titles = CommonExtractions.deeplake_titles(mcp_output)
+
+# Create template variables automatically
+template_vars = CommonExtractions.create_template_vars(mcp_output, "previous")
+```
+
+#### Complete Workflow Example
+
+```python
+async def chained_workflow():
+    hijacker = MCPToolHijacker(mcp_config)
+    await hijacker.connect()
+    
+    # Step 1: Search
+    search_result = await hijacker.call_tool(
+        "mcp__deeplake__retrieve_context",
+        query="machine learning optimization"
+    )
+    hijacker.store_step_output(1, search_result, "search")
+    
+    # Step 2: Get details using Step 1's first result
+    hijacker.param_manager.set_parameter_template(
+        "mcp__deeplake__get_document", 
+        "document_id",
+        "{previous.results[0].id}"
+    )
+    
+    details = await hijacker.call_tool_with_chaining(
+        "mcp__deeplake__get_document",
+        current_step=2
+    )
+    hijacker.store_step_output(2, details, "details")
+    
+    # Step 3: Summary using both previous steps
+    summary = await hijacker.call_tool_with_chaining(
+        "mcp__deeplake__get_summary",
+        current_step=3,
+        query="{search.query} {details.title}"  # Combine data
+    )
+    
+    return summary
+```
+
 ### Static Parameter Management
 
 Configure parameters once and reuse them across multiple calls:
@@ -399,6 +530,15 @@ MCPToolHijacker(
 - `get_performance_stats(tool_name=None)` - Get performance statistics
 - `get_available_tools()` - List available tools
 - `get_tool_schema(tool_name)` - Get tool schema
+
+#### Step Chaining Methods (NEW!)
+
+- `store_step_output(step_index, output, step_name=None)` - Store step output for chaining
+- `create_template_vars_for_current_step(current_step)` - Create template variables from previous steps
+- `async call_tool_with_chaining(tool_name, current_step, **params)` - Execute tool with automatic step chaining
+- `parse_output_for_chaining(output, parse_config=None)` - Parse tool output for easier chaining
+- `get_step_reference_info()` - Get available step references for debugging
+- `clear_step_outputs()` - Clear all stored step outputs
 
 ### Common Transformers
 

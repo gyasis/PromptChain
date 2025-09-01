@@ -20,6 +20,8 @@ from .tool_parameter_manager import (
     CommonTransformers,
     CommonValidators
 )
+from .step_chaining_manager import StepChainingManager
+from .json_output_parser import JSONOutputParser, CommonExtractions
 
 
 class ToolNotFoundError(Exception):
@@ -74,6 +76,10 @@ class MCPToolHijacker:
         )
         
         self.param_manager = ToolParameterManager(verbose=verbose)
+        
+        # Step chaining support for dynamic parameter passing
+        self.step_chaining_manager = StepChainingManager(verbose=verbose)
+        self.json_parser = JSONOutputParser(verbose=verbose)
         
         # State management
         self._connected = False
@@ -471,6 +477,73 @@ class MCPToolHijacker:
         
         if self.verbose:
             self.logger.debug("Performance statistics cleared")
+    
+    # === Step Chaining Methods ===
+    
+    def store_step_output(self, step_index: int, output: Any, step_name: Optional[str] = None):
+        """
+        Store output from a step for later use in parameter templates.
+        
+        Args:
+            step_index: Index of the step (1-based)
+            output: Step output data
+            step_name: Optional name for the step
+        """
+        self.step_chaining_manager.store_step_output(step_index, output, step_name)
+    
+    def create_template_vars_for_current_step(self, current_step: int) -> Dict[str, Any]:
+        """
+        Create template variables for the current step from previous step outputs.
+        
+        Args:
+            current_step: Current step index
+            
+        Returns:
+            Dictionary of template variables
+        """
+        return self.step_chaining_manager.create_template_vars_for_step(current_step)
+    
+    async def call_tool_with_chaining(self, tool_name: str, current_step: int, **params) -> Any:
+        """
+        Execute tool with automatic step chaining support.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            current_step: Current step index for template variable creation
+            **params: Tool parameters (may include templates like {previous.results[0].id})
+            
+        Returns:
+            Tool execution result
+        """
+        # Create template variables from previous steps
+        template_vars = self.create_template_vars_for_current_step(current_step)
+        
+        # Execute tool with template variables
+        return await self.call_tool(tool_name, template_vars=template_vars, **params)
+    
+    def parse_output_for_chaining(self, output: Any, parse_config: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Parse tool output for easier step chaining.
+        
+        Args:
+            output: Raw tool output  
+            parse_config: Optional parsing configuration
+            
+        Returns:
+            Processed output with extracted values
+        """
+        return self.step_chaining_manager.parse_step_output_for_chaining(output, parse_config)
+    
+    def get_step_reference_info(self) -> Dict[str, Any]:
+        """Get available step references for debugging."""
+        return {
+            "available_references": self.step_chaining_manager.get_available_references(),
+            "current_step": self.step_chaining_manager.current_step
+        }
+    
+    def clear_step_outputs(self):
+        """Clear all stored step outputs."""
+        self.step_chaining_manager.clear_outputs()
     
     def get_status(self) -> Dict[str, Any]:
         """
