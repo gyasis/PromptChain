@@ -1,0 +1,182 @@
+[project]
+name = "athena-lightrag"
+version = "0.2.0"
+description = "Athena LightRAG MCP Server - Advanced RAG capabilities via Model Context Protocol"
+authors = [
+    {name = "Athena LightRAG Team"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    # Core LightRAG dependencies (mirroring hybridrag)
+    "lightrag-hku>=0.1.0",
+    "deeplake>=4.0.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "colorama>=0.4.6",
+    "numpy>=1.24.0",
+    # Additional core dependencies
+    "asyncio-throttle>=1.0.0",
+    "tqdm>=4.65.0",
+    "tiktoken>=0.5.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    # FastMCP 2025 for MCP server implementation
+    "fastmcp",
+    # PromptChain from GitHub repository
+    "promptchain @ git+https://github.com/gyasis/promptchain.git",
+    # LiteLLM for multi-provider LLM support
+    "litellm>=1.0.0",
+    # Async support
+    "aiofiles>=24.0.0",
+    "mcp[cli]>=1.13.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | \.pytest_cache
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+skip-string-normalization = false
+preview = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["athena_lightrag"]
+known_third_party = ["lightrag", "openai", "promptchain", "fastmcp"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+split_on_trailing_comma = true
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["lightrag.*", "fastmcp.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "C90", # mccabe
+    "T20", # flake8-print
+    "SIM", # flake8-simplify
+    "ICN", # flake8-import-conventions
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "B904",  # raise ... from None
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["T20", "ARG"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--cov=athena_lightrag",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=85",
+    "--asyncio-mode=auto",
+]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "mcp: marks tests related to MCP server functionality",
+    "reasoning: marks tests related to multi-hop reasoning",
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["athena_lightrag"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
