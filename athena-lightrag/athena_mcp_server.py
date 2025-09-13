@@ -61,7 +61,11 @@ project_api_key = os.getenv('OPENAI_API_KEY')
 if project_api_key:
     os.environ['OPENAI_API_KEY'] = project_api_key  # Explicitly override any defaults
 
+# Import custom JSON encoder for MCP protocol compliance
+from json_encoder import prepare_mcp_response, MCPJSONEncoder
+
 import asyncio
+import json
 import logging
 from typing import Dict, List, Optional, Any, Literal
 from pathlib import Path
@@ -70,7 +74,8 @@ import os
 from functools import lru_cache
 import threading
 import asyncio
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr
+import io
 
 # Use relative imports - no hardcoded paths
 current_dir = Path(__file__).parent
@@ -88,14 +93,102 @@ from lightrag_core import AthenaLightRAGCore, QueryResult, QueryMode, create_ath
 from agentic_lightrag import AgenticLightRAG, create_agentic_lightrag
 from context_processor import ContextProcessor, SQLGenerator, create_context_processor, create_sql_generator
 
+# Restore stdout after imports are loaded (but keep stderr suppressed)
+if not MCP_DEBUG_MODE:
+    sys.stdout = stdout_backup
+
 # Configure logging to file instead of stdout for MCP compatibility
 log_file = "/tmp/athena_lightrag_mcp.log"
+
+# CRITICAL: Redirect stderr to prevent PromptChain contamination of MCP protocol
+import sys
+import os
+
+# Check if we should enable debug logging (for development)
+MCP_DEBUG_MODE = os.getenv('MCP_DEBUG_MODE', 'false').lower() == 'true'
+
+stderr_backup = sys.stderr
+stdout_backup = sys.stdout
+
+if not MCP_DEBUG_MODE:
+    # Redirect stderr to devnull to completely suppress PromptChain debug output
+    sys.stderr = open(os.devnull, 'w')
+    # Temporarily suppress stdout during imports
+    sys.stdout = open(os.devnull, 'w')
+
+# Context manager to temporarily suppress all output during tool execution
+@contextmanager
+def suppress_output():
+    """Context manager to completely suppress all output during tool execution."""
+    if MCP_DEBUG_MODE:
+        # In debug mode, don't suppress output
+        yield
+        return
+        
+    original_stderr = sys.stderr
+    original_stdout = sys.stdout
+    try:
+        sys.stderr = open(os.devnull, 'w')
+        sys.stdout = open(os.devnull, 'w')
+        yield
+    finally:
+        if sys.stderr != original_stderr:
+            sys.stderr.close()
+        sys.stderr = original_stderr
+        if sys.stdout != original_stdout:
+            sys.stdout.close()
+        sys.stdout = original_stdout
+
+# First, disable all existing handlers to prevent stdout contamination
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# Configure only file logging with CRITICAL level for maximum suppression
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.CRITICAL,  # Only CRITICAL messages to minimize noise
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     filename=log_file,
-    filemode='a'
+    filemode='a',
+    force=True  # Force reconfiguration to override any existing loggers
 )
+
+# Apply maximum suppression for MCP protocol compliance
+# Set all loggers to CRITICAL level to prevent any stdout contamination
+logging.getLogger().setLevel(logging.CRITICAL)  # Root logger - maximum suppression
+logging.getLogger('LiteLLM').setLevel(logging.CRITICAL)
+logging.getLogger('httpx').setLevel(logging.CRITICAL)
+
+# ENHANCED: Comprehensive PromptChain logging suppression
+logging.getLogger('promptchain').setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.utils.promptchaining").setLevel(logging.CRITICAL) 
+logging.getLogger("promptchain.utils.agentic_step_processor").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.agents").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.core").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.utils").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.utils.dynamic_parameter_resolver").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.utils.llm_tools").setLevel(logging.CRITICAL)
+logging.getLogger("promptchain.utils.parameter_validation").setLevel(logging.CRITICAL)
+
+# Suppress LLM libraries
+logging.getLogger("litellm").setLevel(logging.CRITICAL)
+logging.getLogger("openai").setLevel(logging.CRITICAL)
+logging.getLogger("anthropic").setLevel(logging.CRITICAL)
+
+# Suppress LightRAG debug logs completely
+logging.getLogger("lightrag").setLevel(logging.CRITICAL)
+logging.getLogger("nano-vectordb").setLevel(logging.CRITICAL)
+logging.getLogger("lightrag_core").setLevel(logging.CRITICAL)
+logging.getLogger("agentic_lightrag").setLevel(logging.CRITICAL)
+logging.getLogger("context_processor").setLevel(logging.CRITICAL)
+
+# Disable any other common noisy loggers
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("requests").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+logging.getLogger("h11").setLevel(logging.CRITICAL)
+
 logger = logging.getLogger(__name__)
 
 # Initialize FastMCP 2.0 server - module-level instance for auto-detection
@@ -207,8 +300,8 @@ async def get_sql_generator():
 @mcp.tool()
 async def lightrag_local_query(
     query: str,
-    top_k: int = 60,
-    max_entity_tokens: int = 6000,
+    top_k: int = 200,
+    max_entity_tokens: int = 15000,
     timeout_seconds: float = 60.0
 ) -> Dict[str, Any]:
     """Query Athena Health EHR database in local mode for context-dependent information. 
@@ -249,8 +342,8 @@ async def lightrag_local_query(
         result = await asyncio.wait_for(
             core.query_local_async(
                 query_text=query.strip()[:1000],  # Truncate extremely long queries
-                top_k=min(top_k, 100),  # Cap to reasonable limit
-                max_entity_tokens=min(max_entity_tokens, 10000)  # Cap token limit
+                top_k=min(top_k, 200),  # Cap to reasonable limit
+                max_entity_tokens=min(max_entity_tokens, 15000)  # Cap token limit
             ),
             timeout=timeout_seconds
         )
@@ -380,9 +473,9 @@ async def lightrag_global_query(
 @mcp.tool()
 async def lightrag_hybrid_query(
     query: str,
-    max_entity_tokens: int = 6000,
-    max_relation_tokens: int = 8000,
-    top_k: int = 60,
+    max_entity_tokens: int = 15000,
+    max_relation_tokens: int = 20000,
+    top_k: int = 200,
     timeout_seconds: float = 120.0
 ) -> Dict[str, Any]:
     """Query Athena Health EHR database in hybrid mode, combining detailed entity information with broader relationship patterns. 
@@ -416,9 +509,9 @@ async def lightrag_hybrid_query(
         result = await asyncio.wait_for(
             core.query_hybrid_async(
                 query_text=query.strip()[:1000],
-                max_entity_tokens=min(max_entity_tokens, 10000),
-                max_relation_tokens=min(max_relation_tokens, 15000),
-                top_k=min(top_k, 100)
+                max_entity_tokens=min(max_entity_tokens, 15000),
+                max_relation_tokens=min(max_relation_tokens, 20000),
+                top_k=min(top_k, 200)
             ),
             timeout=timeout_seconds
         )
@@ -577,9 +670,9 @@ async def lightrag_multi_hop_reasoning(
     max_steps = max(1, min(max_steps, 15))  # Limit between 1-15 steps
     
     # Sanitize inputs
-    query = query.strip()[:2000]  # Truncate very long queries
-    if objective:
-        objective = objective.strip()[:500]  # Truncate long objectives
+    # query = query.strip()[:2000]  # Truncate very long queries
+    # if objective:
+    #     objective = objective.strip()[:500]  # Truncate long objectives
     
     # Dynamic timeout based on max_steps (30-35 seconds per step + base time)
     # Each step may involve multiple LightRAG queries (7-11s each), so allocate more time
@@ -592,21 +685,26 @@ async def lightrag_multi_hop_reasoning(
     
     while retry_count <= max_retries:
         try:
-            agentic = await get_agentic_lightrag()
-            
-            # Execute with timeout protection and circuit breaker
-            result = await asyncio.wait_for(
-                agentic.execute_multi_hop_reasoning(
-                    query=query,
-                    objective=objective,
-                    timeout_seconds=adaptive_timeout * 0.9,  # Leave buffer for outer timeout
-                    circuit_breaker_failures=max(2, max_steps // 3)  # Dynamic failure threshold
-                ),
-                timeout=adaptive_timeout
-            )
+            # Wrap the entire execution in output suppression to prevent MCP protocol contamination
+            with suppress_output():
+                agentic = await get_agentic_lightrag()
+                
+                # Execute with timeout protection and circuit breaker
+                result = await asyncio.wait_for(
+                    agentic.execute_multi_hop_reasoning(
+                        query=query,
+                        objective=objective,
+                        timeout_seconds=adaptive_timeout * 0.9,  # Leave buffer for outer timeout
+                        circuit_breaker_failures=max(2, max_steps // 3)  # Dynamic failure threshold
+                    ),
+                    timeout=adaptive_timeout
+                )
             
             execution_time = asyncio.get_event_loop().time() - start_time
             logger.info(f"Multi-hop reasoning completed in {execution_time:.2f}s")
+            
+            # Debug: Log result structure before serialization
+            logger.debug(f"Result type: {type(result)}, keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
             
             # Validate result structure
             if not isinstance(result, dict):
@@ -618,18 +716,62 @@ async def lightrag_multi_hop_reasoning(
                 result_text = result_text[:25000] + "\n\n[TRUNCATED - Result too large]"
                 result["result"] = result_text
             
-            return {
+            # Prepare raw response preserving tool outputs with safe JSON serialization
+            accumulated_contexts = result.get("accumulated_contexts", [])
+            
+            # Safely serialize accumulated contexts ensuring JSON compatibility
+            serializable_contexts = []
+            for ctx in accumulated_contexts:
+                try:
+                    if isinstance(ctx, dict):
+                        # Safely serialize each field
+                        safe_ctx = {
+                            "type": str(ctx.get("type", "unknown")),
+                            "data": str(ctx.get("data", ""))[:5000],  # Keep more data but safely as string
+                            "step": str(ctx.get("step", ""))[:1000],  # Keep more step info
+                            "tokens": int(ctx.get("tokens", 0)) if isinstance(ctx.get("tokens"), (int, float)) else 0
+                        }
+                        # Test JSON serialization of this context
+                        json.dumps(safe_ctx)
+                        serializable_contexts.append(safe_ctx)
+                    else:
+                        # Handle non-dict contexts
+                        safe_ctx = {
+                            "type": "raw_output",
+                            "data": str(ctx)[:5000],
+                            "step": "",
+                            "tokens": len(str(ctx)) // 4
+                        }
+                        # Test JSON serialization
+                        json.dumps(safe_ctx)
+                        serializable_contexts.append(safe_ctx)
+                except (TypeError, ValueError, json.JSONDecodeError) as e:
+                    # If serialization fails, create safe fallback
+                    logger.warning(f"Context serialization failed: {e}")
+                    serializable_contexts.append({
+                        "type": "serialization_error",
+                        "data": f"Context could not be serialized: {type(ctx).__name__}",
+                        "step": "",
+                        "tokens": 0
+                    })
+            
+            raw_response = {
                 "success": result.get("success", True),
                 "result": result_text,
                 "reasoning_steps": result.get("reasoning_steps", []),
-                "accumulated_contexts": len(result.get("accumulated_contexts", [])),
+                "accumulated_contexts": serializable_contexts,  # Include full contexts, not just preview
+                "accumulated_contexts_count": len(accumulated_contexts),
                 "total_tokens_used": result.get("total_tokens_used", 0),
                 "execution_time": execution_time,
                 "timeout_used": adaptive_timeout,
                 "max_steps_requested": max_steps,
                 "retry_count": retry_count,
+                "step_outputs_count": len(result.get("step_outputs", [])),
                 "error": result.get("error")
             }
+            
+            # Use safe JSON serialization for MCP protocol compliance
+            return prepare_mcp_response(raw_response)
         
         except asyncio.TimeoutError:
             execution_time = asyncio.get_event_loop().time() - start_time
@@ -883,8 +1025,8 @@ class ManualMCPServer:
                         "type": "object",
                         "properties": {
                             "query": {"type": "string", "description": "The search query for local context"},
-                            "top_k": {"type": "integer", "description": "Number of top entities to retrieve (default: 60)", "default": 60},
-                            "max_entity_tokens": {"type": "integer", "description": "Maximum tokens for entity context (default: 6000)", "default": 6000}
+                            "top_k": {"type": "integer", "description": "Number of top entities to retrieve (default: 200)", "default": 200},
+                            "max_entity_tokens": {"type": "integer", "description": "Maximum tokens for entity context (default: 15000)", "default": 15000}
                         },
                         "required": ["query"]
                     }
@@ -916,9 +1058,9 @@ class ManualMCPServer:
                         "type": "object",
                         "properties": {
                             "query": {"type": "string", "description": "The search query for hybrid analysis"},
-                            "max_entity_tokens": {"type": "integer", "description": "Maximum tokens for entity context (default: 6000)", "default": 6000},
-                            "max_relation_tokens": {"type": "integer", "description": "Maximum tokens for relationship context (default: 8000)", "default": 8000},
-                            "top_k": {"type": "integer", "description": "Number of top items to retrieve (default: 60)", "default": 60},
+                            "max_entity_tokens": {"type": "integer", "description": "Maximum tokens for entity context (default: 15000)", "default": 15000},
+                            "max_relation_tokens": {"type": "integer", "description": "Maximum tokens for relationship context (default: 20000)", "default": 20000},
+                            "top_k": {"type": "integer", "description": "Number of top items to retrieve (default: 200)", "default": 200},
                             "timeout_seconds": {"type": "number", "description": "Maximum execution time in seconds", "default": 120.0}
                         },
                         "required": ["query"]

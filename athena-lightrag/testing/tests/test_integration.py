@@ -74,7 +74,7 @@ def mock_athena_instance(mock_lightrag_db, mock_env_vars):
         athena = AthenaLightRAG(
             working_dir=mock_lightrag_db,
             api_key="test-api-key",
-            reasoning_model="gpt-4o-mini",
+            reasoning_model="gpt-4.1-mini",
             max_reasoning_steps=3
         )
         

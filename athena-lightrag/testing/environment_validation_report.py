@@ -77,7 +77,7 @@ def test_promptchain_integration():
         processor = AgenticStepProcessor(
             objective='Test objective',
             max_internal_steps=2,
-            model_name='openai/gpt-4'
+            model_name='openai/gpt-4.1-mini'
         )
         print("✓ AgenticStepProcessor instantiation successful")
         return True

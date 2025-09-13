@@ -64,7 +64,7 @@ class DatabaseConfig:
 class LLMConfig:
     """LLM configuration settings."""
     api_key: Optional[str] = None
-    model_name: str = "gpt-4o-mini"
+    model_name: str = "gpt-4.1-mini"
     embedding_model: str = "text-embedding-ada-002"
     embedding_dim: int = 1536
     max_async: int = 4
@@ -120,22 +120,22 @@ class LLMConfig:
 class QueryConfig:
     """Query configuration settings."""
     default_mode: Literal["local", "global", "hybrid", "naive", "mix", "bypass"] = "hybrid"
-    default_top_k: int = 60
-    default_max_entity_tokens: int = 6000
-    default_max_relation_tokens: int = 8000
+    default_top_k: int = 200
+    default_max_entity_tokens: int = 15000
+    default_max_relation_tokens: int = 20000
     default_max_total_tokens: int = 30000
     default_response_type: str = "Multiple Paragraphs"
     enable_rerank: bool = True
-    chunk_top_k: int = 20
+    chunk_top_k: int = 100
     
     def validate(self) -> bool:
         """Validate query configuration."""
-        if self.default_top_k < 1 or self.default_top_k > 1000:
+        if self.default_top_k < 1 or self.default_top_k > 2000:
             raise ValidationError(
-                "default_top_k must be between 1 and 1000",
+                "default_top_k must be between 1 and 2000",
                 field_name="default_top_k",
                 field_value=self.default_top_k,
-                expected_type="int (1-1000)"
+                expected_type="int (1-2000)"
             )
         
         token_fields = [
@@ -158,7 +158,7 @@ class QueryConfig:
 @dataclass
 class AgenticConfig:
     """Agentic reasoning configuration."""
-    model_name: str = "openai/gpt-4"
+    model_name: str = "openai/gpt-4.1-mini"
     max_internal_steps: int = 8
     enable_verbose: bool = True
     enable_step_storage: bool = True

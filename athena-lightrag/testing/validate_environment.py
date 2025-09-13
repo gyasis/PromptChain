@@ -142,7 +142,7 @@ def test_promptchain_functionality():
         
         # Test basic PromptChain initialization
         chain = PromptChain(
-            models=["openai/gpt-4"],
+            models=["openai/gpt-4.1-mini"],
             instructions=["Test instruction: {input}"],
             verbose=False
         )

@@ -93,7 +93,7 @@ class AthenaLightRAGMCPTester:
             
             # Create basic PromptChain with MCP server
             self.chain = PromptChain(
-                models=["openai/gpt-4o-mini"],
+                models=["openai/gpt-4.1-mini"],
                 instructions=["Test connection: {input}"],
                 mcp_servers=self.server_config,
                 verbose=True
@@ -183,12 +183,12 @@ class AthenaLightRAGMCPTester:
             agentic_step = AgenticStepProcessor(
                 objective="Analyze the Athena LightRAG MCP server capabilities and test a healthcare database query",
                 max_internal_steps=3,
-                model_name="openai/gpt-4o-mini"
+                model_name="openai/gpt-4.1-mini"
             )
             
             # Create chain with agentic reasoning
             chain_with_agentic = PromptChain(
-                models=["openai/gpt-4o-mini"],
+                models=["openai/gpt-4.1-mini"],
                 instructions=[
                     "Initialize MCP analysis: {input}",
                     agentic_step,  # Intelligent multi-step reasoning
