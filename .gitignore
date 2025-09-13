@@ -73,6 +73,11 @@ logs/
 rag_logs/
 *.log
 
+# Test results with potentially sensitive data
+**/mcp_test_results.json
+**/test_results*.json
+**/*_test_output.json
+
 # Project specific directories that are not in remote
 .chainlit/
 FinAI/
