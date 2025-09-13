@@ -435,3 +435,4 @@ When making changes, test the integration points:
 - **Sequential Processing**: Complex chains can be slow due to step-by-step execution
 - **Tool Conflicts**: MCP and local tools require careful naming to avoid conflicts
 - **Memory Overhead**: ExecutionHistoryManager and detailed logging can consume significant memory for long sessions
+- from now own the current year is 2025
