@@ -16,10 +16,18 @@ import shutil
 from pathlib import Path
 from typing import Generator, AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
+from dotenv import load_dotenv
 
-# Set test environment variables
-os.environ["PYTHONPATH"] = str(Path(__file__).parent.parent)
-os.environ["TESTING"] = "1"
+# Load project .env file with override to ensure test isolation
+# This prevents system environment variables from contaminating tests
+load_dotenv(override=True)
+
+# Set test-specific environment variables using patch.dict for isolation
+# These will be properly isolated and won't contaminate the global environment
+TEST_ENV_VARS = {
+    "PYTHONPATH": str(Path(__file__).parent.parent),
+    "TESTING": "1"
+}
 
 
 def pytest_configure(config):
@@ -253,7 +261,7 @@ async def athena_instance(mock_lightrag_db, mock_env_vars, mock_lightrag):
     athena = AthenaLightRAG(
         working_dir=mock_lightrag_db,
         api_key="test-api-key",
-        reasoning_model="gpt-4o-mini",
+        reasoning_model="gpt-4.1-mini",
         max_reasoning_steps=3,
         enable_history_management=True
     )

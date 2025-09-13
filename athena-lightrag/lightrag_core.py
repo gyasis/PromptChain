@@ -46,7 +46,7 @@ class LightRAGConfig:
     """Configuration for LightRAG instance."""
     working_dir: str = "./athena_lightrag_db"
     api_key: Optional[str] = None
-    model_name: str = "gpt-4o-mini"
+    model_name: str = "gpt-4.1-mini"
     embedding_model: str = "text-embedding-ada-002"
     embedding_dim: int = 1536
     max_async: int = 4

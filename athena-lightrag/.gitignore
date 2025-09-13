@@ -167,3 +167,12 @@ Thumbs.db
 
 # UV lock file (might want to include this)
 # uv.lock
+# SECURITY: Sensitive directories - NEVER TRACK
+.specstory/
+.claude/
+claude.md
+cursor.md
+**/.specstory/
+**/.claude/
+# Generated database files
+athena_lightrag_db/
