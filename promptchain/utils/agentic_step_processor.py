@@ -134,8 +134,8 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                 # Prepare minimal valid messages for LLM
                 messages_for_llm = llm_history[:]
                 # Log the full structure of messages and tools for debugging
-                print("Messages sent to LLM:", json.dumps(messages_for_llm, indent=2))
-                print("Tools sent to LLM:", json.dumps(available_tools, indent=2))
+                logger.debug(f"Messages sent to LLM: {json.dumps(messages_for_llm, indent=2)}")
+                logger.debug(f"Tools sent to LLM: {json.dumps(available_tools, indent=2)}")
                 try:
                     # Call the LLM to decide next action or give final answer
                     logger.debug("Calling LLM for next action/final answer...")
