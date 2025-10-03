@@ -1,8 +1,42 @@
 from typing import List, Dict, Any, Callable, Awaitable, Optional
 import logging
 import json
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
+    """
+    Estimate token count for a list of messages.
+    Uses simple approximation: ~4 characters per token.
+    For more accuracy, integrate tiktoken library.
+
+    Args:
+        messages: List of message dictionaries
+
+    Returns:
+        Estimated token count
+    """
+    total_chars = 0
+    for msg in messages:
+        if isinstance(msg, dict):
+            # Count content
+            content = msg.get('content', '')
+            if content:
+                total_chars += len(str(content))
+            # Count tool calls if present
+            tool_calls = msg.get('tool_calls', [])
+            if tool_calls:
+                total_chars += len(str(tool_calls))
+    return total_chars // 4  # Approximate: 4 chars per token
+
+
+class HistoryMode(str, Enum):
+    """History accumulation modes for AgenticStepProcessor."""
+    MINIMAL = "minimal"         # Only keep last assistant + tool results (default, backward compatible)
+    PROGRESSIVE = "progressive" # Accumulate assistant messages + tool results progressively
+    KITCHEN_SINK = "kitchen_sink"  # Keep everything - all reasoning, tool calls, results
 
 def get_function_name_from_tool_call(tool_call) -> Optional[str]:
     """
@@ -52,7 +86,15 @@ class AgenticStepProcessor:
     LLM calls and tool executions within this single step.
     Optionally, a specific model can be set for this step; otherwise, the chain's default model is used.
     """
-    def __init__(self, objective: str, max_internal_steps: int = 5, model_name: str = None, model_params: Dict[str, Any] = None):
+    def __init__(
+        self,
+        objective: str,
+        max_internal_steps: int = 5,
+        model_name: str = None,
+        model_params: Dict[str, Any] = None,
+        history_mode: str = "minimal",
+        max_context_tokens: Optional[int] = None
+    ):
         """
         Initializes the agentic step.
 
@@ -63,14 +105,41 @@ class AgenticStepProcessor:
                                 to prevent infinite loops.
             model_name: (Optional) The model to use for this agentic step. If None, defaults to the chain's first model.
             model_params: (Optional) Dictionary of parameters to pass to the model, such as tool_choice settings.
+            history_mode: (Optional) History accumulation mode. Options:
+                         - "minimal" (default): Only keep last assistant + tool results (backward compatible)
+                           ⚠️  DEPRECATION NOTICE: This mode may be deprecated in future versions.
+                           Consider using "progressive" for better multi-hop reasoning.
+                         - "progressive": Accumulate assistant messages + tool results progressively (RECOMMENDED)
+                         - "kitchen_sink": Keep everything - all reasoning, tool calls, results
+            max_context_tokens: (Optional) Maximum context tokens before warning. Default is None (no limit).
         """
         if not objective or not isinstance(objective, str):
             raise ValueError("Objective must be a non-empty string.")
+
+        # Validate history_mode
+        if history_mode not in [mode.value for mode in HistoryMode]:
+            raise ValueError(f"Invalid history_mode: {history_mode}. Must be one of {[mode.value for mode in HistoryMode]}")
+
         self.objective = objective
         self.max_internal_steps = max_internal_steps
         self.model_name = model_name
         self.model_params = model_params or {}
-        logger.debug(f"AgenticStepProcessor initialized with objective: {self.objective[:100]}... Model: {self.model_name}, Params: {self.model_params}")
+        self.history_mode = history_mode
+        self.max_context_tokens = max_context_tokens
+        self.conversation_history: List[Dict[str, Any]] = []  # Accumulated history for progressive/kitchen_sink modes
+
+        # Deprecation warning for minimal mode
+        if self.history_mode == HistoryMode.MINIMAL.value:
+            logger.info(
+                "⚠️  Using 'minimal' history mode (default). This mode may be deprecated in future versions. "
+                "Consider using 'progressive' mode for better multi-hop reasoning capabilities."
+            )
+
+        logger.debug(
+            f"AgenticStepProcessor initialized with objective: {self.objective[:100]}... "
+            f"Model: {self.model_name}, Params: {self.model_params}, "
+            f"History Mode: {self.history_mode}, Max Tokens: {self.max_context_tokens}"
+        )
 
     async def run_async(
         self,
@@ -236,13 +305,49 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                                 }
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
-                        # For next LLM call, only send: system, user, last assistant (with tool_calls), tool(s)
-                        llm_history = [system_message]
-                        if user_message:
-                            llm_history.append(user_message)
-                        llm_history.append(last_tool_call_assistant_msg)
-                        llm_history.extend(last_tool_msgs)
-                        
+
+                        # Build llm_history based on history_mode
+                        if self.history_mode == HistoryMode.MINIMAL.value:
+                            # MINIMAL: Only keep last assistant + tool results (original behavior)
+                            llm_history = [system_message]
+                            if user_message:
+                                llm_history.append(user_message)
+                            llm_history.append(last_tool_call_assistant_msg)
+                            llm_history.extend(last_tool_msgs)
+
+                        elif self.history_mode == HistoryMode.PROGRESSIVE.value:
+                            # PROGRESSIVE: Accumulate assistant messages + tool results
+                            # Add to conversation history
+                            self.conversation_history.append(last_tool_call_assistant_msg)
+                            self.conversation_history.extend(last_tool_msgs)
+
+                            # Build history: system + user + accumulated conversation
+                            llm_history = [system_message]
+                            if user_message:
+                                llm_history.append(user_message)
+                            llm_history.extend(self.conversation_history)
+
+                        elif self.history_mode == HistoryMode.KITCHEN_SINK.value:
+                            # KITCHEN_SINK: Keep everything including user messages between iterations
+                            self.conversation_history.append(last_tool_call_assistant_msg)
+                            self.conversation_history.extend(last_tool_msgs)
+
+                            # Build history: system + user + accumulated everything
+                            llm_history = [system_message]
+                            if user_message:
+                                llm_history.append(user_message)
+                            llm_history.extend(self.conversation_history)
+
+                        # Token limit warning
+                        if self.max_context_tokens:
+                            estimated_tokens = estimate_tokens(llm_history)
+                            if estimated_tokens > self.max_context_tokens:
+                                logger.warning(
+                                    f"Context size ({estimated_tokens} tokens) exceeds max_context_tokens "
+                                    f"({self.max_context_tokens}). Consider using 'minimal' history_mode or "
+                                    f"increasing max_context_tokens. History mode: {self.history_mode}"
+                                )
+
                         # After tool(s) executed, continue inner while loop (do not increment step_num)
                         continue
                     else:
