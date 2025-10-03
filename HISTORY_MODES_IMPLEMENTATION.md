@@ -47,12 +47,49 @@ class HistoryMode(str, Enum):
 ```python
 AgenticStepProcessor(
     objective="...",
-    max_internal_steps=5,
+    max_internal_steps=5,          # IMPORTANT: Counts reasoning iterations, NOT total tool calls!
     model_name=None,
     model_params=None,
     history_mode="minimal",        # NEW: History accumulation mode
     max_context_tokens=None        # NEW: Token limit warning
 )
+```
+
+### ⚠️ CRITICAL: Understanding `max_internal_steps`
+
+**`max_internal_steps` counts OUTER LOOP ITERATIONS, not individual tool calls!**
+
+```python
+# Code structure (lines 200-352)
+for step_num in range(self.max_internal_steps):  # Max 8 iterations
+    while True:  # Inner loop for continuous tool calling
+        # Call LLM
+        if tool_calls:
+            # Execute ALL requested tools
+            continue  # ← Continue inner loop, DON'T increment step_num
+        else:
+            # LLM provided final answer
+            break  # ← Break inner loop, NOW increment step_num
+```
+
+**What this means:**
+- Each iteration can have **multiple tool calls**
+- The inner `while True` loop allows **unlimited tool calling per iteration**
+- `step_num` only increments when:
+  - ✅ LLM provides a final answer (no more tool calls)
+  - ❌ OR hits an error/clarification limit
+- With `max_internal_steps=8`, you could potentially make **dozens or hundreds** of total tool calls
+
+**Example execution:**
+```
+Iteration 1: LLM calls 3 tools → continues inner loop
+             Sees results, calls 2 more tools → continues inner loop
+             Sees results, provides answer → breaks inner loop, step_num increments to 1
+
+Iteration 2: LLM calls 1 tool → continues inner loop
+             Sees result, provides answer → breaks inner loop, step_num increments to 2
+
+Total: 2 iterations consumed, but 6 total tool calls made
 ```
 
 ### Token Estimation
@@ -137,8 +174,9 @@ agentic_step = AgenticStepProcessor(
 ```python
 agentic_step = AgenticStepProcessor(
     objective="Answer using multi-hop reasoning with tool calls",
-    history_mode="progressive",
-    max_context_tokens=4000
+    max_internal_steps=8,  # 8 reasoning iterations (potentially many more total tool calls)
+    history_mode="progressive",  # Accumulates ALL assistant messages + tool results
+    max_context_tokens=6000  # Higher limit needed for accumulated context
 )
 ```
 
