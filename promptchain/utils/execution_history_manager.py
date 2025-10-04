@@ -309,6 +309,68 @@ class ExecutionHistoryManager:
         """Return the number of entries in the history."""
         return len(self._history)
 
+    # Public API Properties (v0.4.1a)
+    @property
+    def current_token_count(self) -> int:
+        """Public getter for current token count.
+
+        Returns:
+            int: Current total token count across all history entries.
+        """
+        return self._current_token_count
+
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        """Public getter for history entries (read-only copy).
+
+        Returns:
+            List[Dict[str, Any]]: Copy of all history entries.
+        """
+        return self._history.copy()
+
+    @property
+    def history_size(self) -> int:
+        """Get number of entries in history.
+
+        Returns:
+            int: Number of history entries currently stored.
+        """
+        return len(self._history)
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive history statistics.
+
+        Returns:
+            Dict[str, Any]: Statistics dictionary containing:
+                - total_tokens (int): Current total token count
+                - total_entries (int): Number of history entries
+                - max_tokens (int|None): Maximum token limit (None if unlimited)
+                - max_entries (int|None): Maximum entry limit (None if unlimited)
+                - utilization_pct (float): Percentage of token limit used (0.0 if unlimited)
+                - entry_types (Dict[str, int]): Count of entries by type
+                - truncation_strategy (str): Current truncation strategy
+        """
+        # Calculate entry type distribution
+        entry_types = {}
+        for entry in self._history:
+            entry_type = entry.get('type', 'unknown')
+            entry_types[entry_type] = entry_types.get(entry_type, 0) + 1
+
+        # Calculate utilization percentage
+        utilization_pct = 0.0
+        if self.max_tokens is not None and self.max_tokens > 0:
+            utilization_pct = (self._current_token_count / self.max_tokens) * 100.0
+
+        return {
+            "total_tokens": self._current_token_count,
+            "total_entries": len(self._history),
+            "max_tokens": self.max_tokens,
+            "max_entries": self.max_entries,
+            "utilization_pct": utilization_pct,
+            "entry_types": entry_types,
+            "truncation_strategy": self.truncation_strategy
+        }
+
     def __str__(self):
         """Return a simple string representation of the manager."""
         return f"ExecutionHistoryManager(entries={len(self._history)}, max_entries={self.max_entries or 'Unlimited'}, max_tokens={self.max_tokens or 'Unlimited'})" 
