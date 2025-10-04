@@ -213,6 +213,9 @@ class PromptChain:
         self.local_tools: List[Dict] = [] # Schemas for LOCAL functions
         self.local_tool_functions: Dict[str, Callable] = {} # Implementations for LOCAL functions
 
+        # Initialize callback system BEFORE MCPHelper (needed for MCP event firing)
+        self.callback_manager = CallbackManager()
+
         # Instantiate MCPHelper if MCP is available and configured
         self.mcp_helper: Optional[MCPHelper] = None
         if MCP_AVAILABLE and mcp_servers:
@@ -251,9 +254,8 @@ class PromptChain:
         self.memory_bank: Dict[str, Dict[str, Any]] = {}
         self.shared_context: Dict[str, Dict[str, Any]] = {"global": {}} # Example structure
 
-        # Initialize callback system for event-driven observability
-        self.callback_manager = CallbackManager()
-        
+        # NOTE: CallbackManager initialized earlier (line 217) before MCPHelper
+
         # Initialize Model Management
         self.model_manager = None
         self.model_management_enabled = False

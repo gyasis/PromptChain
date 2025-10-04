@@ -135,6 +135,7 @@ class CallbackManager:
     def __init__(self):
         """Initialize callback manager."""
         self.callbacks: list[FilteredCallback] = []
+        self._emitting = False  # Recursion guard
 
     def register(
         self,
@@ -175,17 +176,26 @@ class CallbackManager:
         Args:
             event: The event to emit
         """
+        # Prevent infinite recursion - if we're already emitting, skip
+        if self._emitting:
+            return
+
         import asyncio
 
-        # Collect all callback tasks
-        tasks = []
-        for callback in self.callbacks:
-            if callback.should_handle(event.event_type):
-                tasks.append(callback(event))
+        try:
+            self._emitting = True
 
-        # Run all callbacks concurrently
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Collect all callback tasks
+            tasks = []
+            for callback in self.callbacks:
+                if callback.should_handle(event.event_type):
+                    tasks.append(callback(event))
+
+            # Run all callbacks concurrently
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            self._emitting = False
 
     def emit_sync(self, event: ExecutionEvent) -> None:
         """Emit an event synchronously (for sync contexts).
@@ -200,6 +210,10 @@ class CallbackManager:
         Raises:
             RuntimeError: If called from within a running event loop
         """
+        # Prevent infinite recursion - if we're already emitting, skip
+        if self._emitting:
+            return
+
         import asyncio
 
         try:
