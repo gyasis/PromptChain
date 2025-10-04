@@ -656,14 +656,14 @@ class PromptChain:
 
                 # Emit STEP_START event
                 step_start_time = datetime.now()
-                if self.callback_manager.has_callbacks():
-                    # Determine instruction description
-                    if callable(instruction) and not isinstance(instruction, AgenticStepProcessor):
-                        instr_desc = getattr(instruction, '__name__', 'function')
-                    elif isinstance(instruction, AgenticStepProcessor):
-                        instr_desc = f"agentic: {instruction.objective}"
-                    else:
-                        instr_desc = str(instruction)[:100] + "..." if len(str(instruction)) > 100 else str(instruction)
+
+                # Determine instruction description (needed whether or not callbacks are registered)
+                if callable(instruction) and not isinstance(instruction, AgenticStepProcessor):
+                    instr_desc = getattr(instruction, '__name__', 'function')
+                elif isinstance(instruction, AgenticStepProcessor):
+                    instr_desc = f"agentic: {instruction.objective}"
+                else:
+                    instr_desc = str(instruction)[:100] + "..." if len(str(instruction)) > 100 else str(instruction)
 
                 # Determine input for this step based on history mode
                 step_input_content = result
@@ -686,20 +686,21 @@ class PromptChain:
                 else:
                     step_type = "prompt"
 
-                # Emit enhanced STEP_START event with step type
-                await self.callback_manager.emit(
-                    ExecutionEvent(
-                        event_type=ExecutionEventType.STEP_START,
-                        timestamp=step_start_time,
-                        step_number=step_num,
-                        step_instruction=instr_desc,
-                        metadata={
-                            "input_length": len(str(result)),
-                            "step_type": step_type,
-                            "instruction_preview": instr_desc
-                        }
+                # Emit enhanced STEP_START event with step type (only if callbacks registered)
+                if self.callback_manager.has_callbacks():
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.STEP_START,
+                            timestamp=step_start_time,
+                            step_number=step_num,
+                            step_instruction=instr_desc,
+                            metadata={
+                                "input_length": len(str(result)),
+                                "step_type": step_type,
+                                "instruction_preview": instr_desc
+                            }
+                        )
                     )
-                )
 
                 # Check if this step is a function, an agentic processor, or an instruction
                 if callable(instruction) and not isinstance(instruction, AgenticStepProcessor): # Explicitly exclude AgenticStepProcessor here
