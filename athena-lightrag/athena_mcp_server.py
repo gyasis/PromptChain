@@ -56,10 +56,30 @@ import os
 
 load_dotenv(override=True)  # Force project .env to override system environment variables
 
+# Check if we should enable debug logging (for development) - DEFINE EARLY
+MCP_DEBUG_MODE = os.getenv('MCP_DEBUG_MODE', 'false').lower() == 'true'
+
+# Back up original stdout and stderr BEFORE any imports that might suppress output
+import sys
+stderr_backup = sys.stderr
+stdout_backup = sys.stdout
+
 # Force the correct API key from project .env file to prevent contamination
 project_api_key = os.getenv('OPENAI_API_KEY')
 if project_api_key:
     os.environ['OPENAI_API_KEY'] = project_api_key  # Explicitly override any defaults
+
+# Configure early logging suppression BEFORE any PromptChain imports
+import logging
+import warnings
+if not MCP_DEBUG_MODE:
+    # Suppress PromptChain logging early
+    logging.getLogger('promptchain').setLevel(logging.ERROR)
+    logging.getLogger('promptchain.utils').setLevel(logging.ERROR)
+    
+    # Suppress Pydantic deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
+    warnings.filterwarnings("ignore", message=".*Pydantic V1 style.*")
 
 # Import custom JSON encoder for MCP protocol compliance
 from json_encoder import prepare_mcp_response, MCPJSONEncoder
@@ -92,29 +112,24 @@ from pydantic import BaseModel, Field
 from lightrag_core import AthenaLightRAGCore, QueryResult, QueryMode, create_athena_lightrag
 from agentic_lightrag import AgenticLightRAG, create_agentic_lightrag
 from context_processor import ContextProcessor, SQLGenerator, create_context_processor, create_sql_generator
+# Debug logger removed - using standard logging instead
 
 # Restore stdout after imports are loaded (but keep stderr suppressed)
 if not MCP_DEBUG_MODE:
     sys.stdout = stdout_backup
 
-# Configure logging to file instead of stdout for MCP compatibility
+# Configure logging to suppress PromptChain output unless in debug mode
 log_file = "/tmp/athena_lightrag_mcp.log"
 
-# CRITICAL: Redirect stderr to prevent PromptChain contamination of MCP protocol
-import sys
-import os
-
-# Check if we should enable debug logging (for development)
-MCP_DEBUG_MODE = os.getenv('MCP_DEBUG_MODE', 'false').lower() == 'true'
-
-stderr_backup = sys.stderr
-stdout_backup = sys.stdout
-
+# Additional specific logger suppression after imports
 if not MCP_DEBUG_MODE:
-    # Redirect stderr to devnull to completely suppress PromptChain debug output
-    sys.stderr = open(os.devnull, 'w')
-    # Temporarily suppress stdout during imports
-    sys.stdout = open(os.devnull, 'w')
+    logging.getLogger('promptchain.utils.model_management').setLevel(logging.ERROR)
+    logging.getLogger('promptchain.utils.ollama_model_manager').setLevel(logging.ERROR)
+
+# CRITICAL: Redirect stderr to prevent PromptChain contamination of MCP protocol
+
+# NOTE: We suppress stderr only temporarily during PromptChain operations, not permanently
+# The MCP server needs stderr for initialization and error reporting
 
 # Context manager to temporarily suppress all output during tool execution
 @contextmanager

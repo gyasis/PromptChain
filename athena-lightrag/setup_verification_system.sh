@@ -58,3 +58,4 @@ echo "🎉 You're ready to prevent Claude Code from lying!"
 
 
 
+

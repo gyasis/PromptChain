@@ -11,7 +11,7 @@
       "fastmcp",
       "lightrag-hku", 
       "pydantic",
-      "promptchain @ git+https://github.com/gyasis/promptchain.git"
+      "promptchain@git+https://github.com/gyasis/promptchain.git"
     ]
   },
   "deployment": {
@@ -19,7 +19,8 @@
     "log_level": "ERROR",
     "env": {
       "DEBUG": "false",
-      "ENV": "production"
+      "ENV": "production",
+      "PROMPTCHAIN_DEBUG": "false"
     }
   },
   "metadata": {

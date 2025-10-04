@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-08-31T08:03:49.974109",
+  "test_type": "document_search_service_integration",
+  "test_results": {
+    "Import Patterns": "PASSED",
+    "Service Initialization": "FAILED",
+    "API Consistency": "FAILED",
+    "Error Handling": "FAILED",
+    "Session Management": "FAILED",
+    "Metadata Enhancement": "FAILED"
+  },
+  "summary": {
+    "passed": 1,
+    "total": 6,
+    "success_rate": "16.7%"
+  },
+  "environment": {
+    "temp_dir": "/tmp/document_search_test_raljb4dv",
+    "python_version": "3.12.9 (main, Mar 17 2025, 21:01:58) [Clang 20.1.0 ]",
+    "test_queries": [
+      "machine learning applications",
+      "quantum computing algorithms",
+      "neural network architectures"
+    ]
+  }
+}

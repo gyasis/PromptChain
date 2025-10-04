@@ -296,13 +296,13 @@ class LightRAGToolsProvider:
             logger.error(f"Mix query failed: {e}")
             return f"Mix query failed: {str(e)}"
     
-    def accumulate_context(
-        self, 
-        context_type: str, 
-        context_data: str, 
+    async def accumulate_context(
+        self,
+        context_type: str,
+        context_data: str,
         reasoning_step: str
     ) -> str:
-        """Accumulate context for multi-hop reasoning."""
+        """Accumulate context for multi-hop reasoning (async for PromptChain compatibility)."""
         try:
             context_entry = {
                 "type": context_type,
@@ -310,11 +310,11 @@ class LightRAGToolsProvider:
                 "step": reasoning_step,
                 "tokens": len(context_data) // 4  # Rough estimate
             }
-            
+
             self.context_accumulator.contexts.append(context_entry)
             self.context_accumulator.reasoning_steps.append(reasoning_step)
             self.context_accumulator.total_tokens_used += context_entry["tokens"]
-            
+
             return f"Accumulated {context_type} context ({context_entry['tokens']} tokens). Total contexts: {len(self.context_accumulator.contexts)}"
         
         except Exception as e:
@@ -390,7 +390,9 @@ class AgenticLightRAG:
         return AgenticStepProcessor(
             objective=objective,
             max_internal_steps=self.max_internal_steps,
-            model_name=self.model_name
+            model_name=self.model_name,
+            instructions=instructions,
+            history_mode="progressive"  # Accumulate all tool results for better multi-hop reasoning
         )
     
     def create_reasoning_chain(
@@ -564,20 +566,9 @@ class AgenticLightRAG:
         # Circuit breaker opened - all retries failed
         raise Exception(f"Circuit breaker opened after {max_failures} failures. Last error: {last_error}")
     
-    def execute_multi_hop_reasoning_sync(
-        self,
-        query: str,
-        objective: Optional[str] = None,
-        reset_context: bool = True,
-        timeout_seconds: float = 300.0
-    ) -> Dict[str, Any]:
-        """Synchronous wrapper for multi-hop reasoning with timeout."""
-        return asyncio.run(self.execute_multi_hop_reasoning(
-            query=query,
-            objective=objective, 
-            reset_context=reset_context,
-            timeout_seconds=timeout_seconds
-        ))
+    # REMOVED: execute_multi_hop_reasoning_sync()
+    # This sync wrapper used asyncio.run() which causes event loop conflicts.
+    # MCP servers should use the async execute_multi_hop_reasoning() directly.
 
 
 # Factory function for easy instantiation

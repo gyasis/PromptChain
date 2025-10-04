@@ -238,7 +238,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "openai", specifier = ">=1.0.0" },
-    { name = "promptchain", git = "https://github.com/gyasis/promptchain.git" },
+    { name = "promptchain", git = "https://github.com/gyasis/PromptChain.git?branch=main" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
@@ -2010,8 +2010,8 @@ wheels = [
 
 [[package]]
 name = "promptchain"
-version = "0.2.4"
-source = { git = "https://github.com/gyasis/promptchain.git#fc3be6c7413dca2a87bdbbc9c658fea45147822c" }
+version = "0.4.0"
+source = { git = "https://github.com/gyasis/PromptChain.git?branch=main#2a57fbad2df320378ca8f19623eb1ea7f73fa2ad" }
 dependencies = [
     { name = "black" },
     { name = "flake8" },

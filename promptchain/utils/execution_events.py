@@ -57,9 +57,12 @@ class ExecutionEventType(Enum):
     HISTORY_TRUNCATED = auto()
 
     # MCP events
-    MCP_CONNECT = auto()
-    MCP_DISCONNECT = auto()
+    MCP_CONNECT_START = auto()
+    MCP_CONNECT_END = auto()
+    MCP_DISCONNECT_START = auto()
+    MCP_DISCONNECT_END = auto()
     MCP_TOOL_DISCOVERED = auto()
+    MCP_ERROR = auto()
 
     # Model management events
     MODEL_LOAD = auto()

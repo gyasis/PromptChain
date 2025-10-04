@@ -19,6 +19,9 @@ dependencies = [
     # Additional dependencies that might be needed for the scripts
     "asyncio-throttle>=1.0.0",
     "tqdm>=4.65.0",
+    # PromptChain for query interface
+    "promptchain",
+    "litellm>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +45,9 @@ dev-dependencies = [
     "flake8>=6.0.0",
     "mypy>=1.0.0",
 ]
+
+[tool.uv.sources]
+promptchain = { git = "https://github.com/gyasis/PromptChain.git", branch = "main" }
 
 [tool.black]
 line-length = 88

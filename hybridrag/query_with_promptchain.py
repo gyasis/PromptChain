@@ -12,6 +12,7 @@ Date: 2025-10-02
 import asyncio
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Optional
 from dotenv import load_dotenv
@@ -192,30 +193,52 @@ def create_promptchain_with_rag():
     agentic_step = AgenticStepProcessor(
         objective="""
         Answer questions about the PromptChain project development history
-        using multi-hop reasoning with LightRAG retrieval tools.
+        using EXHAUSTIVE multi-hop reasoning with LightRAG retrieval tools.
+
+        CRITICAL SEARCH PRINCIPLES:
+        - DO NOT give up after initial failures
+        - Try AT LEAST 5-7 different search variations before concluding "no information"
+        - Break compound terms into individual components
+        - Use alternative phrasings, synonyms, and related concepts
+        - When queries return empty results, use get_context_only to see raw documentation
 
         ReACT METHODOLOGY:
         1. Break down complex queries into focused sub-questions
-        2. Use different query modes strategically:
+        2. Try multiple search variations for each concept:
+           - Search the exact term as asked
+           - Break compound terms into individual words and search separately
+           - Try alternative phrasings and synonyms
+           - Search for broader category terms
+           - Search for related concepts and adjacent topics
+        3. Use different query modes strategically:
            - query_local: For specific entity relationships and implementation details
            - query_global: For high-level overviews and architectural patterns
            - query_hybrid: For balanced analysis combining details and context
-           - get_context_only: For gathering raw documentation without LLM generation
-        3. Accumulate contexts from multiple tool calls
-        4. Look for patterns and connections across different contexts
-        5. Synthesize findings into a comprehensive response
+           - get_context_only: For gathering raw documentation without LLM generation (USE THIS when other queries fail!)
+        4. Accumulate contexts from multiple tool calls
+        5. Look for patterns and connections across different contexts
+        6. Synthesize findings into a comprehensive response
 
-        TOOL USAGE STRATEGY:
-        - Start with query_global for broad understanding
-        - Use query_local for specific details
-        - Use query_hybrid when you need both
-        - Make multiple tool calls to gather different perspectives
-        - Connect information from different queries before answering
+        EXHAUSTIVE SEARCH LOGIC:
+        - If first search is empty, DON'T stop - the information may exist under different terminology
+        - Break technical terms into their component words
+        - Think of synonyms and alternative industry terms
+        - Search broader categories when specific terms fail
+        - Use get_context_only to inspect raw chunks
+        - Be persistent - information often exists in unexpected forms
+
+        REQUIRED MINIMUM EFFORT:
+        - Original exact term query
+        - Individual component word searches
+        - Synonym/alternative phrasing searches
+        - Broader category searches
+        - Raw context inspection (get_context_only)
+        TOTAL: At least 5-7 searches before concluding "no information found"
         """,
-        max_internal_steps=8,  # Increased for multi-hop reasoning
+        max_internal_steps=5,  # Balanced for thorough multi-hop reasoning without excessive iterations
         model_name="openai/gpt-4o-mini",
         history_mode="progressive",  # ✨ NEW: Accumulate context across tool calls for true multi-hop reasoning
-        max_context_tokens=6000  # Monitor token usage
+        max_context_tokens=128000 # Monitor token usage
     )
 
     # Create PromptChain with RAG tools
@@ -354,6 +377,31 @@ def create_promptchain_with_rag():
     return chain
 
 
+async def run_single_query(query: str):
+    """Run a single query and exit."""
+    print("=" * 70)
+    print("📚 PromptChain Project History Query")
+    print("=" * 70)
+    print(f"\n🔍 Query: {query}\n")
+    print("🤖 Processing with PromptChain + LightRAG...\n")
+
+    chain = create_promptchain_with_rag()
+
+    try:
+        result = await chain.process_prompt_async(query)
+
+        print("\n" + "=" * 70)
+        print("📖 Answer:")
+        print("=" * 70)
+        print(result)
+        print("\n" + "=" * 70)
+
+    except Exception as e:
+        logger.error(f"Query failed: {e}")
+        print(f"\n❌ Error: {e}")
+        sys.exit(1)
+
+
 async def main():
     """Main interactive query loop."""
 
@@ -396,4 +444,11 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Check if query was provided as command-line argument
+    if len(sys.argv) > 1:
+        # Single query mode: python query_with_promptchain.py 'your question here'
+        query = ' '.join(sys.argv[1:])
+        asyncio.run(run_single_query(query))
+    else:
+        # Interactive mode
+        asyncio.run(main())

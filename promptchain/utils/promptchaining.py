@@ -221,7 +221,8 @@ class PromptChain:
                 verbose=self.verbose,
                 logger_instance=logger,
                 local_tool_schemas_ref=self.local_tools, # Pass reference
-                local_tool_functions_ref=self.local_tool_functions # Pass reference
+                local_tool_functions_ref=self.local_tool_functions, # Pass reference
+                callback_manager=self.callback_manager # Pass callback manager for event firing
             )
         elif mcp_servers and not MCP_AVAILABLE:
              logger.warning("mcp_servers configured but 'mcp' library not installed. MCP tools will not be available.")

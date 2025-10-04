@@ -252,31 +252,7 @@ class AthenaLightRAGCore:
                 error=str(e)
             )
     
-    def query(
-        self,
-        query_text: str,
-        mode: QueryMode = "hybrid",
-        only_need_context: bool = False,
-        **query_params
-    ) -> QueryResult:
-        """
-        Execute synchronous query (wrapper around async method).
-        
-        Args:
-            query_text: The query string
-            mode: Query mode
-            only_need_context: If True, only return context
-            **query_params: Additional QueryParam parameters
-            
-        Returns:
-            QueryResult with structured response
-        """
-        return asyncio.run(self.query_async(
-            query_text=query_text,
-            mode=mode,
-            only_need_context=only_need_context,
-            **query_params
-        ))
+    # REMOVED: Synchronous query() wrapper - use query_async() directly in async contexts
     
     # Function-based query methods for each mode (validated patterns)
     async def query_local_async(self, query_text: str, **kwargs) -> QueryResult:
@@ -324,35 +300,8 @@ class AthenaLightRAGCore:
         )
         return result.result
     
-    # Synchronous wrappers
-    def query_local(self, query_text: str, **kwargs) -> QueryResult:
-        """Synchronous local mode query."""
-        return asyncio.run(self.query_local_async(query_text, **kwargs))
-    
-    def query_global(self, query_text: str, **kwargs) -> QueryResult:
-        """Synchronous global mode query."""
-        return asyncio.run(self.query_global_async(query_text, **kwargs))
-    
-    def query_hybrid(self, query_text: str, **kwargs) -> QueryResult:
-        """Synchronous hybrid mode query."""
-        return asyncio.run(self.query_hybrid_async(query_text, **kwargs))
-    
-    def query_naive(self, query_text: str, **kwargs) -> QueryResult:
-        """Synchronous naive mode query."""
-        return asyncio.run(self.query_naive_async(query_text, **kwargs))
-    
-    def query_mix(self, query_text: str, **kwargs) -> QueryResult:
-        """Synchronous mix mode query."""
-        return asyncio.run(self.query_mix_async(query_text, **kwargs))
-    
-    def get_context_only(
-        self, 
-        query_text: str, 
-        mode: QueryMode = "hybrid",
-        **kwargs
-    ) -> str:
-        """Synchronous context-only extraction."""
-        return asyncio.run(self.get_context_only_async(query_text, mode, **kwargs))
+    # REMOVED: Synchronous wrappers with asyncio.run() - they cause event loop conflicts in MCP servers
+    # Use the async versions directly: query_local_async(), query_global_async(), etc.
     
     def get_available_modes(self) -> List[QueryMode]:
         """Get list of available query modes."""

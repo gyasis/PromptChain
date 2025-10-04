@@ -1,5 +1,4 @@
+athena-lightrag
 draft_comparison
-extras
-ingestors
 promptchain
 tests

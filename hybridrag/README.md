@@ -1,193 +1,321 @@
-# LightRAG + DeepLake Hybrid RAG System
+# HybridRAG System
 
-A proof-of-concept system that ingests medical table descriptions from DeepLake's Athena database into LightRAG for knowledge graph-based querying.
+A comprehensive knowledge graph-based retrieval system that combines folder watching, document ingestion, and intelligent search capabilities using LightRAG and PromptChain.
 
-## Overview
+## 🚀 Features
 
-This system demonstrates:
-- **Data Ingestion**: Extracting JSONL-structured data from DeepLake (15,149 medical table descriptions)
-- **Knowledge Graph Creation**: LightRAG automatically builds a knowledge graph from the ingested documents
-- **Multi-Mode Querying**: Support for local, global, hybrid, naive, and mix query modes
-- **Interactive Demo**: Command-line interface for exploring the medical database schema
+### 📁 Intelligent Folder Monitoring
+- **Recursive watching** of multiple directories
+- **Real-time detection** of new and modified files
+- **Smart filtering** by file extensions and size limits
+- **Deduplication** using SHA256 hashing
+- **SQLite tracking** of processed files
 
-## Architecture
+### ⚡ Advanced Document Processing
+- **Multi-format support**: TXT, MD, PDF, HTML, JSON, YAML, CSV, code files
+- **Intelligent chunking** with token-aware splitting
+- **PDF OCR capabilities** (optional)
+- **Metadata preservation** throughout pipeline
+- **Batch processing** with configurable concurrency
 
-```
-DeepLake (athena_descriptions_v4)
-    ↓
-    [JSONL structured text with embeddings]
-    ↓
-deeplake_to_lightrag.py
-    ↓
-    [Formatted documents]
-    ↓
-LightRAG Database (./athena_lightrag_db)
-    ↓
-lightrag_query_demo.py
-    ↓
-[Interactive Query Interface]
-```
+### 🧠 Sophisticated Search Interface
+- **Multi-mode queries**: Local, Global, Hybrid, Agentic
+- **Simple search**: Direct LightRAG queries
+- **Agentic search**: Multi-hop reasoning using PromptChain
+- **Multi-query synthesis**: Combine multiple searches
+- **Interactive CLI** with command history
 
-## Setup
+### 🔄 Production-Ready Architecture
+- **Async/await** throughout for performance
+- **Graceful error handling** and recovery
+- **Comprehensive logging** with rotation
+- **Health monitoring** and statistics
+- **Signal handling** for clean shutdown
 
-### Prerequisites
-- [UV](https://docs.astral.sh/uv/) package manager
-- Python 3.9+
+## 📋 Prerequisites
+
+- Python 3.8+ 
 - OpenAI API key
+- Optional: Anthropic API key (for enhanced agentic features)
 
-### 1. Quick Setup
+## 🛠️ Installation
 
-Run the automated environment setup:
-
+1. **Clone or create the project directory**:
 ```bash
-# Make the activation script executable and run it
-chmod +x activate_env.sh
-./activate_env.sh
+mkdir hybridrag && cd hybridrag
 ```
 
-### 2. Manual Setup (Alternative)
-
-If you prefer manual setup:
-
+2. **Install dependencies**:
 ```bash
-# Install dependencies with UV (creates isolated environment)
-uv sync --no-install-project
-
-# Or install with pip (not recommended - no isolation)
 pip install -r requirements.txt
 ```
 
-### 3. Environment Variables
+3. **Install PromptChain** (for agentic features):
+```bash
+pip install git+https://github.com/gyasis/PromptChain.git
+```
 
-Copy the example environment file and add your API key:
-
+4. **Setup environment**:
 ```bash
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Edit .env and add your API keys
 ```
 
-Example `.env` file:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-ACTIVELOOP_TOKEN=your_activeloop_token_here  # Optional
-ACTIVELOOP_USERNAME=your_username_here        # Optional
-```
+## 🎯 Usage
 
-### 4. Running Scripts
-
-**With UV (Recommended - Isolated Environment):**
-```bash
-# Run data ingestion
-uv run python deeplake_to_lightrag.py
-
-# Run query demo
-uv run python lightrag_query_demo.py
-```
-
-**With Activated Environment:**
-```bash
-# Activate the UV environment
-source .venv/bin/activate
-
-# Run scripts normally
-python deeplake_to_lightrag.py
-python lightrag_query_demo.py
-```
-
-### 5. Environment Validation
-
-Verify your setup:
+### Ingestion Mode
+Continuously watch folders and ingest new documents:
 
 ```bash
-# Check environment status
-./activate_env.sh
-
-# Or manually validate
-uv run python -c "import lightrag, deeplake, openai; print('✅ All dependencies working!')"
+python main.py ingestion
 ```
 
-### 6. Data Ingestion
+This will:
+- Monitor configured folders for new/modified files
+- Queue files for processing
+- Extract text and create chunks
+- Ingest into LightRAG knowledge graph
+- Track processing status in SQLite
 
-This will read all 15,149 records from DeepLake and ingest them into LightRAG:
+### Search Mode  
+Interactive search interface:
 
 ```bash
-uv run python deeplake_to_lightrag.py
+python main.py search
 ```
 
-**Note**: First-time ingestion may take 30-60 minutes depending on API rate limits.
+Available commands:
+- `search <query>` - Simple LightRAG search
+- `agentic <query>` - Multi-hop reasoning search
+- `multi <query1> | <query2>` - Multiple query synthesis
+- `stats` - Show system statistics
+- `history` - Show search history
+- `health` - System health check
+- `quit` - Exit
 
-### 7. Query the Database
-
-Launch the interactive query interface:
+### One-Shot Query
+Execute a single query and return JSON result:
 
 ```bash
-uv run python lightrag_query_demo.py
+# Simple search
+python main.py query --query "What is machine learning?"
+
+# Agentic search
+python main.py query --query "Explain the relationship between AI and ML" --agentic
 ```
 
-## Query Modes
+### System Status
+Get comprehensive system status:
 
-- **local**: Focus on specific entity relationships (best for detailed questions)
-- **global**: High-level overview and summaries (best for broad questions)
-- **hybrid**: Combination of local and global (default, balanced approach)
-- **naive**: Simple retrieval without graph structure
-- **mix**: Mixed approach with vector and graph retrieval
-
-## Example Queries
-
-```
-> What tables are related to patient appointments?
-> Describe the anesthesia case management tables
-> Show me all collector category tables
-> What is the structure of allowable schedule categories?
-> List tables with high row counts
+```bash
+python main.py status
 ```
 
-## Interactive Commands
+## ⚙️ Configuration
 
-- `/mode <mode>` - Change query mode (local/global/hybrid/naive/mix)
-- `/context` - Toggle context-only mode (shows retrieved context without generating response)
-- `/topk <n>` - Set number of results to retrieve
-- `/clear` - Clear screen
-- `/help` - Show help
-- `exit` or `quit` - Exit the demo
+The system uses a hierarchical configuration in `config/config.py`:
 
-## Data Structure
+### LightRAG Configuration
+```python
+@dataclass
+class LightRAGConfig:
+    working_dir: str = "./lightrag_db"
+    model_name: str = "gpt-4o-mini"
+    embedding_model: str = "text-embedding-3-small"
+    chunk_size: int = 1200
+    chunk_overlap: int = 100
+```
 
-Each DeepLake record contains:
-- **id**: Unique identifier
-- **text**: JSONL with table metadata (TABLEID, SCHEMANAME, TABLE DESCRIPTION, etc.)
-- **embedding**: 1536-dimensional vector embeddings
-- **metadata**: Table name, ID, and source file
+### Ingestion Configuration
+```python
+@dataclass
+class IngestionConfig:
+    watch_folders: List[str] = ["./data"]
+    file_extensions: List[str] = [".txt", ".md", ".pdf", ".json", ...]
+    recursive: bool = True
+    batch_size: int = 10
+    max_file_size_mb: float = 50.0
+```
 
-## Files
+### Search Configuration
+```python
+@dataclass
+class SearchConfig:
+    default_mode: str = "hybrid"
+    default_top_k: int = 10
+    enable_reranking: bool = True
+    enable_context_accumulation: bool = True
+```
 
-- `deeplake_to_lightrag.py` - Main ingestion script
-- `lightrag_query_demo.py` - Interactive query interface
-- `requirements.txt` - Python dependencies
-- `athena_lightrag_db/` - LightRAG database (created after ingestion)
+## 📊 Query Modes
 
-## Performance Notes
+### Local Mode
+Focus on specific entities and relationships:
+```python
+result = await search_interface.simple_search(
+    "machine learning algorithms", 
+    mode="local"
+)
+```
 
-- Initial ingestion processes in batches to avoid rate limits
-- Query response time: 2-5 seconds depending on mode
-- LightRAG builds and maintains a knowledge graph for efficient querying
-- The system can handle complex multi-hop questions about table relationships
+### Global Mode  
+High-level overviews and summaries:
+```python
+result = await search_interface.simple_search(
+    "overview of AI technologies",
+    mode="global" 
+)
+```
 
-## Future Enhancements
+### Hybrid Mode (Recommended)
+Combines local and global approaches:
+```python
+result = await search_interface.simple_search(
+    "deep learning applications",
+    mode="hybrid"
+)
+```
 
-1. **Hybrid Search**: Combine LightRAG graph search with DeepLake vector search
-2. **Query Routing**: Intelligent routing between LightRAG and DeepLake based on query type
-3. **Performance Optimization**: Parallel processing and caching
-4. **Web Interface**: Build a web UI for easier interaction
-5. **Advanced Analytics**: Add statistical analysis of table relationships
+### Agentic Mode
+Multi-hop reasoning with tool access:
+```python
+result = await search_interface.agentic_search(
+    "Compare machine learning and deep learning approaches",
+    max_steps=5
+)
+```
 
-## Troubleshooting
+## 🔧 Advanced Features
 
-- **OpenAI API Key Error**: Ensure your API key is set in the `.env` file
-- **Rate Limit Errors**: The ingestion script includes delays; if errors persist, reduce batch_size
-- **Database Not Found**: Run the ingestion script before the query demo
-- **Memory Issues**: For large datasets, consider processing in smaller chunks
+### Custom Document Processing
+Extend the `DocumentProcessor` class to handle additional file types:
 
-## License
+```python
+class CustomDocumentProcessor(DocumentProcessor):
+    def read_file(self, file_path: str, extension: str) -> str:
+        if extension == '.custom':
+            return self._read_custom_format(file_path)
+        return super().read_file(file_path, extension)
+```
 
-MIT
+### Custom Search Tools
+Add domain-specific tools for agentic search:
+
+```python
+def custom_search_tool(query: str) -> str:
+    # Your custom search logic
+    return results
+
+# Register with search interface
+search_interface.register_tool(custom_search_tool)
+```
+
+### Monitoring and Metrics
+The system provides comprehensive monitoring:
+
+```python
+# Get detailed statistics
+stats = await system.get_system_status()
+
+# Monitor ingestion progress
+watcher_stats = folder_watcher.get_queue_stats()
+ingestion_stats = ingestion_pipeline.get_stats()
+
+# Track search performance
+search_stats = search_interface.get_stats()
+```
+
+## 📁 Project Structure
+
+```
+hybridrag/
+├── src/
+│   ├── folder_watcher.py      # File monitoring system
+│   ├── ingestion_pipeline.py  # Document processing
+│   ├── lightrag_core.py       # LightRAG interface
+│   └── search_interface.py    # Search functionality
+├── config/
+│   └── config.py              # Configuration classes
+├── data/                      # Default watch folder
+├── lightrag_db/              # LightRAG knowledge graph
+├── ingestion_queue/          # Processing queue
+├── logs/                     # System logs
+├── main.py                   # Main orchestrator
+├── requirements.txt          # Dependencies
+├── .env.example              # Environment template
+└── README.md                 # This file
+```
+
+## 🚨 Error Handling
+
+The system implements comprehensive error handling:
+
+- **File Processing Errors**: Files with errors are moved to `ingestion_queue/errors/`
+- **API Rate Limits**: Built-in retry logic with exponential backoff
+- **Network Issues**: Graceful degradation and fallback mechanisms
+- **Resource Exhaustion**: Memory and disk usage monitoring
+- **Graceful Shutdown**: Signal handling for clean termination
+
+## 📈 Performance Tuning
+
+### Ingestion Performance
+- Adjust `batch_size` for throughput vs. memory usage
+- Configure `max_concurrent_ingestions` based on system resources
+- Set appropriate `poll_interval` for responsiveness vs. CPU usage
+
+### Search Performance
+- Use `local` mode for specific entity queries
+- Use `global` mode for broad overviews
+- Use `hybrid` mode for balanced results
+- Enable `reranking` for improved relevance
+
+### Memory Management
+- Configure `chunk_size` and `chunk_overlap` for optimal indexing
+- Set `max_file_size_mb` to prevent memory issues
+- Monitor LightRAG database size and consider periodic cleanup
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Import Errors**: Ensure PromptChain is installed for agentic features
+2. **API Rate Limits**: Reduce batch sizes and increase delays
+3. **Memory Issues**: Lower chunk sizes and concurrent processing
+4. **File Processing**: Check file permissions and encoding
+5. **LightRAG Errors**: Verify OpenAI API key and model access
+
+### Debug Mode
+Enable verbose logging:
+```bash
+export HYBRIDRAG_LOG_LEVEL=DEBUG
+python main.py search
+```
+
+### Health Checks
+Regular system health monitoring:
+```bash
+python main.py status | jq '.health'
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- **LightRAG**: Knowledge graph construction and querying
+- **PromptChain**: Multi-hop reasoning and agent orchestration
+- **OpenAI**: Language models and embeddings
+- **Community**: Various document processing libraries
+
+---
+
+**Happy Searching! 🔍✨**

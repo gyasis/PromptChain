@@ -228,7 +228,8 @@ class AthenaLightRAG:
         agentic_processor = AgenticStepProcessor(
             objective=reasoning_objective,
             max_internal_steps=self.max_reasoning_steps,
-            model_name=self.reasoning_model
+            model_name=self.reasoning_model,
+            history_mode="progressive"  # Accumulate all tool results for better multi-hop reasoning
         )
         
         # Create a PromptChain for the reasoning workflow

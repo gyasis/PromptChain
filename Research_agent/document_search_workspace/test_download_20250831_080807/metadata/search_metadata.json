@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "architecture": "production_3tier_distinct_search",
+  "search_query": "quantum machine learning",
+  "tier_allocation": {
+    "arxiv": 1,
+    "pubmed": 1,
+    "scihub": 3
+  },
+  "retrieved_papers": 5,
+  "session_id": "test_download_20250831_080807",
+  "timestamp": "2025-08-31T08:08:19.279971",
+  "tier_distribution": {
+    "by_source": {
+      "arxiv": 1,
+      "pubmed": 1,
+      "scihub": 3
+    },
+    "by_tier": {
+      "arxiv": 1,
+      "pubmed": 1,
+      "scihub": 3
+    },
+    "tier_results": {
+      "arxiv_count": 1,
+      "pubmed_count": 1,
+      "scihub_count": 3
+    }
+  },
+  "enhancement_statistics": {
+    "enhanced_count": 5,
+    "enhancement_rate": 1.0,
+    "method": "3tier_search_service"
+  },
+  "fallback_statistics": {
+    "attempts": 5,
+    "successes": 0,
+    "success_rate": 0.0
+  },
+  "service_info": {
+    "version": "4.0.0",
+    "architecture": "production_3tier_distinct_search",
+    "tiers": {
+      "tier1": "arxiv_api_direct",
+      "tier2": "pubmed_api_direct",
+      "tier3": "scihub_mcp_direct",
+      "fallback": "scihub_doi_title_fallback"
+    }
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "search_metadata": {
+    "status": "success",
+    "architecture": "production_3tier_distinct_search",
+    "search_query": "neural networks optimization",
+    "tier_allocation": {
+      "arxiv": 0,
+      "pubmed": 0,
+      "scihub": 2
+    },
+    "retrieved_papers": 2,
+    "session_id": null,
+    "timestamp": "2025-08-31T08:04:43.510393",
+    "tier_distribution": {
+      "by_source": {
+        "scihub": 2
+      },
+      "by_tier": {
+        "scihub": 2
+      },
+      "tier_results": {
+        "arxiv_count": 0,
+        "pubmed_count": 0,
+        "scihub_count": 2
+      }
+    },
+    "enhancement_statistics": {
+      "enhanced_count": 2,
+      "enhancement_rate": 1.0,
+      "method": "3tier_search_service"
+    },
+    "fallback_statistics": {
+      "attempts": 2,
+      "successes": 0,
+      "success_rate": 0.0
+    },
+    "service_info": {
+      "version": "4.0.0",
+      "architecture": "production_3tier_distinct_search",
+      "tiers": {
+        "tier1": "arxiv_api_direct",
+        "tier2": "pubmed_api_direct",
+        "tier3": "scihub_mcp_direct",
+        "fallback": "scihub_doi_title_fallback"
+      }
+    }
+  },
+  "papers": [
+    {
+      "id": "scihub_generated_1",
+      "title": "Sci-Hub Paper 1: neural networks optimization",
+      "authors": [
+        "Author 1"
+      ],
+      "publication_year": 2023,
+      "doi": "10.4001/scihub.generated.6609",
+      "abstract": "Research on neural networks optimization",
+      "source": "scihub",
+      "tier": "scihub",
+      "search_method": "scihub_mcp_direct",
+      "url": "https://sci-hub.se/10.4001/scihub.generated.6609",
+      "pdf_url": null,
+      "metadata": {
+        "full_text_available": false,
+        "pdf_url": null,
+        "database_priority": 1.0,
+        "retrieved_at": "2025-08-31T08:04:40.656000",
+        "scihub_accessed": true,
+        "generated": true,
+        "paper_index": 1,
+        "search_topic": "neural networks optimization",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-31T08:04:43.510323",
+        "session_id": null,
+        "citation": "Author 1 (2023). Sci-Hub Paper 1: neural networks optimization",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "scihub",
+          "search_method": "scihub_mcp_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "full_text",
+        "pdf_accessible": true,
+        "bypass_paywall": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    },
+    {
+      "id": "scihub_generated_2",
+      "title": "Sci-Hub Paper 2: neural networks optimization",
+      "authors": [
+        "Author 2"
+      ],
+      "publication_year": 2023,
+      "doi": "10.4002/scihub.generated.6609",
+      "abstract": "Research on neural networks optimization",
+      "source": "scihub",
+      "tier": "scihub",
+      "search_method": "scihub_mcp_direct",
+      "url": "https://sci-hub.se/10.4002/scihub.generated.6609",
+      "pdf_url": null,
+      "metadata": {
+        "full_text_available": false,
+        "pdf_url": null,
+        "database_priority": 1.0,
+        "retrieved_at": "2025-08-31T08:04:40.656067",
+        "scihub_accessed": true,
+        "generated": true,
+        "paper_index": 2,
+        "search_topic": "neural networks optimization",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-31T08:04:43.510323",
+        "session_id": null,
+        "citation": "Author 2 (2023). Sci-Hub Paper 2: neural networks optimization",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "scihub",
+          "search_method": "scihub_mcp_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "full_text",
+        "pdf_accessible": true,
+        "bypass_paywall": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    }
+  ],
+  "total_papers": 2,
+  "export_timestamp": "2025-08-31T08:04:43.510526"
+}
