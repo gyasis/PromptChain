@@ -4,6 +4,7 @@ import json
 import re
 from promptchain.utils.promptchaining import PromptChain
 from promptchain.utils.logging_utils import RunLogger
+from promptchain.utils.agent_execution_result import AgentExecutionResult
 from typing import List, Dict, Any, Optional, Union, Tuple, Callable, TYPE_CHECKING
 import os
 import traceback
@@ -739,9 +740,33 @@ class AgentChain:
         self.logger.log_run({"event": "simple_router_defer", "input": user_input})
         return None
 
-    async def process_input(self, user_input: str, override_include_history: Optional[bool] = None) -> str:
-        """Processes user input based on the configured execution_mode."""
-        self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input})
+    async def process_input(
+        self,
+        user_input: str,
+        override_include_history: Optional[bool] = None,
+        return_metadata: bool = False
+    ) -> Union[str, AgentExecutionResult]:
+        """Processes user input based on the configured execution_mode.
+
+        Args:
+            user_input: User's query
+            override_include_history: Override history inclusion
+            return_metadata: If True, return AgentExecutionResult instead of str
+
+        Returns:
+            - str: Just the response (default, backward compatible)
+            - AgentExecutionResult: Full metadata (if return_metadata=True)
+        """
+        # Track execution metadata
+        start_time = datetime.now()
+        errors: List[str] = []
+        warnings: List[str] = []
+        router_decision: Optional[Dict[str, Any]] = None
+        router_steps = 0
+        fallback_used = False
+        tools_called: List[Dict[str, Any]] = []
+
+        self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input, "return_metadata": return_metadata})
         self._add_to_history("user", user_input)
 
         # Determine if we should include history for this call
@@ -995,14 +1020,43 @@ class AgentChain:
 
         # Add to history with the agent name
         self._add_to_history("assistant", final_response, agent_name=chosen_agent_name)
-        
+
+        # Calculate execution time
+        end_time = datetime.now()
+        execution_time_ms = (end_time - start_time).total_seconds() * 1000
+
         self.logger.log_run({
             "event": "process_input_end",
             "mode": self.execution_mode,
             "response_length": len(final_response),
-            "agent_used": chosen_agent_name
+            "agent_used": chosen_agent_name,
+            "execution_time_ms": execution_time_ms,
+            "return_metadata": return_metadata
         })
-        return final_response
+
+        # Return metadata if requested
+        if return_metadata:
+            return AgentExecutionResult(
+                response=final_response,
+                agent_name=chosen_agent_name or "unknown",
+                execution_time_ms=execution_time_ms,
+                start_time=start_time,
+                end_time=end_time,
+                router_decision=router_decision,
+                router_steps=router_steps,
+                fallback_used=fallback_used,
+                agent_execution_metadata=None,  # TODO: Capture from agent if available
+                tools_called=tools_called,
+                total_tokens=None,  # TODO: Aggregate from agent responses
+                prompt_tokens=None,  # TODO: Aggregate from agent responses
+                completion_tokens=None,  # TODO: Aggregate from agent responses
+                cache_hit=False,  # TODO: Check cache status
+                cache_key=None,  # TODO: Get cache key if used
+                errors=errors,
+                warnings=warnings
+            )
+        else:
+            return final_response
 
     async def run_agent_direct(self, agent_name: str, user_input: str, send_history: bool = False) -> str:
         """Runs a specific agent directly, bypassing the routing logic.

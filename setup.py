@@ -8,7 +8,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="promptchain",
-    version="0.4.1a",
+    version="0.4.1b",
     author="Gyasi Sutton",
     author_email="gyasis@gmail.com",
     description="A flexible prompt engineering library for LLM applications and agent frameworks",
