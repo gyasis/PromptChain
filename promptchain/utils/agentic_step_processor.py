@@ -1,7 +1,9 @@
-from typing import List, Dict, Any, Callable, Awaitable, Optional
+from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
 import logging
 import json
 from enum import Enum
+from datetime import datetime
+from .agentic_step_result import StepExecutionMetadata, AgenticStepResult
 
 logger = logging.getLogger(__name__)
 
@@ -146,10 +148,11 @@ class AgenticStepProcessor:
         initial_input: str,
         available_tools: List[Dict[str, Any]],
         llm_runner: Callable[..., Awaitable[Any]], # Should return LiteLLM-like response message
-        tool_executor: Callable[[Any], Awaitable[str]] # Takes tool_call, returns result string
-    ) -> str:
+        tool_executor: Callable[[Any], Awaitable[str]], # Takes tool_call, returns result string
+        return_metadata: bool = False  # NEW: Return metadata instead of just string
+    ) -> Union[str, AgenticStepResult]:
         """
-        Executes the internal agentic loop for this step.
+        Executes the internal agentic loop for this step with optional metadata return.
 
         Args:
             initial_input: The input string received from the previous PromptChain step.
@@ -158,9 +161,12 @@ class AgenticStepProcessor:
                         Expected signature: llm_runner(messages, tools, tool_choice) -> response_message
             tool_executor: An async function to execute a tool call.
                            Expected signature: tool_executor(tool_call) -> result_content_string
+            return_metadata: If True, return AgenticStepResult with full execution metadata.
+                           If False, return just the final answer string (backward compatible).
 
         Returns:
-            The final string output of the agentic loop for this step.
+            - str: Just final answer (default, backward compatible)
+            - AgenticStepResult: Full execution metadata when return_metadata=True
         """
         # Store available tools as an attribute for inspection/debugging
         self.available_tools = available_tools
@@ -171,6 +177,14 @@ class AgenticStepProcessor:
 
         logger.info(f"Starting agentic step. Objective: {self.objective[:100]}...")
         logger.debug(f"Initial input: {initial_input[:100]}...")
+
+        # Metadata tracking variables
+        execution_start_time = datetime.now()
+        steps_metadata: List[StepExecutionMetadata] = []
+        total_tools_called = 0
+        total_tokens_used = 0
+        execution_errors: List[str] = []
+        execution_warnings: List[str] = []
 
         # Full internal history for debugging/tracking (not sent to LLM)
         internal_history = []
@@ -199,6 +213,13 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
 
         for step_num in range(self.max_internal_steps):
             logger.info(f"Agentic step internal iteration {step_num + 1}/{self.max_internal_steps}")
+
+            # Track metadata for this step
+            step_start_time = datetime.now()
+            step_tool_calls: List[Dict[str, Any]] = []
+            step_clarification_attempts = 0
+            step_error: Optional[str] = None
+
             while True:
                 # Prepare minimal valid messages for LLM
                 messages_for_llm = llm_history[:]
@@ -262,11 +283,14 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                             # Extract tool call ID and function name using the helper function
                             if isinstance(tool_call, dict):
                                 tool_call_id = tool_call.get('id')
+                                tool_call_args = tool_call.get('function', {}).get('arguments', {})
                             else:
                                 tool_call_id = getattr(tool_call, 'id', None)
-                            
+                                func_obj = getattr(tool_call, 'function', None)
+                                tool_call_args = getattr(func_obj, 'arguments', {}) if func_obj else {}
+
                             function_name = get_function_name_from_tool_call(tool_call)
-                            
+
                             if not function_name:
                                 logger.error(f"Could not extract function name from tool call: {tool_call}")
                                 tool_result_content = json.dumps({"error": "Could not determine function name for tool execution"})
@@ -278,12 +302,22 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                                 }
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
+                                # Track failed tool call
+                                step_tool_calls.append({
+                                    "name": "unknown_function",
+                                    "args": {},
+                                    "result": tool_result_content,
+                                    "time_ms": 0,
+                                    "error": "Could not determine function name"
+                                })
                                 continue
-                                
+
                             logger.info(f"Executing tool: {function_name} (ID: {tool_call_id})")
+                            tool_exec_start = datetime.now()
                             try:
                                 # Use the provided executor callback
                                 tool_result_content = await tool_executor(tool_call)
+                                tool_exec_time = (datetime.now() - tool_exec_start).total_seconds() * 1000
                                 logger.info(f"Tool {function_name} executed successfully.")
                                 logger.debug(f"Tool result content: {tool_result_content[:150]}...")
                                 # Append tool result to internal history
@@ -295,16 +329,35 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                                 }
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
+                                # Track successful tool call
+                                step_tool_calls.append({
+                                    "name": function_name,
+                                    "args": tool_call_args,
+                                    "result": tool_result_content,
+                                    "time_ms": tool_exec_time
+                                })
+                                total_tools_called += 1
                             except Exception as tool_exec_error:
+                                tool_exec_time = (datetime.now() - tool_exec_start).total_seconds() * 1000
                                 logger.error(f"Error executing tool {function_name}: {tool_exec_error}", exc_info=True)
+                                error_msg = str(tool_exec_error)
                                 tool_msg = {
                                     "role": "tool",
                                     "tool_call_id": tool_call_id,
                                     "name": function_name,
-                                    "content": f"Error executing tool: {str(tool_exec_error)}",
+                                    "content": f"Error executing tool: {error_msg}",
                                 }
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
+                                # Track failed tool call
+                                step_tool_calls.append({
+                                    "name": function_name,
+                                    "args": tool_call_args,
+                                    "result": f"Error: {error_msg}",
+                                    "time_ms": tool_exec_time,
+                                    "error": error_msg
+                                })
+                                execution_errors.append(f"Tool {function_name}: {error_msg}")
 
                         # Build llm_history based on history_mode
                         if self.history_mode == HistoryMode.MINIMAL.value:
@@ -367,6 +420,7 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                             break # Break inner while loop, increment step_num
                         else:
                             clarification_attempts += 1
+                            step_clarification_attempts += 1
                             logger.warning(f"LLM did not request tools and did not provide content. Clarification attempt {clarification_attempts}/{max_clarification_attempts}.")
                             # Add a message indicating confusion or request for clarification
                             clarification_msg = {"role": "user", "content": "Please either call a tool or provide the final answer."}
@@ -379,12 +433,33 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                             if clarification_attempts >= max_clarification_attempts:
                                 logger.error(f"Agentic step exceeded {max_clarification_attempts} clarification attempts without tool call or answer. Breaking loop.")
                                 final_answer = "Error: LLM did not call a tool or provide an answer after multiple attempts."
+                                step_error = final_answer
+                                execution_errors.append(final_answer)
                                 break
                             continue
                 except Exception as llm_error:
                     logger.error(f"Error during LLM call in agentic step: {llm_error}", exc_info=True)
-                    final_answer = f"Error during agentic step processing: {llm_error}"
+                    error_msg = f"Error during agentic step processing: {llm_error}"
+                    final_answer = error_msg
+                    step_error = error_msg
+                    execution_errors.append(error_msg)
                     break # Break inner while loop, increment step_num
+
+            # Create step metadata after inner while loop completes
+            step_execution_time = (datetime.now() - step_start_time).total_seconds() * 1000
+            step_tokens = estimate_tokens(llm_history)
+            total_tokens_used += step_tokens
+
+            step_metadata = StepExecutionMetadata(
+                step_number=step_num + 1,
+                tool_calls=step_tool_calls,
+                tokens_used=step_tokens,
+                execution_time_ms=step_execution_time,
+                clarification_attempts=step_clarification_attempts,
+                error=step_error
+            )
+            steps_metadata.append(step_metadata)
+
             # If we have a final answer or error, break outer for loop
             if final_answer is not None:
                 break
@@ -392,6 +467,7 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
         # After loop finishes (or breaks)
         if final_answer is None:
             logger.warning(f"Agentic step reached max iterations ({self.max_internal_steps}) without a final answer.")
+            execution_warnings.append(f"Reached max iterations ({self.max_internal_steps}) without final answer")
             # Try to return the last assistant message with content, if any
             last_content = None
             for msg in reversed(internal_history):
@@ -404,4 +480,27 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                 final_answer = "No tool was called, and the LLM did not provide an answer. Please try rephrasing your request or check tool availability."
 
         logger.info(f"Agentic step finished. Final output: {final_answer[:150]}...")
-        return final_answer 
+
+        # Calculate total execution time
+        total_execution_time = (datetime.now() - execution_start_time).total_seconds() * 1000
+
+        # Return metadata if requested, otherwise just the answer
+        if return_metadata:
+            return AgenticStepResult(
+                final_answer=final_answer,
+                total_steps=len(steps_metadata),
+                max_steps_reached=(len(steps_metadata) >= self.max_internal_steps),
+                objective_achieved=(final_answer is not None and not any(steps_metadata[-1].error for _ in [1] if steps_metadata)),
+                steps=steps_metadata,
+                total_tools_called=total_tools_called,
+                total_tokens_used=total_tokens_used,
+                total_execution_time_ms=total_execution_time,
+                history_mode=self.history_mode,
+                max_internal_steps=self.max_internal_steps,
+                model_name=self.model_name,
+                errors=execution_errors,
+                warnings=execution_warnings
+            )
+        else:
+            # Backward compatible: just return the string
+            return final_answer 
