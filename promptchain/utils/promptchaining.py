@@ -1,7 +1,7 @@
 # REMOVED: from future import annotations (Not needed in modern Python 3.7+)
 from litellm import completion, acompletion
 import os
-from typing import Union, Callable, List, Dict, Optional, Any, Tuple
+from typing import Union, Callable, List, Dict, Optional, Any, Tuple, Set
 from dotenv import load_dotenv
 import inspect
 import json
@@ -31,11 +31,31 @@ try:
     from .mcp_tool_hijacker import MCPToolHijacker # Import the tool hijacker
     from .model_management import ModelManagerFactory, ModelProvider, ModelManagementConfig, get_global_config
     from .ollama_model_manager import OllamaModelManager
+    from .execution_events import ExecutionEvent, ExecutionEventType
+    from .execution_callback import CallbackManager, CallbackFunction
     MODEL_MANAGEMENT_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import dependencies relative to current file: {e}")
     MODEL_MANAGEMENT_AVAILABLE = False
     # Define dummy classes/types if needed
+    from enum import Enum, auto
+
+    class ExecutionEventType(Enum):
+        CHAIN_START = auto()
+        CHAIN_END = auto()
+
+    class ExecutionEvent:
+        def __init__(self, *args, **kwargs): pass
+
+    class CallbackManager:
+        def __init__(self): pass
+        def register(self, *args, **kwargs): pass
+        def emit(self, *args): pass
+        def emit_sync(self, *args): pass
+        def has_callbacks(self): return False
+
+    CallbackFunction = Any
+
     class AgenticStepProcessor:
         objective = "Dummy Objective" # Add objective attribute for process_prompt_async
         def __init__(self, *args, **kwargs): pass
@@ -228,6 +248,9 @@ class PromptChain:
         # ADDED: Initialize memory bank and shared context (Keep as these are not MCP related)
         self.memory_bank: Dict[str, Dict[str, Any]] = {}
         self.shared_context: Dict[str, Dict[str, Any]] = {"global": {}} # Example structure
+
+        # Initialize callback system for event-driven observability
+        self.callback_manager = CallbackManager()
         
         # Initialize Model Management
         self.model_manager = None
@@ -354,6 +377,61 @@ class PromptChain:
         if self.verbose:
             logger.debug(f"🔧 Registered local function for tool: {tool_name}")
 
+    # === Callback Registration Methods ===
+
+    def register_callback(
+        self,
+        callback: CallbackFunction,
+        event_filter: Optional[Set[ExecutionEventType]] = None
+    ) -> None:
+        """Register a callback for execution events.
+
+        Callbacks can be either synchronous or asynchronous functions that
+        receive ExecutionEvent objects. They can optionally filter which
+        event types they want to receive.
+
+        Args:
+            callback: Callback function (sync or async) to register
+            event_filter: Optional set of event types to filter for.
+                         If None, callback receives all events.
+
+        Example:
+            def my_callback(event: ExecutionEvent):
+                print(f"Event: {event.event_type.name}")
+
+            chain.register_callback(my_callback)
+
+            # Or with filtering:
+            chain.register_callback(
+                my_callback,
+                {ExecutionEventType.CHAIN_START, ExecutionEventType.CHAIN_END}
+            )
+        """
+        self.callback_manager.register(callback, event_filter)
+        if self.verbose:
+            filter_info = f" (filtering {len(event_filter)} event types)" if event_filter else ""
+            logger.debug(f"📡 Registered callback{filter_info}")
+
+    def unregister_callback(self, callback: CallbackFunction) -> bool:
+        """Unregister a callback.
+
+        Args:
+            callback: Callback function to unregister
+
+        Returns:
+            True if callback was found and removed, False otherwise
+        """
+        result = self.callback_manager.unregister(callback)
+        if result and self.verbose:
+            logger.debug(f"📡 Unregistered callback")
+        return result
+
+    def clear_callbacks(self) -> None:
+        """Remove all registered callbacks."""
+        self.callback_manager.clear()
+        if self.verbose:
+            logger.debug(f"📡 Cleared all callbacks")
+
     def process_prompt(self, initial_input: Optional[str] = None):
         """
         Synchronous version of process_prompt_async.
@@ -399,6 +477,22 @@ class PromptChain:
         This is the main implementation that handles MCP and async operations.
         :param initial_input: Optional initial string input for the chain.
         """
+        # Emit CHAIN_START event
+        import datetime
+        chain_start_time = datetime.datetime.now()
+        if self.callback_manager.has_callbacks():
+            await self.callback_manager.emit(
+                ExecutionEvent(
+                    event_type=ExecutionEventType.CHAIN_START,
+                    timestamp=chain_start_time,
+                    metadata={
+                        "initial_input": initial_input,
+                        "num_instructions": len(self.instructions),
+                        "models": self.models
+                    }
+                )
+            )
+
         # Reset model index at the start of each chain
         self.reset_model_index()
         
@@ -558,6 +652,27 @@ class PromptChain:
                     logger.debug("\n" + "-"*50)
                     logger.debug(f"Step {step_num}:")
                     logger.debug("-"*50)
+
+                # Emit STEP_START event
+                step_start_time = datetime.datetime.now()
+                if self.callback_manager.has_callbacks():
+                    # Determine instruction description
+                    if callable(instruction) and not isinstance(instruction, AgenticStepProcessor):
+                        instr_desc = getattr(instruction, '__name__', 'function')
+                    elif isinstance(instruction, AgenticStepProcessor):
+                        instr_desc = f"agentic: {instruction.objective}"
+                    else:
+                        instr_desc = str(instruction)[:100] + "..." if len(str(instruction)) > 100 else str(instruction)
+
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.STEP_START,
+                            timestamp=step_start_time,
+                            step_number=step_num,
+                            step_instruction=instr_desc,
+                            metadata={"input_length": len(str(result))}
+                        )
+                    )
 
                 # Determine input for this step based on history mode
                 step_input_content = result
@@ -927,6 +1042,23 @@ class PromptChain:
                         "model_params": step_model_params if step_type == "model" else None
                     }
 
+                # Emit STEP_END event
+                if self.callback_manager.has_callbacks():
+                    step_end_time = datetime.datetime.now()
+                    step_execution_time_ms = (step_end_time - step_start_time).total_seconds() * 1000
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.STEP_END,
+                            timestamp=step_end_time,
+                            step_number=step_num,
+                            metadata={
+                                "step_type": step_type,
+                                "execution_time_ms": step_execution_time_ms,
+                                "output_length": len(result)
+                            }
+                        )
+                    )
+
                 # Check chainbreakers
                 break_chain = False
                 for breaker in self.chainbreakers:
@@ -1002,6 +1134,25 @@ class PromptChain:
 
         except Exception as e:
             logger.error(f"\n❌ Error in chain processing at step {step_num}: {e}", exc_info=True) # Use full traceback
+
+            # Emit CHAIN_ERROR event
+            if self.callback_manager.has_callbacks():
+                error_time = datetime.datetime.now()
+                execution_time_ms = (error_time - chain_start_time).total_seconds() * 1000
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.CHAIN_ERROR,
+                        timestamp=error_time,
+                        step_number=step_num,
+                        metadata={
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "execution_time_ms": execution_time_ms,
+                            "failed_at_step": step_num
+                        }
+                    )
+                )
+
             raise # Re-raise the exception after logging
         finally:
             # ===== Model Management: Cleanup on completion/error =====
@@ -1023,6 +1174,22 @@ class PromptChain:
             logger.debug("="*50)
             logger.debug("\n📊 Final Output:")
             logger.debug(f"{result}\n")
+
+        # Emit CHAIN_END event
+        if self.callback_manager.has_callbacks():
+            chain_end_time = datetime.datetime.now()
+            execution_time_ms = (chain_end_time - chain_start_time).total_seconds() * 1000
+            await self.callback_manager.emit(
+                ExecutionEvent(
+                    event_type=ExecutionEventType.CHAIN_END,
+                    timestamp=chain_end_time,
+                    metadata={
+                        "execution_time_ms": execution_time_ms,
+                        "total_steps": len(chain_history) - 1,  # -1 for initial step
+                        "final_output_length": len(str(result))
+                    }
+                )
+            )
 
         # Return the final result or the full history based on the flag
         return chain_history if self.full_history else result
