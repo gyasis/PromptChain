@@ -28,6 +28,7 @@ from promptchain import PromptChain
 from promptchain.utils.agent_chain import AgentChain
 from promptchain.utils.execution_history_manager import ExecutionHistoryManager
 from promptchain.utils.logging_utils import RunLogger
+from promptchain.utils.orchestrator_supervisor import OrchestratorSupervisor  # ✅ Import from library
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 # Import visual output system
@@ -718,22 +719,31 @@ RETURN JSON ONLY:
     }
 
 
-def create_agentic_orchestrator(agent_descriptions: dict, log_event_callback=None):
+def create_agentic_orchestrator(agent_descriptions: dict, log_event_callback=None, dev_print_callback=None):
     """
     Create AgenticStepProcessor-based orchestrator - returns async wrapper function for AgentChain
 
     Args:
         agent_descriptions: Dict of agent names -> descriptions
         log_event_callback: Optional callback for logging orchestrator decisions
+        dev_print_callback: Optional callback for --dev mode terminal output
     """
     from datetime import datetime
+    from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 
     # Format agent descriptions for the objective
     agents_formatted = "\n".join([f"- {name}: {desc}" for name, desc in agent_descriptions.items()])
 
+    # Storage for agentic step metadata (captured via events)
+    orchestrator_metadata = {
+        "total_steps": 0,
+        "tools_called": 0,
+        "execution_time_ms": 0
+    }
+
     # Create the orchestrator PromptChain once (closure captures this)
     orchestrator_step = AgenticStepProcessor(
-        objective=f"""You are the Master Orchestrator. Analyze the user request and choose the best agent.
+        objective=f"""You are the Master Orchestrator. Use multi-step reasoning to create the best execution plan.
 
 CURRENT DATE: {{current_date}}
 KNOWLEDGE CUTOFF: Most LLM training data is from early 2024 or earlier
@@ -741,42 +751,122 @@ KNOWLEDGE CUTOFF: Most LLM training data is from early 2024 or earlier
 AVAILABLE AGENTS:
 {agents_formatted}
 
-AGENT TOOL CAPABILITIES:
-1. RESEARCH ✅ [HAS TOOLS] - gemini_research, ask_gemini (Google Search)
-   → Use for: Current events, recent tech, latest updates, "What is X?" queries
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AGENT TOOL CAPABILITIES (CRITICAL - USE MULTI-HOP REASONING TO DETERMINE NEEDS):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-2. ANALYSIS ❌ [NO TOOLS] - Training knowledge only
-   → Use for: Analyzing provided data, pattern recognition
+1. RESEARCH AGENT ✅ [HAS TOOLS]
+   Tools: gemini_research, ask_gemini (Gemini MCP with Google Search grounding)
+   When to use: ANY question about current events, recent tech, latest updates, post-2024 info
+   Capabilities: Real-time web search, fact verification, current information retrieval
+   Example: "What is Candle library?" → MUST use Research (current docs/examples from web)
 
-3. CODING ✅ [HAS TOOLS] - write_script
-   → Use for: Creating script files
+2. ANALYSIS AGENT ❌ [NO TOOLS - INTERNAL KNOWLEDGE ONLY]
+   Tools: None (uses only training knowledge + provided data)
+   When to use: Analyzing data/text already provided, pattern recognition, logical reasoning
+   Limitations: Cannot get external info, stuck with training data cutoff
 
-4. TERMINAL ✅ [HAS TOOLS] - execute_terminal_command
-   → Use for: Executing commands/scripts
+3. CODING AGENT ✅ [HAS TOOLS]
+   Tools: write_script (creates Python/Bash files in workspace)
+   When to use: Need to CREATE scripts/code files
+   Capabilities: Writes executable scripts to disk
 
-5. DOCUMENTATION ❌ [NO TOOLS] - Training knowledge only
-   → Use for: Explaining well-known concepts from training
+4. TERMINAL AGENT ✅ [HAS TOOLS]
+   Tools: execute_terminal_command (runs shell commands)
+   When to use: Need to EXECUTE commands or scripts
+   Capabilities: Run scripts, check system, file operations
 
-6. SYNTHESIS ❌ [NO TOOLS] - Training knowledge only
-   → Use for: Combining already-gathered information
+5. DOCUMENTATION AGENT ❌ [NO TOOLS - INTERNAL KNOWLEDGE ONLY]
+   Tools: None (uses only training knowledge)
+   When to use: Explaining concepts from training data, writing tutorials
+   Limitations: CANNOT verify current info, knowledge cutoff applies
 
-CRITICAL ROUTING RULES:
-🔍 Query about NEW/UNKNOWN tech (post-2024)? → RESEARCH (web search required)
-🔍 Query "what is X library/tool"? → RESEARCH (get current docs/examples)
-📚 Query about WELL-KNOWN concepts? → DOCUMENTATION (use training knowledge)
-💻 Need to CREATE code/scripts? → CODING (write_script tool)
-⚡ Need to EXECUTE commands? → TERMINAL (execute tool)
+6. SYNTHESIS AGENT ❌ [NO TOOLS - INTERNAL KNOWLEDGE ONLY]
+   Tools: None (uses only training knowledge + provided context)
+   When to use: Combining/synthesizing information already gathered
+   Limitations: Cannot get new info, only works with what's provided
 
-EXAMPLES:
-- "What is Candle library?" → {{"chosen_agent": "research", "reasoning": "Unknown library needs web research"}}
-- "Explain neural networks" → {{"chosen_agent": "documentation", "reasoning": "Well-known concept in training"}}
-- "Create backup script" → {{"chosen_agent": "coding", "reasoning": "Need write_script tool"}}
-- "Run ls command" → {{"chosen_agent": "terminal", "reasoning": "Need execute tool"}}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USE MULTI-HOP REASONING TO DETERMINE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOUR OUTPUT MUST BE VALID JSON (nothing else):
-{{"chosen_agent": "agent_name", "reasoning": "brief explanation"}}
+STEP 1: Analyze task complexity
+- Is this a simple query needing one agent? Or complex needing multiple?
+- What capabilities are required? (research, analysis, coding, execution, documentation, synthesis)
+
+STEP 2: Check knowledge boundaries
+- Is the topic NEW/UNKNOWN (post-2024)? → Need RESEARCH
+- Is the topic WELL-KNOWN (in training)? → Can use agents without tools
+- Uncertain? → SAFER to use RESEARCH first
+
+STEP 3: Check tool requirements
+- Need web search/current info? → RESEARCH (has Gemini MCP)
+- Need to write code files? → CODING (has write_script)
+- Need to execute commands? → TERMINAL (has execute_terminal_command)
+- Just explaining known concepts? → DOCUMENTATION or ANALYSIS (no tools needed)
+
+STEP 4: Design execution plan
+- If multiple capabilities needed → Create SEQUENTIAL PLAN
+- If single capability sufficient → Create SINGLE-AGENT PLAN
+- Order matters! Research before documentation, coding before terminal, etc.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MULTI-AGENT PLANNING PATTERNS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pattern 1: Research → Documentation
+- "What is X library? Show examples" → ["research", "documentation"]
+- Research gets current info, documentation formats it clearly
+
+Pattern 2: Research → Analysis → Synthesis
+- "Research X and create strategy" → ["research", "analysis", "synthesis"]
+- Research gathers data, analysis processes it, synthesis creates strategy
+
+Pattern 3: Coding → Terminal
+- "Create backup script and run it" → ["coding", "terminal"]
+- Coding writes script, terminal executes it
+
+Pattern 4: Research → Coding → Terminal
+- "Find latest X library and create demo" → ["research", "coding", "terminal"]
+- Research finds current library, coding creates demo, terminal runs it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLES OF CORRECT MULTI-HOP REASONING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Query: "Write tutorial about Zig sound manipulation"
+Step 1: Complex task - needs research + documentation
+Step 2: "Zig sound" is unknown/recent tech → Need RESEARCH first
+Step 3: Research has tools (gemini_research), documentation has none
+Step 4: Plan = ["research", "documentation"]
+✅ CORRECT: {{"plan": ["research", "documentation"], "initial_input": "Research Zig audio libraries", "reasoning": "Unknown tech needs web research, then tutorial writing"}}
+
+Query: "Explain neural networks"
+Step 1: Simple task - needs one agent
+Step 2: Neural networks = well-known concept in training
+Step 3: No tools needed for known concepts
+Step 4: Plan = ["documentation"]
+✅ CORRECT: {{"plan": ["documentation"], "initial_input": "Explain neural networks", "reasoning": "Well-known concept, no research needed"}}
+
+Query: "Create log cleanup script and test it"
+Step 1: Complex task - needs coding + execution
+Step 2: Well-known task, no research needed
+Step 3: Coding has write_script, terminal has execute_terminal_command
+Step 4: Plan = ["coding", "terminal"]
+✅ CORRECT: {{"plan": ["coding", "terminal"], "initial_input": "Create log cleanup script", "reasoning": "Need to write script then execute it"}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+USE YOUR INTERNAL REASONING STEPS TO ANALYZE THE QUERY, THEN OUTPUT:
+
+RETURN JSON ONLY (no other text):
+{{
+    "plan": ["agent1", "agent2", ...],  // Ordered list of agents (can be single agent ["agent_name"])
+    "initial_input": "refined task description for first agent",
+    "reasoning": "multi-step reasoning summary of why this plan"
+}}
 """,
-        max_internal_steps=5,  # Multi-hop reasoning
+        max_internal_steps=8,  # ✅ MORE STEPS for complex multi-agent planning
         model_name="openai/gpt-4.1-mini",
         history_mode="progressive"  # Context accumulation - CRITICAL for multi-hop reasoning!
     )
@@ -787,6 +877,31 @@ YOUR OUTPUT MUST BE VALID JSON (nothing else):
         verbose=False,
         store_steps=True
     )
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # EVENT CALLBACK: Capture agentic step metadata (v0.4.1d+)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def orchestrator_event_callback(event: ExecutionEvent):
+        """Capture orchestrator execution metadata via events"""
+        # Capture agentic step completion
+        if event.event_type == ExecutionEventType.AGENTIC_STEP_END:
+            orchestrator_metadata["total_steps"] = event.metadata.get("total_steps", 0)
+            orchestrator_metadata["tools_called"] = event.metadata.get("total_tools_called", 0)
+            orchestrator_metadata["execution_time_ms"] = event.metadata.get("execution_time_ms", 0)
+
+            # Log agentic step details
+            if log_event_callback:
+                log_event_callback("orchestrator_agentic_step", {
+                    "total_steps": event.metadata.get("total_steps", 0),
+                    "tools_called": event.metadata.get("total_tools_called", 0),
+                    "execution_time_ms": event.metadata.get("execution_time_ms", 0),
+                    "objective_achieved": event.metadata.get("objective_achieved", False),
+                    "max_steps_reached": event.metadata.get("max_steps_reached", False)
+                }, level="DEBUG")
+
+    # Register event callback (v0.4.1d)
+    orchestrator_chain.register_callback(orchestrator_event_callback)
 
     # Return async wrapper function that AgentChain expects
     async def agentic_router_wrapper(
@@ -816,20 +931,34 @@ YOUR OUTPUT MUST BE VALID JSON (nothing else):
             chosen_agent = decision.get("chosen_agent", "unknown")
             reasoning = decision.get("reasoning", "no reasoning provided")
 
-            # Get step count from orchestrator (if available)
-            step_count = len(orchestrator_chain.step_outputs) if hasattr(orchestrator_chain, 'step_outputs') else 0
+            # Get step metadata from event callback (v0.4.1d+)
+            step_count = orchestrator_metadata.get("total_steps", 0)
+            tools_called = orchestrator_metadata.get("tools_called", 0)
+            exec_time_ms = orchestrator_metadata.get("execution_time_ms", 0)
 
-            # Log the complete orchestrator decision
+            # Log the complete orchestrator decision with metadata
             if log_event_callback:
                 log_event_callback("orchestrator_decision", {
                     "chosen_agent": chosen_agent,
                     "reasoning": reasoning,
                     "raw_output": result,
                     "internal_steps": step_count,
+                    "tools_called": tools_called,
+                    "execution_time_ms": exec_time_ms,
                     "user_query": user_input
                 }, level="INFO")
 
-            logging.info(f"🎯 ORCHESTRATOR DECISION: Agent={chosen_agent} | Steps={step_count} | Reasoning: {reasoning}")
+            logging.info(f"🎯 ORCHESTRATOR DECISION: Agent={chosen_agent} | Steps={step_count} | "
+                       f"Tools={tools_called} | Time={exec_time_ms:.2f}ms | Reasoning: {reasoning}")
+
+            # --DEV MODE: Show orchestrator decision in terminal
+            if dev_print_callback:
+                dev_print_callback(f"\n🎯 Orchestrator Decision:", "")
+                dev_print_callback(f"   Agent chosen: {chosen_agent}", "")
+                dev_print_callback(f"   Reasoning: {reasoning}", "")
+                if step_count > 0:
+                    dev_print_callback(f"   Internal steps: {step_count}", "")
+                dev_print_callback("", "")  # Blank line
 
         except json.JSONDecodeError as e:
             logging.warning(f"Failed to parse orchestrator output as JSON: {result}")
@@ -901,8 +1030,21 @@ async def main():
 
     # Configure specific loggers
     logging.getLogger("promptchain").setLevel(logging.DEBUG)  # Capture all promptchain events
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # Reduce HTTP noise
-    logging.getLogger("LiteLLM").setLevel(logging.INFO)  # Show LLM calls
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # SUPPRESS NOISY THIRD-PARTY LOGGERS (--dev mode clean output)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    logging.getLogger("httpx").setLevel(logging.ERROR)  # Suppress HTTP request logs
+    logging.getLogger("LiteLLM").setLevel(logging.ERROR)  # Suppress "completion() model=" logs
+    logging.getLogger("litellm").setLevel(logging.ERROR)  # Suppress lowercase variant
+    logging.getLogger("google.generativeai").setLevel(logging.ERROR)  # Suppress Gemini AFC logs
+    logging.getLogger("google").setLevel(logging.ERROR)  # Suppress all Google SDK logs
+    logging.getLogger("mcp").setLevel(logging.ERROR)  # Suppress MCP server logs
+    logging.getLogger("__main__").setLevel(logging.ERROR)  # Suppress MCP server __main__ logs
+
+    # Suppress rich console handler logs from MCP servers
+    for logger_name in ["google.ai.generativelanguage", "google.api_core", "urllib3"]:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
 
     # Always filter out the "No models defined" warning (expected behavior with AgenticStepProcessor)
     import warnings
@@ -910,6 +1052,14 @@ async def main():
 
     # Configure output based on quiet/dev flags
     verbose = not (args.quiet or args.dev)
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # --DEV MODE HELPER: Direct stdout printing for backend visibility
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    def dev_print(message: str, prefix: str = ""):
+        """Print to stdout in --dev mode (bypasses logging system)"""
+        if args.dev:
+            print(f"{prefix}{message}")
 
     # Log the logging configuration
     logging.debug(f"━━━ LOGGING CONFIGURATION ━━━")
@@ -985,6 +1135,7 @@ async def main():
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # Structured events (JSONL) for orchestrator decisions, tool calls, agent actions
     # NO TRUNCATION - Capture complete details for debugging
+    # Uses PromptChain Event System (v0.4.1d+) - No more regex parsing!
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def log_event(event_type: str, data: dict, level: str = "INFO"):
@@ -1018,115 +1169,120 @@ async def main():
                 logging.error(f"Event logging failed: {e}")
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # ENHANCED TOOL CALL LOGGING HANDLER
+    # EVENT CALLBACKS: Structured Tool Call Logging (v0.4.1d+)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # Captures tool calls with FULL query/args for debugging
-    # Logs to both terminal (if verbose) and file (always)
+    # NO MORE REGEX PARSING! Using PromptChain event system for structured data
+    # Events: TOOL_CALL_START, TOOL_CALL_END, MCP_TOOL_DISCOVERED, etc.
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    class ToolCallHandler(logging.Handler):
-        """Enhanced handler to capture and log tool calls with full arguments"""
+    from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 
-        def __init__(self, visualizer, log_event_fn):
-            super().__init__()
-            self.viz = visualizer
-            self.log_event = log_event_fn
-            self.last_tool = None
+    def agent_event_callback(event: ExecutionEvent):
+        """
+        Unified event callback for all agents
+        Captures tool calls, model calls, and agentic steps with structured data
+        """
+        # Tool call start - capture arguments
+        if event.event_type == ExecutionEventType.TOOL_CALL_START:
+            tool_name = event.metadata.get("tool_name", "unknown")
+            tool_args = event.metadata.get("tool_args", {})
+            is_mcp = event.metadata.get("is_mcp_tool", False)
 
-        def emit(self, record):
-            import re
-            msg = record.getMessage()
+            # Display in terminal
+            tool_type = "mcp" if is_mcp else "local"
+            args_str = str(tool_args) if tool_args else ""
 
-            # ━━━ MCP TOOL CALLS ━━━
-            # Try to extract tool name and arguments from MCP logs
-            if "CallToolRequest" in msg or "Tool call:" in msg:
-                tool_name = "unknown_mcp_tool"
-                tool_args = ""
+            # --DEV MODE: Show tool calls directly in stdout
+            dev_print(f"🔧 Tool Call: {tool_name} ({tool_type})", "")
+            if tool_args:
+                # Show first 150 chars of args
+                args_preview = args_str[:150] + "..." if len(args_str) > 150 else args_str
+                dev_print(f"   Args: {args_preview}", "")
 
-                # Extract tool name and args from message
-                # Pattern: "Calling MCP tool: tool_name with args: {json}"
-                match = re.search(r'(?:Calling|Tool call:)\s+(?:MCP\s+)?tool:?\s+(\w+)(?:\s+with args:?\s+(.+))?', msg, re.IGNORECASE)
-                if match:
-                    tool_name = match.group(1)
-                    tool_args = match.group(2) if match.group(2) else ""
+            # Normal mode: use viz
+            if not args.dev:
+                viz.render_tool_call(tool_name, tool_type, args_str[:100])
 
-                # Detect specific tools
-                if "gemini_research" in msg.lower():
-                    tool_name = "gemini_research"
-                    # Try to extract query
-                    query_match = re.search(r'(?:query|topic|prompt)["\']?\s*:\s*["\']([^"\']+)["\']', msg, re.IGNORECASE)
-                    if query_match:
-                        tool_args = query_match.group(1)
-                elif "ask_gemini" in msg.lower():
-                    tool_name = "ask_gemini"
-                    query_match = re.search(r'(?:query|prompt)["\']?\s*:\s*["\']([^"\']+)["\']', msg, re.IGNORECASE)
-                    if query_match:
-                        tool_args = query_match.group(1)
+            # Log to file with FULL structured data (no truncation)
+            log_event("tool_call_start", {
+                "tool_name": tool_name,
+                "tool_type": tool_type,
+                "tool_args": tool_args,  # ✅ Structured dict, not string!
+                "is_mcp_tool": is_mcp
+            }, level="INFO")
 
-                # Display in terminal if verbose
-                self.viz.render_tool_call(tool_name, "mcp", tool_args)
+        # Tool call end - capture results
+        elif event.event_type == ExecutionEventType.TOOL_CALL_END:
+            tool_name = event.metadata.get("tool_name", "unknown")
+            tool_result = event.metadata.get("result", "")
+            execution_time = event.metadata.get("execution_time_ms", 0)
+            success = event.metadata.get("success", True)
 
-                # Log to file with FULL details
-                if self.log_event:
-                    self.log_event("tool_call_mcp", {
-                        "tool_name": tool_name,
-                        "tool_type": "mcp",
-                        "arguments": tool_args,
-                        "raw_log": msg
-                    }, level="INFO")
+            # Log to file with complete results
+            log_event("tool_call_end", {
+                "tool_name": tool_name,
+                "result_length": len(str(tool_result)),
+                "result_preview": str(tool_result)[:200],  # Preview only
+                "execution_time_ms": execution_time,
+                "success": success
+            }, level="INFO")
 
-            # ━━━ LOCAL TOOL CALLS ━━━
-            elif "Calling tool:" in msg or "write_script" in msg.lower() or "execute_terminal_command" in msg.lower():
-                tool_name = "unknown_local_tool"
-                tool_args = ""
+        # Agentic internal steps - track reasoning
+        elif event.event_type == ExecutionEventType.AGENTIC_INTERNAL_STEP:
+            step_number = event.metadata.get("step_number", 0)
+            reasoning = event.metadata.get("reasoning", "")
+            tool_calls = event.metadata.get("tool_calls", [])
 
-                if "write_script" in msg.lower():
-                    tool_name = "write_script"
-                    # Try to extract filename
-                    filename_match = re.search(r'filename["\']?\s*:\s*["\']([^"\']+)["\']', msg, re.IGNORECASE)
-                    if filename_match:
-                        tool_args = f"filename={filename_match.group(1)}"
+            # Log agentic reasoning to file
+            # NOTE: Tool calls now emit proper TOOL_CALL_START/END events via MCPHelper (v0.4.1+)
+            log_event("agentic_internal_step", {
+                "step_number": step_number,
+                "reasoning": reasoning[:200],  # Preview
+                "tools_called_count": len(tool_calls)
+            }, level="DEBUG")
 
-                elif "execute_terminal_command" in msg.lower():
-                    tool_name = "execute_terminal_command"
-                    # Try to extract command
-                    cmd_match = re.search(r'command["\']?\s*:\s*["\']([^"\']+)["\']', msg, re.IGNORECASE)
-                    if cmd_match:
-                        tool_args = cmd_match.group(1)
+        # Model calls - track LLM usage
+        elif event.event_type == ExecutionEventType.MODEL_CALL_END:
+            model_name = event.metadata.get("model", event.model_name)
+            tokens_used = event.metadata.get("tokens_used", 0)
+            exec_time = event.metadata.get("execution_time_ms", 0)
 
-                # Display in terminal if verbose
-                self.viz.render_tool_call(tool_name, "local", tool_args)
+            log_event("model_call", {
+                "model": model_name,
+                "tokens_used": tokens_used,
+                "execution_time_ms": exec_time
+            }, level="DEBUG")
 
-                # Log to file with FULL details
-                if self.log_event:
-                    self.log_event("tool_call_local", {
-                        "tool_name": tool_name,
-                        "tool_type": "local",
-                        "arguments": tool_args,
-                        "raw_log": msg
-                    }, level="INFO")
+    # Register event callback for all agents (v0.4.1d)
+    for agent_name, agent in agents.items():
+        agent.register_callback(agent_event_callback)
+        logging.debug(f"✅ Registered event callback for {agent_name} agent")
 
-    # Always add tool handler - tool calls should be visible even in quiet/dev mode
-    tool_handler = ToolCallHandler(viz, log_event)
-    tool_handler.setLevel(logging.DEBUG)  # Capture all tool activity
-    logging.getLogger("promptchain").addHandler(tool_handler)
-    # Also capture MCP server logs (from server.py)
-    logging.getLogger().addHandler(tool_handler)
+    # Create the orchestrator supervisor with oversight capabilities
+    orchestrator_supervisor = OrchestratorSupervisor(
+        agent_descriptions=agent_descriptions,
+        log_event_callback=log_event,
+        dev_print_callback=dev_print,
+        max_reasoning_steps=8,  # Multi-hop reasoning for complex decisions
+        model_name="openai/gpt-4.1-mini"
+    )
 
     # Create the agent chain with router mode
     if verbose:
-        print("🚀 Creating AgentChain with intelligent routing...\n")
+        print("🚀 Creating AgentChain with OrchestratorSupervisor (multi-hop reasoning)...\n")
 
     agent_chain = AgentChain(
         agents=agents,
         agent_descriptions=agent_descriptions,
         execution_mode="router",
-        router=create_agentic_orchestrator(agent_descriptions, log_event_callback=log_event),  # AgenticStepProcessor with decision logging
+        router=orchestrator_supervisor.supervise_and_route,  # ✅ Use supervisor's routing method
+        router_strategy="static_plan",  # ✅ MULTI-AGENT ORCHESTRATION: Enable multi-agent planning with oversight
         cache_config={
             "name": session_name,
             "path": str(cache_dir)
         },
-        verbose=False  # Clean terminal - all logs go to file
+        verbose=False,  # Clean terminal - all logs go to file
+        auto_include_history=True  # ✅ FIX: Enable conversation history for all agent calls
     )
 
     # Log initialization
@@ -1316,27 +1472,43 @@ async def main():
                 if verbose:
                     print("\n⏳ Processing...\n")
 
-                # Execute agent chain
-                response = await agent_chain.process_input(user_input)
+                # Execute agent chain with full metadata (v0.4.1b)
+                result = await agent_chain.process_input(user_input, return_metadata=True)
 
                 # Track which agent was used
-                history_manager.add_entry("agent_output", response, source="agent_chain")
+                history_manager.add_entry("agent_output", result.response, source="agent_chain")
+
+                # --DEV MODE: Show which agent is responding
+                dev_print(f"📤 Agent Responding: {result.agent_name}", "")
+                dev_print("─" * 80, "")
 
                 # Render response with rich markdown formatting
-                viz.render_agent_response("Agent", response, show_banner=False)
+                viz.render_agent_response(result.agent_name, result.response, show_banner=False)
 
-                # Log detailed agent response info to file (NO TRUNCATION)
-                log_event("agent_response", {
-                    "response": response,  # Full response, not truncated
-                    "response_length": len(response),
-                    "response_word_count": len(response.split()),
+                # Log comprehensive execution metadata (NO TRUNCATION)
+                log_event("agent_execution_complete", {
+                    "agent_name": result.agent_name,
+                    "response": result.response,  # Full response, not truncated
+                    "response_length": len(result.response),
+                    "response_word_count": len(result.response.split()),
+                    "execution_time_ms": result.execution_time_ms,
+                    "router_decision": result.router_decision,
+                    "router_steps": result.router_steps,
+                    "tools_called": len(result.tools_called),
+                    "tool_details": result.tools_called,  # Full structured data
+                    "total_tokens": result.total_tokens,
+                    "prompt_tokens": result.prompt_tokens,
+                    "completion_tokens": result.completion_tokens,
+                    "cache_hit": result.cache_hit,
+                    "errors": result.errors,
+                    "warnings": result.warnings,
                     "history_size_after": history_manager.current_token_count
                 }, level="INFO")
 
-                # Try to extract step count from the last used agent's AgenticStepProcessor
-                # Note: This is best-effort - AgentChain doesn't expose which agent ran
-                # The orchestrator decision log already has this info
-                logging.info(f"✅ Agent execution completed | Response length: {len(response)} chars")
+                # Log summary to Python logger (appears in .log file)
+                logging.info(f"✅ Agent execution completed | Agent: {result.agent_name} | "
+                           f"Time: {result.execution_time_ms:.2f}ms | Tools: {len(result.tools_called)} | "
+                           f"Tokens: {result.total_tokens if result.total_tokens else 'N/A'}")
 
             except Exception as e:
                 error_msg = f"Error processing query: {str(e)}"

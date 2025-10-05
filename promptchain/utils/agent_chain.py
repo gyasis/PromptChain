@@ -89,9 +89,10 @@ class AgentChain:
             raise ValueError("At least one agent must be provided.")
         if not agent_descriptions or set(agents.keys()) != set(agent_descriptions.keys()):
             raise ValueError("agent_descriptions must be provided for all agents and match agent keys.")
-        # --> Add validation: Router is required if mode is router <--
-        if execution_mode == "router" and router is None:
-            raise ValueError("A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router'.")
+        # --> Add validation: Router is required if mode is router (unless using supervisor) <--
+        use_supervisor = kwargs.get("use_supervisor", False)
+        if execution_mode == "router" and router is None and not use_supervisor:
+            raise ValueError("A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router', unless use_supervisor=True.")
 
         # --- Initialize basic attributes ---
         self.agents = agents
@@ -135,6 +136,11 @@ class AgentChain:
         valid_router_strategies = ["single_agent_dispatch", "static_plan", "dynamic_decomposition"]
         if self.execution_mode == 'router' and self.router_strategy not in valid_router_strategies:
             raise ValueError(f"Invalid router_strategy '{self.router_strategy}'. Must be one of {valid_router_strategies}")
+
+        # ✅ NEW: OrchestratorSupervisor support (v0.4.1k)
+        self.use_supervisor = kwargs.get("use_supervisor", False)
+        self.supervisor_strategy = kwargs.get("supervisor_strategy", "adaptive")
+        self.orchestrator_supervisor = None  # Will be initialized if use_supervisor=True
         log_init_data = {
             "event": "AgentChain initialized",
             "execution_mode": self.execution_mode,
@@ -167,7 +173,29 @@ class AgentChain:
 
         # --- Configure Router ---
         if self.execution_mode == 'router':
-            if isinstance(router, dict):
+            # ✅ Option 1: Use OrchestratorSupervisor (new library feature)
+            if self.use_supervisor:
+                from promptchain.utils.orchestrator_supervisor import OrchestratorSupervisor
+
+                # Create supervisor with strategy preference
+                self.orchestrator_supervisor = OrchestratorSupervisor(
+                    agent_descriptions=agent_descriptions,
+                    log_event_callback=self.logger.log_run if log_dir else None,
+                    dev_print_callback=None,  # Can be set later via kwargs
+                    max_reasoning_steps=kwargs.get("supervisor_max_steps", 8),
+                    model_name=kwargs.get("supervisor_model", "openai/gpt-4.1-mini"),
+                    strategy_preference=self.supervisor_strategy
+                )
+
+                # Use supervisor as router function
+                self.custom_router_function = self.orchestrator_supervisor.as_router_function()
+                log_init_data["router_type"] = "OrchestratorSupervisor"
+                log_init_data["supervisor_strategy"] = self.supervisor_strategy
+                if self.verbose:
+                    print(f"AgentChain router mode initialized with OrchestratorSupervisor (strategy: {self.supervisor_strategy})")
+
+            # ✅ Option 2: Traditional router configuration
+            elif isinstance(router, dict):
                 log_init_data["router_config_model"] = router.get('models', ['N/A'])[0]
                 self._configure_default_llm_router(router) # Pass the whole config dict
                 if self.verbose: print(f"AgentChain router mode initialized with default LLM router (Strategy: {self.router_strategy}).")
