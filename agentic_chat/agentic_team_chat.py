@@ -182,7 +182,7 @@ Always provide: key insights, supporting evidence, confidence levels, and strate
     )
 
 
-def create_terminal_agent(scripts_dir: Path = None, verbose=False, dev_mode=False):
+def create_terminal_agent(scripts_dir: Path = None, verbose=False):
     """
     Terminal Agent: Expert at executing terminal commands and system operations
     Has access to TerminalTool for safe command execution
@@ -192,10 +192,10 @@ def create_terminal_agent(scripts_dir: Path = None, verbose=False, dev_mode=Fals
     terminal = TerminalTool(
         timeout=120,
         require_permission=False,  # Let agent make decisions autonomously
-        verbose=verbose or dev_mode,  # ✅ Show terminal output in verbose OR dev mode
+        verbose=verbose,  # Show terminal output when verbose
         use_persistent_session=True,
         session_name="agentic_terminal_session",
-        visual_debug=dev_mode  # ✅ Enable visual terminal emulator in --dev mode
+        visual_debug=True  # ✅ ALWAYS enable visual terminal emulator (better UX, not debug noise)
     )
 
     scripts_note = f"\n\nScripts workspace: {scripts_dir}\nYou can execute scripts written by the Coding Agent from this directory." if scripts_dir else ""
@@ -1116,7 +1116,7 @@ async def main():
         "research": create_research_agent(mcp_config, verbose=False),  # Only agent with Gemini MCP access
         "analysis": create_analysis_agent(verbose=False),
         "coding": create_coding_agent(scripts_dir, verbose=False),  # Coding agent with script writing capability
-        "terminal": create_terminal_agent(scripts_dir, verbose=False, dev_mode=args.dev),  # ✅ Terminal agent with visual emulator in --dev mode
+        "terminal": create_terminal_agent(scripts_dir, verbose=False),  # ✅ Terminal agent with visual emulator ALWAYS enabled
         "documentation": create_documentation_agent(verbose=False),
         "synthesis": create_synthesis_agent(verbose=False)
     }
