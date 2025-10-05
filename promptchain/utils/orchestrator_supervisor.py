@@ -403,13 +403,15 @@ RETURN JSON ONLY (no other text):
         """Capture orchestrator execution metadata via events"""
         if event.event_type == ExecutionEventType.AGENTIC_STEP_END:
             # Update metrics from AgenticStepProcessor
-            self.metrics["total_reasoning_steps"] += event.metadata.get("total_steps", 0)
+            # NOTE: PromptChain emits "steps_executed", not "total_steps"
+            steps = event.metadata.get("steps_executed", event.metadata.get("total_steps", 0))
+            self.metrics["total_reasoning_steps"] += steps if steps else 0
             self.metrics["total_tools_called"] += event.metadata.get("total_tools_called", 0)
 
             # Log detailed agentic step metadata
             if self.log_event_callback:
                 self.log_event_callback("orchestrator_agentic_step", {
-                    "total_steps": event.metadata.get("total_steps", 0),
+                    "total_steps": steps,
                     "tools_called": event.metadata.get("total_tools_called", 0),
                     "execution_time_ms": event.metadata.get("execution_time_ms", 0),
                     "objective_achieved": event.metadata.get("objective_achieved", False),

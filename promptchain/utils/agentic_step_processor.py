@@ -484,6 +484,13 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
         # Calculate total execution time
         total_execution_time = (datetime.now() - execution_start_time).total_seconds() * 1000
 
+        # ✅ Store execution metadata as instance attributes for event emission
+        self.steps_executed = len(steps_metadata)
+        self.total_tools_called = total_tools_called
+        self.total_tokens_used = total_tokens_used
+        self.execution_time_ms = total_execution_time
+        self.max_steps_reached = (len(steps_metadata) >= self.max_internal_steps)
+
         # Return metadata if requested, otherwise just the answer
         if return_metadata:
             return AgenticStepResult(
