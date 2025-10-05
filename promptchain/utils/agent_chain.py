@@ -943,7 +943,16 @@ class AgentChain:
                 self.logger.log_run({"event": "router_strategy", "strategy": "static_plan"})
                 plan_response = await execute_static_plan_strategy_async(self, user_input)
                 final_response = plan_response  # Use the string result directly
-                chosen_agent_name = "state"  # For static plan, use the last agent as the chosen agent
+
+                # ✅ Get actual agent info from plan metadata instead of hardcoding "state"
+                plan_meta = getattr(self, '_last_plan_metadata', None)
+                if plan_meta and plan_meta.get('last_agent'):
+                    chosen_agent_name = plan_meta['last_agent']
+                elif plan_meta and plan_meta.get('plan'):
+                    # Fallback to showing all agents in plan
+                    chosen_agent_name = f"multi-agent: {' → '.join(plan_meta['plan'])}"
+                else:
+                    chosen_agent_name = "multi-agent"  # Better than "state"
             
             elif self.router_strategy == "dynamic_decomposition":
                 # Execute with the dynamic decomposition strategy
@@ -951,7 +960,13 @@ class AgentChain:
                 self.logger.log_run({"event": "router_strategy", "strategy": "dynamic_decomposition"})
                 decomp_response = await execute_dynamic_decomposition_strategy_async(self, user_input)
                 final_response = decomp_response  # Use the string result directly
-                chosen_agent_name = "state"  # For dynamic decomposition, also use a default agent name
+
+                # ✅ Get actual agent info from decomposition metadata
+                decomp_meta = getattr(self, '_last_decomp_metadata', None)
+                if decomp_meta and decomp_meta.get('last_agent'):
+                    chosen_agent_name = decomp_meta['last_agent']
+                else:
+                    chosen_agent_name = "dynamic-decomp"  # Better than "state"
             
             else:
                 # This shouldn't happen due to validation in __init__ but just in case

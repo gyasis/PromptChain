@@ -47,6 +47,15 @@ async def execute_static_plan_strategy_async(agent_chain_instance: 'AgentChain',
     current_input: str = parsed_decision["initial_input"]
     final_response: str = ""
 
+    # ✅ Track plan execution metadata for observability (stored on agent_chain_instance)
+    agent_chain_instance._last_plan_metadata = {
+        "plan": plan,
+        "agents_executed": [],
+        "current_step": 0,
+        "total_steps": len(plan),
+        "last_agent": None
+    }
+
     if agent_chain_instance.verbose: print(f"  Executing Plan: {' -> '.join(plan)}")
     agent_chain_instance.logger.log_run({"event": "static_plan_execution_start", "plan": plan, "initial_input_length": len(current_input)})
 
@@ -115,6 +124,12 @@ async def execute_static_plan_strategy_async(agent_chain_instance: 'AgentChain',
                 "event": "static_plan_step_success", "step": step_num, "agent": agent_name,
                 "output_length": len(agent_final_output)
             })
+
+            # ✅ Update plan metadata after successful agent execution
+            agent_chain_instance._last_plan_metadata["agents_executed"].append(agent_name)
+            agent_chain_instance._last_plan_metadata["current_step"] = step_num
+            agent_chain_instance._last_plan_metadata["last_agent"] = agent_name
+
             current_input = agent_final_output
 
         except Exception as e:
