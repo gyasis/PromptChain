@@ -126,14 +126,59 @@ async def execute_single_dispatch_strategy_async(agent_chain_instance: 'AgentCha
                 break
 
             query_for_agent = refined_query if internal_step == 0 and refined_query else current_turn_input
-            
+
             # Add history to query if configured
             if include_history:
                 formatted_history = agent_chain_instance._format_chat_history()
                 query_for_agent = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{query_for_agent}"
+
+                # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                history_tokens = 0
+                try:
+                    import tiktoken
+                    enc = tiktoken.encoding_for_model("gpt-4")
+                    history_tokens = len(enc.encode(formatted_history))
+                except ImportError:
+                    logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                    history_tokens = -1  # Indicates tiktoken not available
+                except Exception as e:
+                    logging.warning(f"Error calculating token count: {e}")
+                    history_tokens = -1
+
+                # ✅ Track cumulative token count across conversation
+                if not hasattr(agent_chain_instance, '_cumulative_history_tokens'):
+                    agent_chain_instance._cumulative_history_tokens = 0
+                if history_tokens > 0:
+                    agent_chain_instance._cumulative_history_tokens += history_tokens
+
+                # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                # ANSI color code for orange: \033[38;5;208m
+                orange_start = "\033[38;5;208m"
+                orange_end = "\033[0m"
+
+                token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                cumulative_display = f" | cumulative: {agent_chain_instance._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                logging.info(f"{orange_start}[HISTORY INJECTED] agent={agent_for_this_turn} | internal_step={internal_step + 1} | {token_display}{cumulative_display}{orange_end}")
+                logging.info(f"{orange_start}{'='*80}{orange_end}")
+                logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                for line in formatted_history.split('\n'):
+                    logging.info(f"{orange_start}{line}{orange_end}")
+                logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                logging.info(f"{orange_start}{'='*80}{orange_end}")
+
+                # Also keep verbose mode output for backward compatibility
                 if agent_chain_instance.verbose:
-                    print(f"  Including history for agent {agent_for_this_turn} ({len(formatted_history)} chars)")
-                agent_chain_instance.logger.log_run({"event": "include_history", "agent": agent_for_this_turn, "history_length": len(formatted_history)})
+                    print(f"  Including history for agent {agent_for_this_turn} ({len(formatted_history)} chars, {token_display})")
+
+                agent_chain_instance.logger.log_run({
+                    "event": "include_history",
+                    "agent": agent_for_this_turn,
+                    "history_length": len(formatted_history),
+                    "history_tokens": history_tokens,
+                    "cumulative_history_tokens": agent_chain_instance._cumulative_history_tokens if history_tokens > 0 else -1,
+                    "history_content": formatted_history
+                })
             
             if agent_chain_instance.verbose: print(f"  Executing agent: {agent_for_this_turn} with input: {query_for_agent[:100]}...")
             agent_chain_instance.logger.log_run({

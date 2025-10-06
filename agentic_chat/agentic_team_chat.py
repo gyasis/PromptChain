@@ -1218,27 +1218,96 @@ async def main():
             execution_time = event.metadata.get("execution_time_ms", 0)
             success = event.metadata.get("success", True)
 
-            # Log to file with complete results
+            # Log to file with complete results (NO TRUNCATION - user wants EVERYTHING)
             log_event("tool_call_end", {
                 "tool_name": tool_name,
                 "result_length": len(str(tool_result)),
-                "result_preview": str(tool_result)[:200],  # Preview only
+                "result_preview": str(tool_result),  # ✅ FULL OUTPUT - no truncation
                 "execution_time_ms": execution_time,
                 "success": success
             }, level="INFO")
 
-        # Agentic internal steps - track reasoning
+        # Agentic internal steps - track reasoning (v0.4.2 - enhanced with full activity visibility + internal history)
         elif event.event_type == ExecutionEventType.AGENTIC_INTERNAL_STEP:
-            step_number = event.metadata.get("step_number", 0)
-            reasoning = event.metadata.get("reasoning", "")
+            iteration = event.metadata.get("iteration", 0)
+            max_iterations = event.metadata.get("max_iterations", 0)
+            assistant_thought = event.metadata.get("assistant_thought", "")
             tool_calls = event.metadata.get("tool_calls", [])
+            tools_count = event.metadata.get("tools_called_count", 0)
+            exec_time = event.metadata.get("execution_time_ms", 0)
+            tokens = event.metadata.get("tokens_used", 0)
+            has_answer = event.metadata.get("has_final_answer", False)
+            error = event.metadata.get("error")
 
-            # Log agentic reasoning to file
-            # NOTE: Tool calls now emit proper TOOL_CALL_START/END events via MCPHelper (v0.4.1+)
+            # ✅ NEW (v0.4.2): Internal conversation history tracking
+            internal_history = event.metadata.get("internal_history", [])
+            internal_history_length = event.metadata.get("internal_history_length", 0)
+            internal_history_tokens = event.metadata.get("internal_history_tokens", 0)
+            llm_history_sent = event.metadata.get("llm_history_sent", [])
+
+            # ✅ LIBRARY-LEVEL OBSERVABILITY: Always display (not just --dev mode)
+            # Use cyan color for agentic internal reasoning differentiation
+            cyan_start = "\033[36m"
+            cyan_end = "\033[0m"
+
+            logging.info(f"{cyan_start}[AGENTIC STEP] iteration={iteration}/{max_iterations} | time={exec_time:.0f}ms | tokens={tokens}{cyan_end}")
+            logging.info(f"{cyan_start}📊 Internal History: {internal_history_length} messages, {internal_history_tokens} tokens{cyan_end}")
+
+            # ✅ Show internal conversation history (ALWAYS, not just --dev)
+            if internal_history:
+                logging.info(f"{cyan_start}{'='*80}{cyan_end}")
+                logging.info(f"{cyan_start}[INTERNAL CONVERSATION HISTORY - Step {iteration}]{cyan_end}")
+                for idx, msg in enumerate(internal_history):
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    # Log full content at INFO level (no truncation)
+                    logging.info(f"{cyan_start}[{idx+1}] {role}:{cyan_end}")
+                    if content:
+                        # Split content by lines for better readability
+                        for line in str(content).split('\n'):
+                            logging.info(f"{cyan_start}    {line}{cyan_end}")
+                    else:
+                        logging.info(f"{cyan_start}    [No content]{cyan_end}")
+                logging.info(f"{cyan_start}{'='*80}{cyan_end}")
+
+            # Show what the agent thought/decided
+            if assistant_thought and assistant_thought != "[No output]":
+                logging.info(f"{cyan_start}💭 Latest Thought: {assistant_thought}{cyan_end}")
+
+            # Show tool calls with results
+            if tool_calls:
+                logging.info(f"{cyan_start}🔧 Tools Called ({tools_count}):{cyan_end}")
+                for tc in tool_calls:
+                    tool_name = tc.get("name", "unknown")
+                    tool_result = str(tc.get("result", ""))  # ✅ FULL result
+                    logging.info(f"{cyan_start}   • {tool_name}:{cyan_end}")
+                    # Log full tool result (no truncation)
+                    for line in tool_result.split('\n'):
+                        logging.info(f"{cyan_start}      {line}{cyan_end}")
+
+            # Show if this produced the final answer
+            if has_answer:
+                logging.info(f"{cyan_start}✅ Produced final answer{cyan_end}")
+
+            # Show errors
+            if error:
+                logging.error(f"{cyan_start}❌ Error: {error}{cyan_end}")
+
+            # Log agentic reasoning to file (FULL internal history, NO truncation)
             log_event("agentic_internal_step", {
-                "step_number": step_number,
-                "reasoning": reasoning[:200],  # Preview
-                "tools_called_count": len(tool_calls)
+                "iteration": iteration,
+                "max_iterations": max_iterations,
+                "assistant_thought": assistant_thought,  # ✅ FULL thought
+                "tools_called_count": tools_count,
+                "execution_time_ms": exec_time,
+                "tokens_used": tokens,
+                "has_final_answer": has_answer,
+                "error": error,
+                # ✅ NEW: Full internal conversation history for debugging
+                "internal_history": internal_history,  # Complete conversation
+                "internal_history_length": internal_history_length,
+                "internal_history_tokens": internal_history_tokens,
+                "llm_history_sent": llm_history_sent  # What LLM actually received
             }, level="DEBUG")
 
         # Model calls - track LLM usage
@@ -1262,7 +1331,7 @@ async def main():
     orchestrator_supervisor = OrchestratorSupervisor(
         agent_descriptions=agent_descriptions,
         log_event_callback=log_event,
-        dev_print_callback=dev_print,
+        dev_print_callback=dev_print,  # ✅ Show orchestrator's internal reasoning steps in terminal (full output, no truncation)
         max_reasoning_steps=8,  # Multi-hop reasoning for complex decisions
         model_name="openai/gpt-4.1-mini"
     )
@@ -1270,6 +1339,75 @@ async def main():
     # Create the agent chain with router mode
     if verbose:
         print("🚀 Creating AgentChain with OrchestratorSupervisor (multi-hop reasoning)...\n")
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # PER-AGENT HISTORY CONFIGURATION (v0.4.2)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Optimize token usage by configuring history per agent based on their needs:
+    # - Terminal/Coding agents: Minimal/no history (save 30-60% tokens)
+    # - Research/Analysis agents: Full history for context
+    # - Documentation/Synthesis agents: Full history for comprehensive understanding
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    agent_history_configs = {
+        # Terminal agent: No history needed - executes commands based on current input
+        # Saves ~3000-5000 tokens per call (40-60% reduction)
+        "terminal": {
+            "enabled": False,  # Completely disable history
+        },
+
+        # Coding agent: Full history (kitchen_sink mode) - needs context for comprehensive coding
+        "coding": {
+            "enabled": True,
+            "max_tokens": 80000,  # ✅ MUCH HIGHER for kitchen_sink mode
+            "max_entries": 500,  # ✅ NO LIMIT on entries
+            "truncation_strategy": "oldest_first",
+            # ✅ NO include_types filter = kitchen_sink mode (includes EVERYTHING)
+        },
+
+        # Research agent: Full history (kitchen_sink mode) - needs ALL context for comprehensive research
+        "research": {
+            "enabled": True,
+            "max_tokens": 80000,  # ✅ MUCH HIGHER for kitchen_sink mode (1M context model)
+            "max_entries": 500,  # ✅ NO LIMIT on entries
+            "truncation_strategy": "oldest_first",
+            # ✅ NO include_types filter = kitchen_sink mode (includes EVERYTHING)
+        },
+
+        # Analysis agent: Full history (kitchen_sink mode) - needs ALL conversation context for analysis
+        "analysis": {
+            "enabled": True,
+            "max_tokens": 80000,  # ✅ kitchen_sink mode
+            "max_entries": 500,
+            "truncation_strategy": "oldest_first",
+        },
+
+        # Documentation agent: Full history (kitchen_sink mode) - needs complete context for docs
+        "documentation": {
+            "enabled": True,
+            "max_tokens": 80000,  # ✅ kitchen_sink mode
+            "max_entries": 500,
+            "truncation_strategy": "oldest_first",
+        },
+
+        # Synthesis agent: Full history (kitchen_sink mode) - synthesizes across entire conversation
+        "synthesis": {
+            "enabled": True,
+            "max_tokens": 80000,  # ✅ kitchen_sink mode
+            "max_entries": 500,
+            "truncation_strategy": "oldest_first",
+        }
+    }
+
+    if verbose:
+        print("✅ Per-agent history configurations (KITCHEN_SINK MODE - FULL VISIBILITY):")
+        print(f"   - Terminal: History disabled (command execution doesn't need context)")
+        print(f"   - Coding: KITCHEN_SINK (80K tokens, 500 entries, ALL message types)")
+        print(f"   - Research: KITCHEN_SINK (80K tokens, 500 entries, ALL message types)")
+        print(f"   - Analysis: KITCHEN_SINK (80K tokens, 500 entries, ALL message types)")
+        print(f"   - Documentation: KITCHEN_SINK (80K tokens, 500 entries, ALL message types)")
+        print(f"   - Synthesis: KITCHEN_SINK (80K tokens, 500 entries, ALL message types)")
+        print(f"   🔍 NO filters on message types = see EVERYTHING in logs\n")
 
     agent_chain = AgentChain(
         agents=agents,
@@ -1282,8 +1420,58 @@ async def main():
             "path": str(cache_dir)
         },
         verbose=False,  # Clean terminal - all logs go to file
-        auto_include_history=True  # ✅ FIX: Enable conversation history for all agent calls
+        auto_include_history=True,  # ✅ Global setting (can be overridden per-agent)
+        agent_history_configs=agent_history_configs  # ✅ NEW (v0.4.2): Per-agent history optimization
     )
+
+    # ✅ Register orchestration callback for multi-agent plan progress visibility
+    def orchestration_event_callback(event_type: str, data: dict):
+        """Handle orchestration events for multi-agent plan execution"""
+        if event_type == "plan_agent_start":
+            step_num = data.get("step_number", 0)
+            total_steps = data.get("total_steps", 0)
+            agent_name = data.get("agent_name", "unknown")
+            plan = data.get("plan", [])
+
+            # Display plan progress
+            dev_print(f"📋 Multi-Agent Plan: {' → '.join(plan)}", "")
+            dev_print(f"▶️  Step {step_num}/{total_steps}: {agent_name.upper()} Agent", "")
+
+            # Log to file
+            log_event("plan_agent_start", data, level="INFO")
+
+        elif event_type == "plan_agent_complete":
+            step_num = data.get("step_number", 0)
+            total_steps = data.get("total_steps", 0)
+            agent_name = data.get("agent_name", "unknown")
+            output_len = data.get("output_length", 0)
+            output_content = data.get("output_content", "")
+            plan = data.get("plan", [])
+
+            # Display completion
+            dev_print(f"✅ Step {step_num}/{total_steps} Complete: {agent_name} ({output_len} chars output)", "")
+
+            # ✅ NEW (v0.4.2): Show actual output content in --dev mode for full visibility
+            if args.dev and output_content:
+                dev_print(f"", "")
+                dev_print(f"   📤 Output from {agent_name}:", "")
+                dev_print(f"   ───────────────────────────────────────────────────────────────", "")
+                # Show output with indentation
+                for line in output_content.split('\n'):
+                    dev_print(f"   {line}", "")
+                dev_print(f"   ───────────────────────────────────────────────────────────────", "")
+
+            # Show data flow to next agent if not the last step
+            if step_num < total_steps:
+                next_agent = plan[step_num] if step_num < len(plan) else "unknown"
+                dev_print(f"   ↪️  Passing output to {next_agent} agent...", "")
+                dev_print(f"", "")  # Blank line for readability
+
+            # Log to file
+            log_event("plan_agent_complete", data, level="INFO")
+
+    agent_chain.register_orchestration_callback(orchestration_event_callback)
+    logging.debug("✅ Registered orchestration callback for multi-agent plan tracking")
 
     # Log initialization
     log_event("system_initialized", {

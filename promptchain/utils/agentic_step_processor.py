@@ -87,6 +87,64 @@ class AgenticStepProcessor:
     agentic loop to achieve its objective, potentially involving multiple
     LLM calls and tool executions within this single step.
     Optionally, a specific model can be set for this step; otherwise, the chain's default model is used.
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ⚠️  CRITICAL: INTERNAL HISTORY ISOLATION PATTERN (v0.4.2)
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    The `conversation_history` maintained by AgenticStepProcessor is STRICTLY INTERNAL
+    to its reasoning loop. This history is **NEVER** exposed to other agents in
+    multi-agent workflows.
+
+    **What Gets Exposed to Other Agents:**
+    - ✅ Only the final output (`final_answer` from the reasoning loop)
+    - ✅ High-level metadata (steps executed, tools called, execution time)
+
+    **What NEVER Gets Exposed:**
+    - ❌ Internal reasoning steps and intermediate LLM calls
+    - ❌ Tool call details and results (unless in final answer)
+    - ❌ Internal conversation history (progressive/kitchen_sink modes)
+    - ❌ Clarification attempts and recovery logic
+
+    **Why This Matters:**
+    This isolation prevents **token explosion** in multi-agent plans. If each agent's
+    internal reasoning history was exposed to subsequent agents, the context would
+    grow exponentially with each step, quickly exceeding model limits and incurring
+    massive costs.
+
+    **Example Token Savings:**
+    ```
+    WITHOUT Isolation (BAD):
+    Step 1: Agent A internal reasoning (2000 tokens)
+    Step 2: Agent B receives Agent A's internal reasoning + does own (4000 tokens total)
+    Step 3: Agent C receives A's + B's internal reasoning + does own (8000 tokens total)
+    → Token explosion! Exponential growth!
+
+    WITH Isolation (GOOD):
+    Step 1: Agent A internal reasoning (2000 tokens) → outputs answer (100 tokens)
+    Step 2: Agent B receives only Agent A's answer (100 tokens) + does own reasoning (2000 tokens)
+    Step 3: Agent C receives only B's answer (100 tokens) + does own reasoning (2000 tokens)
+    → Linear growth! Sustainable!
+    ```
+
+    **For Multi-Agent Context Sharing:**
+    To expose conversation context to agents in multi-agent plans, use the
+    per-agent history configuration in AgentChain:
+
+    ```python
+    agent_history_configs = {
+        "my_agent": {
+            "enabled": True,
+            "max_tokens": 4000,
+            "truncation_strategy": "keep_last"
+        }
+    }
+    ```
+
+    This provides **conversation-level** history (user inputs, agent outputs),
+    NOT internal reasoning steps from AgenticStepProcessor.
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     """
     def __init__(
         self,
@@ -149,7 +207,8 @@ class AgenticStepProcessor:
         available_tools: List[Dict[str, Any]],
         llm_runner: Callable[..., Awaitable[Any]], # Should return LiteLLM-like response message
         tool_executor: Callable[[Any], Awaitable[str]], # Takes tool_call, returns result string
-        return_metadata: bool = False  # NEW: Return metadata instead of just string
+        return_metadata: bool = False,  # NEW: Return metadata instead of just string
+        callback_manager: Optional[Any] = None  # ✅ NEW (v0.4.2): Observability support
     ) -> Union[str, AgenticStepResult]:
         """
         Executes the internal agentic loop for this step with optional metadata return.
@@ -219,6 +278,8 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
             step_tool_calls: List[Dict[str, Any]] = []
             step_clarification_attempts = 0
             step_error: Optional[str] = None
+
+            # Note: Event emission moved to END of iteration to capture actual activity
 
             while True:
                 # Prepare minimal valid messages for LLM
@@ -459,6 +520,56 @@ Reason step-by-step. When you believe the objective is fully met based on the hi
                 error=step_error
             )
             steps_metadata.append(step_metadata)
+
+            # ✅ OBSERVABILITY (v0.4.2): Emit event AFTER iteration completes with actual activity
+            if callback_manager and hasattr(callback_manager, 'has_callbacks') and callback_manager.has_callbacks():
+                from .execution_events import ExecutionEvent, ExecutionEventType
+
+                # Get the assistant's thought/decision from this iteration
+                assistant_thought = None
+                for msg in reversed(internal_history):
+                    if msg.get("role") == "assistant":
+                        assistant_thought = msg.get("content", "")
+                        if not assistant_thought and msg.get("tool_calls"):
+                            assistant_thought = f"[Called {len(msg.get('tool_calls'))} tool(s)]"
+                        break
+
+                # ✅ Calculate internal history tokens for observability (v0.4.2)
+                internal_history_tokens = 0
+                try:
+                    import tiktoken
+                    enc = tiktoken.encoding_for_model("gpt-4")
+                    # Serialize internal history to string for token counting
+                    history_str = json.dumps(internal_history)
+                    internal_history_tokens = len(enc.encode(history_str))
+                except:
+                    # Fallback to character-based estimate
+                    history_str = json.dumps(internal_history)
+                    internal_history_tokens = len(history_str) // 4
+
+                await callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.AGENTIC_INTERNAL_STEP,
+                        timestamp=datetime.now(),
+                        metadata={
+                            "objective": self.objective,
+                            "iteration": step_num + 1,
+                            "max_iterations": self.max_internal_steps,
+                            "assistant_thought": assistant_thought or "[No output]",
+                            "tool_calls": step_tool_calls,
+                            "tools_called_count": len(step_tool_calls),
+                            "execution_time_ms": step_execution_time,
+                            "tokens_used": step_tokens,
+                            "has_final_answer": final_answer is not None,
+                            "error": step_error,
+                            # ✅ NEW (v0.4.2): Full internal conversation history for observability
+                            "internal_history": internal_history,  # Complete conversation at this iteration
+                            "internal_history_length": len(internal_history),  # Number of messages
+                            "internal_history_tokens": internal_history_tokens,  # Token count
+                            "llm_history_sent": llm_history  # What was actually sent to LLM (might differ in progressive mode)
+                        }
+                    )
+                )
 
             # If we have a final answer or error, break outer for loop
             if final_answer is not None:

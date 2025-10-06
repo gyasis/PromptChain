@@ -167,6 +167,20 @@ class AgentChain:
         self._conversation_history: List[Dict[str, str]] = []
         self._tokenizer = None # Initialize tokenizer
 
+        # ✅ NEW: Event callback system for multi-agent orchestration observability
+        self._orchestration_callbacks: List[Callable] = []
+
+        # ✅ NEW: Per-agent history configuration (v0.4.2)
+        # Allows each agent to control if/how it receives conversation history
+        self._agent_history_configs: Dict[str, Dict[str, Any]] = kwargs.get("agent_history_configs", {})
+
+        # Validate agent_history_configs keys match agent names
+        if self._agent_history_configs:
+            invalid_agents = set(self._agent_history_configs.keys()) - set(self.agent_names)
+            if invalid_agents:
+                raise ValueError(f"agent_history_configs contains invalid agent names: {invalid_agents}. Valid agents: {self.agent_names}")
+            logger.info(f"Per-agent history configurations loaded for: {list(self._agent_history_configs.keys())}")
+
         # Setup cache if enabled
         if self.enable_cache:
             self._setup_cache()
@@ -446,6 +460,97 @@ class AgentChain:
                 return "No recent relevant history (token limit reached)."
             else:
                 return "No previous conversation history."
+        return final_history_str
+
+    def _format_chat_history_for_agent(
+        self,
+        agent_name: str,
+        max_tokens: Optional[int] = None,
+        max_entries: Optional[int] = None,
+        truncation_strategy: str = "oldest_first",
+        include_types: Optional[List[str]] = None,
+        exclude_sources: Optional[List[str]] = None
+    ) -> str:
+        """Formats chat history for a specific agent with custom filtering and limits.
+
+        This method supports per-agent history configuration, allowing fine-grained
+        control over what conversation context each agent receives.
+
+        Args:
+            agent_name (str): Name of the agent (for logging/tracking)
+            max_tokens (Optional[int]): Max tokens for this agent's history view
+            max_entries (Optional[int]): Max number of entries for this agent
+            truncation_strategy (str): Strategy for truncation ("oldest_first", "keep_last")
+            include_types (Optional[List[str]]): Only include these message types (e.g., ["user", "assistant"])
+            exclude_sources (Optional[List[str]]): Exclude messages from these sources
+
+        Returns:
+            str: Formatted history string customized for the agent
+        """
+        if not self._conversation_history:
+            return "No previous conversation history."
+
+        # Apply filtering first
+        temp_history = self._conversation_history
+
+        # Filter by message types if specified
+        if include_types:
+            temp_history = [msg for msg in temp_history if msg.get("role") in include_types]
+
+        # Filter by sources if specified (check content for agent names, or use metadata if available)
+        if exclude_sources:
+            # This is a simple implementation - could be enhanced with metadata
+            temp_history = [msg for msg in temp_history if not any(src in str(msg.get("content", "")) for src in exclude_sources)]
+
+        # Apply max_entries filter (from most recent)
+        if max_entries is not None:
+            if truncation_strategy == "keep_last":
+                temp_history = temp_history[-max_entries:]
+            else:  # "oldest_first" or default
+                # For oldest_first with max_entries, we still keep the most recent N entries
+                # The strategy name refers to what gets REMOVED first when we hit token limits
+                temp_history = temp_history[-max_entries:]
+
+        # Now apply token-based truncation
+        limit = max_tokens if max_tokens is not None else self.max_history_tokens
+        formatted_history = []
+        current_tokens = 0
+        token_count_method = "tiktoken" if self._tokenizer else "character estimate"
+
+        # Iterate based on truncation strategy
+        if truncation_strategy == "keep_last" or truncation_strategy == "oldest_first":
+            # Both strategies iterate from most recent backwards
+            for message in reversed(temp_history):
+                role = message.get("role", "user").capitalize()
+                content = message.get("content", "")
+                if not content: continue
+
+                entry = f"{role}: {content}"
+                entry_tokens = self._count_tokens(entry)
+
+                if current_tokens + entry_tokens <= limit:
+                    formatted_history.insert(0, entry)  # Insert at beginning to maintain chronological order
+                    current_tokens += entry_tokens
+                else:
+                    if self.verbose:
+                        print(f"History truncation for agent '{agent_name}': Limit {limit} tokens ({token_count_method}) reached.")
+                    self.logger.log_run({
+                        "event": "agent_history_truncated",
+                        "agent": agent_name,
+                        "limit": limit,
+                        "final_token_count": current_tokens,
+                        "method": token_count_method,
+                        "strategy": truncation_strategy
+                    })
+                    break
+
+        final_history_str = "\n".join(formatted_history)
+        if not final_history_str:
+            if self._conversation_history:
+                return f"No recent relevant history for {agent_name} (token limit reached)."
+            else:
+                return "No previous conversation history."
+
         return final_history_str
 
     def _add_to_history(self, role: str, content: str, agent_name: Optional[str] = None):
@@ -822,9 +927,55 @@ class AgentChain:
                 if include_history:
                     formatted_history = self._format_chat_history()
                     pipeline_step_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{pipeline_step_input}"
+
+                    # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                    history_tokens = 0
+                    try:
+                        import tiktoken
+                        enc = tiktoken.encoding_for_model("gpt-4")
+                        history_tokens = len(enc.encode(formatted_history))
+                    except ImportError:
+                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        history_tokens = -1
+                    except Exception as e:
+                        logging.warning(f"Error calculating token count: {e}")
+                        history_tokens = -1
+
+                    # ✅ Track cumulative token count across conversation
+                    if not hasattr(self, '_cumulative_history_tokens'):
+                        self._cumulative_history_tokens = 0
+                    if history_tokens > 0:
+                        self._cumulative_history_tokens += history_tokens
+
+                    # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                    orange_start = "\033[38;5;208m"
+                    orange_end = "\033[0m"
+
+                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=pipeline | agent={agent_name} | step={step_num} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                    for line in formatted_history.split('\n'):
+                        logging.info(f"{orange_start}{line}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                     if self.verbose:
-                        print(f"  Including history for pipeline step {step_num} ({agent_name})")
-                
+                        print(f"  Including history for pipeline step {step_num} ({agent_name}), {token_display}")
+
+                    # Log detailed history metadata
+                    self.logger.log_run({
+                        "event": "pipeline_history_injected",
+                        "step": step_num,
+                        "agent": agent_name,
+                        "history_length": len(formatted_history),
+                        "history_tokens": history_tokens,
+                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                        "history_content": formatted_history
+                    })
+
                 if self.verbose:
                     print(f"  Pipeline Step {step_num}/{len(agent_order)}: Running agent '{agent_name}'")
                     print(f"    Input Type: String")
@@ -886,9 +1037,54 @@ class AgentChain:
                 if include_history:
                     formatted_history = self._format_chat_history()
                     round_robin_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{round_robin_input}"
+
+                    # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                    history_tokens = 0
+                    try:
+                        import tiktoken
+                        enc = tiktoken.encoding_for_model("gpt-4")
+                        history_tokens = len(enc.encode(formatted_history))
+                    except ImportError:
+                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        history_tokens = -1
+                    except Exception as e:
+                        logging.warning(f"Error calculating token count: {e}")
+                        history_tokens = -1
+
+                    # ✅ Track cumulative token count across conversation
+                    if not hasattr(self, '_cumulative_history_tokens'):
+                        self._cumulative_history_tokens = 0
+                    if history_tokens > 0:
+                        self._cumulative_history_tokens += history_tokens
+
+                    # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                    orange_start = "\033[38;5;208m"
+                    orange_end = "\033[0m"
+
+                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=round_robin | agent={selected_agent_name} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                    for line in formatted_history.split('\n'):
+                        logging.info(f"{orange_start}{line}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                     if self.verbose:
-                        print(f"  Including history for round-robin agent {selected_agent_name}")
-                
+                        print(f"  Including history for round-robin agent {selected_agent_name}, {token_display}")
+
+                    # Log detailed history metadata
+                    self.logger.log_run({
+                        "event": "round_robin_history_injected",
+                        "agent": selected_agent_name,
+                        "history_length": len(formatted_history),
+                        "history_tokens": history_tokens,
+                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                        "history_content": formatted_history
+                    })
+
                 if self.verbose:
                     print(f"  Round Robin: Selected agent '{selected_agent_name}' (Next index: {self._round_robin_index})")
                     print(f"    Input Content (Truncated): {round_robin_input[:100]}...")
@@ -988,9 +1184,54 @@ class AgentChain:
                     if include_history:
                         formatted_history = self._format_chat_history()
                         broadcast_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{broadcast_input}"
+
+                        # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                        history_tokens = 0
+                        try:
+                            import tiktoken
+                            enc = tiktoken.encoding_for_model("gpt-4")
+                            history_tokens = len(enc.encode(formatted_history))
+                        except ImportError:
+                            logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                            history_tokens = -1
+                        except Exception as e:
+                            logging.warning(f"Error calculating token count: {e}")
+                            history_tokens = -1
+
+                        # ✅ Track cumulative token count across conversation
+                        if not hasattr(self, '_cumulative_history_tokens'):
+                            self._cumulative_history_tokens = 0
+                        if history_tokens > 0:
+                            self._cumulative_history_tokens += history_tokens
+
+                        # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                        orange_start = "\033[38;5;208m"
+                        orange_end = "\033[0m"
+
+                        token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                        cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                        logging.info(f"{orange_start}[HISTORY INJECTED] mode=broadcast | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+                        logging.info(f"{orange_start}{'='*80}{orange_end}")
+                        logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                        for line in formatted_history.split('\n'):
+                            logging.info(f"{orange_start}{line}{orange_end}")
+                        logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                        logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                         if self.verbose:
-                            print(f"  Including history for broadcast agent {agent_name}")
-                    
+                            print(f"  Including history for broadcast agent {agent_name}, {token_display}")
+
+                        # Log detailed history metadata
+                        self.logger.log_run({
+                            "event": "broadcast_history_injected",
+                            "agent": agent_name,
+                            "history_length": len(formatted_history),
+                            "history_tokens": history_tokens,
+                            "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                            "history_content": formatted_history
+                        })
+
                     async def run_agent_task(name, agent, inp):
                         try:
                             return name, await agent.process_prompt_async(inp)
@@ -1129,7 +1370,22 @@ class AgentChain:
         if send_history:
             if self.verbose: print(f"  Prepending conversation history for {agent_name}...")
             formatted_history = self._format_chat_history() # Use internal method with its truncation
-            history_tokens = self._count_tokens(formatted_history)
+
+            # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+            history_tokens = 0
+            try:
+                import tiktoken
+                enc = tiktoken.encoding_for_model("gpt-4")
+                history_tokens = len(enc.encode(formatted_history))
+            except ImportError:
+                logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                # Fallback to existing method
+                history_tokens = self._count_tokens(formatted_history)
+            except Exception as e:
+                logging.warning(f"Error calculating token count: {e}")
+                # Fallback to existing method
+                history_tokens = self._count_tokens(formatted_history)
+
             # Add a warning threshold (e.g., 6000 tokens)
             HISTORY_WARNING_THRESHOLD = 6000
             if history_tokens > HISTORY_WARNING_THRESHOLD:
@@ -1137,10 +1393,37 @@ class AgentChain:
                 print(f"\033[93m{warning_msg}\033[0m") # Yellow warning
                 self.logger.log_run({"event": "run_direct_history_warning", "agent": agent_name, "history_tokens": history_tokens, "threshold": HISTORY_WARNING_THRESHOLD})
 
+            # ✅ Track cumulative token count across conversation
+            if not hasattr(self, '_cumulative_history_tokens'):
+                self._cumulative_history_tokens = 0
+            if history_tokens > 0:
+                self._cumulative_history_tokens += history_tokens
+
+            # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+            orange_start = "\033[38;5;208m"
+            orange_end = "\033[0m"
+
+            token_display = f"{history_tokens} tokens"
+            cumulative_display = f" | cumulative: {self._cumulative_history_tokens}"
+
+            logging.info(f"{orange_start}[HISTORY INJECTED] mode=run_direct | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+            logging.info(f"{orange_start}{'='*80}{orange_end}")
+            logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+            for line in formatted_history.split('\n'):
+                logging.info(f"{orange_start}{line}{orange_end}")
+            logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+            logging.info(f"{orange_start}{'='*80}{orange_end}")
+
             query_for_agent = f"Conversation History:\n---\n{formatted_history}\n---\n\nUser Request:\n{user_input}"
             if self.verbose:
                 print(f"  Input for {agent_name} with history (truncated): {query_for_agent[:200]}...")
-            self.logger.log_run({"event": "run_direct_history_prepended", "agent": agent_name, "history_tokens": history_tokens})
+            self.logger.log_run({
+                "event": "run_direct_history_prepended",
+                "agent": agent_name,
+                "history_tokens": history_tokens,
+                "cumulative_history_tokens": self._cumulative_history_tokens,
+                "history_content": formatted_history
+            })
         # --- End history prepending ---
 
         try:
@@ -1302,6 +1585,34 @@ class AgentChain:
             turn += 1
 
         print("\n--- Chat Finished ---")
+
+    def register_orchestration_callback(self, callback: Callable):
+        """
+        Register a callback for multi-agent orchestration events.
+
+        Callback will be called with (event_type: str, data: dict):
+        - "plan_agent_start": When an agent in a multi-agent plan starts executing
+        - "plan_agent_complete": When an agent in a multi-agent plan completes
+
+        Args:
+            callback: Callable that accepts (event_type: str, data: dict)
+        """
+        if callback not in self._orchestration_callbacks:
+            self._orchestration_callbacks.append(callback)
+
+    def _emit_orchestration_event(self, event_type: str, data: dict):
+        """
+        Emit an orchestration event to all registered callbacks.
+
+        Args:
+            event_type: Type of orchestration event
+            data: Event data dictionary
+        """
+        for callback in self._orchestration_callbacks:
+            try:
+                callback(event_type, data)
+            except Exception as e:
+                logging.error(f"Orchestration callback error: {e}", exc_info=True)
 
     def add_agent(self, name: str, agent: PromptChain, description: str):
         """
