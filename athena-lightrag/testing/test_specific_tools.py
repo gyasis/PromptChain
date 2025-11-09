@@ -113,7 +113,7 @@ async def main():
     print("Original error: 'MCP error -32001: Request timed out'")
     
     # Verify database exists
-    db_path = Path("/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db")
+    db_path = Path("/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db")
     if not db_path.exists():
         print("❌ LightRAG database not found. Cannot run tests.")
         return False

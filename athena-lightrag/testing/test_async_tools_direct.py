@@ -27,7 +27,7 @@ async def test_async_tools_directly():
     print("="*60)
     
     # Initialize tools provider
-    working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+    working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
     lightrag_core = create_athena_lightrag(working_dir=working_dir)
     tools_provider = LightRAGToolsProvider(lightrag_core)
     
@@ -71,7 +71,7 @@ async def test_concurrent_async_tools():
     print("="*60)
     
     # Initialize tools provider
-    working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+    working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
     lightrag_core = create_athena_lightrag(working_dir=working_dir)
     tools_provider = LightRAGToolsProvider(lightrag_core)
     

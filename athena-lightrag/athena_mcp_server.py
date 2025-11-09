@@ -255,7 +255,7 @@ class SQLGenerationParams(BaseModel):
     include_explanation: bool = Field(True, description="Whether to include Snowflake SQL explanation with Athena table relationships, JOIN logic, fully qualified table names, and medical data context")
 
 # Singleton pattern for resource management - prevents memory bloat
-working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
 _instances_lock = asyncio.Lock()  # FIXED: Use async lock instead of threading.Lock
 _instances = {}
 
@@ -933,7 +933,7 @@ class AthenaMCPServer:
     """Legacy wrapper for backward compatibility."""
     
     def __init__(self, working_dir: str = None, server_name: str = None, server_version: str = None):
-        self.working_dir = working_dir or "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+        self.working_dir = working_dir or "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
         self.server_name = server_name or "athena-lightrag"
         self.server_version = server_version or "1.0.0"
     
@@ -1137,7 +1137,7 @@ class ManualMCPServer:
 
 # Factory functions for backward compatibility
 def create_athena_mcp_server(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db",
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db",
     server_name: str = "athena-lightrag",
     server_version: str = "1.0.0"
 ) -> AthenaMCPServer:
@@ -1149,7 +1149,7 @@ def create_athena_mcp_server(
     )
 
 def create_manual_mcp_server(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
 ) -> ManualMCPServer:
     """Create manual MCP server instance."""
     athena_server = create_athena_mcp_server(working_dir=working_dir)

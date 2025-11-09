@@ -76,7 +76,7 @@ class AdversarialTestSuite:
     
     def __init__(self, working_dir: Optional[str] = None):
         """Initialize test suite."""
-        self.working_dir = working_dir or "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+        self.working_dir = working_dir or "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
         self.test_results: List[TestResult] = []
         self.bug_reports: List[BugReport] = []
         self.server: Optional[ManualMCPServer] = None

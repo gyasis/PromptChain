@@ -604,7 +604,7 @@ SQL Query:
 
 # Factory function for easy instantiation
 def create_context_processor(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db",
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db",
     **lightrag_config
 ) -> ContextProcessor:
     """
@@ -621,7 +621,7 @@ def create_context_processor(
     return ContextProcessor(lightrag_core)
 
 def create_sql_generator(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db",
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db",
     **lightrag_config
 ) -> SQLGenerator:
     """

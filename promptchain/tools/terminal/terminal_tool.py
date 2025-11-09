@@ -341,8 +341,8 @@ class TerminalTool:
                         working_dir=pre_execution_dir,  # Use directory from BEFORE command
                         error=(return_code != 0)
                     )
-                    if self.verbose:
-                        self.visual_formatter.print_last_command()
+                    # ✅ ALWAYS show visual output when visual_debug is enabled (not controlled by verbose)
+                    self.visual_formatter.print_last_command()
                 except Exception as ve:
                     # Don't let visual formatting break the actual functionality
                     if self.verbose:

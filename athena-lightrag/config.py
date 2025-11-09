@@ -25,7 +25,7 @@ load_dotenv(override=True)
 @dataclass
 class DatabaseConfig:
     """Database configuration settings."""
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
     validate_on_init: bool = True
     required_files: List[str] = field(default_factory=lambda: [
         "kv_store_full_entities.json",

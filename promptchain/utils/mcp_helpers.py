@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import json
+import time
 from contextlib import AsyncExitStack
 from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
@@ -374,10 +375,30 @@ class MCPHelper:
             # Get tool call ID
             tool_call_id = getattr(tool_call, 'id', 'N/A')
 
+        # Parse arguments to dict for event metadata
+        try:
+            tool_args_dict = json.loads(function_args_str) if function_args_str else {}
+        except json.JSONDecodeError:
+            tool_args_dict = {"raw_args": function_args_str}
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # EMIT TOOL_CALL_START EVENT (v0.4.1 Observability)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        start_time = time.time()
+        await self._emit_event(
+            ExecutionEventType.TOOL_CALL_START,
+            {
+                "tool_name": function_name,
+                "tool_args": tool_args_dict,
+                "tool_call_id": tool_call_id,
+                "is_mcp_tool": True
+            }
+        )
+
         # Log debug information
         self.logger.debug(f"[MCP Helper] Processing MCP tool call: {function_name} (ID: {tool_call_id})")
         self.logger.debug(f"[MCP Helper] Tool call argument string: {function_args_str}")
-        
+
         tool_output_str = json.dumps({"error": f"MCP tool '{function_name}' execution failed."})
 
         if not function_name or function_name not in self.mcp_tools_map:
@@ -471,13 +492,32 @@ class MCPHelper:
 
             if self.verbose: self.logger.debug(f"  [MCP Helper] Result (ID: {tool_call_id}): {tool_output_str[:150]}...")
 
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # EMIT TOOL_CALL_END EVENT (v0.4.1 Observability)
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._emit_event(
+                ExecutionEventType.TOOL_CALL_END,
+                {
+                    "tool_name": function_name,
+                    "original_tool_name": original_tool_name,
+                    "tool_call_id": tool_call_id,
+                    "result": tool_output_str[:500] if tool_output_str else "",  # Preview for logging
+                    "result_length": len(tool_output_str) if tool_output_str else 0,
+                    "execution_time_ms": execution_time_ms,
+                    "success": True,
+                    "is_mcp_tool": True,
+                    "server_id": server_id
+                }
+            )
+
         except Exception as e:
             # Extract original name if possible for better error message
             original_tool_name_err = mcp_info.get('original_schema',{}).get('function',{}).get('name','?') if 'mcp_info' in locals() else '?'
             server_id_err = server_id if 'server_id' in locals() else '?'
             self.logger.error(f"[MCP Helper] Error executing tool {function_name} (Original: {original_tool_name_err}, ID: {tool_call_id}) on {server_id_err}: {e}", exc_info=self.verbose)
 
-            # Emit error event
+            # Emit MCP-specific error event
             await self._emit_event(
                 ExecutionEventType.MCP_ERROR,
                 {
@@ -488,6 +528,25 @@ class MCPHelper:
                     "original_tool_name": original_tool_name_err,
                     "tool_call_id": tool_call_id,
                     "phase": "tool_execution"
+                }
+            )
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # EMIT TOOL_CALL_ERROR EVENT (v0.4.1 Observability)
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._emit_event(
+                ExecutionEventType.TOOL_CALL_ERROR,
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "server_id": server_id_err,
+                    "tool_name": function_name,
+                    "original_tool_name": original_tool_name_err,
+                    "tool_call_id": tool_call_id,
+                    "execution_time_ms": execution_time_ms,
+                    "phase": "tool_execution",
+                    "is_mcp_tool": True
                 }
             )
 

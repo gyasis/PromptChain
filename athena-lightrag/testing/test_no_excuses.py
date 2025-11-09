@@ -91,7 +91,7 @@ async def main():
     print("="*50)
     
     # Verify database exists
-    db_path = Path("/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db")
+    db_path = Path("/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db")
     if not db_path.exists():
         print("❌ Database not found. Test cannot proceed.")
         return False

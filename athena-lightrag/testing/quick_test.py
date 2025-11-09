@@ -45,7 +45,7 @@ def test_database_existence():
     """Test that the database exists and has proper structure."""
     print("\nTesting database existence...")
     
-    working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+    working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
     db_path = Path(working_dir)
     
     if not db_path.exists():

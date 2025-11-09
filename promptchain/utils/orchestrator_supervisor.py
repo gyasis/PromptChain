@@ -74,7 +74,7 @@ class OrchestratorSupervisor:
         # Build objective with multi-hop reasoning guidance
         objective = self._build_multi_hop_objective()
 
-        # Create AgenticStepProcessor as reasoning engine
+        # Create AgenticStepProcessor as reasoning engine with reasoning step tool
         self.reasoning_engine = AgenticStepProcessor(
             objective=objective,
             max_internal_steps=max_reasoning_steps,
@@ -82,13 +82,84 @@ class OrchestratorSupervisor:
             history_mode="progressive"  # Critical for multi-hop reasoning
         )
 
-        # Wrap in PromptChain for execution
+        # Wrap in PromptChain for execution (PromptChain handles tool registration)
         self.orchestrator_chain = PromptChain(
             models=[],  # AgenticStepProcessor has its own model
             instructions=[self.reasoning_engine],
             verbose=False,
             store_steps=True
         )
+
+        # Register reasoning step tool to enable visible multi-step analysis
+        def output_reasoning_step(step_number: int, step_name: str, analysis: str) -> str:
+            """Output a reasoning step during multi-hop analysis. Use this to show your thinking process.
+
+            Args:
+                step_number: The step number (1-4)
+                step_name: Name of the step (e.g., "CLASSIFY TASK", "IDENTIFY CAPABILITIES")
+                analysis: Your detailed analysis for this step
+
+            Returns:
+                Confirmation to continue to next step
+            """
+            # Display in terminal for real-time observability
+            if self.dev_print_callback:
+                self.dev_print_callback(f"🧠 Orchestrator Step {step_number}: {step_name}", "")
+                # Show analysis with indentation (no truncation - user wants full output)
+                for line in analysis.split('\n'):
+                    self.dev_print_callback(f"   {line}", "")
+
+            # Log the reasoning step for observability
+            if self.log_event_callback:
+                self.log_event_callback("orchestrator_reasoning_step", {
+                    "step_number": step_number,
+                    "step_name": step_name,
+                    "analysis": analysis[:500]  # Truncate for logging
+                }, level="INFO")
+
+            # Provide step-specific guidance to enforce sequential execution
+            if step_number == 1:
+                return "✅ Step 1 (CLASSIFY TASK) recorded. REQUIRED: Now call output_reasoning_step with step_number=2 (IDENTIFY CAPABILITIES)."
+            elif step_number == 2:
+                return "✅ Step 2 (IDENTIFY CAPABILITIES) recorded. REQUIRED: Now call output_reasoning_step with step_number=3 (CHECK SUFFICIENCY)."
+            elif step_number == 3:
+                # Check if analysis indicates multi-agent is needed
+                if "NEED_MULTI" in analysis.upper() or "INSUFFICIENT" in analysis.upper() or "MULTI-AGENT" in analysis.upper():
+                    return "✅ Step 3 (CHECK SUFFICIENCY) recorded. Multi-agent needed. REQUIRED: Now call output_reasoning_step with step_number=4 (DESIGN COMBINATION)."
+                else:
+                    return "✅ Step 3 (CHECK SUFFICIENCY) recorded. Single agent sufficient. You may now provide the final plan JSON."
+            elif step_number == 4:
+                return "✅ Step 4 (DESIGN COMBINATION) recorded. All reasoning steps complete. Now provide the final plan JSON."
+            else:
+                return f"✅ Step {step_number} ({step_name}) recorded. Continue to next step or provide final plan JSON."
+
+        # Register tool on the PromptChain (not AgenticStepProcessor)
+        self.orchestrator_chain.register_tool_function(output_reasoning_step)
+        self.orchestrator_chain.add_tools([{
+            "type": "function",
+            "function": {
+                "name": "output_reasoning_step",
+                "description": "Output a reasoning step during multi-hop analysis to show your thinking process explicitly. Call this for STEP 1, STEP 2, STEP 3, STEP 4, and STEP 5 (if needed) before providing the final plan JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "step_number": {
+                            "type": "integer",
+                            "description": "The step number (1 for CLASSIFY, 2 for KNOWLEDGE_VS_EXECUTION, 3 for IDENTIFY, 4 for CHECK, 5 for DESIGN)"
+                        },
+                        "step_name": {
+                            "type": "string",
+                            "description": "Name of the step (e.g., 'CLASSIFY TASK', 'IDENTIFY CAPABILITIES', 'CHECK SUFFICIENCY', 'DESIGN COMBINATION')"
+                        },
+                        "analysis": {
+                            "type": "string",
+                            "description": "Your detailed analysis for this reasoning step"
+                        }
+                    },
+                    "required": ["step_number", "step_name", "analysis"]
+                }
+            }
+        }])
 
         # Register event callback to capture reasoning metadata
         self.orchestrator_chain.register_callback(self._orchestrator_event_callback)
@@ -181,6 +252,69 @@ AVAILABLE AGENTS:
 {agents_formatted}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  CRITICAL: CHECK FOR PENDING QUESTIONS FROM PREVIOUS AGENT (STEP 0)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BEFORE STARTING THE 5-STEP ANALYSIS, YOU MUST CHECK THE CONVERSATION HISTORY:
+
+1. Look at the LAST agent response in the conversation history
+2. Check if it ended with a QUESTION or REQUEST for user input
+3. Check if the current user input is a SHORT RESPONSE (yes/no/ok/sure/single word/number)
+
+If ALL THREE are true:
+→ The user is RESPONDING to the agent's question
+→ Route back to THE SAME AGENT that asked the question
+→ SKIP the 5-step analysis entirely
+→ Return plan with the previous agent immediately
+
+Examples of PENDING QUESTION scenarios:
+
+🔹 EXAMPLE 1: Installation Confirmation
+Last Agent Response: "The library is not installed. Would you like me to install it?"
+User Input: "yes"
+Analysis: User is answering Terminal agent's question
+Decision: Return ["terminal"] immediately (skip 5-step analysis)
+
+🔹 EXAMPLE 2: Choice Selection
+Last Agent Response: "I found 3 options. Which one should I use? (1/2/3)"
+User Input: "2"
+Analysis: User is selecting from options presented by previous agent
+Decision: Return to that same agent immediately
+
+🔹 EXAMPLE 3: Confirmation
+Last Agent Response: "Script created. Should I run it now?"
+User Input: "ok"
+Analysis: User is confirming action from Coding agent
+Decision: Return ["coding"] or ["coding", "terminal"] to complete workflow
+
+🔹 EXAMPLE 4: NOT a response (proceed with 5-step analysis)
+Last Agent Response: "Here is the analysis of the data."
+User Input: "create a chart"
+Analysis: User is making a NEW request, not answering a question
+Decision: Proceed with normal 5-step analysis
+
+⚠️ DETECTION RULES:
+
+Question indicators in last agent response:
+- Ends with "?"
+- Contains phrases: "Would you like", "Should I", "Do you want", "Which one", "Select"
+- Contains options: "(yes/no)", "(1/2/3)", "Choose"
+
+Response indicators in user input:
+- Short length (< 20 chars)
+- Matches: yes/no/ok/sure/yeah/nope/confirm/cancel/proceed
+- Matches: numbers (1, 2, 3)
+- Matches: single word affirmative/negative
+
+IF PENDING QUESTION DETECTED:
+- Extract which agent asked the question from history
+- SKIP all 5 reasoning steps
+- Return JSON immediately: {{"plan": ["that_agent"], "initial_input": "{{user_input}}", "reasoning": "User responding to [agent]'s question: [question summary]"}}
+
+IF NO PENDING QUESTION:
+- Proceed with normal 5-step analysis below
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AGENT TOOL CAPABILITIES (CRITICAL - USE MULTI-HOP REASONING TO DETERMINE NEEDS):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -233,7 +367,26 @@ Determine if task is SIMPLE or COMPLEX:
    - Create + execute: "Write script and run it"
    - Gather + process + output: "Find latest X, analyze it, create report"
 
-STEP 2: IDENTIFY REQUIRED CAPABILITIES & TOOLS
+STEP 2: DISTINGUISH KNOWLEDGE vs EXECUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ CRITICAL: Even if you have system context (like current_date), the user may want VERIFICATION via command execution!
+
+Knowledge-based queries (NO TOOLS NEEDED):
+- "What year is it?" → Can answer from system context
+- "Explain neural networks" → Training knowledge sufficient
+- "Tell me about X concept" → Documentation/analysis sufficient
+
+Execution-based queries (TOOLS REQUIRED):
+- "Check the date" → TERMINAL needed (must run 'date' command)
+- "Verify system time" → TERMINAL needed (execute actual check)
+- "Run date command" → TERMINAL needed (explicit command request)
+- "Get current timestamp" → TERMINAL needed (system execution)
+
+🔴 IF QUERY CONTAINS EXECUTION VERBS, USE TOOLS:
+- "check", "verify", "run", "execute", "test", "show me actual"
+- These indicate user wants REAL SYSTEM OUTPUT, not just your knowledge
+
+STEP 3: IDENTIFY REQUIRED CAPABILITIES & TOOLS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 What does the task ACTUALLY need to accomplish?
 
@@ -255,13 +408,13 @@ What does the task ACTUALLY need to accomplish?
 🔗 Need to combine/synthesize gathered information?
    → OPTIONAL: Synthesis agent ❌ (no tools, uses reasoning only)
 
-STEP 3: CHECK IF SINGLE AGENT HAS SUFFICIENT TOOLS
+STEP 4: CHECK IF SINGLE AGENT HAS SUFFICIENT TOOLS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Compare task requirements to agent capabilities:
 
 Does ONE agent have ALL the tools needed?
    → YES: Use single-agent plan ["agent_name"]
-   → NO: Proceed to STEP 4 for multi-agent combination
+   → NO: Proceed to STEP 5 for multi-agent combination
 
 Example checks:
    - "What is Candle library?"
@@ -281,11 +434,11 @@ Example checks:
      → Terminal has: execute_terminal_command ✅ but NO file creation ❌
      → NOT SUFFICIENT: Need multi-agent
 
-STEP 4: DESIGN OPTIMAL AGENT COMBINATION
+STEP 5: DESIGN OPTIMAL AGENT COMBINATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 If single agent insufficient, create SEQUENTIAL multi-agent plan:
 
-1. List all required capabilities from STEP 2
+1. List all required capabilities from STEP 3
 2. Map each capability to agent(s) that provide it
 3. Order agents by logical dependency:
    - Research BEFORE documentation (need info before writing)
@@ -325,14 +478,14 @@ Pattern 4: Research → Coding → Terminal
 🔹 EXAMPLE 1: "Write tutorial about Zig sound manipulation"
 
 STEP 1 - Classify: COMPLEX (research + writing phases)
-STEP 2 - Required capabilities:
+STEP 3 - Required capabilities:
    - Web search for current Zig audio libraries ✅ (unknown/recent tech)
    - Documentation writing ✅
-STEP 3 - Single agent check:
+STEP 4 - Single agent check:
    - Research: Has gemini_research ✅ but NO documentation expertise
    - Documentation: Has writing skills ✅ but NO web search tools ❌
    - RESULT: Single agent INSUFFICIENT
-STEP 4 - Optimal combination:
+STEP 5 - Optimal combination:
    - Research agent → get current Zig audio library info
    - Documentation agent → write tutorial using research findings
    - Plan: ["research", "documentation"]
@@ -344,13 +497,13 @@ STEP 4 - Optimal combination:
 🔹 EXAMPLE 2: "Explain neural networks"
 
 STEP 1 - Classify: SIMPLE (single question, well-known topic)
-STEP 2 - Required capabilities:
+STEP 3 - Required capabilities:
    - Explanation of known concept (in training data)
-STEP 3 - Single agent check:
+STEP 4 - Single agent check:
    - Documentation: Can explain neural networks using training knowledge ✅
    - NO web search needed (well-known topic)
    - RESULT: Single agent SUFFICIENT
-STEP 4 - Not needed (single agent sufficient)
+STEP 5 - Not needed (single agent sufficient)
 
 ✅ OUTPUT: {{"plan": ["documentation"], "initial_input": "Explain neural networks comprehensively", "reasoning": "Well-known concept in training data. Documentation agent can explain without external tools."}}
 
@@ -359,14 +512,14 @@ STEP 4 - Not needed (single agent sufficient)
 🔹 EXAMPLE 3: "Create log cleanup script and run it"
 
 STEP 1 - Classify: COMPLEX (create + execute phases)
-STEP 2 - Required capabilities:
+STEP 3 - Required capabilities:
    - File creation (write Python/Bash script) ✅
    - Command execution (run the script) ✅
-STEP 3 - Single agent check:
+STEP 4 - Single agent check:
    - Coding: Has write_script ✅ but NO execute_terminal_command ❌
    - Terminal: Has execute_terminal_command ✅ but NO write_script ❌
    - RESULT: Single agent INSUFFICIENT
-STEP 4 - Optimal combination:
+STEP 5 - Optimal combination:
    - Coding agent → create cleanup script file
    - Terminal agent → execute the script
    - Plan: ["coding", "terminal"]
@@ -378,25 +531,93 @@ STEP 4 - Optimal combination:
 🔹 EXAMPLE 4: "What is Rust's Candle library?"
 
 STEP 1 - Classify: SIMPLE (single question)
-STEP 2 - Required capabilities:
+STEP 3 - Required capabilities:
    - Web search for current library info ✅ (post-2024 library)
-STEP 3 - Single agent check:
+STEP 4 - Single agent check:
    - Research: Has gemini_research ✅ to search and explain
    - RESULT: Single agent SUFFICIENT (can both search AND explain)
-STEP 4 - Not needed (single agent sufficient)
+STEP 5 - Not needed (single agent sufficient)
 
 ✅ OUTPUT: {{"plan": ["research"], "initial_input": "What is Rust's Candle library? Provide overview and examples", "reasoning": "Recent library needs web search. Research agent has gemini_research tool and can both gather info AND explain it in response."}}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-USE YOUR INTERNAL REASONING STEPS TO ANALYZE THE QUERY, THEN OUTPUT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  CRITICAL EXECUTION PROTOCOL - NO SHORTCUTS ALLOWED ⚠️
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RETURN JSON ONLY (no other text):
+YOU ARE STRICTLY FORBIDDEN FROM:
+❌ Returning the final JSON plan directly without calling the tool
+❌ Skipping any of the 4 reasoning steps
+❌ Combining multiple steps into a single tool call
+❌ Doing "internal thinking" instead of calling the tool
+❌ Providing text output instead of tool calls for steps
+
+YOU MUST FOLLOW THIS EXACT SEQUENCE (NO EXCEPTIONS):
+
+FIRST RESPONSE - Call output_reasoning_step with step_number=1:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+output_reasoning_step(
+    step_number=1,
+    step_name="CLASSIFY TASK",
+    analysis="Task Classification: [SIMPLE or COMPLEX]\nReasoning: [why you classified it this way]\nNext: Need to identify required capabilities"
+)
+
+WAIT FOR TOOL RESPONSE → Tool will return: "Step 1 recorded. Continue to next step..."
+
+SECOND RESPONSE - Call output_reasoning_step with step_number=2:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+output_reasoning_step(
+    step_number=2,
+    step_name="IDENTIFY CAPABILITIES",
+    analysis="Required capabilities: [list]\nTools needed: [gemini_research? write_script? execute_terminal_command?]\nNext: Check if single agent has all tools"
+)
+
+WAIT FOR TOOL RESPONSE → Tool will return: "Step 2 recorded. Continue to next step..."
+
+THIRD RESPONSE - Call output_reasoning_step with step_number=3:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+output_reasoning_step(
+    step_number=3,
+    step_name="CHECK SUFFICIENCY",
+    analysis="Checking [agent_name]: has [tools] - matches [X/Y] requirements\nDecision: SUFFICIENT or NEED_MULTI_AGENT\nNext: [Output plan if sufficient, else design combination]"
+)
+
+WAIT FOR TOOL RESPONSE → If SUFFICIENT, skip to FINAL. If NEED_MULTI, continue to step 4.
+
+FOURTH RESPONSE (only if multi-agent needed) - Call output_reasoning_step with step_number=4:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+output_reasoning_step(
+    step_number=4,
+    step_name="DESIGN COMBINATION",
+    analysis="Agent combination: [agent1] → [agent2] → [agent3]\nOrder reasoning: [why this sequence]\nVerification: All capabilities covered? [yes/no]\nNext: Ready to output final plan"
+)
+
+WAIT FOR TOOL RESPONSE → Tool will return: "Step 4 recorded. Provide final plan JSON."
+
+FINAL RESPONSE - Return ONLY the JSON plan (no tool call this time):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {{
-    "plan": ["agent1", "agent2", ...],  // Ordered list of agents (can be single agent ["agent_name"])
+    "plan": ["agent1", "agent2", ...],
     "initial_input": "refined task description for first agent",
-    "reasoning": "multi-step reasoning summary of why this plan"
+    "reasoning": "summary of Steps 1-4 analysis"
 }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  ENFORCEMENT RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. You CANNOT return the final JSON until you have called output_reasoning_step
+   at least 3 times (Steps 1, 2, 3 minimum)
+
+2. Each tool call must have a DIFFERENT step_number (1, 2, 3, 4 in order)
+
+3. You MUST wait for each tool response before making the next call
+
+4. If you try to output JSON directly, you will FAIL - the system requires
+   observable reasoning steps via tool calls
+
+5. This is NOT optional - it's a MANDATORY protocol for transparency and debugging
 """
 
     def _orchestrator_event_callback(self, event: ExecutionEvent):
@@ -405,14 +626,20 @@ RETURN JSON ONLY (no other text):
             # Update metrics from AgenticStepProcessor
             # NOTE: PromptChain emits "steps_executed", not "total_steps"
             steps = event.metadata.get("steps_executed", event.metadata.get("total_steps", 0))
+            tools = event.metadata.get("total_tools_called", 0)
+
             self.metrics["total_reasoning_steps"] += steps if steps else 0
-            self.metrics["total_tools_called"] += event.metadata.get("total_tools_called", 0)
+            self.metrics["total_tools_called"] += tools
+
+            # ✅ NEW (v0.4.2): Store last execution metrics for retrieval by AgentChain
+            self._last_execution_reasoning_steps = steps if steps else 0
+            self._last_execution_tools_called = tools
 
             # Log detailed agentic step metadata
             if self.log_event_callback:
                 self.log_event_callback("orchestrator_agentic_step", {
                     "total_steps": steps,
-                    "tools_called": event.metadata.get("total_tools_called", 0),
+                    "tools_called": tools,
                     "execution_time_ms": event.metadata.get("execution_time_ms", 0),
                     "objective_achieved": event.metadata.get("objective_achieved", False),
                     "max_steps_reached": event.metadata.get("max_steps_reached", False)
@@ -446,9 +673,44 @@ RETURN JSON ONLY (no other text):
                 "current_date": current_date
             }, level="DEBUG")
 
+        # ✅ ENHANCED (v0.4.2): Format conversation history for orchestrator planning context
+        # The orchestrator needs SOME history to make intelligent routing decisions,
+        # but not the full conversation (to avoid token explosion in planning phase)
+        history_context = ""
+        if history:
+            # Configuration for orchestrator history view (can be made customizable later)
+            orchestrator_history_max_entries = 10  # Last 10 messages (5 exchanges)
+            orchestrator_history_max_chars_per_msg = 200  # Truncate very long messages
+
+            recent_history = history[-orchestrator_history_max_entries:]
+            history_lines = []
+            for msg in recent_history:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                # Truncate long messages to avoid overwhelming the orchestrator
+                content_preview = content[:orchestrator_history_max_chars_per_msg] + "..." if len(content) > orchestrator_history_max_chars_per_msg else content
+                history_lines.append(f"{role.upper()}: {content_preview}")
+            history_context = "\n".join(history_lines)
+
+            # Log orchestrator history injection
+            if self.log_event_callback:
+                self.log_event_callback("orchestrator_history_injected", {
+                    "entries_count": len(recent_history),
+                    "total_history_available": len(history),
+                    "truncated": len(history) > orchestrator_history_max_entries
+                })
+
+        # Build full prompt with history context
+        full_prompt = f"""CONVERSATION HISTORY (last exchanges):
+{history_context if history_context else "(No previous conversation)"}
+
+CURRENT USER INPUT: {user_input}
+
+Now analyze this input considering the conversation history above. Check STEP 0 for pending questions first!"""
+
         # Use AgenticStepProcessor for multi-hop reasoning
         decision_json = await self.orchestrator_chain.process_prompt_async(
-            user_input.replace("{current_date}", current_date)
+            full_prompt.replace("{current_date}", current_date)
         )
 
         # Parse decision
@@ -483,6 +745,10 @@ RETURN JSON ONLY (no other text):
             if len(self.metrics["decision_history"]) > 100:
                 self.metrics["decision_history"] = self.metrics["decision_history"][-100:]
 
+            # ✅ NEW (v0.4.2): Store plan metrics for retrieval by AgentChain
+            self._last_execution_plan_length = len(plan)
+            self._last_execution_decision_type = "multi_agent" if len(plan) > 1 else "single_agent"
+
             # Log decision with oversight metadata
             if self.log_event_callback:
                 self.log_event_callback("orchestrator_decision", {
@@ -516,6 +782,21 @@ RETURN JSON ONLY (no other text):
 
         return decision_json
 
+    def as_router_function(self):
+        """
+        Returns an async function compatible with AgentChain's custom_router_function interface.
+
+        This wrapper allows OrchestratorSupervisor to be used as a router in AgentChain.
+
+        Returns:
+            Async function with signature: (user_input, history, agent_descriptions) -> str
+        """
+        async def router_wrapper(user_input: str, history: List[Dict[str, str]], agent_descriptions: Dict[str, str]) -> str:
+            """Wrapper function that calls supervise_and_route"""
+            return await self.supervise_and_route(user_input, history, agent_descriptions)
+
+        return router_wrapper
+
     def get_oversight_summary(self) -> Dict[str, Any]:
         """Get summary of oversight metrics"""
         return {
@@ -525,6 +806,32 @@ RETURN JSON ONLY (no other text):
             "average_plan_length": round(self.metrics["average_plan_length"], 2),
             "total_reasoning_steps": self.metrics["total_reasoning_steps"],
             "average_reasoning_steps": round(self.metrics["total_reasoning_steps"] / max(self.metrics["total_decisions"], 1), 2)
+        }
+
+    def get_last_execution_metrics(self) -> Dict[str, Any]:
+        """
+        Get metrics from the most recent orchestrator execution.
+
+        Returns dict with:
+        - reasoning_steps: Number of reasoning steps in last execution
+        - tools_called: Number of tools called in last execution
+        - plan_length: Number of agents in last plan
+        - decision_type: 'single_agent' or 'multi_agent'
+        """
+        if not hasattr(self, '_last_execution_reasoning_steps'):
+            # First execution hasn't happened yet
+            return {
+                "reasoning_steps": 0,
+                "tools_called": 0,
+                "plan_length": 0,
+                "decision_type": None
+            }
+
+        return {
+            "reasoning_steps": self._last_execution_reasoning_steps,
+            "tools_called": self._last_execution_tools_called,
+            "plan_length": self._last_execution_plan_length,
+            "decision_type": self._last_execution_decision_type
         }
 
     def print_oversight_report(self):

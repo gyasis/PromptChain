@@ -101,7 +101,7 @@ async def main():
     logger.info("="*60)
     
     # Verify database exists
-    db_path = Path("/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db")
+    db_path = Path("/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db")
     if not db_path.exists():
         logger.error("❌ LightRAG database not found. Run ingestion first.")
         return False

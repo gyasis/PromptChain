@@ -23,6 +23,14 @@ async def execute_static_plan_strategy_async(agent_chain_instance: 'AgentChain',
                 history=agent_chain_instance._conversation_history,
                 agent_descriptions=agent_chain_instance.agent_descriptions
             )
+
+            # ✅ NEW (v0.4.2): Capture orchestrator metrics if OrchestratorSupervisor was used
+            if hasattr(agent_chain_instance, 'orchestrator_supervisor') and agent_chain_instance.orchestrator_supervisor:
+                orchestrator_metrics = agent_chain_instance.orchestrator_supervisor.get_last_execution_metrics()
+                agent_chain_instance._last_orchestrator_metrics = orchestrator_metrics
+                if agent_chain_instance.verbose:
+                    print(f"  Orchestrator metrics captured: {orchestrator_metrics['reasoning_steps']} reasoning steps, {orchestrator_metrics['tools_called']} tools")
+
         elif agent_chain_instance.decision_maker_chain:
             decision_output = await agent_chain_instance.decision_maker_chain.process_prompt_async(initial_user_input)
         else:

@@ -833,7 +833,8 @@ class PromptChain:
                             initial_input=step_input_content, # Pass current content
                             available_tools=available_tools, # Pass all available tools (combined)
                             llm_runner=lambda messages, tools, tool_choice=None: llm_runner_callback(messages, tools, tool_choice, agentic_instruction=instruction), # Pass the LLM runner helper with agentic_instruction
-                            tool_executor=tool_executor_callback # Pass the revised tool executor helper
+                            tool_executor=tool_executor_callback, # Pass the revised tool executor helper
+                            callback_manager=self.callback_manager  # ✅ NEW (v0.4.2): Pass callback_manager for observability
                         )
                         # Ensure output is string
                         if not isinstance(step_output, str):

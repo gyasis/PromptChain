@@ -353,7 +353,7 @@ class AthenaLightRAGCore:
 
 # Factory function for easy instantiation
 def create_athena_lightrag(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db",
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db",
     **config_kwargs
 ) -> AthenaLightRAGCore:
     """

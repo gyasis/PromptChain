@@ -97,6 +97,7 @@ pip install dist/promptchain-<version>.tar.gz
 **Memory Management**: Multi-layered approach:
 - ExecutionHistoryManager: Structured, filterable history with token limits
 - Conversation history: Basic message storage with truncation
+- Per-agent history configuration: Individual history settings per agent (v0.4.2)
 - Step storage: Optional detailed step-by-step output tracking
 - SQLite caching: Persistent conversation storage for AgentChain
 
@@ -228,7 +229,7 @@ logger = RunLogger(log_dir="./logs")
 # MCP server configuration for external tools
 mcp_config = [{
     "id": "filesystem",
-    "type": "stdio", 
+    "type": "stdio",
     "command": "mcp-server-filesystem",
     "args": ["--root", "./project"]
 }]
@@ -267,7 +268,7 @@ Choose the most appropriate agent and return JSON:
     }
 }
 
-# Multi-agent system with caching
+# Multi-agent system with caching and per-agent history configuration
 agent_chain = AgentChain(
     agents={"analyzer": analyzer_agent, "writer": writer_agent},
     agent_descriptions={
@@ -280,11 +281,127 @@ agent_chain = AgentChain(
         "name": "my_project_session",
         "path": "./cache"
     },
+    auto_include_history=True,  # Global history setting
+    agent_history_configs={  # Per-agent history overrides (v0.4.2)
+        "analyzer": {
+            "enabled": True,
+            "max_tokens": 8000,
+            "max_entries": 20,
+            "truncation_strategy": "oldest_first"
+        },
+        "writer": {
+            "enabled": True,
+            "max_tokens": 4000,
+            "max_entries": 10,
+            "truncation_strategy": "keep_last"
+        }
+    },
     verbose=True
 )
 
 # Interactive chat with full logging
 await agent_chain.run_chat()
+```
+
+### Per-Agent History Configuration (v0.4.2)
+
+The `agent_history_configs` parameter enables fine-grained control over conversation history for each agent, allowing you to optimize token usage and context relevance:
+
+```python
+from promptchain.utils.agent_chain import AgentChain
+
+# Create agents with different history needs
+code_runner = PromptChain(models=["openai/gpt-4"], instructions=["Execute: {input}"])
+analyst = PromptChain(models=["openai/gpt-4"], instructions=["Analyze: {input}"])
+writer = PromptChain(models=["openai/gpt-4"], instructions=["Document: {input}"])
+
+agent_chain = AgentChain(
+    agents={
+        "code_runner": code_runner,
+        "analyst": analyst,
+        "writer": writer
+    },
+    auto_include_history=True,  # Global default
+    agent_history_configs={
+        # Terminal/execution agents: No history needed (saves 30-60% tokens)
+        "code_runner": {
+            "enabled": False  # Completely disable history for this agent
+        },
+        # Research/analysis agents: Full history for context
+        "analyst": {
+            "enabled": True,
+            "max_tokens": 8000,  # Higher limit for detailed analysis
+            "max_entries": 50,
+            "truncation_strategy": "oldest_first",
+            "include_types": ["user_input", "agent_output"],  # Filter history types
+            "exclude_sources": ["system"]  # Exclude certain sources
+        },
+        # Documentation agents: Full history for comprehensive context
+        "writer": {
+            "enabled": True,
+            "max_tokens": 6000,
+            "max_entries": 30,
+            "truncation_strategy": "keep_last"
+        }
+    }
+)
+```
+
+**Configuration Options:**
+
+- `enabled` (bool): Whether to include history for this agent (default: uses `auto_include_history`)
+- `max_tokens` (int): Maximum tokens for history (uses ExecutionHistoryManager's token counting)
+- `max_entries` (int): Maximum number of history entries
+- `truncation_strategy` (str): How to truncate when limits exceeded ("oldest_first" or "keep_last")
+- `include_types` (List[str]): Only include specific entry types (e.g., ["user_input", "agent_output"])
+- `exclude_sources` (List[str]): Exclude entries from specific sources
+
+**Token Savings Example:**
+
+```python
+# 6-agent system with selective history
+agent_chain = AgentChain(
+    agents={
+        "terminal": terminal_agent,      # No history: -60% tokens
+        "coding": coding_agent,          # Limited history: -40% tokens
+        "research": research_agent,      # Full history
+        "analysis": analysis_agent,      # Full history
+        "documentation": doc_agent,      # Full history
+        "synthesis": synthesis_agent     # Full history
+    },
+    agent_history_configs={
+        "terminal": {"enabled": False},           # Saves ~3000 tokens per call
+        "coding": {"enabled": True, "max_entries": 10},  # Saves ~2000 tokens per call
+        # Others use full history
+    }
+)
+# Total savings: ~5000 tokens per multi-agent conversation turn
+```
+
+**AgenticStepProcessor Internal History Isolation:**
+
+Note that `agent_history_configs` controls **conversation-level history** (user inputs, agent outputs between agents), NOT the internal reasoning history within an `AgenticStepProcessor`. The AgenticStepProcessor maintains its own isolated history for multi-hop reasoning based on its `history_mode` parameter:
+
+```python
+from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+
+# AgenticStepProcessor has its own internal history system
+research_step = AgenticStepProcessor(
+    objective="Research with multi-hop reasoning",
+    max_internal_steps=8,
+    history_mode="progressive"  # Internal reasoning history (not conversation history)
+)
+
+# This controls what the AGENT sees, not what's inside AgenticStepProcessor
+agent_chain = AgentChain(
+    agents={"research": PromptChain(instructions=[research_step])},
+    agent_history_configs={
+        "research": {
+            "enabled": True,  # Controls conversation history passed TO the agent
+            "max_tokens": 8000  # Limits conversation context, not internal reasoning
+        }
+    }
+)
 ```
 
 ### Advanced Workflow Integration

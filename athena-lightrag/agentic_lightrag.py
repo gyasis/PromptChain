@@ -391,7 +391,7 @@ class AgenticLightRAG:
             objective=objective,
             max_internal_steps=self.max_internal_steps,
             model_name=self.model_name,
-            instructions=instructions,
+            # NOTE: PromptChain v0.4.2 removed instructions parameter from AgenticStepProcessor
             history_mode="progressive"  # Accumulate all tool results for better multi-hop reasoning
         )
     
@@ -573,7 +573,7 @@ class AgenticLightRAG:
 
 # Factory function for easy instantiation
 def create_agentic_lightrag(
-    working_dir: str = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db",
+    working_dir: str = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db",
     model_name: str = "openai/gpt-4.1-mini",
     max_internal_steps: int = 8,
     verbose: bool = True,

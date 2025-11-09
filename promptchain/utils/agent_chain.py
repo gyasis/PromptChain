@@ -895,9 +895,12 @@ class AgentChain:
         errors: List[str] = []
         warnings: List[str] = []
         router_decision: Optional[Dict[str, Any]] = None
-        router_steps = 0
+        orchestrator_reasoning_steps = 0  # ✅ RENAMED from router_steps (v0.4.2)
         fallback_used = False
-        tools_called: List[Dict[str, Any]] = []
+        tools_called: List[Dict[str, Any]] = []  # TODO: Capture from agent responses
+        total_tokens: Optional[int] = None  # TODO: Aggregate from agent LLM calls
+        prompt_tokens: Optional[int] = None
+        completion_tokens: Optional[int] = None
 
         self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input, "return_metadata": return_metadata})
         self._add_to_history("user", user_input)
@@ -1309,6 +1312,14 @@ class AgentChain:
         end_time = datetime.now()
         execution_time_ms = (end_time - start_time).total_seconds() * 1000
 
+        # ✅ NEW (v0.4.2): Capture orchestrator metrics if OrchestratorSupervisor was used
+        if hasattr(self, '_last_orchestrator_metrics') and self._last_orchestrator_metrics:
+            orchestrator_reasoning_steps = self._last_orchestrator_metrics.get('reasoning_steps', 0)
+            # Note: tools_called from orchestrator are reasoning tool calls, not agent tool calls
+            # Agent tool calls will be captured separately in the future
+            if self.verbose:
+                print(f"  Captured orchestrator metrics: {orchestrator_reasoning_steps} reasoning steps")
+
         self.logger.log_run({
             "event": "process_input_end",
             "mode": self.execution_mode,
@@ -1327,13 +1338,13 @@ class AgentChain:
                 start_time=start_time,
                 end_time=end_time,
                 router_decision=router_decision,
-                router_steps=router_steps,
+                router_steps=orchestrator_reasoning_steps,  # ✅ Now captures actual orchestrator steps
                 fallback_used=fallback_used,
                 agent_execution_metadata=None,  # TODO: Capture from agent if available
-                tools_called=tools_called,
-                total_tokens=None,  # TODO: Aggregate from agent responses
-                prompt_tokens=None,  # TODO: Aggregate from agent responses
-                completion_tokens=None,  # TODO: Aggregate from agent responses
+                tools_called=tools_called,  # ✅ Now initialized, TODO: Capture from agents
+                total_tokens=total_tokens,  # ✅ Now initialized, TODO: Aggregate from agent LLM calls
+                prompt_tokens=prompt_tokens,  # ✅ Now initialized, TODO: Aggregate
+                completion_tokens=completion_tokens,  # ✅ Now initialized, TODO: Aggregate
                 cache_hit=False,  # TODO: Check cache status
                 cache_key=None,  # TODO: Get cache key if used
                 errors=errors,

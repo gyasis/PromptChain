@@ -20,7 +20,9 @@ class AgentExecutionResult:
         start_time: Timestamp when execution started
         end_time: Timestamp when execution completed
         router_decision: Optional dictionary containing router decision details
-        router_steps: Number of routing steps executed
+        router_steps: Number of routing/orchestrator reasoning steps executed
+                     (When OrchestratorSupervisor is used, this reflects the number
+                     of output_reasoning_step tool calls during multi-hop reasoning)
         fallback_used: Whether fallback mechanism was used
         agent_execution_metadata: Optional metadata from the executing agent
         tools_called: List of tool call details (dicts with name, args, results)

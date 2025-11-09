@@ -100,7 +100,6 @@ ui_agent_project/
 shared/
 backend/
 frontend/
-memory-bank/
 docs/auxiliary_projects/
 
 # Temporary and generated files
@@ -122,11 +121,9 @@ prompts
 CLAUDE.md
 
 # SECURITY: Sensitive directories and files - NEVER TRACK
-.specstory/
 .claude/
 claude.md
 cursor.md
-**/.specstory/
 **/.claude/
 
 # Note: The following directories ARE tracked in the remote repository:

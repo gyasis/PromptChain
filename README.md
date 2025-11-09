@@ -112,6 +112,63 @@ print(result)
 - **Async Support**: Full async/await support for modern applications
 - **Memory Management**: State persistence and conversation history
 - **🆕 Comprehensive Observability**: Event system, execution metadata, and monitoring (v0.4.1h)
+- **🆕 Accurate Metrics Tracking**: Router steps, tools called, token usage tracking (v0.4.2)
+- **🆕 Dual-Mode Logging**: Clean terminal output with full debug logs to file (v0.4.2)
+- **🆕 Enhanced Orchestrator**: 5-step reasoning with execution vs knowledge detection (v0.4.2)
+
+## What's New in v0.4.2 (2025-10-07)
+
+### 🎯 Accurate Orchestrator Metrics
+Now get real-time visibility into orchestrator performance:
+
+```python
+from promptchain.utils.agent_chain import AgentChain
+
+agent_chain = AgentChain(
+    agents={"terminal": terminal_agent, "research": research_agent},
+    execution_mode="router"
+)
+
+result = await agent_chain.process_request("Check the current date")
+
+# Access accurate metrics
+print(f"Orchestrator Steps: {result.router_steps}")    # e.g., 5 (was always 0)
+print(f"Tools Called: {result.tools_called}")         # e.g., 2 (was always 0)
+print(f"Total Tokens: {result.total_tokens}")         # e.g., 1842 (was always None)
+```
+
+### 🧹 Clean Terminal Output
+Dual-mode logging keeps your terminal clean while preserving full logs:
+
+```bash
+# Normal mode: Clean terminal + full DEBUG file logs
+python agentic_chat/agentic_team_chat.py
+
+# Development mode: Full observability in terminal
+python agentic_chat/agentic_team_chat.py --dev
+
+# Quiet mode: Errors/warnings only
+python agentic_chat/agentic_team_chat.py --quiet
+```
+
+Logs automatically saved to `./agentic_chat/logs/YYYY-MM-DD/session_HHMMSS.log`
+
+### 🧠 Smarter Agent Selection
+Enhanced 5-step orchestrator reasoning distinguishes knowledge vs execution queries:
+
+```python
+# Knowledge query → Documentation agent (no tools needed)
+result1 = await agent_chain.process_request("What year is it?")
+# Orchestrator detects: KNOWLEDGE query, uses system context
+# Selects: documentation agent
+
+# Execution query → Terminal agent (runs actual command)
+result2 = await agent_chain.process_request("Check the date")
+# Orchestrator detects: EXECUTION query (verb: "check")
+# Selects: terminal agent with execute_terminal_command tool
+```
+
+**See [CHANGELOG.md](CHANGELOG.md#042---2025-10-07) for complete v0.4.2 details**
 
 ## Observability System (v0.4.1h)
 

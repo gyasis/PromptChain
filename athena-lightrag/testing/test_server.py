@@ -99,10 +99,10 @@ def main():
         sys.exit(1)
     
     # Check database
-    working_dir = os.getenv("LIGHTRAG_WORKING_DIR", "./athena_lightrag_db")
+    working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
     if not Path(working_dir).exists():
         print(f"❌ LightRAG database not found at {working_dir}")
-        print("Please copy the database from hybridrag project or run data ingestion")
+        print("Please copy the database from athena-lightrag project or run data ingestion")
         sys.exit(1)
     
     # Run async tests

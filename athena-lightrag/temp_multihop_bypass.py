@@ -32,7 +32,7 @@ class BypassMultiHopReasoning:
         
     async def init_lightrag(self):
         """Initialize LightRAG core."""
-        working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+        working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
         self.lightrag_core = create_athena_lightrag(working_dir=working_dir)
         
     async def lightrag_query(self, query: str, mode: str = "global") -> str:

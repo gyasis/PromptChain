@@ -186,8 +186,15 @@ def create_terminal_agent(scripts_dir: Path = None, verbose=False):
     """
     Terminal Agent: Expert at executing terminal commands and system operations
     Has access to TerminalTool for safe command execution
+    Has access to file operation tools for direct file management
     Can execute scripts written by the Coding Agent
     """
+    # Import file operations wrapper
+    from promptchain.tools.file_operations import (
+        file_read, file_write, file_edit, file_append, file_delete,
+        list_directory, create_directory, read_file_range
+    )
+
     # Create terminal tool with security guardrails
     terminal = TerminalTool(
         timeout=120,
@@ -215,8 +222,43 @@ Your expertise:
 - Log analysis and debugging
 - Executing scripts from the Coding Agent{scripts_note}
 
-Available tool:
+Available tools:
 - execute_terminal_command(command: str) -> str: Execute terminal commands with security guardrails
+- file_read(path: str) -> str: Read file contents
+- file_write(path: str, content: str) -> str: Write/create file
+- file_edit(path: str, old_text: str, new_text: str) -> str: Edit file by replacing text
+- file_append(path: str, content: str) -> str: Append to file
+- file_delete(path: str) -> str: Delete file
+- list_directory(path: str) -> str: List directory contents
+- create_directory(path: str) -> str: Create directory
+- read_file_range(path: str, start_line: int, end_line: int) -> str: Read specific lines
+
+Tool usage guidelines:
+- Use execute_terminal_command() to run scripts created by Coding agent
+- Use execute_terminal_command() for system commands (git, npm, apt, etc.)
+- Use file operation tools for direct file management tasks:
+  * create_directory() for "create a backups directory"
+  * list_directory() for "list all log files" or "show files in folder"
+  * file_delete() for "delete temp files" or "remove old logs"
+  * file_read() for "check what's in error.log" or "read config file"
+  * file_write() for quick file creation (use Coding agent for complex code)
+- For writing complex scripts/code, defer to Coding agent
+- You handle execution, file navigation, and direct file operations
+
+CRITICAL: File Editing Best Practices
+When user asks to edit/modify an EXISTING file:
+1. ALWAYS use file_read() FIRST to see current content
+2. Determine the edit type:
+   a) REPLACE specific text → Use file_edit(path, old_text, new_text)
+   b) ADD to END only → Use file_append(path, content)
+   c) RESTRUCTURE → Use file_read() + file_write() with complete new content
+3. NEVER use file_write() without reading first (destroys existing content)
+4. For complex edits, consider deferring to Coding agent
+
+Examples:
+- "Add my API key to .env file" → file_append() (add to end)
+- "Change port 8000 to 9000 in config" → file_edit(old_text, new_text)
+- "Delete the DEBUG line from config" → file_read() + file_write() (complex)
 
 Command execution methodology:
 1. Analyze what needs to be accomplished
@@ -257,27 +299,222 @@ Always provide: command explanations, execution results, output interpretation, 
         """Execute terminal command - wrapper for TerminalTool"""
         return terminal(command)
 
-    # Register terminal tool
+    # Register all tools (terminal + file operations)
     agent.register_tool_function(execute_terminal_command)
+    agent.register_tool_function(file_read)
+    agent.register_tool_function(file_write)
+    agent.register_tool_function(file_edit)
+    agent.register_tool_function(file_append)
+    agent.register_tool_function(file_delete)
+    agent.register_tool_function(list_directory)
+    agent.register_tool_function(create_directory)
+    agent.register_tool_function(read_file_range)
 
-    # Add tool schema for LLM
-    agent.add_tools([{
-        "type": "function",
-        "function": {
-            "name": "execute_terminal_command",
-            "description": "Execute a terminal command safely with security guardrails. Returns command output (stdout/stderr). Use for system operations, file management, running programs, etc.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The terminal command to execute (e.g., 'ls -la', 'python script.py', 'git status')"
-                    }
-                },
-                "required": ["command"]
+    # Add tool schemas for LLM
+    agent.add_tools([
+        {
+            "type": "function",
+            "function": {
+                "name": "execute_terminal_command",
+                "description": "Execute a terminal command safely with security guardrails. Returns command output (stdout/stderr). Use for system operations, file management, running programs, etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The terminal command to execute (e.g., 'ls -la', 'python script.py', 'git status')"
+                        }
+                    },
+                    "required": ["command"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_read",
+                "description": "Read the contents of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to read"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_write",
+                "description": "Write content to a file, creating it if it doesn't exist",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to write"},
+                        "content": {"type": "string", "description": "Content to write to the file"}
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_edit",
+                "description": "Edit a file by replacing old_text with new_text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "old_text": {"type": "string", "description": "Text to find and replace"},
+                        "new_text": {"type": "string", "description": "Text to replace with"}
+                    },
+                    "required": ["path", "old_text", "new_text"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_append",
+                "description": "Append content to the end of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to append to"},
+                        "content": {"type": "string", "description": "Content to append"}
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_delete",
+                "description": "Delete a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to delete"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_directory",
+                "description": "List contents of a directory",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to directory to list (defaults to current directory)"}
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_directory",
+                "description": "Create a directory and all parent directories",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to directory to create"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file_range",
+                "description": "Read a specific range of lines from a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to read"},
+                        "start_line": {"type": "integer", "description": "First line to read (1-indexed)"},
+                        "end_line": {"type": "integer", "description": "Last line to read (inclusive)"}
+                    },
+                    "required": ["path", "start_line", "end_line"]
+                }
             }
         }
-    }])
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_at_line",
+                "description": "Insert content at a specific line number (efficient for large files - no full read required). Content is inserted BEFORE the specified line. Preserves proper indentation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "line_number": {"type": "integer", "description": "Line number to insert at (1-indexed, content goes BEFORE this line)"},
+                        "content": {"type": "string", "description": "Content to insert (can be multi-line, preserves tabs/spaces)"}
+                    },
+                    "required": ["path", "line_number", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "replace_lines",
+                "description": "Replace a range of lines with new content (efficient for large files - no full read required). Preserves proper indentation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "start_line": {"type": "integer", "description": "First line to replace (1-indexed, inclusive)"},
+                        "end_line": {"type": "integer", "description": "Last line to replace (1-indexed, inclusive)"},
+                        "new_content": {"type": "string", "description": "New content to replace the lines with (can be multi-line)"}
+                    },
+                    "required": ["path", "start_line", "end_line", "new_content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_after_pattern",
+                "description": "Insert content after a regex pattern match (efficient for large files). Preserves proper indentation. Use for adding code after function definitions, imports, etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^def main', '^import os')"},
+                        "content": {"type": "string", "description": "Content to insert after the pattern (can be multi-line)"},
+                        "first_match": {"type": "boolean", "description": "If True, only insert after first match; if False, after all matches (default: True)"}
+                    },
+                    "required": ["path", "pattern", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_before_pattern",
+                "description": "Insert content before a regex pattern match (efficient for large files). Preserves proper indentation. Use for adding imports, comments, or code before specific sections.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^if __name__', '^class MyClass')"},
+                        "content": {"type": "string", "description": "Content to insert before the pattern (can be multi-line)"},
+                        "first_match": {"type": "boolean", "description": "If True, only insert before first match; if False, before all matches (default: True)"}
+                    },
+                    "required": ["path", "pattern", "content"]
+                }
+            }
+        },
+    ])
 
     return agent
 
@@ -366,7 +603,18 @@ def create_coding_agent(scripts_dir: Path, verbose=False):
     """
     Coding Agent: Expert at writing scripts and code for terminal execution
     Writes scripts to shared workspace for terminal agent to execute
+    Has access to file operation tools (file_read, file_write, file_edit, etc.)
     """
+    # Import file operations wrapper
+    from promptchain.tools.file_operations import (
+        file_read, file_write, file_edit, file_append, file_delete,
+        list_directory, create_directory, read_file_range
+    )
+    # Import efficient editing tools
+    from promptchain.tools.efficient_file_edit import (
+        insert_at_line, replace_lines, insert_after_pattern, insert_before_pattern
+    )
+
     # Create write_script tool
     def write_script(filename: str, code: str) -> str:
         """Write a script to the scripts workspace"""
@@ -411,8 +659,60 @@ Your expertise:
 
 Scripts workspace: {scripts_dir}
 
-Available tool:
+Available tools:
 - write_script(filename: str, code: str) -> str: Write a script to the workspace
+- file_read(path: str) -> str: Read file contents
+- file_write(path: str, content: str) -> str: Write/create file
+- file_edit(path: str, old_text: str, new_text: str) -> str: Edit file by replacing text
+- file_append(path: str, content: str) -> str: Append to file
+- file_delete(path: str) -> str: Delete file
+- list_directory(path: str) -> str: List directory contents
+- create_directory(path: str) -> str: Create directory
+- read_file_range(path: str, start_line: int, end_line: int) -> str: Read specific lines
+
+EFFICIENT EDITING TOOLS (for large files - avoid reading entire file):
+- insert_at_line(path: str, line_number: int, content: str) -> str: Insert at specific line
+- replace_lines(path: str, start_line: int, end_line: int, new_content: str) -> str: Replace line range
+- insert_after_pattern(path: str, pattern: str, content: str, first_match: bool) -> str: Insert after regex match
+- insert_before_pattern(path: str, pattern: str, content: str, first_match: bool) -> str: Insert before regex match
+
+Tool usage guidelines:
+- Use write_script() for executable scripts (.py, .sh) that Terminal agent will run
+- Use file_write() for config files, data files, documentation, non-executable files
+- Use file_read() to analyze existing code/files before creating new scripts
+- Use file_edit() to update configuration files or modify existing code
+- Use list_directory() to understand project structure before creating files
+- Terminal agent handles direct file operations ("create a directory", "delete temp files")
+- You focus on creating CODE and SCRIPTS that accomplish tasks
+
+CRITICAL: File Editing Best Practices
+When user asks to "edit", "update", "add to", or "modify" an EXISTING file:
+
+FOR LARGE FILES (use efficient tools - NO full file read):
+1. INSERT at specific line → insert_at_line(path, line_number, content)
+2. REPLACE line range → replace_lines(path, start, end, new_content)
+3. INSERT after pattern → insert_after_pattern(path, "^def main", content)
+4. INSERT before pattern → insert_before_pattern(path, "^if __name__", content)
+
+FOR SMALL FILES or simple edits:
+1. ALWAYS use file_read() FIRST to see current content
+2. Determine the edit type:
+   a) REPLACE specific text → Use file_edit(path, old_text, new_text)
+   b) ADD section to END → Use file_append(path, content)
+   c) INSERT/RESTRUCTURE → Use file_read() + file_write() with full new content
+3. NEVER use file_append() for edits that need to preserve/modify existing content
+4. NEVER use file_write() without reading first (destroys existing content)
+
+Examples - Efficient Tools (PREFERRED for large files):
+- "Add function at line 50" → insert_at_line(path, 50, function_code)
+- "Replace lines 100-110" → replace_lines(path, 100, 110, new_code)
+- "Add comment after main function" → insert_after_pattern(path, "^def main", comment)
+- "Add import before if __name__" → insert_before_pattern(path, "^if __name__", import_line)
+
+Examples - Traditional Tools:
+- "Append today's log entry" → file_append() (add to end)
+- "Change DEBUG=False to DEBUG=True" → file_edit(old_text, new_text)
+- "Update the API key in config" → file_edit(old_text, new_text)
 
 Coding methodology:
 1. Understand the task requirements clearly
@@ -444,29 +744,225 @@ Always provide: script filename, code with comments, usage instructions, and any
         store_steps=True
     )
 
-    # Register the write_script tool
+    # Register all tools (write_script + file operations + efficient editing)
     agent.register_tool_function(write_script)
-    agent.add_tools([{
-        "type": "function",
-        "function": {
-            "name": "write_script",
-            "description": "Write a script to the scripts workspace for terminal agent execution",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "Script filename (e.g., process_data.py, backup.sh)"
+    agent.register_tool_function(file_read)
+    agent.register_tool_function(file_write)
+    agent.register_tool_function(file_edit)
+    agent.register_tool_function(file_append)
+    agent.register_tool_function(file_delete)
+    agent.register_tool_function(list_directory)
+    agent.register_tool_function(create_directory)
+    agent.register_tool_function(read_file_range)
+    # Efficient editing tools
+    agent.register_tool_function(insert_at_line)
+    agent.register_tool_function(replace_lines)
+    agent.register_tool_function(insert_after_pattern)
+    agent.register_tool_function(insert_before_pattern)
+
+    # Add tool schemas for LLM
+    agent.add_tools([
+        {
+            "type": "function",
+            "function": {
+                "name": "write_script",
+                "description": "Write a script to the scripts workspace for terminal agent execution",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filename": {"type": "string", "description": "Script filename (e.g., process_data.py, backup.sh)"},
+                        "code": {"type": "string", "description": "Complete script code with proper syntax"}
                     },
-                    "code": {
-                        "type": "string",
-                        "description": "Complete script code with proper syntax"
-                    }
-                },
-                "required": ["filename", "code"]
+                    "required": ["filename", "code"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_read",
+                "description": "Read the contents of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to read"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_write",
+                "description": "Write content to a file, creating it if it doesn't exist",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to write"},
+                        "content": {"type": "string", "description": "Content to write to the file"}
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_edit",
+                "description": "Edit a file by replacing old_text with new_text using sed",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "old_text": {"type": "string", "description": "Text to find and replace"},
+                        "new_text": {"type": "string", "description": "Text to replace with"}
+                    },
+                    "required": ["path", "old_text", "new_text"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_append",
+                "description": "Append content to the end of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to append to"},
+                        "content": {"type": "string", "description": "Content to append"}
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "file_delete",
+                "description": "Delete a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to delete"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_directory",
+                "description": "List contents of a directory",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to directory to list (defaults to current directory)"}
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_directory",
+                "description": "Create a directory and all parent directories",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to directory to create"}
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file_range",
+                "description": "Read a specific range of lines from a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to read"},
+                        "start_line": {"type": "integer", "description": "First line to read (1-indexed)"},
+                        "end_line": {"type": "integer", "description": "Last line to read (inclusive)"}
+                    },
+                    "required": ["path", "start_line", "end_line"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_at_line",
+                "description": "Insert content at a specific line number (efficient for large files - no full read required). Content is inserted BEFORE the specified line. Preserves proper indentation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "line_number": {"type": "integer", "description": "Line number to insert at (1-indexed, content goes BEFORE this line)"},
+                        "content": {"type": "string", "description": "Content to insert (can be multi-line, preserves tabs/spaces)"}
+                    },
+                    "required": ["path", "line_number", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "replace_lines",
+                "description": "Replace a range of lines with new content (efficient for large files - no full read required). Preserves proper indentation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "start_line": {"type": "integer", "description": "First line to replace (1-indexed, inclusive)"},
+                        "end_line": {"type": "integer", "description": "Last line to replace (1-indexed, inclusive)"},
+                        "new_content": {"type": "string", "description": "New content to replace the lines with (can be multi-line)"}
+                    },
+                    "required": ["path", "start_line", "end_line", "new_content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_after_pattern",
+                "description": "Insert content after a regex pattern match (efficient for large files). Preserves proper indentation. Use for adding code after function definitions, imports, etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^def main', '^import os')"},
+                        "content": {"type": "string", "description": "Content to insert after the pattern (can be multi-line)"},
+                        "first_match": {"type": "boolean", "description": "If True, only insert after first match; if False, after all matches (default: True)"}
+                    },
+                    "required": ["path", "pattern", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "insert_before_pattern",
+                "description": "Insert content before a regex pattern match (efficient for large files). Preserves proper indentation. Use for adding imports, comments, or code before specific sections.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the file to edit"},
+                        "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^if __name__', '^class MyClass')"},
+                        "content": {"type": "string", "description": "Content to insert before the pattern (can be multi-line)"},
+                        "first_match": {"type": "boolean", "description": "If True, only insert before first match; if False, before all matches (default: True)"}
+                    },
+                    "required": ["path", "pattern", "content"]
+                }
             }
         }
-    }])
+    ])
 
     return agent
 
@@ -479,7 +975,9 @@ def parse_arguments():
         epilog="""
 Examples:
   %(prog)s                        # Run with default verbose logging
+  %(prog)s --clean                # Clean output (only agent responses), full logs to files
   %(prog)s --quiet                # Suppress all console output
+  %(prog)s --dev                  # Development mode with full observability
   %(prog)s --no-logging           # Disable file logging
   %(prog)s --log-level ERROR      # Only show errors
   %(prog)s --quiet --no-logging   # Minimal mode (no logging at all)
@@ -496,6 +994,12 @@ Examples:
         '--dev',
         action='store_true',
         help='Dev mode: quiet terminal + full debug logs to file (recommended for development)'
+    )
+
+    parser.add_argument(
+        '--clean',
+        action='store_true',
+        help='Clean output mode: only show agent responses in terminal, still save full logs to files'
     )
 
     parser.add_argument(
@@ -787,25 +1291,43 @@ AGENT TOOL CAPABILITIES (CRITICAL - USE MULTI-HOP REASONING TO DETERMINE NEEDS):
    Limitations: Cannot get new info, only works with what's provided
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USE MULTI-HOP REASONING TO DETERMINE:
+🧠 MULTI-HOP REASONING PROCESS (5-STEP ANALYSIS):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 STEP 1: Analyze task complexity
 - Is this a simple query needing one agent? Or complex needing multiple?
 - What capabilities are required? (research, analysis, coding, execution, documentation, synthesis)
 
-STEP 2: Check knowledge boundaries
+STEP 2: Distinguish KNOWLEDGE vs EXECUTION
+⚠️ CRITICAL: Even if you have system context (like current_date), the user may want VERIFICATION via command execution!
+
+Knowledge-based queries (NO TOOLS NEEDED):
+- "What year is it?" → Can answer from system context
+- "Explain neural networks" → Training knowledge sufficient
+- "Tell me about X concept" → Documentation/analysis sufficient
+
+Execution-based queries (TOOLS REQUIRED):
+- "Check the date" → TERMINAL needed (must run 'date' command)
+- "Verify system time" → TERMINAL needed (execute actual check)
+- "Run date command" → TERMINAL needed (explicit command request)
+- "Get current timestamp" → TERMINAL needed (system execution)
+
+🔴 IF QUERY CONTAINS EXECUTION VERBS, USE TOOLS:
+- "check", "verify", "run", "execute", "test", "show me actual"
+- These indicate user wants REAL SYSTEM OUTPUT, not just your knowledge
+
+STEP 3: Check knowledge boundaries
 - Is the topic NEW/UNKNOWN (post-2024)? → Need RESEARCH
 - Is the topic WELL-KNOWN (in training)? → Can use agents without tools
 - Uncertain? → SAFER to use RESEARCH first
 
-STEP 3: Check tool requirements
+STEP 4: Check tool requirements
 - Need web search/current info? → RESEARCH (has Gemini MCP)
 - Need to write code files? → CODING (has write_script)
-- Need to execute commands? → TERMINAL (has execute_terminal_command)
+- Need to execute commands/verify system? → TERMINAL (has execute_terminal_command)
 - Just explaining known concepts? → DOCUMENTATION or ANALYSIS (no tools needed)
 
-STEP 4: Design execution plan
+STEP 5: Design execution plan
 - If multiple capabilities needed → Create SEQUENTIAL PLAN
 - If single capability sufficient → Create SINGLE-AGENT PLAN
 - Order matters! Research before documentation, coding before terminal, etc.
@@ -834,25 +1356,44 @@ Pattern 4: Research → Coding → Terminal
 EXAMPLES OF CORRECT MULTI-HOP REASONING:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Query: "What year is it?"
+Step 1: Simple task - needs one agent
+Step 2: KNOWLEDGE-based - can answer from system context (current_date available)
+Step 3: Well-known information in context
+Step 4: No tools needed
+Step 5: Plan = ["documentation"]
+✅ CORRECT: {{"plan": ["documentation"], "initial_input": "Confirm current year", "reasoning": "Simple knowledge query, system context available, no execution needed"}}
+
+Query: "Check the date on the system"
+Step 1: Simple task - needs one agent
+Step 2: EXECUTION-based - user wants ACTUAL system output (verb: "check")
+Step 3: Well-known but requires verification
+Step 4: TERMINAL needed (execute_terminal_command to run 'date')
+Step 5: Plan = ["terminal"]
+✅ CORRECT: {{"plan": ["terminal"], "initial_input": "Execute date command to verify system date", "reasoning": "User wants command execution verification, not just knowledge answer"}}
+
 Query: "Write tutorial about Zig sound manipulation"
 Step 1: Complex task - needs research + documentation
-Step 2: "Zig sound" is unknown/recent tech → Need RESEARCH first
-Step 3: Research has tools (gemini_research), documentation has none
-Step 4: Plan = ["research", "documentation"]
+Step 2: KNOWLEDGE-based but topic is unknown
+Step 3: "Zig sound" is post-2024 tech → Need RESEARCH first
+Step 4: Research has gemini_research, documentation for writing
+Step 5: Plan = ["research", "documentation"]
 ✅ CORRECT: {{"plan": ["research", "documentation"], "initial_input": "Research Zig audio libraries", "reasoning": "Unknown tech needs web research, then tutorial writing"}}
 
 Query: "Explain neural networks"
 Step 1: Simple task - needs one agent
-Step 2: Neural networks = well-known concept in training
-Step 3: No tools needed for known concepts
-Step 4: Plan = ["documentation"]
+Step 2: KNOWLEDGE-based, well-known concept
+Step 3: Training knowledge sufficient
+Step 4: No tools needed for known concepts
+Step 5: Plan = ["documentation"]
 ✅ CORRECT: {{"plan": ["documentation"], "initial_input": "Explain neural networks", "reasoning": "Well-known concept, no research needed"}}
 
 Query: "Create log cleanup script and test it"
 Step 1: Complex task - needs coding + execution
-Step 2: Well-known task, no research needed
-Step 3: Coding has write_script, terminal has execute_terminal_command
-Step 4: Plan = ["coding", "terminal"]
+Step 2: EXECUTION-based - needs file creation + command execution
+Step 3: Well-known task, no research needed
+Step 4: Coding has write_script, terminal has execute_terminal_command
+Step 5: Plan = ["coding", "terminal"]
 ✅ CORRECT: {{"plan": ["coding", "terminal"], "initial_input": "Create log cleanup script", "reasoning": "Need to write script then execute it"}}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -981,7 +1522,10 @@ async def main():
 
     # Setup logging with proper date-based organization FIRST (needed for file handler)
     today = datetime.now().strftime('%Y-%m-%d')
-    log_dir = Path("./agentic_team_logs") / today
+
+    # Get the directory where this script is located, then create logs relative to it
+    script_dir = Path(__file__).parent
+    log_dir = script_dir / "logs" / today
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine session name early (needed for log file)
@@ -990,12 +1534,94 @@ async def main():
     session_jsonl_path = log_dir / f"{session_name}.jsonl"  # .jsonl for structured events
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # LOGGING ARCHITECTURE: Separate Terminal and File Logging
+    # LOGGING ARCHITECTURE: Dual-Mode Observability (v0.4.2)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # Terminal Handler: Controlled by --quiet or --dev flags
-    # File Handler: ALWAYS DEBUG level (captures everything)
-    # This allows "pretty dev mode" where terminal is quiet but file has full details
+    # NORMAL MODE (default):
+    #   - Terminal: Clean output (agent responses only, no observability spam)
+    #   - Files: EVERYTHING (complete audit trail - DEBUG level)
+    #
+    # --dev MODE:
+    #   - Terminal: Full observability (orange history, cyan agentic steps, etc.)
+    #   - Files: EVERYTHING (same as normal mode)
+    #
+    # --clean MODE:
+    #   - Terminal: ONLY agent responses (no system messages, no logs at all)
+    #   - Files: EVERYTHING (complete audit trail - DEBUG level)
+    #
+    # --quiet MODE:
+    #   - Terminal: Errors/warnings only
+    #   - Files: EVERYTHING (same as normal mode)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    # ✅ NEW (v0.4.2): ObservabilityFilter for clean terminal in normal mode
+    class ObservabilityFilter(logging.Filter):
+        """
+        Filter to block observability logs from terminal while preserving them in files.
+
+        Blocks logs containing observability markers like:
+        - [HISTORY INJECTED] - Inter-agent history injection
+        - [AGENTIC STEP] - AgenticStepProcessor internal reasoning
+        - [INTERNAL CONVERSATION HISTORY] - Agentic internal conversations
+        - orchestrator_reasoning_step - Multi-hop reasoning steps
+        - plan_agent_start - Multi-agent plan execution
+
+        Usage: Applied to terminal handler in NORMAL mode only (not --dev or --quiet)
+        """
+
+        OBSERVABILITY_MARKERS = [
+            # History injection patterns
+            '[HISTORY INJECTED]',           # History injection to agents
+            '[HISTORY START]',              # History block markers
+            '[HISTORY END]',
+
+            # Agentic step patterns
+            '[AGENTIC STEP]',               # AgenticStepProcessor iterations
+            '[INTERNAL CONVERSATION HISTORY', # Agentic internal conversations
+            '[AgenticStepProcessor]',       # Agentic processor logs
+            '[Agentic Callback]',           # Agentic callback events
+
+            # Orchestrator patterns
+            'orchestrator_reasoning_step',  # Multi-hop reasoning
+            '[orchestrator_decision]',      # Orchestrator decision logs
+            'Executing tool: output_reasoning_step',  # Orchestrator tool calls
+            'Tool output_reasoning_step',   # Orchestrator tool results
+
+            # Plan execution patterns
+            'plan_agent_start',             # Multi-agent plan steps
+            'plan_agent_complete',
+
+            # Tool execution patterns (catch all tool logs except user-visible ones)
+            'Executing tool:',              # Generic tool execution
+            'Tool write_script',            # File writing operations
+            'Tool read_file',               # File reading operations
+
+            # RunLog and event patterns
+            '[RunLog] Event:',              # RunLogger event logs
+            'reasoning_steps',              # Metadata about reasoning
+
+            # Internal history and thought patterns
+            '💭 Latest Thought:',
+            '🔧 Tools Called',
+            '📊 Internal History:',
+
+            # Separator lines
+            '═' * 40,                       # Double-line separators
+            '=' * 80,                       # Single-line separators (80 chars)
+            '=' * 60,                       # Single-line separators (60 chars)
+            '────────────────',             # Dash separators
+        ]
+
+        def filter(self, record):
+            """Return False to BLOCK log from terminal, True to allow"""
+            msg = record.getMessage()
+
+            # Block if ANY observability marker present
+            for marker in self.OBSERVABILITY_MARKERS:
+                if marker in msg:
+                    return False  # Block from terminal
+
+            # Allow user-facing logs (agent responses, errors, warnings)
+            return True
 
     # Clear any existing handlers
     logging.root.handlers = []
@@ -1014,14 +1640,30 @@ async def main():
         file_handler.setFormatter(detailed_formatter)
         logging.root.addHandler(file_handler)
 
-    # 2. Terminal Handler - Controlled by flags
+    # 2. Terminal Handler - Controlled by flags with observability filtering
     terminal_handler = logging.StreamHandler()
-    if args.dev or args.quiet:
-        # Dev mode or quiet mode: suppress terminal output
+
+    if args.dev:
+        # ✅ DEV MODE: Show EVERYTHING in terminal (full observability)
+        terminal_handler.setLevel(logging.INFO)
+        # NO filter - show all orange/cyan observability logs
+        logging.info("🔧 DEV MODE: Full observability enabled in terminal")
+
+    elif args.clean:
+        # ✅ CLEAN MODE: Only agent responses (block ALL system logs, observability, etc.)
+        terminal_handler.setLevel(logging.CRITICAL + 1)  # Block everything except direct output
+        logging.debug("✨ CLEAN MODE: Minimal terminal output (only agent responses), full logs to files")
+
+    elif args.quiet:
+        # ✅ QUIET MODE: Only errors/warnings
         terminal_handler.setLevel(logging.ERROR)
+
     else:
-        # Normal mode: show based on log level argument
-        terminal_handler.setLevel(getattr(logging, args.log_level))
+        # ✅ NORMAL MODE: Clean terminal (filter out observability spam)
+        terminal_handler.setLevel(logging.INFO)
+        terminal_handler.addFilter(ObservabilityFilter())  # Block [HISTORY INJECTED], [AGENTIC STEP], etc.
+        logging.debug("✨ NORMAL MODE: Clean terminal output (observability logs filtered to files only)")
+
     terminal_handler.setFormatter(simple_formatter)
     logging.root.addHandler(terminal_handler)
 
@@ -1050,8 +1692,8 @@ async def main():
     import warnings
     warnings.filterwarnings("ignore", message=".*No models defined in PromptChain.*")
 
-    # Configure output based on quiet/dev flags
-    verbose = not (args.quiet or args.dev)
+    # Configure output based on quiet/dev/clean flags
+    verbose = not (args.quiet or args.dev or args.clean)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # --DEV MODE HELPER: Direct stdout printing for backend visibility
@@ -1061,14 +1703,22 @@ async def main():
         if args.dev:
             print(f"{prefix}{message}")
 
-    # Log the logging configuration
-    logging.debug(f"━━━ LOGGING CONFIGURATION ━━━")
-    logging.debug(f"Mode: {'DEV (quiet terminal + full debug file)' if args.dev else 'QUIET (minimal output)' if args.quiet else 'VERBOSE'}")
-    logging.debug(f"Terminal Level: {terminal_handler.level} ({logging.getLevelName(terminal_handler.level)})")
+    # Log the logging configuration (v0.4.2 - dual-mode observability)
+    logging.debug(f"━━━ DUAL-MODE LOGGING CONFIGURATION (v0.4.2) ━━━")
+    if args.dev:
+        logging.debug(f"Mode: DEV (full observability in terminal + files)")
+    elif args.clean:
+        logging.debug(f"Mode: CLEAN (only agent responses in terminal, everything in files)")
+    elif args.quiet:
+        logging.debug(f"Mode: QUIET (errors only in terminal, everything in files)")
+    else:
+        logging.debug(f"Mode: NORMAL (clean terminal with ObservabilityFilter, everything in files)")
+    logging.debug(f"Terminal Level: {logging.getLevelName(terminal_handler.level)}")
+    logging.debug(f"Terminal Filter: {'ObservabilityFilter (blocks [HISTORY INJECTED], [AGENTIC STEP], etc.)' if not args.dev and not args.quiet and not args.clean else 'None' if not args.clean else 'CRITICAL+1 (blocks everything except direct output)'}")
     logging.debug(f"File Level: DEBUG (all events)" if not args.no_logging else "File Logging: DISABLED")
     logging.debug(f"Session Log: {session_log_path}")
     logging.debug(f"Event Log: {session_jsonl_path}")
-    logging.debug(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    logging.debug(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     # Initialize visual output system
     viz = ChatVisualizer()
@@ -1081,11 +1731,11 @@ async def main():
         viz.render_system_message("Initializing agents and systems...", "info")
 
     # Cache organized by date (log_dir already created earlier)
-    cache_dir = Path("./agentic_team_logs/cache") / today
+    cache_dir = script_dir / "logs" / "cache" / today
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Scripts directory for coding agent (shared workspace for generated scripts)
-    scripts_dir = Path("./agentic_team_logs/scripts") / today
+    scripts_dir = script_dir / "logs" / "scripts" / today
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
     if verbose and not args.no_logging:
@@ -1124,8 +1774,8 @@ async def main():
     agent_descriptions = {
         "research": "Expert researcher with exclusive Gemini MCP access (gemini_research, ask_gemini) for web search and fact-finding. Uses AgenticStepProcessor with 8-step reasoning.",
         "analysis": "Expert analyst for data analysis, pattern recognition, and insight extraction. Uses AgenticStepProcessor with 6-step reasoning.",
-        "coding": f"Expert coder who writes Python/Bash scripts and saves them to {scripts_dir} for Terminal agent execution. Has write_script tool. Uses AgenticStepProcessor with 6-step reasoning.",
-        "terminal": f"Expert system operator with TerminalTool access for executing commands and scripts from {scripts_dir}. Uses AgenticStepProcessor with 7-step reasoning.",
+        "coding": f"Expert coder who writes Python/Bash scripts and saves them to {scripts_dir} for Terminal agent execution. Has comprehensive file operation tools: write_script, file_read, file_write, file_edit, file_append, file_delete, list_directory, create_directory, read_file_range. Uses AgenticStepProcessor with 6-step reasoning.",
+        "terminal": f"Expert system operator with TerminalTool access for executing commands and scripts from {scripts_dir}. Also has file operation tools (file_read, file_write, list_directory, etc.) for direct file management. Uses AgenticStepProcessor with 7-step reasoning.",
         "documentation": "Expert technical writer for clear guides, tutorials, and documentation. Uses AgenticStepProcessor with 5-step reasoning.",
         "synthesis": "Expert synthesizer for integrating insights and strategic planning. Uses AgenticStepProcessor with 6-step reasoning."
     }
@@ -1568,6 +2218,29 @@ async def main():
             if not user_input:
                 continue
 
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # SLASH COMMANDS (v0.4.2)
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if user_input.startswith('/'):
+                command_parts = user_input[1:].strip().split()
+                command = command_parts[0].lower() if command_parts else ''
+
+                # /exit, /quit, /q - Exit the program
+                if command in ['exit', 'quit', 'q']:
+                    viz.render_system_message("👋 Exiting Agentic Team Chat...", "info")
+                    log_event("slash_command", {
+                        "command": "exit",
+                        "session_duration": str(datetime.now() - stats['start_time'])
+                    })
+                    break
+
+                # Unknown command
+                else:
+                    viz.render_system_message(f"❌ Unknown command: /{command}", "error")
+                    viz.render_system_message("Available commands: /exit, /quit, /q", "info")
+                    continue
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
             if user_input.lower() in ['exit', 'quit']:
                 viz.render_system_message("Ending session...", "info")
                 break
@@ -1674,6 +2347,8 @@ async def main():
                 viz.render_agent_response(result.agent_name, result.response, show_banner=False)
 
                 # Log comprehensive execution metadata (NO TRUNCATION)
+                # Note: router_steps now contains orchestrator reasoning steps when OrchestratorSupervisor is used
+                # (number of output_reasoning_step tool calls during multi-hop reasoning)
                 log_event("agent_execution_complete", {
                     "agent_name": result.agent_name,
                     "response": result.response,  # Full response, not truncated
@@ -1681,10 +2356,10 @@ async def main():
                     "response_word_count": len(result.response.split()),
                     "execution_time_ms": result.execution_time_ms,
                     "router_decision": result.router_decision,
-                    "router_steps": result.router_steps,
-                    "tools_called": len(result.tools_called),
+                    "router_steps": result.router_steps,  # ✅ Now properly tracked from OrchestratorSupervisor
+                    "tools_called": len(result.tools_called),  # TODO: Capture agent tool calls (not orchestrator tools)
                     "tool_details": result.tools_called,  # Full structured data
-                    "total_tokens": result.total_tokens,
+                    "total_tokens": result.total_tokens,  # TODO: Aggregate from agent LLM calls
                     "prompt_tokens": result.prompt_tokens,
                     "completion_tokens": result.completion_tokens,
                     "cache_hit": result.cache_hit,

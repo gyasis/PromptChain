@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: promptchain
-Version: 0.4.1a0
+Version: 0.4.1
 Summary: A flexible prompt engineering library for LLM applications and agent frameworks
 Home-page: https://github.com/gyasis/promptchain
 Author: Gyasi Sutton
@@ -150,12 +150,83 @@ print(result)
 ## Key Features
 
 - **Flexible Chain Construction**: Create sequences of LLM calls and functions
-- **Multiple Model Support**: Use different models (GPT-4, Claude, etc.) in the same chain  
+- **Multiple Model Support**: Use different models (GPT-4, Claude, etc.) in the same chain
 - **Function Injection**: Insert custom processing between LLM calls
 - **Advanced Prompt Engineering**: Systematic prompt optimization and testing
 - **Agent Framework Integration**: Generate specialized prompts for any agent system
 - **Async Support**: Full async/await support for modern applications
 - **Memory Management**: State persistence and conversation history
+- **🆕 Comprehensive Observability**: Event system, execution metadata, and monitoring (v0.4.1h)
+
+## Observability System (v0.4.1h)
+
+PromptChain now includes a comprehensive observability system for production monitoring and debugging:
+
+### Event-Based Monitoring
+```python
+from promptchain import PromptChain
+from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
+
+def performance_monitor(event: ExecutionEvent):
+    if "execution_time_ms" in event.metadata:
+        print(f"{event.event_type.name}: {event.metadata['execution_time_ms']}ms")
+
+chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Analyze: {input}", "Summarize: {input}"]
+)
+
+# Register callback for real-time monitoring
+chain.register_callback(
+    performance_monitor,
+    event_filter=[ExecutionEventType.STEP_END, ExecutionEventType.MODEL_CALL_END]
+)
+
+result = chain.process_prompt("Your input")
+```
+
+### Rich Execution Metadata
+```python
+from promptchain.utils.agent_chain import AgentChain
+
+# Get comprehensive execution metadata
+result = agent_chain.process_input(
+    "Analyze quarterly data",
+    return_metadata=True  # Returns AgentExecutionResult dataclass
+)
+
+print(f"Agent: {result.agent_name}")
+print(f"Execution time: {result.execution_time_ms}ms")
+print(f"Total tokens: {result.total_tokens}")
+print(f"Tools called: {len(result.tools_called)}")
+print(f"Router decision: {result.router_decision}")
+```
+
+### Public APIs for History Management
+```python
+from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+
+history = ExecutionHistoryManager(max_tokens=4000)
+
+# Use stable public APIs (no more private attributes!)
+print(f"Current tokens: {history.current_token_count}")
+print(f"History size: {history.history_size}")
+
+# Get comprehensive statistics
+stats = history.get_statistics()
+print(f"Memory usage: {stats['memory_usage_bytes']} bytes")
+```
+
+**Features:**
+- **33+ Event Types**: Complete lifecycle coverage (chain, step, model, tool, agentic, MCP)
+- **Event Filtering**: Subscribe to specific events to reduce overhead
+- **Async/Sync Callbacks**: Both patterns fully supported
+- **Execution Metadata**: Rich dataclasses with timing, tokens, tools, errors
+- **Public APIs**: Stable, tested APIs replacing private attributes
+- **Zero Overhead**: No performance impact when features not used
+- **Backward Compatible**: All features are opt-in
+
+📚 **[Observability Documentation](docs/observability/README.md)** - Complete guide with examples
 
 ## Documentation
 
@@ -163,8 +234,9 @@ print(result)
 
 ### Quick Links
 - **[Quick Start Guide](docs/promptchain_quickstart_multistep.md)** - Get up and running in minutes
-- **[Complete Framework Guide](docs/promptchain_guide.md)** - Comprehensive usage documentation  
-- **[Model Management System](docs/model_management.md)** - 🆕 Automatic VRAM optimization for large models
+- **[Complete Framework Guide](docs/promptchain_guide.md)** - Comprehensive usage documentation
+- **[Observability System](docs/observability/README.md)** - 🆕 Event system, metadata, and monitoring (v0.4.1h)
+- **[Model Management System](docs/model_management.md)** - Automatic VRAM optimization for large models
 - **[Prompt Engineering Guide](docs/prompt_engineer.md)** - Advanced prompt optimization
 - **[Agent Integration Examples](docs/AgentChain_Usage.md)** - Using with agent frameworks
 - **[Function Integration](docs/registering_functions_to_chain.md)** - Custom function examples

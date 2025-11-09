@@ -41,7 +41,7 @@ class AthenaIntegrationTester:
     
     def __init__(self):
         """Initialize the tester."""
-        self.working_dir = "/home/gyasis/Documents/code/PromptChain/hybridrag/athena_lightrag_db"
+        self.working_dir = "/home/gyasis/Documents/code/PromptChain/athena-lightrag/athena_lightrag_db"
         self.test_queries = [
             "What tables are related to patient appointments?",
             "Show me anesthesia case management structure",
