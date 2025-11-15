@@ -101,6 +101,7 @@ shared/
 backend/
 frontend/
 docs/auxiliary_projects/
+athena-lightrag/
 
 # Temporary and generated files
 repomix-output.xml
@@ -132,3 +133,8 @@ cursor.md
 # - utils/
 # - tests/
 # - prompts/
+# Research Agent test outputs and temp data
+Research_agent/temp/
+Research_agent/research_output/
+Research_agent/lightrag_data/
+Research_agent/document_search_workspace/
