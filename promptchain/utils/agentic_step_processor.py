@@ -1734,7 +1734,6 @@ FINAL ANSWER REQUIREMENTS:
         # Call LLM for thinking/reasoning
         response = await llm_runner(
             messages=thinking_history,
-            model=self.model_name,
             tools=available_tools if available_tools else None
         )
 
