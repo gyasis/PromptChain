@@ -1,0 +1,147 @@
+# Sharded Retrieval Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US3)
+
+module: promptchain.patterns.sharded_retrieval
+
+classes:
+  ShardRegistry:
+    description: "Registry for managing data shards"
+
+    methods:
+      register_shard:
+        params:
+          - name: config
+            type: ShardConfig
+            required: true
+            description: "Shard configuration to register"
+        returns:
+          type: str
+          description: "Registered shard ID"
+        raises:
+          - type: ValueError
+            when: "shard_id already exists"
+          - type: ConfigurationError
+            when: "Invalid connection config for shard type"
+
+      unregister_shard:
+        params:
+          - name: shard_id
+            type: str
+            required: true
+            description: "Shard to unregister"
+        returns:
+          type: bool
+          description: "True if shard was removed"
+
+      get_shard:
+        params:
+          - name: shard_id
+            type: str
+            required: true
+            description: "Shard to retrieve"
+        returns:
+          type: Optional[ShardConfig]
+          description: "Shard config or None if not found"
+
+      list_shards:
+        params:
+          - name: enabled_only
+            type: bool
+            required: false
+            default: true
+            description: "Only return enabled shards"
+        returns:
+          type: List[ShardConfig]
+          description: "List of registered shards"
+
+      check_health:
+        async: true
+        params:
+          - name: shard_id
+            type: str
+            required: false
+            default: null
+            description: "Specific shard to check, or all if None"
+        returns:
+          type: Dict[str, ShardHealth]
+          description: "Health status per shard"
+
+  ShardedRetriever:
+    description: "Query across multiple shards in parallel"
+
+    methods:
+      __init__:
+        params:
+          - name: registry
+            type: ShardRegistry
+            required: true
+            description: "Shard registry to use"
+          - name: config
+            type: ShardedRetrievalConfig
+            required: false
+            description: "Retrieval configuration"
+
+      query:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Query to execute across shards"
+          - name: shard_ids
+            type: List[str]
+            required: false
+            default: null
+            description: "Specific shards to query, or all if None"
+          - name: top_k
+            type: int
+            required: false
+            default: 10
+            description: "Results per shard"
+        returns:
+          type: ShardedRetrievalResult
+          description: "Aggregated results from all shards"
+        raises:
+          - type: NoShardsAvailableError
+            when: "All shards are unavailable"
+
+      query_shard:
+        async: true
+        params:
+          - name: shard_id
+            type: str
+            required: true
+            description: "Shard to query"
+          - name: query
+            type: str
+            required: true
+            description: "Query to execute"
+        returns:
+          type: ShardResult
+          description: "Result from single shard"
+        raises:
+          - type: ShardUnavailableError
+            when: "Shard is not available"
+
+      aggregate_results:
+        params:
+          - name: shard_results
+            type: List[ShardResult]
+            required: true
+            description: "Results from individual shards"
+          - name: top_k
+            type: int
+            required: false
+            default: 10
+            description: "Number of results to return"
+        returns:
+          type: Tuple[List[Any], List[str]]
+          description: "Aggregated results and warnings"
+
+events_emitted:
+  - pattern.sharded.started
+  - pattern.sharded.shard_querying
+  - pattern.sharded.shard_completed
+  - pattern.sharded.shard_failed
+  - pattern.sharded.aggregating
+  - pattern.sharded.completed

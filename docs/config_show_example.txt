@@ -1,0 +1,128 @@
+Example Output: /config show Command
+=====================================
+
+=== Session Configuration ===
+
+Session Name: my-research-session
+Session ID: 9495def4-3ad2-462e-afb7-a32e1518f542
+Active Agent: researcher
+Default Model: openai/gpt-4.1-mini-2025-04-14
+Working Directory: /home/user/projects/research
+Total Agents: 3
+Auto-Save: enabled
+  - Message Interval: 5 messages
+  - Time Interval: 120 seconds
+
+=== MCP Servers ===
+
+Total Servers: 2
+Connected: 1/2
+
+✓ filesystem
+  Type: stdio
+  Status: connected
+  Command: mcp-server-filesystem
+  Args: --root /tmp
+  Tools: 3 discovered
+    - read_file, write_file, list_directory
+
+○ browser
+  Type: stdio
+  Status: disconnected
+  Command: mcp-server-browser
+
+=== Available Agent Templates ===
+
+Total Templates: 4
+
+Researcher (researcher)
+  Description: Deep research specialist with multi-hop reasoning and web search capabili...
+  Model: openai/gpt-4
+  Category: research
+  Complexity: high
+  Tools: 1 configured
+  History: enabled
+    - Max Tokens: 8000
+    - Max Entries: 50
+    - Strategy: oldest_first
+
+Coder (coder)
+  Description: Code generation specialist with file operations, code execution, and vali...
+  Model: openai/gpt-4
+  Category: development
+  Complexity: high
+  Tools: 3 configured
+  History: enabled
+    - Max Tokens: 4000
+    - Max Entries: 20
+    - Strategy: oldest_first
+
+Analyst (analyst)
+  Description: Data analysis specialist for interpreting datasets, generating insights, ...
+  Model: openai/gpt-4
+  Category: analysis
+  Complexity: medium
+  Tools: 2 configured
+  History: enabled
+    - Max Tokens: 8000
+    - Max Entries: 50
+    - Strategy: oldest_first
+
+Terminal (terminal)
+  Description: Fast execution agent for command-line operations and quick tasks. History...
+  Model: openai/gpt-3.5-turbo
+  Category: execution
+  Complexity: low
+  Tools: 3 configured
+  History: disabled
+
+=== History Configuration ===
+
+Global History Manager: Initialized
+  Status: Initialized
+  Max Tokens: 8000
+  Max Entries: 50
+  Truncation Strategy: oldest_first
+  Current Entries: 12
+  Current Tokens: 3456
+
+Per-Agent History Overrides:
+  researcher:
+    Enabled: True
+    Max Tokens: 8000
+    Max Entries: 50
+    Truncation: oldest_first
+  terminal:
+    Enabled: False
+    Token Savings: ~60% (history disabled)
+  default: Using global defaults
+
+=== Configured Agents ===
+
+Total Agents: 3
+
+researcher (active)
+  Model: openai/gpt-4
+  Description: Research specialist
+  Tools: 2 registered
+    - web_search, mcp_filesystem_read
+  Usage Count: 5
+
+terminal
+  Model: openai/gpt-3.5-turbo
+  Description: Fast terminal agent
+  Tools: 1 registered
+    - execute_shell
+  Usage Count: 12
+
+default
+  Model: openai/gpt-4.1-mini-2025-04-14
+  Description: Default agent
+  Tools: 0 registered
+  Usage Count: 0
+
+=== Orchestration Configuration ===
+
+Execution Mode: router
+Auto-Include History: True
+Router Model: openai/gpt-4o-mini

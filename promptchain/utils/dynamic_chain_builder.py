@@ -10,6 +10,7 @@ from typing import Union, Callable, List, Dict, Optional, Any, Tuple
 # Relative imports from within the utils package
 from .models import ChainStep, ChainTechnique, ChainInstruction # Assuming models.py is in the same directory
 from .mcp_helpers import AsyncProcessContextManager # Assuming mcp_helpers.py is in the same directory
+from promptchain.observability import track_llm_call
 
 # Imports potentially needed by methods (ensure these are covered)
 from litellm import acompletion
@@ -389,6 +390,10 @@ class DynamicChainBuilder:
             logger.info(f"Chain '{chain_id}' executed successfully.")
         return final_output
 
+    @track_llm_call(
+        model_param="model_name",
+        extract_args=["temperature", "max_tokens"]
+    )
     async def _run_model_step_async(
         self, client, model_config, history, tools, chain_id, step_number
     ) -> Any:

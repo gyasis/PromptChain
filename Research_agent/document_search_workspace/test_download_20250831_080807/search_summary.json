@@ -1,0 +1,12 @@
+{
+  "session_id": "test_download_20250831_080807",
+  "search_query": "quantum machine learning",
+  "retrieved_papers": 5,
+  "sources": [
+    "arxiv",
+    "pubmed",
+    "scihub"
+  ],
+  "timestamp": "2025-08-31T08:08:19.279971",
+  "service_version": "4.0.0"
+}

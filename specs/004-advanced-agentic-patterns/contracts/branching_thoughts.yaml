@@ -1,0 +1,103 @@
+# Branching Thoughts Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US1)
+
+module: promptchain.patterns.branching_thoughts
+
+classes:
+  BranchingThoughts:
+    description: "Generate multiple hypothesis paths and select the best one via judge agent"
+
+    methods:
+      __init__:
+        params:
+          - name: config
+            type: BranchingConfig
+            required: false
+            description: "Pattern configuration"
+          - name: generator_model
+            type: str
+            required: false
+            default: null
+            description: "Model for hypothesis generation"
+          - name: judge_model
+            type: str
+            required: false
+            default: null
+            description: "Model for judging hypotheses"
+
+      generate_hypotheses:
+        async: true
+        params:
+          - name: problem
+            type: str
+            required: true
+            description: "Problem statement to generate hypotheses for"
+          - name: count
+            type: int
+            required: false
+            default: 3
+            description: "Number of hypotheses to generate"
+        returns:
+          type: List[Hypothesis]
+          description: "Generated hypotheses with approaches and confidence"
+        raises:
+          - type: ValueError
+            when: "count < 2"
+          - type: PatternExecutionError
+            when: "LLM call fails"
+
+      judge_hypotheses:
+        async: true
+        params:
+          - name: hypotheses
+            type: List[Hypothesis]
+            required: true
+            description: "Hypotheses to evaluate"
+          - name: criteria
+            type: List[str]
+            required: false
+            default: null
+            description: "Custom evaluation criteria"
+        returns:
+          type: List[HypothesisScore]
+          description: "Scored hypotheses with reasoning"
+        raises:
+          - type: ValueError
+            when: "hypotheses is empty"
+          - type: PatternExecutionError
+            when: "Judge LLM call fails"
+
+      select_best_path:
+        params:
+          - name: scored_hypotheses
+            type: List[HypothesisScore]
+            required: true
+            description: "Scored hypotheses to select from"
+        returns:
+          type: Tuple[Hypothesis, str]
+          description: "Selected hypothesis and selection reasoning"
+        raises:
+          - type: ValueError
+            when: "scored_hypotheses is empty"
+
+      execute:
+        async: true
+        params:
+          - name: problem
+            type: str
+            required: true
+            description: "Problem to solve via branching thoughts"
+        returns:
+          type: BranchingResult
+          description: "Complete result with all hypotheses, scores, and selection"
+        raises:
+          - type: PatternExecutionError
+            when: "Any step fails"
+
+events_emitted:
+  - pattern.branching.started
+  - pattern.branching.hypotheses_generated
+  - pattern.branching.judging_started
+  - pattern.branching.scored
+  - pattern.branching.path_selected
+  - pattern.branching.completed

@@ -38,6 +38,248 @@ python setup.py sdist bdist_wheel
 pip install dist/promptchain-<version>.tar.gz
 ```
 
+## CLI Usage - Interactive Terminal Interface
+
+PromptChain includes a powerful interactive terminal interface for conversational AI interactions with persistent sessions, multi-agent support, and file context integration.
+
+### Quick Start
+
+```bash
+# Launch interactive CLI with default session
+promptchain
+
+# Launch with specific session name
+promptchain --session my-project
+
+# Launch with custom sessions directory
+promptchain --sessions-dir /path/to/sessions
+```
+
+### Core Features
+
+**Interactive Chat**: Natural language conversations with AI agents that maintain full context across exchanges.
+
+**Multi-Agent Management**: Create specialized agents with different models (GPT-4, Claude, Gemini, local models via Ollama) for different tasks.
+
+**Session Persistence**: Save and resume conversation sessions with full history, agent configurations, and working directory context.
+
+**File Context Integration**: Reference files and directories using `@syntax` to automatically include content in your prompts.
+
+**Shell Command Execution**: Execute shell commands with `!syntax` and feed output directly into conversation context.
+
+### Available Commands
+
+**Session Management**:
+- `/session save [name]` - Save current session with optional name
+- `/session list` - List all saved sessions
+- `/session delete <name>` - Delete a saved session
+
+**Agent Management**:
+- `/agent create <name> --model <model> --description <desc>` - Create new agent
+- `/agent list` - List all agents in current session
+- `/agent use <name>` - Switch to specific agent
+- `/agent delete <name>` - Remove an agent
+
+**System Commands**:
+- `/help` - Show available commands
+- `/exit` - Exit CLI (or use Ctrl+D)
+
+### Usage Examples
+
+**Basic Conversation**:
+```bash
+$ promptchain
+Welcome to PromptChain CLI!
+
+> What are the main files in this project?
+[Agent lists files and explains structure]
+
+> Can you explain what main.py does?
+[Agent explains main.py with context from previous message]
+
+> /exit
+Goodbye!
+```
+
+**Multi-Agent Workflow**:
+```bash
+$ promptchain --session code-review
+
+> /agent create reviewer --model claude-3-opus --description "Code review specialist"
+Created agent 'reviewer' with model claude-3-opus
+
+> /agent create coder --model gpt-4 --description "Code generation specialist"
+Created agent 'coder' with model gpt-4
+
+> /agent list
+  1. default (gpt-4) - Default agent
+  2. reviewer (claude-3-opus) - Code review specialist
+  3. coder (gpt-4) - Code generation specialist
+
+> /agent use reviewer
+Now using agent: reviewer
+
+> @src/main.py Please review this file for potential issues
+[Claude reviews the file content]
+
+> /agent use coder
+Now using agent: coder
+
+> Based on the review, please refactor the authentication logic
+[GPT-4 generates refactored code]
+```
+
+**File Context Integration**:
+```bash
+> @README.md Summarize the project goals
+[Agent reads README.md and provides summary]
+
+> @src/ What authentication patterns are used?
+[Agent discovers relevant files in src/ and analyzes patterns]
+
+> @tests/test_auth.py Fix the failing tests
+[Agent reads test file and suggests fixes]
+```
+
+**Shell Integration**:
+```bash
+> !git status
+[Git status output displayed]
+
+> What files should I commit?
+[Agent analyzes git status output and recommends files]
+
+> !pytest tests/
+[Test output displayed]
+
+> Fix the failing test in test_auth.py
+[Agent analyzes test failures and suggests fix]
+```
+
+**Session Persistence**:
+```bash
+# Day 1
+$ promptchain --session feature-auth
+> Let's implement JWT authentication
+[Long conversation about implementation]
+> /session save feature-auth
+Session saved: feature-auth
+
+# Day 2
+$ promptchain --session feature-auth
+[Full conversation history restored]
+> Let's continue with the token refresh logic
+[Agent has context from previous day]
+```
+
+### Model Configuration
+
+Agents support any LiteLLM-compatible model string:
+
+```bash
+# OpenAI models
+/agent create gpt --model gpt-4
+/agent create fast --model gpt-3.5-turbo
+
+# Anthropic models
+/agent create claude --model claude-3-opus-20240229
+/agent create sonnet --model claude-3-sonnet-20240229
+
+# Google models
+/agent create gemini --model gemini/gemini-pro
+
+# Local models via Ollama
+/agent create local --model ollama/llama2
+/agent create codellama --model ollama/codellama
+```
+
+### File Reference Syntax
+
+Use `@` prefix to reference files and directories:
+
+```bash
+# Single file
+@path/to/file.py
+
+# Multiple files
+@src/main.py @tests/test_main.py
+
+# Directory (discovers relevant files)
+@src/
+
+# Absolute paths
+@/home/user/project/file.txt
+
+# Relative paths (from working directory)
+@./README.md
+```
+
+**File Truncation**: Large files (>100KB) are automatically truncated with preview of first 500 and last 100 lines.
+
+**Binary Files**: Binary files display metadata instead of content.
+
+### Shell Command Syntax
+
+Use `!` prefix to execute shell commands:
+
+```bash
+# Single command
+!ls -la
+
+# Command with output captured
+!git diff
+
+# Long-running commands show progress
+!npm test
+
+# Shell mode (all inputs executed as commands)
+!!
+ls
+pwd
+git status
+!!  # Exit shell mode
+```
+
+**Timeout**: Commands timeout after 30 seconds by default.
+
+**Working Directory**: Commands execute in the session's working directory.
+
+### Environment Setup
+
+Required environment variables for LLM providers:
+
+```bash
+# .env file
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+GOOGLE_API_KEY=your_google_key
+```
+
+### CLI Architecture
+
+**Components**:
+- `promptchain/cli/main.py` - CLI entry point with Click commands
+- `promptchain/cli/tui/app.py` - Textual TUI application
+- `promptchain/cli/session_manager.py` - Session persistence (SQLite + JSONL)
+- `promptchain/cli/command_handler.py` - Slash command parsing and routing
+- `promptchain/cli/models/` - Data models (Session, Agent, Message)
+
+**Storage Locations**:
+- Sessions: `~/.promptchain/sessions/` (or custom via --sessions-dir)
+- SQLite database: `~/.promptchain/sessions/sessions.db`
+- Conversation history: `~/.promptchain/sessions/<session-name>/history.jsonl`
+
+**Auto-Save**: Sessions auto-save every 5 messages or 2 minutes (whichever comes first).
+
+### Keyboard Shortcuts
+
+- `Enter` - Send message
+- `Ctrl+D` - Exit CLI
+- `Ctrl+C` - Cancel current operation (does not exit)
+- `Up/Down` - Navigate command history (planned in Phase 8)
+- `Tab` - Autocomplete slash commands (planned in Phase 8)
+- `Shift+Enter` - Multi-line input (planned in Phase 8)
+
 ## Architecture Overview
 
 ### Core Components
@@ -97,6 +339,7 @@ pip install dist/promptchain-<version>.tar.gz
 **Memory Management**: Multi-layered approach:
 - ExecutionHistoryManager: Structured, filterable history with token limits
 - Conversation history: Basic message storage with truncation
+- Per-agent history configuration: Individual history settings per agent (v0.4.2)
 - Step storage: Optional detailed step-by-step output tracking
 - SQLite caching: Persistent conversation storage for AgentChain
 
@@ -228,7 +471,7 @@ logger = RunLogger(log_dir="./logs")
 # MCP server configuration for external tools
 mcp_config = [{
     "id": "filesystem",
-    "type": "stdio", 
+    "type": "stdio",
     "command": "mcp-server-filesystem",
     "args": ["--root", "./project"]
 }]
@@ -267,7 +510,7 @@ Choose the most appropriate agent and return JSON:
     }
 }
 
-# Multi-agent system with caching
+# Multi-agent system with caching and per-agent history configuration
 agent_chain = AgentChain(
     agents={"analyzer": analyzer_agent, "writer": writer_agent},
     agent_descriptions={
@@ -280,11 +523,127 @@ agent_chain = AgentChain(
         "name": "my_project_session",
         "path": "./cache"
     },
+    auto_include_history=True,  # Global history setting
+    agent_history_configs={  # Per-agent history overrides (v0.4.2)
+        "analyzer": {
+            "enabled": True,
+            "max_tokens": 8000,
+            "max_entries": 20,
+            "truncation_strategy": "oldest_first"
+        },
+        "writer": {
+            "enabled": True,
+            "max_tokens": 4000,
+            "max_entries": 10,
+            "truncation_strategy": "keep_last"
+        }
+    },
     verbose=True
 )
 
 # Interactive chat with full logging
 await agent_chain.run_chat()
+```
+
+### Per-Agent History Configuration (v0.4.2)
+
+The `agent_history_configs` parameter enables fine-grained control over conversation history for each agent, allowing you to optimize token usage and context relevance:
+
+```python
+from promptchain.utils.agent_chain import AgentChain
+
+# Create agents with different history needs
+code_runner = PromptChain(models=["openai/gpt-4"], instructions=["Execute: {input}"])
+analyst = PromptChain(models=["openai/gpt-4"], instructions=["Analyze: {input}"])
+writer = PromptChain(models=["openai/gpt-4"], instructions=["Document: {input}"])
+
+agent_chain = AgentChain(
+    agents={
+        "code_runner": code_runner,
+        "analyst": analyst,
+        "writer": writer
+    },
+    auto_include_history=True,  # Global default
+    agent_history_configs={
+        # Terminal/execution agents: No history needed (saves 30-60% tokens)
+        "code_runner": {
+            "enabled": False  # Completely disable history for this agent
+        },
+        # Research/analysis agents: Full history for context
+        "analyst": {
+            "enabled": True,
+            "max_tokens": 8000,  # Higher limit for detailed analysis
+            "max_entries": 50,
+            "truncation_strategy": "oldest_first",
+            "include_types": ["user_input", "agent_output"],  # Filter history types
+            "exclude_sources": ["system"]  # Exclude certain sources
+        },
+        # Documentation agents: Full history for comprehensive context
+        "writer": {
+            "enabled": True,
+            "max_tokens": 6000,
+            "max_entries": 30,
+            "truncation_strategy": "keep_last"
+        }
+    }
+)
+```
+
+**Configuration Options:**
+
+- `enabled` (bool): Whether to include history for this agent (default: uses `auto_include_history`)
+- `max_tokens` (int): Maximum tokens for history (uses ExecutionHistoryManager's token counting)
+- `max_entries` (int): Maximum number of history entries
+- `truncation_strategy` (str): How to truncate when limits exceeded ("oldest_first" or "keep_last")
+- `include_types` (List[str]): Only include specific entry types (e.g., ["user_input", "agent_output"])
+- `exclude_sources` (List[str]): Exclude entries from specific sources
+
+**Token Savings Example:**
+
+```python
+# 6-agent system with selective history
+agent_chain = AgentChain(
+    agents={
+        "terminal": terminal_agent,      # No history: -60% tokens
+        "coding": coding_agent,          # Limited history: -40% tokens
+        "research": research_agent,      # Full history
+        "analysis": analysis_agent,      # Full history
+        "documentation": doc_agent,      # Full history
+        "synthesis": synthesis_agent     # Full history
+    },
+    agent_history_configs={
+        "terminal": {"enabled": False},           # Saves ~3000 tokens per call
+        "coding": {"enabled": True, "max_entries": 10},  # Saves ~2000 tokens per call
+        # Others use full history
+    }
+)
+# Total savings: ~5000 tokens per multi-agent conversation turn
+```
+
+**AgenticStepProcessor Internal History Isolation:**
+
+Note that `agent_history_configs` controls **conversation-level history** (user inputs, agent outputs between agents), NOT the internal reasoning history within an `AgenticStepProcessor`. The AgenticStepProcessor maintains its own isolated history for multi-hop reasoning based on its `history_mode` parameter:
+
+```python
+from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+
+# AgenticStepProcessor has its own internal history system
+research_step = AgenticStepProcessor(
+    objective="Research with multi-hop reasoning",
+    max_internal_steps=8,
+    history_mode="progressive"  # Internal reasoning history (not conversation history)
+)
+
+# This controls what the AGENT sees, not what's inside AgenticStepProcessor
+agent_chain = AgentChain(
+    agents={"research": PromptChain(instructions=[research_step])},
+    agent_history_configs={
+        "research": {
+            "enabled": True,  # Controls conversation history passed TO the agent
+            "max_tokens": 8000  # Limits conversation context, not internal reasoning
+        }
+    }
+)
 ```
 
 ### Advanced Workflow Integration
@@ -436,3 +795,205 @@ When making changes, test the integration points:
 - **Tool Conflicts**: MCP and local tools require careful naming to avoid conflicts
 - **Memory Overhead**: ExecutionHistoryManager and detailed logging can consume significant memory for long sessions
 - from now own the current year is 2025
+
+## Active Technologies
+- Python 3.8+ (compatible with existing PromptChain codebase) + Textual 0.83+ (TUI framework), Rich 13.8+ (terminal formatting), Click 8.1+ (CLI framework), LiteLLM 1.0+ (existing), asyncio (stdlib), prompt_toolkit 3.0+ (input handling) (001-cli-agent-interface)
+- SQLite 3 (session persistence via existing AgentChain cache_config pattern), JSON/JSONL (session exports, logs) (001-cli-agent-interface)
+- Python 3.8+ (existing PromptChain codebase compatibility) (002-cli-orchestration)
+- SQLite 3 (existing session persistence via AgentChain cache_config pattern), JSONL files (conversation logs, execution history) (002-cli-orchestration)
+- Python 3.8+ (compatible with existing PromptChain codebase) + SQLite3 (existing), Textual (existing TUI), LiteLLM (existing), asyncio (stdlib) (003-multi-agent-communication)
+- SQLite (extend existing sessions.db with new tables) (003-multi-agent-communication)
+- Python 3.8+ (compatible with existing PromptChain codebase) + LiteLLM (existing), asyncio (stdlib), existing 003 infrastructure (MessageBus, Blackboard, CapabilityRegistry, TaskDelegation) (004-advanced-agentic-patterns)
+- SQLite (existing session persistence), In-memory cache (speculative execution) (004-advanced-agentic-patterns)
+
+## Development Orchestration Protocol
+
+**CONSTITUTION PRINCIPLE VIII: Distributed Execution with File Locking**
+
+This protocol governs how multi-agent development sessions execute tasks efficiently while preventing conflicts.
+
+### Core Principles
+
+1. **Token Efficiency Through Delegation**: Spawn specialized agents for task execution to preserve main agent context window
+2. **Parallel Execution Where Safe**: Execute independent tasks concurrently via multiple agents
+3. **File Locking Prevents Conflicts**: Explicit file ownership prevents simultaneous edits
+4. **Milestone Synchronization**: Checkpoint state to memory-bank and git after each phase/wave
+
+### Pre-Phase Analysis (MANDATORY)
+
+Before executing ANY phase in tasks.md, the main orchestrator MUST:
+
+```
+1. ANALYZE dependency graph for all tasks in phase
+2. IDENTIFY sequential dependencies (task B requires task A output)
+3. GROUP independent tasks into parallel execution waves
+4. ASSIGN file ownership to prevent edit conflicts
+5. DOCUMENT wave structure before spawning agents
+```
+
+### Wave Execution Format
+
+Tasks within a phase are grouped into waves for parallel execution:
+
+```markdown
+### Phase N: [Phase Name]
+
+**Wave 1** (parallel - 3 agents):
+| Task | Agent | Files Owned | Dependencies |
+|------|-------|-------------|--------------|
+| T001 | python-pro | models/task.py | None |
+| T002 | python-pro | models/blackboard.py | None |
+| T003 | sql-pro | schema.sql | None |
+
+**Wave 2** (parallel - 2 agents, after Wave 1):
+| Task | Agent | Files Owned | Dependencies |
+|------|-------|-------------|--------------|
+| T004 | python-pro | session_manager.py | T001, T002, T003 |
+| T005 | test-automator | tests/test_models.py | T001, T002 |
+
+**Wave 3** (sequential - requires all previous):
+| Task | Agent | Files Owned | Dependencies |
+|------|-------|-------------|--------------|
+| T006 | code-reviewer | ALL | T004, T005 |
+```
+
+### File Locking System
+
+**File Ownership Rules**:
+- Each file can have ONLY ONE owner per wave
+- Owner is assigned when agent spawns
+- Ownership releases when agent completes task
+- NO agent may edit files they don't own
+
+**Checkout Format** (in agent spawn prompt):
+```
+FILE OWNERSHIP FOR THIS TASK:
+- EXCLUSIVE: path/to/file.py (you may edit)
+- EXCLUSIVE: path/to/other.py (you may edit)
+- READ-ONLY: path/to/dependency.py (reference only)
+- FORBIDDEN: path/to/locked.py (another agent owns)
+```
+
+**Conflict Prevention**:
+```python
+# Main orchestrator tracks ownership
+file_locks = {
+    "models/task.py": {"owner": "agent-1", "task": "T001", "status": "locked"},
+    "models/blackboard.py": {"owner": "agent-2", "task": "T002", "status": "locked"},
+    "session_manager.py": {"owner": None, "task": None, "status": "available"}
+}
+```
+
+### Agent Spawning Strategy
+
+**WITHIN Phases/Waves**: ALWAYS spawn agents for task execution
+```
+- Use Task tool with appropriate subagent_type
+- Pass file ownership in prompt
+- Agent executes task autonomously
+- Returns completion report
+```
+
+**BETWEEN Phases**: Main agent orchestrates (NO spawning)
+```
+- Validate all tasks in previous phase completed
+- Run checkpoint sync (memory + git)
+- Analyze next phase for wave structure
+- Prepare file ownership assignments
+```
+
+### Checkpoint Synchronization
+
+After EACH phase completion, the main orchestrator MUST:
+
+```markdown
+**Phase N Complete - Checkpoint**
+
+1. SPAWN memory-bank-keeper agent:
+   - Update progress.md with completed tasks
+   - Update activeContext.md with current state
+   - Document any decisions or blockers
+
+2. SPAWN git-version-manager agent:
+   - Stage all modified files
+   - Create semantic commit: "feat(003): Complete Phase N - [description]"
+   - Tag if milestone: v0.X.0-alpha.N
+
+3. VERIFY checkpoint:
+   - All files saved and committed
+   - No uncommitted changes
+   - Memory bank reflects current state
+
+4. PROCEED to Phase N+1 analysis
+```
+
+### Task Markers in tasks.md
+
+Enhanced task format with orchestration metadata:
+
+```markdown
+- [ ] T001 [P] [W1] [US1] [python-pro] [models/task.py] Create Task dataclass
+      ^     ^    ^    ^        ^              ^
+      |     |    |    |        |              └── File ownership
+      |     |    |    |        └── Recommended agent type
+      |     |    |    └── User story reference
+      |     |    └── Wave number within phase
+      |     └── [P] = Parallelizable (independent)
+      └── Task ID
+```
+
+### Execution Flow Example
+
+```
+Phase 2: Task Delegation Protocol
+├── PRE-PHASE: Analyze 5 tasks, identify 2 waves
+│
+├── Wave 1 (spawn 3 agents in parallel):
+│   ├── Agent 1: T008 [models/task.py]
+│   ├── Agent 2: T009 [tools/library/delegation_tools.py]
+│   └── Agent 3: T010 [schema.sql additions]
+│
+├── WAVE-SYNC: Verify all 3 complete, no conflicts
+│
+├── Wave 2 (spawn 2 agents in parallel):
+│   ├── Agent 4: T011 [session_manager.py] depends on T008, T010
+│   └── Agent 5: T012 [tests/] depends on T008, T009
+│
+├── PHASE-COMPLETE: All tasks done
+│
+└── CHECKPOINT:
+    ├── memory-bank-keeper: Update progress
+    └── git-version-manager: Commit phase
+```
+
+### Error Handling
+
+**Agent Failure**:
+```
+1. Log failure with full context
+2. Release file locks held by failed agent
+3. Determine if task can be retried
+4. If retry: spawn new agent with same ownership
+5. If blocked: mark task failed, continue with independent tasks
+```
+
+**File Conflict Detected**:
+```
+1. HALT all agents in current wave
+2. Identify conflict source
+3. Rollback conflicting changes
+4. Re-analyze wave structure
+5. Resume with corrected ownership
+```
+
+### Performance Metrics
+
+Track orchestration efficiency:
+- **Parallelization Rate**: % of tasks executed in parallel
+- **Context Savings**: Tokens saved by delegation vs inline execution
+- **Checkpoint Overhead**: Time spent on sync vs execution
+- **Conflict Rate**: File conflicts per phase (target: 0)
+
+## Recent Changes
+- 004-advanced-agentic-patterns: Added Python 3.8+ (compatible with existing PromptChain codebase) + LiteLLM (existing), asyncio (stdlib), existing 003 infrastructure (MessageBus, Blackboard, CapabilityRegistry, TaskDelegation)
+- 001-cli-agent-interface: Added Python 3.8+ (compatible with existing PromptChain codebase) + Textual 0.83+ (TUI framework), Rich 13.8+ (terminal formatting), Click 8.1+ (CLI framework), LiteLLM 1.0+ (existing), asyncio (stdlib), prompt_toolkit 3.0+ (input handling)

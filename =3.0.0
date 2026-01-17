@@ -1,0 +1,30 @@
+Collecting textual
+  Downloading textual-6.6.0-py3-none-any.whl.metadata (9.1 kB)
+Requirement already satisfied: click in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (8.3.0)
+Requirement already satisfied: prompt_toolkit in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (3.0.51)
+Requirement already satisfied: markdown-it-py>=2.1.0 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from markdown-it-py[linkify]>=2.1.0->textual) (3.0.0)
+Collecting mdit-py-plugins (from textual)
+  Downloading mdit_py_plugins-0.5.0-py3-none-any.whl.metadata (2.8 kB)
+Requirement already satisfied: platformdirs<5,>=3.6.0 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from textual) (4.3.8)
+Requirement already satisfied: pygments<3.0.0,>=2.19.2 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from textual) (2.19.2)
+Collecting rich>=14.2.0 (from textual)
+  Using cached rich-14.2.0-py3-none-any.whl.metadata (18 kB)
+Requirement already satisfied: typing-extensions<5.0.0,>=4.4.0 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from textual) (4.15.0)
+Requirement already satisfied: wcwidth in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from prompt_toolkit) (0.2.13)
+Requirement already satisfied: mdurl~=0.1 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from markdown-it-py>=2.1.0->markdown-it-py[linkify]>=2.1.0->textual) (0.1.2)
+Collecting linkify-it-py<3,>=1 (from markdown-it-py[linkify]>=2.1.0->textual)
+  Using cached linkify_it_py-2.0.3-py3-none-any.whl.metadata (8.5 kB)
+Collecting uc-micro-py (from linkify-it-py<3,>=1->markdown-it-py[linkify]>=2.1.0->textual)
+  Using cached uc_micro_py-1.0.3-py3-none-any.whl.metadata (2.0 kB)
+Downloading textual-6.6.0-py3-none-any.whl (712 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 712.6/712.6 kB 1.8 MB/s eta 0:00:00
+Using cached rich-14.2.0-py3-none-any.whl (243 kB)
+Downloading mdit_py_plugins-0.5.0-py3-none-any.whl (57 kB)
+Using cached linkify_it_py-2.0.3-py3-none-any.whl (19 kB)
+Using cached uc_micro_py-1.0.3-py3-none-any.whl (6.2 kB)
+Installing collected packages: uc-micro-py, rich, mdit-py-plugins, linkify-it-py, textual
+  Attempting uninstall: rich
+    Found existing installation: rich 14.0.0
+    Uninstalling rich-14.0.0:
+      Successfully uninstalled rich-14.0.0
+Successfully installed linkify-it-py-2.0.3 mdit-py-plugins-0.5.0 rich-14.2.0 textual-6.6.0 uc-micro-py-1.0.3

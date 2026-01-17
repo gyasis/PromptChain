@@ -92,7 +92,81 @@ async def execute_dynamic_decomposition_strategy_async(agent_chain_instance: 'Ag
                 agent_final_output: Optional[str] = None
                 agent_loop_broken = False
                 agent_input_for_this_run = agent_input
-                
+
+                # ✅ NEW (v0.4.2): Inject conversation history if configured for this agent
+                # Check if this agent should receive history (per-agent config or global setting)
+                agent_history_config = agent_chain_instance._agent_history_configs.get(agent_name, {})
+                should_include_history = agent_history_config.get("enabled", agent_chain_instance.auto_include_history)
+
+                if should_include_history:
+                    # Use per-agent history formatting with custom filters and limits
+                    formatted_history = agent_chain_instance._format_chat_history_for_agent(
+                        agent_name=agent_name,
+                        max_tokens=agent_history_config.get("max_tokens"),
+                        max_entries=agent_history_config.get("max_entries"),
+                        truncation_strategy=agent_history_config.get("truncation_strategy", "oldest_first"),
+                        include_types=agent_history_config.get("include_types"),
+                        exclude_sources=agent_history_config.get("exclude_sources")
+                    )
+
+                    # Wrap the agent input with conversation history context
+                    agent_input_for_this_run = f"""Conversation History:
+---
+{formatted_history}
+---
+
+Current Task (from router): {agent_input}"""
+
+                    # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                    history_tokens = 0
+                    try:
+                        import tiktoken
+                        enc = tiktoken.encoding_for_model("gpt-4")
+                        history_tokens = len(enc.encode(formatted_history))
+                    except ImportError:
+                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        history_tokens = -1  # Indicates tiktoken not available
+                    except Exception as e:
+                        logging.warning(f"Error calculating token count: {e}")
+                        history_tokens = -1
+
+                    # ✅ Track cumulative token count across conversation
+                    if not hasattr(agent_chain_instance, '_cumulative_history_tokens'):
+                        agent_chain_instance._cumulative_history_tokens = 0
+                    if history_tokens > 0:
+                        agent_chain_instance._cumulative_history_tokens += history_tokens
+
+                    # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                    # ANSI color code for orange: \033[38;5;208m
+                    orange_start = "\033[38;5;208m"
+                    orange_end = "\033[0m"
+
+                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                    cumulative_display = f" | cumulative: {agent_chain_instance._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                    logging.info(f"{orange_start}[HISTORY INJECTED] agent={agent_name} | dynamic_step={dynamic_step + 1} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                    for line in formatted_history.split('\n'):
+                        logging.info(f"{orange_start}{line}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+
+                    # Also keep verbose mode output for backward compatibility
+                    if agent_chain_instance.verbose:
+                        print(f"    Including history for agent '{agent_name}' in dynamic step {dynamic_step + 1} ({len(formatted_history)} chars, {token_display})")
+
+                    agent_chain_instance.logger.log_run({
+                        "event": "dynamic_decomp_history_injected",
+                        "step": dynamic_step + 1,
+                        "agent": agent_name,
+                        "history_length": len(formatted_history),
+                        "history_tokens": history_tokens,
+                        "cumulative_history_tokens": agent_chain_instance._cumulative_history_tokens if history_tokens > 0 else -1,
+                        "history_content": formatted_history,
+                        "agent_config": agent_history_config
+                    })
+
                 for agent_internal_step in range(agent_chain_instance.max_internal_steps):
                     agent_response_raw = await selected_agent.process_prompt_async(agent_input_for_this_run)
                     reroute_prefix = "[REROUTE]"

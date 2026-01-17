@@ -77,7 +77,7 @@ def run_analysis_chain(extracted_text: str, analysis_prompt: str = "medical educ
     
     # Create analysis chain with default medical education focus
     analysis_chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=[
             f"""Format this text into a markdown structured teaching lesson. DO NOT ADD ANYTHING ELSE TO THE TEXT. DO NOTE LEAVE ANYTHING OUT: {{input}}\n\nFocus on: {analysis_prompt}",
             "Expand on the less talked about but highly specialized or significant medical terms important for the overall subject by italicizing new content and explain the term and giving a deeper background:

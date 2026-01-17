@@ -26,11 +26,13 @@ HistoryEntryType = Literal[
     "tool_result",
     "system_message",
     "error",
+    "agentic_step",  # T053: Reasoning step progress
+    "agentic_exhaustion",  # T055: Max steps exhaustion
     "custom"
 ]
 
-# Define truncation strategies (only 'oldest_first' implemented)
-TruncationStrategy = Literal["oldest_first"]
+# Define truncation strategies (T078: Added "keep_last")
+TruncationStrategy = Literal["oldest_first", "keep_last"]
 
 DEFAULT_TRUNCATION_STRATEGY: TruncationStrategy = "oldest_first"
 
@@ -46,7 +48,8 @@ class ExecutionHistoryManager:
     def __init__(self,
                  max_entries: Optional[int] = None,
                  max_tokens: Optional[int] = None,
-                 truncation_strategy: TruncationStrategy = DEFAULT_TRUNCATION_STRATEGY):
+                 truncation_strategy: TruncationStrategy = DEFAULT_TRUNCATION_STRATEGY,
+                 callback_manager: Optional[Any] = None):
         """Initializes the history manager.
 
         Args:
@@ -56,11 +59,13 @@ class ExecutionHistoryManager:
                         Truncation prioritizes staying under this limit if set.
             truncation_strategy: Method used for truncation ('oldest_first' currently).
                                  Placeholder for future advanced strategies.
+            callback_manager: Optional CallbackManager for emitting events.
         """
         self._history: List[Dict[str, Any]] = []
         self.max_entries = max_entries
         self.max_tokens = max_tokens
         self.truncation_strategy = truncation_strategy
+        self.callback_manager = callback_manager
         self._tokenizer = None
         self._current_token_count = 0 # Track tokens efficiently
 
@@ -127,6 +132,8 @@ class ExecutionHistoryManager:
     def _apply_truncation(self):
         """Applies truncation rules based on tokens and entries."""
         truncated = False
+        entries_removed = 0
+        tokens_removed = 0
 
         # 1. Token Limit Truncation (if enabled)
         if self.max_tokens is not None and self._current_token_count > self.max_tokens:
@@ -135,9 +142,21 @@ class ExecutionHistoryManager:
                     removed_entry = self._history.pop(0) # Remove oldest
                     removed_tokens = self._count_entry_tokens(removed_entry)
                     self._current_token_count -= removed_tokens
+                    tokens_removed += removed_tokens
+                    entries_removed += 1
                     truncated = True
                     logger.debug(f"Truncated oldest entry (tokens={removed_tokens}) due to token limit. New total: {self._current_token_count}")
-            # Add other strategies here later
+            elif self.truncation_strategy == "keep_last":
+                # T078: Keep only the most recent entries within token limit
+                # Remove from the beginning until we're under the limit
+                while self._current_token_count > self.max_tokens and len(self._history) > 1:
+                    removed_entry = self._history.pop(0) # Remove oldest (same as oldest_first)
+                    removed_tokens = self._count_entry_tokens(removed_entry)
+                    self._current_token_count -= removed_tokens
+                    tokens_removed += removed_tokens
+                    entries_removed += 1
+                    truncated = True
+                    logger.debug(f"Truncated oldest entry (tokens={removed_tokens}) using keep_last strategy. New total: {self._current_token_count}")
             else:
                 logger.warning(f"Unsupported truncation_strategy: {self.truncation_strategy}. Using 'oldest_first'.")
                 # Fallback to default strategy
@@ -145,10 +164,33 @@ class ExecutionHistoryManager:
                     removed_entry = self._history.pop(0)
                     removed_tokens = self._count_entry_tokens(removed_entry)
                     self._current_token_count -= removed_tokens
+                    tokens_removed += removed_tokens
+                    entries_removed += 1
                     truncated = True
                     logger.debug(f"Truncated oldest entry (tokens={removed_tokens}) due to token limit. New total: {self._current_token_count}")
             if truncated:
                 logger.info(f"History truncated due to max_tokens ({self.max_tokens}). Final token count: {self._current_token_count}")
+
+                # Emit HISTORY_TRUNCATED event for token-based truncation
+                if self.callback_manager:
+                    try:
+                        from .execution_events import ExecutionEvent, ExecutionEventType
+                        self.callback_manager.emit_sync(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.HISTORY_TRUNCATED,
+                                timestamp=datetime.now(),
+                                metadata={
+                                    "strategy": self.truncation_strategy,
+                                    "reason": "max_tokens",
+                                    "entries_removed": entries_removed,
+                                    "tokens_removed": tokens_removed,
+                                    "final_token_count": self._current_token_count,
+                                    "max_tokens": self.max_tokens
+                                }
+                            )
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to emit HISTORY_TRUNCATED event: {e}")
             # Ensure count is accurate after potential rounding/estimation issues
             if len(self._history) <= 1 and self._current_token_count > self.max_tokens:
                  logger.warning(f"Token count ({self._current_token_count}) still exceeds limit ({self.max_tokens}) after truncating all but one entry. This might happen with very large single entries.")
@@ -156,6 +198,10 @@ class ExecutionHistoryManager:
                  self._recalculate_token_count() # Recalculate if count becomes inconsistent
 
         # 2. Max Entries Truncation (applied AFTER token truncation, if enabled)
+        entries_truncated_for_max = False
+        max_entries_removed = 0
+        max_entries_tokens_removed = 0
+
         if self.max_entries is not None and len(self._history) > self.max_entries:
             if self.truncation_strategy == "oldest_first":
                 num_to_remove = len(self._history) - self.max_entries
@@ -164,9 +210,22 @@ class ExecutionHistoryManager:
                 # Recalculate token count if entries were removed here
                 removed_tokens_count = sum(self._count_entry_tokens(e) for e in entries_to_remove)
                 self._current_token_count -= removed_tokens_count
-                truncated = True
+                max_entries_removed = num_to_remove
+                max_entries_tokens_removed = removed_tokens_count
+                entries_truncated_for_max = True
                 logger.debug(f"Truncated {num_to_remove} oldest entries due to max_entries limit.")
-            # Add other strategies here later
+            elif self.truncation_strategy == "keep_last":
+                # T078: Keep only the most recent max_entries entries
+                # Remove from the beginning (same as oldest_first for max_entries)
+                num_to_remove = len(self._history) - self.max_entries
+                entries_to_remove = self._history[:num_to_remove]
+                self._history = self._history[num_to_remove:]
+                removed_tokens_count = sum(self._count_entry_tokens(e) for e in entries_to_remove)
+                self._current_token_count -= removed_tokens_count
+                max_entries_removed = num_to_remove
+                max_entries_tokens_removed = removed_tokens_count
+                entries_truncated_for_max = True
+                logger.debug(f"Truncated {num_to_remove} oldest entries using keep_last strategy (max_entries limit).")
             else:
                  logger.warning(f"Unsupported truncation_strategy for max_entries: {self.truncation_strategy}. Using 'oldest_first'.")
                  num_to_remove = len(self._history) - self.max_entries
@@ -174,10 +233,33 @@ class ExecutionHistoryManager:
                  self._history = self._history[num_to_remove:]
                  removed_tokens_count = sum(self._count_entry_tokens(e) for e in entries_to_remove)
                  self._current_token_count -= removed_tokens_count
-                 truncated = True
+                 max_entries_removed = num_to_remove
+                 max_entries_tokens_removed = removed_tokens_count
+                 entries_truncated_for_max = True
                  logger.debug(f"Truncated {num_to_remove} oldest entries due to max_entries limit.")
-            if truncated:
+            if entries_truncated_for_max:
                 logger.info(f"History truncated due to max_entries ({self.max_entries}). Final entry count: {len(self._history)}")
+
+                # Emit HISTORY_TRUNCATED event for max_entries truncation
+                if self.callback_manager:
+                    try:
+                        from .execution_events import ExecutionEvent, ExecutionEventType
+                        self.callback_manager.emit_sync(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.HISTORY_TRUNCATED,
+                                timestamp=datetime.now(),
+                                metadata={
+                                    "strategy": self.truncation_strategy,
+                                    "reason": "max_entries",
+                                    "entries_removed": max_entries_removed,
+                                    "tokens_removed": max_entries_tokens_removed,
+                                    "final_entry_count": len(self._history),
+                                    "max_entries": self.max_entries
+                                }
+                            )
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to emit HISTORY_TRUNCATED event: {e}")
             if self._current_token_count < 0: # Safety check
                  self._recalculate_token_count()
 
@@ -196,6 +278,60 @@ class ExecutionHistoryManager:
         self._history = []
         self._current_token_count = 0 # Reset token count
         logger.info("Execution history cleared.")
+
+    def clear(self):
+        """Alias for clear_history() for convenience."""
+        self.clear_history()
+
+    def add_exhaustion_entry(
+        self,
+        objective: str,
+        max_steps: int,
+        steps_completed: int,
+        partial_result: Optional[str] = None,
+        source: str = "agentic_step_processor"
+    ) -> None:
+        """Record agentic exhaustion in execution history (T055).
+
+        Args:
+            objective: The objective that wasn't completed
+            max_steps: Maximum steps configured
+            steps_completed: Actual steps completed
+            partial_result: Partial results before exhaustion
+            source: Source of the exhaustion event
+        """
+        content = f"Max steps ({max_steps}) reached for objective: {objective}"
+
+        if partial_result:
+            content += f"\n\nPartial result ({len(partial_result)} chars):\n{partial_result[:200]}..."
+
+        metadata = {
+            "objective": objective,
+            "max_steps": max_steps,
+            "steps_completed": steps_completed,
+            "completion_status": "exhausted",
+            "suggestions": [
+                "Increase max_internal_steps in agent config",
+                "Simplify the objective to be more specific",
+                "Break complex objective into smaller sub-objectives",
+                "Review if objective is achievable with available tools"
+            ]
+        }
+
+        if partial_result:
+            metadata["partial_result_preview"] = partial_result[:200]
+
+        self.add_entry(
+            entry_type="agentic_exhaustion",
+            content=content,
+            metadata=metadata,
+            source=source
+        )
+
+        logger.warning(
+            f"Agentic exhaustion recorded: {steps_completed}/{max_steps} steps "
+            f"completed for objective: {objective[:50]}..."
+        )
 
     def get_formatted_history(
         self,
@@ -308,6 +444,68 @@ class ExecutionHistoryManager:
     def __len__(self):
         """Return the number of entries in the history."""
         return len(self._history)
+
+    # Public API Properties (v0.4.1a)
+    @property
+    def current_token_count(self) -> int:
+        """Public getter for current token count.
+
+        Returns:
+            int: Current total token count across all history entries.
+        """
+        return self._current_token_count
+
+    @property
+    def history(self) -> List[Dict[str, Any]]:
+        """Public getter for history entries (read-only copy).
+
+        Returns:
+            List[Dict[str, Any]]: Copy of all history entries.
+        """
+        return self._history.copy()
+
+    @property
+    def history_size(self) -> int:
+        """Get number of entries in history.
+
+        Returns:
+            int: Number of history entries currently stored.
+        """
+        return len(self._history)
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive history statistics.
+
+        Returns:
+            Dict[str, Any]: Statistics dictionary containing:
+                - total_tokens (int): Current total token count
+                - total_entries (int): Number of history entries
+                - max_tokens (int|None): Maximum token limit (None if unlimited)
+                - max_entries (int|None): Maximum entry limit (None if unlimited)
+                - utilization_pct (float): Percentage of token limit used (0.0 if unlimited)
+                - entry_types (Dict[str, int]): Count of entries by type
+                - truncation_strategy (str): Current truncation strategy
+        """
+        # Calculate entry type distribution
+        entry_types = {}
+        for entry in self._history:
+            entry_type = entry.get('type', 'unknown')
+            entry_types[entry_type] = entry_types.get(entry_type, 0) + 1
+
+        # Calculate utilization percentage
+        utilization_pct = 0.0
+        if self.max_tokens is not None and self.max_tokens > 0:
+            utilization_pct = (self._current_token_count / self.max_tokens) * 100.0
+
+        return {
+            "total_tokens": self._current_token_count,
+            "total_entries": len(self._history),
+            "max_tokens": self.max_tokens,
+            "max_entries": self.max_entries,
+            "utilization_pct": utilization_pct,
+            "entry_types": entry_types,
+            "truncation_strategy": self.truncation_strategy
+        }
 
     def __str__(self):
         """Return a simple string representation of the manager."""

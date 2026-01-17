@@ -1,0 +1,232 @@
+# Speculative Execution Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US6)
+
+module: promptchain.patterns.speculative_execution
+
+classes:
+  ToolCallPredictor:
+    description: "Predict likely next tool calls"
+
+    methods:
+      __init__:
+        params:
+          - name: model
+            type: str
+            required: false
+            default: "frequency"
+            description: "Prediction model type"
+          - name: history_window
+            type: int
+            required: false
+            default: 20
+            description: "Number of past calls to analyze"
+
+      record_call:
+        params:
+          - name: tool_name
+            type: str
+            required: true
+            description: "Tool that was called"
+          - name: args
+            type: Dict[str, Any]
+            required: true
+            description: "Arguments passed"
+          - name: context
+            type: str
+            required: false
+            default: null
+            description: "Conversation context"
+        returns:
+          type: None
+
+      predict_next_tools:
+        params:
+          - name: context
+            type: str
+            required: true
+            description: "Current conversation context"
+          - name: top_k
+            type: int
+            required: false
+            default: 3
+            description: "Number of predictions"
+        returns:
+          type: List[ToolPrediction]
+          description: "Predicted tool calls with confidence"
+
+      update_accuracy:
+        params:
+          - name: prediction_id
+            type: str
+            required: true
+            description: "Prediction to update"
+          - name: was_correct
+            type: bool
+            required: true
+            description: "Whether prediction matched actual call"
+        returns:
+          type: None
+
+  SpeculativeCache:
+    description: "Cache for speculative execution results"
+
+    methods:
+      __init__:
+        params:
+          - name: default_ttl
+            type: float
+            required: false
+            default: 60.0
+            description: "Default TTL in seconds"
+          - name: max_entries
+            type: int
+            required: false
+            default: 100
+            description: "Maximum cached entries"
+
+      store:
+        params:
+          - name: prediction_id
+            type: str
+            required: true
+            description: "Prediction this result is for"
+          - name: result
+            type: Any
+            required: true
+            description: "Execution result"
+          - name: ttl
+            type: float
+            required: false
+            default: null
+            description: "Custom TTL"
+        returns:
+          type: str
+          description: "Cache key"
+
+      get:
+        params:
+          - name: tool_name
+            type: str
+            required: true
+            description: "Tool to check"
+          - name: args
+            type: Dict[str, Any]
+            required: true
+            description: "Tool arguments"
+        returns:
+          type: Optional[SpeculativeResult]
+          description: "Cached result or None"
+
+      invalidate:
+        params:
+          - name: prediction_id
+            type: str
+            required: false
+            default: null
+            description: "Specific prediction to invalidate, or all if None"
+        returns:
+          type: int
+          description: "Number of entries invalidated"
+
+      cleanup:
+        returns:
+          type: int
+          description: "Number of expired entries removed"
+
+  SpeculativeExecutor:
+    description: "Execute predicted tool calls speculatively"
+
+    methods:
+      __init__:
+        params:
+          - name: config
+            type: SpeculativeConfig
+            required: false
+            description: "Pattern configuration"
+          - name: tool_registry
+            type: ToolRegistry
+            required: true
+            description: "Available tools"
+
+      predict_next_tools:
+        params:
+          - name: context
+            type: str
+            required: true
+            description: "Current context"
+          - name: top_k
+            type: int
+            required: false
+            default: 3
+            description: "Number of predictions"
+        returns:
+          type: List[ToolPrediction]
+          description: "Predicted tool calls"
+
+      speculative_execute:
+        async: true
+        params:
+          - name: predictions
+            type: List[ToolPrediction]
+            required: true
+            description: "Predictions to execute"
+          - name: min_confidence
+            type: float
+            required: false
+            default: null
+            description: "Override minimum confidence"
+        returns:
+          type: List[SpeculativeResult]
+          description: "Speculatively executed results"
+        raises:
+          - type: ResourceLimitError
+            when: "Max concurrent exceeded"
+
+      check_cache:
+        params:
+          - name: tool_name
+            type: str
+            required: true
+            description: "Tool to check"
+          - name: args
+            type: Dict[str, Any]
+            required: true
+            description: "Tool arguments"
+        returns:
+          type: Optional[SpeculativeResult]
+          description: "Cached result if prediction matched"
+
+      record_actual_call:
+        params:
+          - name: tool_name
+            type: str
+            required: true
+            description: "Tool actually called"
+          - name: args
+            type: Dict[str, Any]
+            required: true
+            description: "Actual arguments"
+        returns:
+          type: Tuple[bool, Optional[Any]]
+          description: "Hit status and cached result if hit"
+
+      execute:
+        async: true
+        params:
+          - name: context
+            type: str
+            required: true
+            description: "Current conversation context"
+        returns:
+          type: SpeculativeExecutionResult
+          description: "Complete speculative execution result"
+
+events_emitted:
+  - pattern.speculative.started
+  - pattern.speculative.predicting
+  - pattern.speculative.predicted
+  - pattern.speculative.executing
+  - pattern.speculative.executed
+  - pattern.speculative.cache_hit
+  - pattern.speculative.cache_miss
+  - pattern.speculative.completed

@@ -23,7 +23,7 @@ def test_basic_chain_without_techniques(setup_environment):
     """Test that PromptChain works without any techniques."""
     # Single model, single instruction
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Process this: {input}"]
     )
     result = chain.process_prompt("Hello")
@@ -31,7 +31,7 @@ def test_basic_chain_without_techniques(setup_environment):
 
     # Multiple models, multiple instructions
     chain = PromptChain(
-        models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+        models=["gpt-4.1-mini-2025-04-14", "anthropic/claude-3-sonnet-20240229"],
         instructions=[
             "First step: {input}",
             "Second step: {input}"
@@ -44,7 +44,7 @@ def test_basic_chain_without_techniques(setup_environment):
 def test_prompt_chain_initialization(setup_environment):
     """Test basic PromptChain initialization."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Test instruction: {input}"]
     )
     assert chain is not None
@@ -53,7 +53,7 @@ def test_prompt_chain_initialization(setup_environment):
 def test_technique_validation(setup_environment):
     """Test technique validation rules."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Test: {input}"]
     )
     
@@ -71,7 +71,7 @@ def test_technique_validation(setup_environment):
 def test_technique_combinations(setup_environment):
     """Test combining different techniques."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Test: {input}"]
     )
     

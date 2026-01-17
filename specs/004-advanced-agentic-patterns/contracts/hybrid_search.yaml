@@ -1,0 +1,181 @@
+# Hybrid Search Fusion Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US5)
+
+module: promptchain.patterns.hybrid_search
+
+classes:
+  TechniqueRegistry:
+    description: "Registry for search techniques"
+
+    methods:
+      register_technique:
+        params:
+          - name: name
+            type: str
+            required: true
+            description: "Technique identifier"
+          - name: technique
+            type: SearchTechniquePlugin
+            required: true
+            description: "Search technique implementation"
+          - name: config
+            type: TechniqueConfig
+            required: false
+            description: "Technique configuration"
+        returns:
+          type: str
+          description: "Registered technique name"
+
+      get_technique:
+        params:
+          - name: name
+            type: str
+            required: true
+            description: "Technique to retrieve"
+        returns:
+          type: Optional[SearchTechniquePlugin]
+          description: "Technique or None if not found"
+
+      list_techniques:
+        params:
+          - name: enabled_only
+            type: bool
+            required: false
+            default: true
+            description: "Only return enabled techniques"
+        returns:
+          type: List[str]
+          description: "List of technique names"
+
+  SearchTechniquePlugin:
+    description: "Plugin interface for search techniques"
+    abstract: true
+
+    methods:
+      search:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Query to search"
+          - name: top_k
+            type: int
+            required: false
+            default: 10
+            description: "Number of results"
+        returns:
+          type: TechniqueResult
+          description: "Search results with scores"
+
+      get_score_range:
+        returns:
+          type: Tuple[float, float]
+          description: "Min and max possible scores"
+
+  FusionEngine:
+    description: "Fuse results from multiple search techniques"
+
+    methods:
+      __init__:
+        params:
+          - name: algorithm
+            type: FusionAlgorithm
+            required: false
+            default: FusionAlgorithm.RRF
+            description: "Fusion algorithm to use"
+          - name: rrf_k
+            type: int
+            required: false
+            default: 60
+            description: "RRF constant"
+
+      fuse:
+        params:
+          - name: technique_results
+            type: List[TechniqueResult]
+            required: true
+            description: "Results from each technique"
+          - name: weights
+            type: Dict[str, float]
+            required: false
+            default: null
+            description: "Per-technique weights"
+          - name: top_k
+            type: int
+            required: false
+            default: 10
+            description: "Number of results to return"
+        returns:
+          type: Tuple[List[Any], List[float]]
+          description: "Fused results and scores"
+
+      normalize_scores:
+        params:
+          - name: results
+            type: TechniqueResult
+            required: true
+            description: "Results to normalize"
+          - name: method
+            type: str
+            required: false
+            default: "min_max"
+            description: "Normalization method"
+        returns:
+          type: List[float]
+          description: "Normalized scores"
+
+  HybridSearcher:
+    description: "Execute hybrid search with multiple techniques"
+
+    methods:
+      __init__:
+        params:
+          - name: config
+            type: HybridSearchConfig
+            required: false
+            description: "Pattern configuration"
+          - name: registry
+            type: TechniqueRegistry
+            required: false
+            default: null
+            description: "Custom technique registry"
+
+      hybrid_search:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Query to search"
+          - name: techniques
+            type: List[SearchTechnique]
+            required: false
+            default: null
+            description: "Override techniques for this search"
+        returns:
+          type: HybridSearchResult
+          description: "Fused search results"
+        raises:
+          - type: ValueError
+            when: "No techniques configured"
+          - type: PatternExecutionError
+            when: "All techniques fail"
+
+      reciprocal_rank_fusion:
+        params:
+          - name: results
+            type: List[TechniqueResult]
+            required: true
+            description: "Results to fuse"
+        returns:
+          type: Tuple[List[Any], List[float]]
+          description: "RRF-fused results and scores"
+
+events_emitted:
+  - pattern.hybrid_search.started
+  - pattern.hybrid_search.technique_started
+  - pattern.hybrid_search.technique_completed
+  - pattern.hybrid_search.technique_failed
+  - pattern.hybrid_search.fusing
+  - pattern.hybrid_search.completed

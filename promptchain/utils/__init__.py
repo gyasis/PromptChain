@@ -13,6 +13,11 @@ from . import mcp_connection_manager
 from . import tool_parameter_manager
 from . import mcp_schema_validator
 from . import models
+from . import chain_models
+from . import chain_factory
+from . import chain_executor
+from . import chain_builder
+from . import instruction_handlers
 from . import preprompt
 from . import prompt_engineer
 from . import prompt_loader

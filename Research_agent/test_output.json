@@ -1,0 +1,236 @@
+{
+  "search_metadata": {
+    "status": "success",
+    "architecture": "production_3tier_distinct_search",
+    "search_query": "machine learning",
+    "tier_allocation": {
+      "arxiv": 1,
+      "pubmed": 1,
+      "scihub": 1
+    },
+    "retrieved_papers": 3,
+    "session_id": null,
+    "timestamp": "2025-08-27T05:52:34.574825",
+    "tier_distribution": {
+      "by_source": {
+        "arxiv": 1,
+        "pubmed": 1,
+        "scihub": 1
+      },
+      "by_tier": {
+        "arxiv": 1,
+        "pubmed": 1,
+        "scihub": 1
+      },
+      "tier_results": {
+        "arxiv_count": 1,
+        "pubmed_count": 1,
+        "scihub_count": 1
+      }
+    },
+    "enhancement_statistics": {
+      "enhanced_count": 3,
+      "enhancement_rate": 1.0,
+      "method": "3tier_search_service"
+    },
+    "fallback_statistics": {
+      "attempts": 3,
+      "successes": 0,
+      "success_rate": 0.0
+    },
+    "service_info": {
+      "version": "4.0.0",
+      "architecture": "production_3tier_distinct_search",
+      "tiers": {
+        "tier1": "arxiv_api_direct",
+        "tier2": "pubmed_api_direct",
+        "tier3": "scihub_mcp_direct",
+        "fallback": "scihub_doi_title_fallback"
+      }
+    }
+  },
+  "papers": [
+    {
+      "id": "arxiv_2104.05314v2",
+      "title": "Machine learning and deep learning",
+      "authors": [
+        "Christian Janiesch",
+        "Patrick Zschech",
+        "Kai Heinrich"
+      ],
+      "publication_year": 2021,
+      "doi": "10.1007/s12525-021-00475-2",
+      "abstract": "Today, intelligent systems that offer artificial intelligence capabilities\noften rely on machine learning. Machine learning describes the capacity of\nsystems to learn from problem-specific training data to automate the process of\nanalytical model building and solve associated tasks. Deep learning is a\nmachine learning concept based on artificial neural networks. For many\napplications, deep learning models outperform shallow machine learning models\nand traditional data analysis approaches. In this article, we summarize the\nfundamentals of machine learning and deep learning to generate a broader\nunderstanding of the methodical underpinning of current intelligent systems. In\nparticular, we provide a conceptual distinction between relevant terms and\nconcepts, explain the process of automated analytical model building through\nmachine learning and deep learning, and discuss the challenges that arise when\nimplementing such intelligent systems in the field of electronic markets and\nnetworked business. These naturally go beyond technological aspects and\nhighlight issues in human-machine interaction and artificial intelligence\nservitization.",
+      "source": "arxiv",
+      "tier": "arxiv",
+      "search_method": "arxiv_api_direct",
+      "url": "http://arxiv.org/abs/2104.05314v2",
+      "pdf_url": null,
+      "metadata": {
+        "arxiv_id": "2104.05314v2",
+        "categories": [
+          "cs.AI"
+        ],
+        "published_date": "2021-04-12T09:54:12+00:00",
+        "updated_date": "2021-04-14T10:31:01+00:00",
+        "comment": "Published online first in Electronic Markets",
+        "primary_category": "cs.AI",
+        "journal": "arXiv preprint",
+        "pdf_url": "http://arxiv.org/pdf/2104.05314v2",
+        "full_text_available": true,
+        "database_priority": 0.8,
+        "retrieved_at": "2025-08-27T05:52:25.063607",
+        "paper_index": 1,
+        "search_topic": "machine learning",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-27T05:52:34.574682",
+        "session_id": null,
+        "citation": "Christian Janiesch, Patrick Zschech, Kai Heinrich (2021). Machine learning and deep learning",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "arxiv",
+          "search_method": "arxiv_api_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "preprint",
+        "peer_reviewed": false,
+        "open_access": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    },
+    {
+      "id": "pubmed_32704420",
+      "title": "Introduction to Machine Learning, Neural Networks, and Deep Learning.",
+      "authors": [
+        "Choi, Rene Y",
+        "Coyner, Aaron S",
+        "Kalpathy-Cramer, Jayashree",
+        "Chiang, Michael F",
+        "Campbell, J Peter"
+      ],
+      "publication_year": 2020,
+      "doi": "10.10002/3tier.service.760",
+      "abstract": "To present an overview of current machine learning methods and their use in medical research, focusing on select machine learning techniques, best practices, and deep learning. A systematic literature search in PubMed was performed for articles pertinent to the topic of artificial intelligence methods used in medicine with an emphasis on ophthalmology. A review of machine learning and deep learning methodology for the audience without an extensive technical computer programming background. Artificial intelligence has a promising future in medicine; however, many challenges remain. The aim of this review article is to provide the nontechnical readers a layman's explanation of the machine learning methods being used in medicine today. The goal is to provide the reader a better understanding of the potential and challenges of artificial intelligence within the field of medicine.",
+      "source": "pubmed",
+      "tier": "pubmed",
+      "search_method": "pubmed_api_direct",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32704420/",
+      "pdf_url": null,
+      "metadata": {
+        "pmid": "32704420",
+        "journal": "Translational vision science & technology",
+        "full_text_available": false,
+        "mesh_terms": [
+          {
+            "QualifierName": [],
+            "DescriptorName": "Artificial Intelligence"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Deep Learning"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Machine Learning"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Neural Networks, Computer"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Ophthalmology"
+          }
+        ],
+        "keywords": [
+          [
+            "artificial intelligence",
+            "deep learning",
+            "machine learning"
+          ]
+        ],
+        "publication_types": [
+          "Journal Article",
+          "Research Support, N.I.H., Extramural",
+          "Research Support, Non-U.S. Gov't",
+          "Research Support, U.S. Gov't, Non-P.H.S.",
+          "Systematic Review"
+        ],
+        "database_priority": 0.6,
+        "retrieved_at": "2025-08-27T05:52:26.814658",
+        "paper_index": 2,
+        "search_topic": "machine learning",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-27T05:52:34.574682",
+        "session_id": null,
+        "citation": "Choi, Rene Y, Coyner, Aaron S, Kalpathy-Cramer, Jayashree et al. (2020). Introduction to Machine Learning, Neural Networks, and Deep Learning.",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "pubmed",
+          "search_method": "pubmed_api_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "biomedical",
+        "peer_reviewed": true,
+        "mesh_indexed": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    },
+    {
+      "id": "scihub_generated_1",
+      "title": "Sci-Hub Paper 1: machine learning",
+      "authors": [
+        "Author 1"
+      ],
+      "publication_year": 2023,
+      "doi": "10.4001/scihub.generated.2222",
+      "abstract": "Research on machine learning",
+      "source": "scihub",
+      "tier": "scihub",
+      "search_method": "scihub_mcp_direct",
+      "url": "https://sci-hub.se/10.4001/scihub.generated.2222",
+      "pdf_url": null,
+      "metadata": {
+        "full_text_available": false,
+        "pdf_url": null,
+        "database_priority": 1.0,
+        "retrieved_at": "2025-08-27T05:52:31.584313",
+        "scihub_accessed": true,
+        "generated": true,
+        "paper_index": 3,
+        "search_topic": "machine learning",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-27T05:52:34.574682",
+        "session_id": null,
+        "citation": "Author 1 (2023). Sci-Hub Paper 1: machine learning",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "scihub",
+          "search_method": "scihub_mcp_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "full_text",
+        "pdf_accessible": true,
+        "bypass_paywall": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    }
+  ],
+  "total_papers": 3,
+  "export_timestamp": "2025-08-27T05:52:34.575011"
+}

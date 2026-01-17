@@ -1,0 +1,394 @@
+OBSERVABILITY ARCHITECTURE DIAGRAM
+PromptChain Dual System Analysis
+================================================================================
+
+LEGEND:
+  ✓ = Active/Functional
+  ✗ = Inactive/Non-functional
+  → = Data flow
+  ⊗ = Blocked/Bypassed
+  ⚠ = Configuration issue
+
+
+SYSTEM OVERVIEW (Current State)
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         CLI STARTUP SEQUENCE                             │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  promptchain/cli/main.py:19                                              │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ from promptchain.observability import track_session        │         │
+│  │ @track_session()                                           │         │
+│  │ def _launch_tui(...):                                      │         │
+│  │     init_mlflow()  ← Calls initialization                 │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓                                             │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ promptchain/observability/__init__.py:21-28                │         │
+│  │ from .decorators import (track_llm_call, ...)              │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓                                             │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ promptchain/observability/decorators.py:44                 │         │
+│  │ from .ghost import conditional_decorator                   │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ CRITICAL: Import-time evaluation            │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ promptchain/observability/ghost.py:17                      │         │
+│  │ _ENABLED = is_enabled()                                    │         │
+│  │    ↓                                                       │         │
+│  │ config.py: DEFAULT_MLFLOW_ENABLED = False                  │         │
+│  │ ENV_MLFLOW_ENABLED not set                                 │         │
+│  │    ↓                                                       │         │
+│  │ Result: _ENABLED = False                                   │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Ghost pattern activated                     │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ All @track_* decorators → Identity functions (no-op)       │         │
+│  │ MLflow tracking: COMPLETELY DISABLED ⊗                     │         │
+│  └────────────────────────────────────────────────────────────┘         │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+SYSTEM 1: MLFLOW OBSERVABILITY (SPEC 005)
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      DECORATOR APPLICATION FLOW                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  promptchain/utils/promptchaining.py:1834-1837                           │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ @track_llm_call(                                           │         │
+│  │     model_param="model_name",                              │         │
+│  │     extract_args=["temperature", "max_tokens", ...]        │         │
+│  │ )                                                          │         │
+│  │ async def run_model_async(self, ...):                      │         │
+│  │     ...                                                    │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Decorator evaluation                        │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ decorators.py:226                                          │         │
+│  │ return conditional_decorator(decorator)                    │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Ghost pattern check                         │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ ghost.py:68-71                                             │         │
+│  │ def conditional_decorator(tracking_decorator):             │         │
+│  │     if _ENABLED:  # ← FALSE                                │         │
+│  │         return tracking_decorator                          │         │
+│  │     else:                                                  │         │
+│  │         return make_ghost_decorator()  ← TAKEN             │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Ghost decorator                             │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ ghost.py:41-42                                             │         │
+│  │ def ghost(func):                                           │         │
+│  │     return func  # Identity function                       │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Result                                      │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ @track_llm_call → NO-OP (function unchanged)               │         │
+│  │ run_model_async() executes without MLflow tracking ⊗       │         │
+│  └────────────────────────────────────────────────────────────┘         │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        EXECUTION TRACE                                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  User sends message                                                      │
+│    ↓                                                                     │
+│  AgentChain.send_message                                                 │
+│    ↓                                                                     │
+│  PromptChain.process_prompt_async                                        │
+│    ↓                                                                     │
+│  PromptChain.run_model_async()  ← Decorated method                       │
+│    ↓                                                                     │
+│  Ghost decorator check: _ENABLED = False                                 │
+│    ↓                                                                     │
+│  ⊗ MLflow tracking bypassed (decorator is identity function)             │
+│    ↓                                                                     │
+│  litellm.acompletion(**model_params)  ← Raw execution                    │
+│    ↓                                                                     │
+│  Response returned (no metrics logged)                                   │
+│    ↓                                                                     │
+│  ObservePanel.refresh() → MLflow API query                               │
+│    ↓                                                                     │
+│  Result: 0 runs found ✗                                                  │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+SYSTEM 2: CALLBACK OBSERVABILITY (v0.4.1)
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      INITIALIZATION FLOW                                 │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  promptchain/utils/promptchaining.py:234                                 │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ def __init__(self, ...):                                   │         │
+│  │     self.callback_manager = CallbackManager()              │         │
+│  │     # ✓ Manager created                                    │         │
+│  │     # ✓ self.callback_manager.callbacks = []               │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Expected registration                       │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ promptchain/cli/main.py (EXPECTED)                         │         │
+│  │ def setup_observability_callbacks(...):                    │         │
+│  │     def bridge_event_to_tui(event):                        │         │
+│  │         activity_logger.log_execution_event(event)         │         │
+│  │                                                            │         │
+│  │     promptchain.register_callback(bridge_event_to_tui)     │         │
+│  │                                                            │         │
+│  │ ⚠ THIS CODE DOES NOT EXIST                                 │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                            │                                             │
+│                            ↓ Actual state                                │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ callback_manager.callbacks = []  # Empty list ✗             │         │
+│  │ callback_manager.has_callbacks() = False ✗                  │         │
+│  └────────────────────────────────────────────────────────────┘         │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        EVENT EMISSION FLOW                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  PromptChain executes (various methods)                                  │
+│    ↓                                                                     │
+│  Internal event fired                                                    │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ self.callback_manager.emit(event)                          │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│    ↓                                                                     │
+│  CallbackManager.emit()                                                  │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ async def emit(self, event):                               │         │
+│  │     tasks = []                                             │         │
+│  │     for callback in self.callbacks:  # ← Empty list        │         │
+│  │         if callback.should_handle(event.event_type):       │         │
+│  │             tasks.append(callback(event))                  │         │
+│  │                                                            │         │
+│  │     # tasks = [] (no callbacks)                            │         │
+│  │     await asyncio.gather(*tasks)  # No-op                  │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│    ↓                                                                     │
+│  Event silently discarded ⊗                                              │
+│    ↓                                                                     │
+│  TUI panels remain empty ✗                                               │
+│  ┌────────────────────────────────────────────────────────────┐         │
+│  │ ObservePanel: 0/0 activities                               │         │
+│  │ ActivityLogViewer: Empty                                   │         │
+│  └────────────────────────────────────────────────────────────┘         │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+INTERACTION ANALYSIS: DO SYSTEMS CONFLICT?
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         EXECUTION TIMELINE                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Time 0: CLI Startup                                                     │
+│  ├─ Import observability → _ENABLED set to False                         │
+│  ├─ Ghost pattern activates → All decorators become no-ops               │
+│  └─ Result: MLflow system DISABLED before any code runs                  │
+│                                                                          │
+│  Time 1: PromptChain Initialization                                      │
+│  ├─ CallbackManager created                                              │
+│  ├─ Callbacks list empty (no registration)                               │
+│  └─ Result: Callback system FUNCTIONAL but UNUSED                        │
+│                                                                          │
+│  Time 2: User sends message → LLM call                                   │
+│  ├─ run_model_async() called                                             │
+│  │  ├─ @track_llm_call decorator → Ghost (no-op)                         │
+│  │  ├─ No MLflow tracking executed ⊗                                     │
+│  │  └─ LiteLLM call proceeds untracked                                   │
+│  │                                                                        │
+│  ├─ Internal events potentially fired                                    │
+│  │  ├─ callback_manager.emit(event)                                      │
+│  │  ├─ Callbacks list empty → No handlers                                │
+│  │  └─ Events discarded ⊗                                                │
+│  │                                                                        │
+│  └─ Result: BOTH systems show zero activity                              │
+│                                                                          │
+│  CONCLUSION: No conflict - they fail independently                       │
+│  ┌──────────────────────────────────────────────────────────┐           │
+│  │ MLflow: Disabled by design (ghost pattern)              │           │
+│  │ Callbacks: Enabled but no listeners registered          │           │
+│  │ Overlap: NONE (different execution paths)               │           │
+│  └──────────────────────────────────────────────────────────┘           │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+INTENDED ARCHITECTURE (When Both Enabled)
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    DUAL OBSERVABILITY LAYERS                             │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  User sends message                                                      │
+│    ↓                                                                     │
+│  PromptChain.run_model_async()                                           │
+│    │                                                                     │
+│    ├─ OUTER LAYER: @track_llm_call decorator                             │
+│    │  ├─ MLflow.start_run()                                              │
+│    │  ├─ Log params: model, temperature, etc.                            │
+│    │  ├─ Start timer                                                     │
+│    │  │                                                                  │
+│    │  └─ Execute wrapped function ─────┐                                 │
+│    │                                    │                                │
+│    │  INNER LAYER: Method execution    ↓                                 │
+│    └─ async def run_model_async(...):                                    │
+│         ├─ self._emit_event(MODEL_CALL_START)                            │
+│         │    ↓                                                           │
+│         │  callback_manager.emit(event)                                  │
+│         │    ↓                                                           │
+│         │  TUI panels update (if callbacks registered) ✓                 │
+│         │                                                                │
+│         ├─ response = await acompletion(**params)                        │
+│         │                                                                │
+│         ├─ self._emit_event(MODEL_CALL_END)                              │
+│         │    ↓                                                           │
+│         │  callback_manager.emit(event)                                  │
+│         │    ↓                                                           │
+│         │  TUI panels update ✓                                           │
+│         │                                                                │
+│         └─ return response                                               │
+│              │                                                           │
+│    ┌─────────┘                                                           │
+│    │                                                                     │
+│    ├─ Extract metrics from response                                      │
+│    ├─ MLflow.log_metric("prompt_tokens", value)                          │
+│    ├─ MLflow.log_metric("execution_time", value)                         │
+│    └─ MLflow.end_run() ✓                                                 │
+│                                                                          │
+│  RESULT:                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐           │
+│  │ MLflow UI: Shows runs with metrics, params ✓             │           │
+│  │ ObservePanel: Shows real-time activity from callbacks ✓  │           │
+│  │ ActivityLogViewer: Shows event history ✓                 │           │
+│  │                                                          │           │
+│  │ DUAL COVERAGE: External tracking + Internal monitoring  │           │
+│  └──────────────────────────────────────────────────────────┘           │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+CONFLICT POINTS ANALYSIS
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  POTENTIAL CONFLICT #1: Decorator vs Callback Execution Order           │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Status: NOT A CONFLICT ✓                                                │
+│                                                                          │
+│  Decorator wraps function (outer layer)                                  │
+│    @track_llm_call                                                       │
+│    async def run_model_async():                                          │
+│        callback_manager.emit(...)  # Inner layer                         │
+│                                                                          │
+│  Execution order:                                                        │
+│    1. Decorator pre-execution (MLflow setup)                             │
+│    2. Function body (callbacks fire)                                     │
+│    3. Decorator post-execution (MLflow metrics)                          │
+│                                                                          │
+│  Layers are independent - no conflict                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  POTENTIAL CONFLICT #2: Event Duplication                               │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Status: NOT A CONFLICT ✓                                                │
+│                                                                          │
+│  MLflow decorators: Track at method boundaries                           │
+│  Callbacks: Track internal events during execution                       │
+│                                                                          │
+│  Different event granularity:                                            │
+│    MLflow: run_model_async START/END                                     │
+│    Callbacks: MODEL_CALL_START, TOOL_CALL, etc.                          │
+│                                                                          │
+│  Events are complementary, not duplicated                                │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  POTENTIAL CONFLICT #3: Shared State Mutation                           │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Status: NOT A CONFLICT ✓                                                │
+│                                                                          │
+│  MLflow: Uses external MLflow tracking server                            │
+│  Callbacks: Uses internal CallbackManager instance                       │
+│                                                                          │
+│  No shared state between systems                                         │
+│  Independent data storage                                                │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  POTENTIAL CONFLICT #4: Performance Overhead                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Status: NOT A CONFLICT ✓ (By design)                                    │
+│                                                                          │
+│  Ghost pattern ensures zero overhead when disabled:                      │
+│    If _ENABLED = False:                                                  │
+│      → Decorator is identity function (no wrapping)                      │
+│      → No MLflow code executed                                           │
+│      → <0.1% overhead (single if-check at import time)                   │
+│                                                                          │
+│  When enabled, overhead is intentional:                                  │
+│    MLflow tracking: ~5-10% overhead                                      │
+│    Callback system: ~1-2% overhead                                       │
+│    Combined: ~6-12% overhead (acceptable for observability)              │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+SUMMARY
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         KEY FINDINGS                                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. ARCHITECTURAL COMPATIBILITY: ✓ FULLY COMPATIBLE                      │
+│     - Systems operate at different layers (decorator vs callbacks)       │
+│     - No shared state or mutual exclusion                                │
+│     - Designed to coexist (per spec 005 FR-001)                          │
+│                                                                          │
+│  2. CURRENT FAILURE MODES: ✗ DUAL INDEPENDENT FAILURE                    │
+│     - MLflow: Disabled via _ENABLED = False (configuration)              │
+│     - Callbacks: No handlers registered (implementation incomplete)      │
+│                                                                          │
+│  3. ZERO ACTIVITY CAUSE: ⚠ CONFIGURATION + MISSING INTEGRATION           │
+│     - MLflow disabled by default (DEFAULT_MLFLOW_ENABLED = False)        │
+│     - CLI never registers callback handlers                              │
+│     - Both systems operational, but not activated                        │
+│                                                                          │
+│  4. CONFLICT ASSESSMENT: ✓ NO CONFLICTS DETECTED                         │
+│     - No execution order issues                                          │
+│     - No event duplication                                               │
+│     - No shared state mutation                                           │
+│     - Performance overhead by design (ghost pattern mitigates)           │
+│                                                                          │
+│  5. INTEGRATION STRATEGY: Multiple viable options                        │
+│     - Enable MLflow only (external tracking)                             │
+│     - Enable callbacks only (internal TUI)                               │
+│     - Enable both (full observability - RECOMMENDED)                     │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+
+END OF ARCHITECTURAL ANALYSIS

@@ -100,8 +100,8 @@ ui_agent_project/
 shared/
 backend/
 frontend/
-memory-bank/
 docs/auxiliary_projects/
+athena-lightrag/
 
 # Temporary and generated files
 repomix-output.xml
@@ -110,7 +110,6 @@ tmp_edit.py
 
 # Markdown folder (contains moved markdown files)
 markdown/
-examples/
 experiments/
 ingestors/
 prompts/
@@ -122,11 +121,9 @@ prompts
 CLAUDE.md
 
 # SECURITY: Sensitive directories and files - NEVER TRACK
-.specstory/
 .claude/
 claude.md
 cursor.md
-**/.specstory/
 **/.claude/
 
 # Note: The following directories ARE tracked in the remote repository:
@@ -135,3 +132,12 @@ cursor.md
 # - utils/
 # - tests/
 # - prompts/
+# Research Agent test outputs and temp data
+Research_agent/temp/
+Research_agent/research_output/
+Research_agent/lightrag_data/
+Research_agent/document_search_workspace/
+.specstory/
+
+# Workbench folder for testing
+workbench/

@@ -1,0 +1,263 @@
+default_model: gpt-4o-mini
+models:
+  gpt-4o:
+    model: gpt-4o
+    temperature: 0.7
+    max_tokens: 4000
+    description: Most capable OpenAI model for complex reasoning
+    capabilities:
+    - search
+    - analysis
+    - synthesis
+    - chat
+    cost_per_1k_tokens: 0.01
+  gpt-4o-mini:
+    model: gpt-4o-mini
+    temperature: 0.5
+    max_tokens: 2000
+    description: Fast, cost-effective model for routine tasks
+    capabilities:
+    - search
+    - query_generation
+    - routing
+    cost_per_1k_tokens: 0.0002
+  gpt-4:
+    model: gpt-4
+    temperature: 0.7
+    max_tokens: 8000
+    description: Previous generation GPT-4 model
+    capabilities:
+    - analysis
+    - synthesis
+    - chat
+    cost_per_1k_tokens: 0.03
+  claude-3-opus:
+    model: claude-3-opus-20240229
+    temperature: 0.5
+    max_tokens: 4000
+    description: Most capable Claude model for deep analysis
+    capabilities:
+    - analysis
+    - synthesis
+    - multi_query
+    - chat
+    cost_per_1k_tokens: 0.015
+  claude-3-sonnet:
+    model: claude-3-sonnet-20240229
+    temperature: 0.5
+    max_tokens: 3000
+    description: Balanced Claude model for general tasks
+    capabilities:
+    - analysis
+    - multi_query
+    - chat
+    cost_per_1k_tokens: 0.003
+  claude-3-haiku:
+    model: claude-3-haiku-20240307
+    temperature: 0.3
+    max_tokens: 2000
+    description: Fast, lightweight Claude model
+    capabilities:
+    - search
+    - query_generation
+    cost_per_1k_tokens: 0.00025
+  gemini-pro:
+    model: gemini/gemini-1.5-pro
+    temperature: 0.6
+    max_tokens: 8000
+    description: Test Gemini model
+    capabilities:
+    - analysis
+    - synthesis
+    cost_per_1k_tokens: 0.0035
+  gemini-flash:
+    model: gemini/gemini-1.5-flash
+    temperature: 0.5
+    max_tokens: 4000
+    description: Fast Gemini model for quick tasks
+    capabilities:
+    - search
+    - query_generation
+    - routing
+    cost_per_1k_tokens: 0.00035
+  llama3-2:
+    model: ollama/llama3.2
+    api_base: http://localhost:11434
+    temperature: 0.7
+    max_tokens: 4000
+    description: Local Llama 3.2 model via Ollama
+    capabilities:
+    - analysis
+    - synthesis
+    - chat
+    cost_per_1k_tokens: 0
+  mistral-nemo:
+    model: ollama/mistral-nemo:latest
+    api_base: http://localhost:11434
+    temperature: 0.6
+    max_tokens: 8000
+    description: Local Mistral Nemo model with good performance
+    capabilities:
+    - analysis
+    - multi_query
+    - chat
+    cost_per_1k_tokens: 0
+  phi3:
+    model: ollama/phi3:medium
+    api_base: http://localhost:11434
+    temperature: 0.5
+    max_tokens: 2000
+    description: Lightweight local model for quick tasks
+    capabilities:
+    - search
+    - query_generation
+    cost_per_1k_tokens: 0
+  embedding-3-large:
+    model: text-embedding-3-large
+    description: High-quality OpenAI embeddings
+    embedding_dim: 3072
+    cost_per_1k_tokens: 0.00013
+  embedding-3-small:
+    model: text-embedding-3-small
+    description: Cost-effective OpenAI embeddings
+    embedding_dim: 1536
+    cost_per_1k_tokens: 2.0e-05
+  bge-m3:
+    model: ollama/bge-m3:latest
+    api_base: http://localhost:11434
+    description: High-quality local embeddings
+    embedding_dim: 1024
+    cost_per_1k_tokens: 0
+  mxbai-embed:
+    model: ollama/mxbai-embed-large
+    api_base: http://localhost:11434
+    description: Fast local embeddings
+    embedding_dim: 1024
+    cost_per_1k_tokens: 0
+task_specific_models:
+  query_generation: gpt-4o
+  search_strategy: gpt-4o-mini
+  literature_search: gpt-4o-mini
+  multi_query_coordination: claude-3-sonnet
+  react_analysis: claude-3-opus
+  synthesis: gpt-4o
+  chat_interface: gpt-4o
+  tier1_lightrag: mistral-nemo
+  tier2_paperqa2: llama3-2
+  tier3_graphrag: mistral-nemo
+  embedding_default: embedding-3-small
+  embedding_lightrag: bge-m3
+  embedding_paperqa2: mxbai-embed
+  embedding_graphrag: bge-m3
+profiles:
+  premium:
+    default_model: gpt-4o
+    query_generation: gpt-4o
+    search_strategy: gpt-4o
+    literature_search: gpt-4o-mini
+    multi_query_coordination: claude-3-opus
+    react_analysis: claude-3-opus
+    synthesis: gpt-4o
+    chat_interface: gpt-4o
+    embedding_default: embedding-3-large
+  balanced:
+    default_model: gpt-4o-mini
+    query_generation: gpt-4o-mini
+    search_strategy: gemini-flash
+    literature_search: claude-3-haiku
+    multi_query_coordination: claude-3-sonnet
+    react_analysis: claude-3-sonnet
+    synthesis: gpt-4o-mini
+    chat_interface: gemini-pro
+    embedding_default: embedding-3-small
+  economic:
+    default_model: gemini-flash
+    query_generation: gemini-flash
+    search_strategy: claude-3-haiku
+    literature_search: claude-3-haiku
+    multi_query_coordination: gemini-flash
+    react_analysis: gemini-pro
+    synthesis: gemini-pro
+    chat_interface: gemini-flash
+    embedding_default: embedding-3-small
+  local:
+    default_model: llama3-2
+    query_generation: llama3-2
+    search_strategy: phi3
+    literature_search: phi3
+    multi_query_coordination: mistral-nemo
+    react_analysis: mistral-nemo
+    synthesis: llama3-2
+    chat_interface: llama3-2
+    embedding_default: bge-m3
+active_profile: balanced
+litellm_settings:
+  cache: true
+  cache_ttl: 3600
+  max_retries: 3
+  retry_delay: 1
+  request_timeout: 120
+  stream_timeout: 300
+  rpm_limit: 500
+  log_level: INFO
+  log_requests: false
+  log_responses: false
+  track_cost: true
+  fallback_models:
+    gpt-4o:
+    - claude-3-sonnet
+    - gemini-pro
+    - gpt-4o-mini
+    gpt-4o-mini:
+    - claude-3-haiku
+    - gemini-flash
+    claude-3-opus:
+    - gemini-pro
+    - gpt-4o-mini
+    claude-3-sonnet:
+    - gpt-4o-mini
+    - gemini-flash
+    claude-3-haiku:
+    - gpt-4o-mini
+    gemini-pro:
+    - claude-3-sonnet
+    - gpt-4o-mini
+    gemini-flash:
+    - claude-3-haiku
+  max_fallback_depth: 3
+  fallback_timeout: 30
+validation:
+  required_capabilities:
+    query_generation:
+    - query_generation
+    search_strategy:
+    - search
+    literature_search:
+    - search
+    multi_query_coordination:
+    - multi_query
+    - analysis
+    react_analysis:
+    - analysis
+    synthesis:
+    - synthesis
+    chat_interface:
+    - chat
+  min_max_tokens:
+    query_generation: 2000
+    search_strategy: 1000
+    literature_search: 1000
+    multi_query_coordination: 3000
+    react_analysis: 3000
+    synthesis: 4000
+    chat_interface: 2000
+monitoring:
+  track_usage: true
+  track_costs: true
+  track_performance: true
+  log_errors: true
+  metrics_file: ./data/model_metrics.jsonl
+metadata:
+  version: 1.0.0
+  last_modified: '2025-08-13T08:56:53.347360'
+  modified_by: system

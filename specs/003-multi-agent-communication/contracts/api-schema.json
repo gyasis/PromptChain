@@ -1,0 +1,287 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Multi-Agent Communication API Schema",
+  "version": "1.0.0",
+  "description": "API contracts for PromptChain CLI multi-agent communication tools",
+
+  "definitions": {
+    "TaskPriority": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "default": "medium"
+    },
+
+    "TaskStatus": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "completed", "failed"]
+    },
+
+    "MessageType": {
+      "type": "string",
+      "enum": ["request", "response", "broadcast", "delegation", "status"]
+    },
+
+    "WorkflowStage": {
+      "type": "string",
+      "enum": ["planning", "execution", "review", "complete"]
+    },
+
+    "Task": {
+      "type": "object",
+      "required": ["task_id", "description", "source_agent", "target_agent", "status", "created_at"],
+      "properties": {
+        "task_id": { "type": "string", "format": "uuid" },
+        "description": { "type": "string", "minLength": 1 },
+        "source_agent": { "type": "string", "minLength": 1 },
+        "target_agent": { "type": "string", "minLength": 1 },
+        "priority": { "$ref": "#/definitions/TaskPriority" },
+        "status": { "$ref": "#/definitions/TaskStatus" },
+        "context": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "BlackboardEntry": {
+      "type": "object",
+      "required": ["key", "value", "written_by", "written_at", "version"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "value": {},
+        "written_by": { "type": "string" },
+        "written_at": { "type": "string", "format": "date-time" },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "WorkflowState": {
+      "type": "object",
+      "required": ["workflow_id", "stage", "agents_involved", "started_at"],
+      "properties": {
+        "workflow_id": { "type": "string" },
+        "stage": { "$ref": "#/definitions/WorkflowStage" },
+        "agents_involved": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "completed_tasks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "current_task": { "type": "string" },
+        "context": { "type": "object" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "Message": {
+      "type": "object",
+      "required": ["message_id", "sender", "receiver", "type", "payload", "timestamp"],
+      "properties": {
+        "message_id": { "type": "string", "format": "uuid" },
+        "sender": { "type": "string" },
+        "receiver": { "type": "string" },
+        "type": { "$ref": "#/definitions/MessageType" },
+        "payload": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "ToolCapability": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "allowed_agents": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "tools": {
+    "delegate_task": {
+      "description": "Delegate a task to another agent",
+      "parameters": {
+        "type": "object",
+        "required": ["task_description", "target_agent"],
+        "properties": {
+          "task_description": {
+            "type": "string",
+            "description": "Description of the task to delegate"
+          },
+          "target_agent": {
+            "type": "string",
+            "description": "Name of the agent to delegate to"
+          },
+          "priority": {
+            "$ref": "#/definitions/TaskPriority",
+            "description": "Task priority level"
+          },
+          "context": {
+            "type": "object",
+            "description": "Additional context for the task"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "status": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+
+    "request_help": {
+      "description": "Request help from capable agents",
+      "parameters": {
+        "type": "object",
+        "required": ["problem_description"],
+        "properties": {
+          "problem_description": {
+            "type": "string",
+            "description": "Description of the problem needing help"
+          },
+          "context": {
+            "type": "object",
+            "description": "Additional context about the problem"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "helper_agent": { "type": "string" },
+          "task_id": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+
+    "write_to_blackboard": {
+      "description": "Write data to shared blackboard",
+      "parameters": {
+        "type": "object",
+        "required": ["key", "value"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Key to store the value under"
+          },
+          "value": {
+            "description": "Value to store (any JSON-serializable type)"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "version": { "type": "integer" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+
+    "read_from_blackboard": {
+      "description": "Read data from shared blackboard",
+      "parameters": {
+        "type": "object",
+        "required": ["key"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Key to read"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "value": {},
+          "written_by": { "type": "string" },
+          "written_at": { "type": "string" },
+          "version": { "type": "integer" },
+          "found": { "type": "boolean" }
+        }
+      }
+    },
+
+    "list_blackboard_keys": {
+      "description": "List all keys on the blackboard",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "count": { "type": "integer" }
+        }
+      }
+    },
+
+    "discover_capabilities": {
+      "description": "Discover tools available to an agent",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "agent_name": {
+            "type": "string",
+            "description": "Agent name (optional, defaults to current agent)"
+          },
+          "capability_filter": {
+            "type": "string",
+            "description": "Filter by capability tag"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "tools": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/ToolCapability" }
+          },
+          "count": { "type": "integer" }
+        }
+      }
+    }
+  },
+
+  "cli_commands": {
+    "/capabilities": {
+      "description": "List capabilities of agents",
+      "syntax": "/capabilities [agent_name]",
+      "output": "Table of tools with capabilities and allowed agents"
+    },
+    "/tasks": {
+      "description": "View delegated tasks",
+      "syntax": "/tasks [status]",
+      "output": "Table of tasks with status, source, target, priority"
+    },
+    "/blackboard": {
+      "description": "View blackboard contents",
+      "syntax": "/blackboard [key]",
+      "output": "Key-value pairs or specific value"
+    },
+    "/workflow": {
+      "description": "View workflow state",
+      "syntax": "/workflow",
+      "output": "Current stage, agents, completed tasks, progress"
+    }
+  }
+}

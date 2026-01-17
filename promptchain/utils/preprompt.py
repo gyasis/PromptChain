@@ -26,6 +26,18 @@ class PrePrompt:
     additional_prompt_dirs are prioritized over the standard_prompt_dir.
     Strategies are identified by their JSON filename without extension (strategyID)
     and are only loaded from the standard strategy directory.
+
+    Directory Structure:
+        prompts/
+        ├── agents/           # Agent-specific prompts (e.g., autonomous_executor.md)
+        ├── patterns/         # Task pattern prompts organized by category
+        │   ├── analyze/      # Analysis prompts (analyze_*.md)
+        │   ├── create/       # Creation prompts (create_*.md)
+        │   ├── extract/      # Extraction prompts (extract_*.md)
+        │   ├── summarize/    # Summarization prompts (summarize*.md)
+        │   ├── write/        # Writing prompts (write_*.md)
+        │   └── other/        # Miscellaneous prompts
+        └── strategies/       # Strategy JSON files (cot.json, tot.json, etc.)
     """
     def __init__(self, additional_prompt_dirs: Optional[List[str]] = None):
         """
@@ -40,7 +52,9 @@ class PrePrompt:
         self.additional_prompt_dirs = [os.path.normpath(d) for d in additional_prompt_dirs] if additional_prompt_dirs else []
 
         self._prompts: Dict[str, str] = {} # Cache: {promptID: full_path}
+        self._prompt_categories: Dict[str, str] = {} # Cache: {promptID: category}
         self._strategies: Dict[str, str] = {} # Cache for strategies: {strategyID: strategy_prompt_text}
+        self._strategy_metadata: Dict[str, Dict] = {} # Cache: {strategyID: full_json_data}
 
         self._validate_dirs()
         self._scan_all_prompt_dirs() # Populate the prompt cache
@@ -79,14 +93,52 @@ class PrePrompt:
         self.additional_prompt_dirs = valid_additional_dirs
 
 
-    def _scan_prompt_dir(self, directory: str):
-        """Scans a single directory for prompt files and adds them to the cache if not already present."""
+    def _get_category_from_path(self, file_path: str, base_dir: str) -> str:
+        """Extracts the category from a file path relative to the base directory.
+
+        Args:
+            file_path: Full path to the prompt file
+            base_dir: Base prompts directory
+
+        Returns:
+            Category string (e.g., 'agents', 'patterns/analyze', 'root')
+        """
+        try:
+            rel_path = os.path.relpath(file_path, base_dir)
+            dir_part = os.path.dirname(rel_path)
+            if not dir_part or dir_part == '.':
+                return 'root'
+            # Normalize path separators for consistent category names
+            return dir_part.replace(os.sep, '/')
+        except ValueError:
+            # relpath fails if paths are on different drives (Windows)
+            return 'unknown'
+
+    def _scan_prompt_dir(self, directory: str, recursive: bool = True, base_dir: str = None):
+        """Scans a directory for prompt files and adds them to the cache if not already present.
+
+        Args:
+            directory: The directory to scan
+            recursive: If True, also scan subdirectories recursively (default: True)
+            base_dir: The base directory for category calculation (defaults to directory)
+        """
         if not os.path.isdir(directory):
             return # Skip if directory doesn't exist
+
+        if base_dir is None:
+            base_dir = directory
 
         try:
             for item in os.listdir(directory):
                 item_path = os.path.join(directory, item)
+
+                # If it's a directory and recursive is enabled, scan it too
+                if os.path.isdir(item_path) and recursive:
+                    # Skip strategies and templates directories as they're handled separately
+                    if item.lower() not in ('strategies', 'templates'):
+                        self._scan_prompt_dir(item_path, recursive=True, base_dir=base_dir)
+                    continue
+
                 # Ensure it's a file and has a valid extension
                 if os.path.isfile(item_path):
                     name, ext = os.path.splitext(item)
@@ -96,13 +148,15 @@ class PrePrompt:
                         # This respects the prioritization order (additional first)
                         if promptID not in self._prompts:
                             self._prompts[promptID] = item_path
-                            logger.debug(f"Found prompt '{promptID}' at {item_path}")
+                            self._prompt_categories[promptID] = self._get_category_from_path(item_path, base_dir)
+                            logger.debug(f"Found prompt '{promptID}' in category '{self._prompt_categories[promptID]}' at {item_path}")
         except OSError as e:
              logger.error(f"Error scanning directory {directory}: {e}")
 
     def _scan_all_prompt_dirs(self):
         """Scans all configured prompt directories (additional first, then standard)."""
         self._prompts = {} # Reset cache before scan
+        self._prompt_categories = {} # Reset category cache
         logger.debug("Scanning for prompts...")
 
         # 1. Scan additional directories (prioritized)
@@ -134,6 +188,100 @@ class PrePrompt:
         except OSError as e:
             logger.error(f"Error listing standard strategies in {self.standard_strategy_dir}: {e}")
             return []
+
+    def list_categories(self) -> List[str]:
+        """Lists all unique prompt categories found during scanning.
+
+        Returns:
+            Sorted list of category strings (e.g., ['agents', 'patterns/analyze', 'patterns/create', 'root'])
+        """
+        return sorted(set(self._prompt_categories.values()))
+
+    def get_prompt_category(self, promptID: str) -> Optional[str]:
+        """Gets the category for a specific prompt ID.
+
+        Args:
+            promptID: The prompt identifier
+
+        Returns:
+            Category string or None if prompt not found
+        """
+        return self._prompt_categories.get(promptID)
+
+    def list_prompts_by_category(self, category: str) -> List[str]:
+        """Lists all prompt IDs in a specific category.
+
+        Args:
+            category: Category string (e.g., 'agents', 'patterns/analyze')
+
+        Returns:
+            Sorted list of prompt IDs in that category
+        """
+        return sorted([
+            pid for pid, cat in self._prompt_categories.items()
+            if cat == category
+        ])
+
+    def get_prompts_grouped_by_category(self) -> Dict[str, List[str]]:
+        """Gets all prompts organized by their categories.
+
+        Returns:
+            Dict mapping category names to lists of prompt IDs
+        """
+        grouped: Dict[str, List[str]] = {}
+        for promptID, category in self._prompt_categories.items():
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(promptID)
+        # Sort prompt IDs within each category
+        for category in grouped:
+            grouped[category].sort()
+        return grouped
+
+    def get_strategy_metadata(self, strategyID: str) -> Dict:
+        """Gets the full metadata for a strategy (description, prompt, etc.).
+
+        Args:
+            strategyID: Strategy identifier (e.g., 'cot', 'tot', 'reflexion')
+
+        Returns:
+            Dict containing all strategy JSON data
+
+        Raises:
+            FileNotFoundError: If strategy not found
+        """
+        # Check cache first
+        if strategyID in self._strategy_metadata:
+            return self._strategy_metadata[strategyID]
+
+        if not self.standard_strategy_dir or not os.path.isdir(self.standard_strategy_dir):
+            raise FileNotFoundError(f"Strategy directory not found: {self.standard_strategy_dir}")
+
+        strategy_file = os.path.join(self.standard_strategy_dir, f"{strategyID}.json")
+        if not os.path.isfile(strategy_file):
+            raise FileNotFoundError(f"Strategy '{strategyID}' not found at: {strategy_file}")
+
+        try:
+            with open(strategy_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self._strategy_metadata[strategyID] = data
+            return data
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in strategy file '{strategyID}': {e}")
+
+    def get_all_strategies_metadata(self) -> Dict[str, Dict]:
+        """Gets metadata for all available strategies.
+
+        Returns:
+            Dict mapping strategy IDs to their full metadata
+        """
+        result = {}
+        for sid in self.list_strategy_ids():
+            try:
+                result[sid] = self.get_strategy_metadata(sid)
+            except (FileNotFoundError, ValueError) as e:
+                logger.warning(f"Failed to load strategy '{sid}': {e}")
+        return result
 
     def _find_prompt_file(self, promptID: str) -> Optional[str]:
         """Finds the first file matching the promptID in the standard prompt directory."""
@@ -190,7 +338,7 @@ class PrePrompt:
         logger.debug(f"Loaded and cached strategy '{strategy}'")
         return strategy_text
 
-    def load(self, promptID_with_strategy: str) -> str:
+    def load(self, promptID_with_strategy: str):
         """
         Loads the base prompt by ID from configured directories and optionally
         prepends a strategy prompt from the standard strategy directory.
@@ -198,15 +346,20 @@ class PrePrompt:
         Searches for `promptID` first in `additional_prompt_dirs`, then in the
         `standard_prompt_dir`. Uses the first match found.
 
-        The input string can be just the `promptID` or `promptID:strategyID`.
+        The input string can be:
+        - `promptID` - Load prompt by ID
+        - `promptID:strategyID` - Load prompt with strategy prepended
+        - `chain:model:version` - Returns ChainCall marker for chain execution
 
         Args:
             promptID_with_strategy: The identifier string, potentially including
                                     a strategy suffix (e.g., "my_prompt" or
-                                    "my_prompt:summarize").
+                                    "my_prompt:summarize") or chain reference
+                                    (e.g., "chain:query-optimizer:v1.0").
 
         Returns:
-            The combined prompt text as a string.
+            The combined prompt text as a string, or a ChainCall object
+            for chain references.
 
         Raises:
             FileNotFoundError: If the specified `promptID` is not found in any
@@ -216,9 +369,21 @@ class PrePrompt:
             ValueError: If the input format is wrong or strategy JSON is invalid.
             IOError: If there's an error reading the prompt or strategy file.
         """
-        # --- Parse promptID and optional strategy ---
+        # --- Check for chain: prefix (returns ChainCall marker) ---
         if not isinstance(promptID_with_strategy, str) or not promptID_with_strategy:
              raise ValueError("Input must be a non-empty string.")
+
+        if promptID_with_strategy.startswith("chain:"):
+            # Extract chain reference (everything after "chain:")
+            chain_ref = promptID_with_strategy[6:]  # Remove "chain:" prefix
+            if not chain_ref:
+                raise ValueError("Chain reference cannot be empty after 'chain:' prefix.")
+            # Import here to avoid circular imports
+            from .chain_models import ChainCall
+            logger.debug(f"Returning ChainCall for reference: {chain_ref}")
+            return ChainCall(chain_ref)
+
+        # --- Parse promptID and optional strategy ---
         parts = promptID_with_strategy.split(':', 1)
         promptID = parts[0]
         strategy: Optional[str] = parts[1] if len(parts) > 1 else None

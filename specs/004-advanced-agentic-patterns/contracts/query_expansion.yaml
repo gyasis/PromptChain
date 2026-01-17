@@ -1,0 +1,124 @@
+# Query Expansion Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US2)
+
+module: promptchain.patterns.query_expansion
+
+classes:
+  QueryExpander:
+    description: "Expand queries using multiple strategies and search in parallel"
+
+    methods:
+      __init__:
+        params:
+          - name: config
+            type: QueryExpansionConfig
+            required: false
+            description: "Pattern configuration"
+          - name: strategies
+            type: List[ExpansionStrategy]
+            required: false
+            default: [SYNONYM, SEMANTIC, ACRONYM]
+            description: "Expansion strategies to use"
+
+      expand_query:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Original query to expand"
+          - name: strategies
+            type: List[ExpansionStrategy]
+            required: false
+            default: null
+            description: "Override strategies for this call"
+        returns:
+          type: List[ExpandedQuery]
+          description: "Expanded query variations"
+        raises:
+          - type: ValueError
+            when: "query is empty"
+          - type: PatternExecutionError
+            when: "Expansion fails"
+
+      parallel_search:
+        async: true
+        params:
+          - name: queries
+            type: List[ExpandedQuery]
+            required: true
+            description: "Queries to search in parallel"
+          - name: searcher
+            type: Callable
+            required: true
+            description: "Search function to use"
+        returns:
+          type: List[SearchResult]
+          description: "Search results from all queries"
+        raises:
+          - type: ValueError
+            when: "queries is empty"
+
+      fuse_results:
+        params:
+          - name: results
+            type: List[SearchResult]
+            required: true
+            description: "Results to fuse"
+          - name: top_k
+            type: int
+            required: false
+            default: 10
+            description: "Number of results to return"
+        returns:
+          type: List[Any]
+          description: "Deduplicated and ranked results"
+        raises:
+          - type: ValueError
+            when: "results is empty"
+
+      execute:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Query to expand and search"
+          - name: searcher
+            type: Callable
+            required: true
+            description: "Search function"
+        returns:
+          type: QueryExpansionResult
+          description: "Complete expansion and search result"
+        raises:
+          - type: PatternExecutionError
+            when: "Any step fails"
+
+  ExpansionStrategyPlugin:
+    description: "Plugin interface for custom expansion strategies"
+
+    methods:
+      expand:
+        async: true
+        params:
+          - name: query
+            type: str
+            required: true
+            description: "Query to expand"
+          - name: max_expansions
+            type: int
+            required: false
+            default: 3
+            description: "Maximum expansions to generate"
+        returns:
+          type: List[str]
+          description: "Expanded query strings"
+
+events_emitted:
+  - pattern.query_expansion.started
+  - pattern.query_expansion.strategy_applied
+  - pattern.query_expansion.expanded
+  - pattern.query_expansion.searching
+  - pattern.query_expansion.fused
+  - pattern.query_expansion.completed

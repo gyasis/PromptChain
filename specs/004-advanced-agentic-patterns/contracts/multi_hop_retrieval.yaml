@@ -1,0 +1,145 @@
+# Multi-Hop Retrieval Pattern API Contract
+# Feature: 004-advanced-agentic-patterns (US4)
+
+module: promptchain.patterns.multi_hop_retrieval
+
+classes:
+  QuestionDecomposer:
+    description: "Decompose complex questions into sub-questions"
+
+    methods:
+      __init__:
+        params:
+          - name: model
+            type: str
+            required: false
+            default: null
+            description: "LLM model for decomposition"
+          - name: max_sub_questions
+            type: int
+            required: false
+            default: 5
+            description: "Maximum sub-questions to generate"
+
+      decompose:
+        async: true
+        params:
+          - name: question
+            type: str
+            required: true
+            description: "Complex question to decompose"
+        returns:
+          type: List[SubQuestion]
+          description: "Decomposed sub-questions"
+        raises:
+          - type: ValueError
+            when: "question is empty"
+          - type: PatternExecutionError
+            when: "Decomposition LLM call fails"
+
+      analyze_dependencies:
+        params:
+          - name: sub_questions
+            type: List[SubQuestion]
+            required: true
+            description: "Sub-questions to analyze"
+        returns:
+          type: QuestionDependencyGraph
+          description: "Graph with execution order"
+        raises:
+          - type: CircularDependencyError
+            when: "Circular dependencies detected"
+
+  MultiHopRetriever:
+    description: "Execute parallel multi-hop retrieval"
+
+    methods:
+      __init__:
+        params:
+          - name: config
+            type: MultiHopConfig
+            required: false
+            description: "Pattern configuration"
+          - name: retriever
+            type: Callable
+            required: true
+            description: "Base retrieval function"
+          - name: synthesizer_model
+            type: str
+            required: false
+            default: null
+            description: "Model for answer synthesis"
+
+      decompose_question:
+        async: true
+        params:
+          - name: question
+            type: str
+            required: true
+            description: "Question to decompose"
+        returns:
+          type: QuestionDependencyGraph
+          description: "Decomposed questions with dependencies"
+        raises:
+          - type: PatternExecutionError
+            when: "Decomposition fails"
+
+      parallel_retrieve:
+        async: true
+        params:
+          - name: sub_questions
+            type: List[SubQuestion]
+            required: true
+            description: "Sub-questions to answer"
+          - name: dependency_graph
+            type: QuestionDependencyGraph
+            required: true
+            description: "Execution order graph"
+        returns:
+          type: Dict[str, str]
+          description: "question_id -> answer mapping"
+        raises:
+          - type: RetrievalError
+            when: "Retrieval fails for critical sub-question"
+
+      unify_answers:
+        async: true
+        params:
+          - name: sub_answers
+            type: Dict[str, str]
+            required: true
+            description: "Answers per sub-question"
+          - name: original_question
+            type: str
+            required: true
+            description: "Original question for context"
+        returns:
+          type: Tuple[str, List[str]]
+          description: "Unified answer and unanswered aspects"
+        raises:
+          - type: PatternExecutionError
+            when: "Synthesis fails"
+
+      execute:
+        async: true
+        params:
+          - name: question
+            type: str
+            required: true
+            description: "Complex question to answer"
+        returns:
+          type: MultiHopResult
+          description: "Complete multi-hop result"
+        raises:
+          - type: PatternExecutionError
+            when: "Any step fails"
+
+events_emitted:
+  - pattern.multi_hop.started
+  - pattern.multi_hop.decomposed
+  - pattern.multi_hop.dependencies_analyzed
+  - pattern.multi_hop.wave_started
+  - pattern.multi_hop.sub_question_answered
+  - pattern.multi_hop.wave_completed
+  - pattern.multi_hop.synthesizing
+  - pattern.multi_hop.completed

@@ -1,0 +1,341 @@
+# PromptChain CLI Configuration Export
+# Example configuration from Product Analysis Demo
+# Version: 0.4.2
+# Generated: 2025-11-24
+
+# Session configuration
+session:
+  name: product-analysis-day1
+  sessions_directory: ~/.promptchain/sessions
+  auto_save: true
+  auto_save_frequency:
+    messages: 5
+    time_seconds: 120
+  working_directory: /home/gyasis/Documents/code/PromptChain
+
+# Agent configurations with templates
+agents:
+  # Default agent (standard configuration)
+  - name: default
+    model: openai/gpt-4
+    template: null
+    description: Default agent for general tasks
+    history_config:
+      enabled: true
+      max_tokens: 4000
+      max_entries: 20
+      truncation_strategy: oldest_first
+    temperature: 0.7
+    max_tokens: 4096
+
+  # Researcher agent (Phase 8: Agent Templates)
+  - name: market-researcher
+    model: openai/gpt-4
+    template: researcher
+    description: Expert in market research and competitive analysis
+    history_config:
+      enabled: true
+      max_tokens: 8000  # Higher limit for research context
+      max_entries: 50
+      truncation_strategy: oldest_first
+    temperature: 0.7
+    system_role: Market Research Specialist
+    capabilities:
+      - web_search
+      - data_analysis
+      - report_generation
+
+  # Terminal agent (Phase 6: Token Optimization)
+  - name: quick-exec
+    model: openai/gpt-3.5-turbo
+    template: terminal
+    description: Fast execution for simple commands
+    history_config:
+      enabled: false  # ⚡ Token optimization: 60% savings
+    temperature: 0.0
+    system_role: Terminal/Execution Agent
+    capabilities:
+      - command_execution
+      - file_operations
+
+  # Analyst agent (Phase 8: Agent Templates)
+  - name: data-analyst
+    model: openai/gpt-4
+    template: analyst
+    description: Expert in data analysis and insight generation
+    history_config:
+      enabled: true
+      max_tokens: 6000
+      max_entries: 30
+      truncation_strategy: oldest_first
+    temperature: 0.3  # Lower temperature for precise analysis
+    system_role: Data Analysis Specialist
+    capabilities:
+      - data_processing
+      - statistical_analysis
+      - visualization
+
+# Token optimization settings (Phase 6)
+token_optimization:
+  enabled: true
+  auto_optimization: true
+  token_counting_method: tiktoken
+  encoding: cl100k_base  # GPT-4 encoding
+
+  # Per-agent optimization strategy
+  agent_strategies:
+    terminal: disable_history  # 60% savings
+    researcher: full_history   # Context critical
+    analyst: medium_history    # Balance context/cost
+    default: standard_history
+
+  # Metrics tracking
+  tracking:
+    enabled: true
+    report_frequency: per_session
+    save_statistics: true
+
+# Workflow settings (Phase 7)
+workflows:
+  active_workflow:
+    name: Smart Home Product Analysis
+    id: workflow_20251124_100000
+    description: Research competitor products, analyze features and pricing, create comprehensive report
+    status: completed
+    progress: 1.0
+    auto_save: true
+
+  settings:
+    state_directory: ~/.promptchain/workflows
+    backup_frequency: step_completion
+    max_backups: 5
+    enable_multi_day: true
+
+  # Workflow templates
+  templates:
+    - name: research_workflow
+      steps:
+        - Research Phase
+        - Analysis Phase
+        - Report Phase
+
+# Model configuration
+models:
+  # API keys (use environment variables)
+  api_keys:
+    openai: ${OPENAI_API_KEY}
+    anthropic: ${ANTHROPIC_API_KEY}
+    google: ${GOOGLE_API_KEY}
+
+  # Default models
+  defaults:
+    primary: openai/gpt-4
+    fast: openai/gpt-3.5-turbo
+    fallback: anthropic/claude-3-sonnet-20240229
+
+  # Rate limiting and retries
+  rate_limiting:
+    enabled: true
+    max_retries: 3
+    backoff_strategy: exponential
+    initial_delay_seconds: 1
+    max_delay_seconds: 60
+
+  # Model-specific settings
+  model_settings:
+    openai/gpt-4:
+      max_tokens: 4096
+      timeout_seconds: 60
+    openai/gpt-3.5-turbo:
+      max_tokens: 4096
+      timeout_seconds: 30
+
+# Logging configuration (Phase 9)
+logging:
+  # Console logging
+  console:
+    enabled: true
+    level: INFO
+    format: structured
+    colorize: true
+
+  # File logging
+  file:
+    enabled: true
+    format: jsonl
+    directory: ~/.promptchain/sessions/{session_name}/logs
+    rotation: daily
+    retention_days: 30
+    max_file_size_mb: 50
+
+  # Event types to log
+  log_events:
+    - agent_created
+    - agent_switched
+    - workflow_created
+    - workflow_completed
+    - session_saved
+    - session_loaded
+    - token_statistics
+    - error_occurred
+
+# CLI interface settings (Phase 9)
+cli:
+  interface:
+    mode: interactive
+    command_history: true
+    autocomplete: true
+    color_output: true
+    pager: auto  # Use pager for long output
+
+  # Keyboard shortcuts
+  keyboard_shortcuts:
+    exit: Ctrl+D
+    cancel: Ctrl+C
+    history_prev: Up
+    history_next: Down
+    autocomplete: Tab
+
+  # Display settings
+  display:
+    show_token_counts: true
+    show_agent_info: true
+    show_workflow_progress: true
+    max_output_lines: 1000
+    truncate_long_messages: true
+
+  # Prompt customization
+  prompt:
+    show_agent_name: true
+    show_session_name: false
+    format: "{agent} > "
+
+# Agent templates (Phase 8)
+agent_templates:
+  researcher:
+    base_model: openai/gpt-4
+    temperature: 0.7
+    system_role: Market Research Specialist
+    history_config:
+      max_tokens: 8000
+      max_entries: 50
+    capabilities:
+      - web_search
+      - data_analysis
+      - report_generation
+
+  terminal:
+    base_model: openai/gpt-3.5-turbo
+    temperature: 0.0
+    system_role: Terminal/Execution Agent
+    history_config:
+      enabled: false  # Token optimization
+    capabilities:
+      - command_execution
+      - file_operations
+
+  analyst:
+    base_model: openai/gpt-4
+    temperature: 0.3
+    system_role: Data Analysis Specialist
+    history_config:
+      max_tokens: 6000
+      max_entries: 30
+    capabilities:
+      - data_processing
+      - statistical_analysis
+      - visualization
+
+  coder:
+    base_model: openai/gpt-4
+    temperature: 0.2
+    system_role: Software Development Specialist
+    history_config:
+      max_tokens: 6000
+      max_entries: 40
+    capabilities:
+      - code_generation
+      - debugging
+      - testing
+
+# Performance settings
+performance:
+  # Caching
+  cache:
+    enabled: true
+    directory: ~/.promptchain/cache
+    ttl_seconds: 3600
+    max_size_mb: 500
+
+  # Concurrency
+  concurrency:
+    max_parallel_agents: 3
+    max_parallel_requests: 5
+
+  # Timeouts
+  timeouts:
+    default_request_seconds: 60
+    agent_response_seconds: 120
+    workflow_step_seconds: 300
+
+# Error handling (Phase 9)
+error_handling:
+  # Retry configuration
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff_multiplier: 2
+    retry_on_timeout: true
+    retry_on_rate_limit: true
+
+  # Error reporting
+  reporting:
+    verbose: true
+    include_stack_trace: false
+    log_errors: true
+    display_suggestions: true
+
+  # Fallback behavior
+  fallback:
+    enabled: true
+    fallback_model: anthropic/claude-3-sonnet-20240229
+    fallback_on_error: true
+
+# Feature flags
+features:
+  # Phase 6 features
+  token_optimization: true
+  per_agent_history: true
+  token_statistics: true
+
+  # Phase 7 features
+  workflow_state: true
+  multi_day_sessions: true
+  workflow_resume: true
+
+  # Phase 8 features
+  agent_templates: true
+  template_customization: true
+
+  # Phase 9 features
+  config_export: true
+  session_export: true
+  comprehensive_stats: true
+  improved_error_messages: true
+
+# Export metadata
+export_metadata:
+  version: 0.4.2
+  exported_at: 2025-11-24T10:07:00Z
+  exported_by: product-analysis-demo
+  compatible_versions: ["0.4.2", "0.4.3", "0.5.0"]
+
+# Import instructions
+# To use this configuration:
+#   promptchain --config demo_config.yml
+#
+# To import into existing session:
+#   /config import demo_config.yml
+#
+# To validate configuration:
+#   promptchain --config demo_config.yml --validate
