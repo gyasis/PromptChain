@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-01-15T17:56:56.407066",
+  "config": {
+    "tasks": 20,
+    "tools_per_task": 5
+  },
+  "results": [
+    {
+      "mode": "baseline",
+      "tasks": 20,
+      "total_time_seconds": 180.26,
+      "avg_time_per_task_seconds": 9.01,
+      "total_tokens": 100000,
+      "avg_tokens_per_task": 5000,
+      "rag_calls": 0,
+      "gemini_calls": 0,
+      "total_api_calls": 0,
+      "avg_latency_per_tool_ms": 1802.5,
+      "throughput_tasks_per_minute": 6.66,
+      "estimated_cost_usd": 3.3
+    },
+    {
+      "mode": "enhanced",
+      "tasks": 20,
+      "total_time_seconds": 445.6,
+      "avg_time_per_task_seconds": 22.28,
+      "total_tokens": 538000,
+      "avg_tokens_per_task": 26900,
+      "rag_calls": 100,
+      "gemini_calls": 140,
+      "total_api_calls": 240,
+      "avg_latency_per_tool_ms": 4456.0,
+      "throughput_tasks_per_minute": 2.69,
+      "estimated_cost_usd": 17.754
+    },
+    {
+      "mode": "selective",
+      "tasks": 20,
+      "total_time_seconds": 347.42,
+      "avg_time_per_task_seconds": 17.37,
+      "total_tokens": 367600,
+      "avg_tokens_per_task": 18380,
+      "rag_calls": 60,
+      "gemini_calls": 80,
+      "total_api_calls": 140,
+      "avg_latency_per_tool_ms": 3474.2,
+      "throughput_tasks_per_minute": 3.45,
+      "estimated_cost_usd": 12.1308
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "description": "Remove outdated year references (2024-2025) and inject current time context into MCP tool calls",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": {
+          "pattern": "^mcp_.*",
+          "type": "regex"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python3 -c \"import sys,json,re;from datetime import datetime,timedelta;data=json.load(sys.stdin);ti=data.get('tool_input',{});now=datetime.now();current_year=str(now.year);current_date=now.strftime('%Y-%m-%d');six_months_ago=now-timedelta(days=180);time_context=f'Current date: {current_date}. Focus on recent information from {six_months_ago.strftime(\\\"%B %Y\\\")} onwards.';outdated_years=['2024','2025'];def clean_query(text):\n  if not text or not isinstance(text,str):return text\n  cleaned=text\n  for year in outdated_years:\n    if year!=current_year:\n      cleaned=re.sub(r'\\\\b'+re.escape(year)+r'\\\\b',current_year,cleaned)\n      cleaned=re.sub(r'\\\\b'+re.escape(year)+r'\\\\s+(tutorial|guide|article|news|update|release|version|best practices|implementation)\\\\b',f'{current_year} \\\\1',cleaned,flags=re.I)\n  if not re.search(r'current date|as of|recent|latest|\\\\d{4}-\\\\d{2}-\\\\d{2}',cleaned,re.I):\n    cleaned=f'{cleaned} ({time_context})'\n  return cleaned\nfor key in['query','topic','prompt','question','search_query','text']:\n  if key in ti and ti[key]:\n    original=str(ti[key])\n    cleaned=clean_query(original)\n    if cleaned!=original:\n      ti[key]=cleaned\nprint(json.dumps({'modifiedToolInput':ti}))\""
+          }
+        ]
+      }
+    ]
+  }
+}

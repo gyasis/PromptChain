@@ -1,0 +1,11 @@
+execution_duration_ms: 12783
+request_preview: '{}'
+request_time: '2026-01-19T20:30:25.482Z'
+response_preview: '"No tool was called, and the LLM did not provide an answer. Please
+  try rephrasing your request or check tool availability."'
+state: OK
+trace_id: tr-fc103389ec7760e57344ca8f00c146fe
+trace_location:
+  mlflow_experiment:
+    experiment_id: '814324303839750732'
+  type: MLFLOW_EXPERIMENT

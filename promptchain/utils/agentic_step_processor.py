@@ -11,6 +11,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# MLflow tracing support (optional)
+try:
+    import mlflow
+
+    MLFLOW_AVAILABLE = True
+except ImportError:
+    MLFLOW_AVAILABLE = False
+
 
 def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
     """
@@ -28,11 +36,11 @@ def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
     for msg in messages:
         if isinstance(msg, dict):
             # Count content
-            content = msg.get('content', '')
+            content = msg.get("content", "")
             if content:
                 total_chars += len(str(content))
             # Count tool calls if present
-            tool_calls = msg.get('tool_calls', [])
+            tool_calls = msg.get("tool_calls", [])
             if tool_calls:
                 total_chars += len(str(tool_calls))
     return total_chars // 4  # Approximate: 4 chars per token
@@ -40,50 +48,57 @@ def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
 
 class HistoryMode(str, Enum):
     """History accumulation modes for AgenticStepProcessor."""
-    MINIMAL = "minimal"         # Only keep last assistant + tool results (default, backward compatible)
-    PROGRESSIVE = "progressive" # Accumulate assistant messages + tool results progressively
-    KITCHEN_SINK = "kitchen_sink"  # Keep everything - all reasoning, tool calls, results
+
+    MINIMAL = "minimal"  # Only keep last assistant + tool results (default, backward compatible)
+    PROGRESSIVE = (
+        "progressive"  # Accumulate assistant messages + tool results progressively
+    )
+    KITCHEN_SINK = (
+        "kitchen_sink"  # Keep everything - all reasoning, tool calls, results
+    )
+
 
 def get_function_name_from_tool_call(tool_call) -> Optional[str]:
     """
     Safely extract function name from different tool_call object formats.
-    
+
     Args:
         tool_call: A tool call object from various LLM providers
-        
+
     Returns:
         The function name or None if not found
     """
     try:
         # If it's a dictionary (like from OpenAI direct API)
         if isinstance(tool_call, dict):
-            function_obj = tool_call.get('function', {})
+            function_obj = tool_call.get("function", {})
             if isinstance(function_obj, dict):
-                return function_obj.get('name')
+                return function_obj.get("name")
         # If it's an object with attributes (like from LiteLLM)
         else:
-            function_obj = getattr(tool_call, 'function', None)
+            function_obj = getattr(tool_call, "function", None)
             if function_obj:
                 # Direct attribute access
-                if hasattr(function_obj, 'name'):
+                if hasattr(function_obj, "name"):
                     return function_obj.name
                 # Dictionary-like access for nested objects
                 elif isinstance(function_obj, dict):
-                    return function_obj.get('name')
+                    return function_obj.get("name")
                 # Get function name through __dict__
-                elif hasattr(function_obj, '__dict__'):
-                    return function_obj.__dict__.get('name')
+                elif hasattr(function_obj, "__dict__"):
+                    return function_obj.__dict__.get("name")
         # Last resort: try to convert to dictionary if possible
-        if hasattr(tool_call, 'model_dump'):
+        if hasattr(tool_call, "model_dump"):
             model_dump = tool_call.model_dump()
-            if isinstance(model_dump, dict) and 'function' in model_dump:
-                function_dict = model_dump['function']
+            if isinstance(model_dump, dict) and "function" in model_dump:
+                function_dict = model_dump["function"]
                 if isinstance(function_dict, dict):
-                    return function_dict.get('name')
+                    return function_dict.get("name")
     except Exception as e:
         logger.warning(f"Error extracting function name: {e}")
-    
+
     return None  # Return None if we couldn't extract the name
+
 
 class AgenticStepProcessor:
     """
@@ -150,6 +165,7 @@ class AgenticStepProcessor:
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     """
+
     def __init__(
         self,
         objective: str,
@@ -161,7 +177,9 @@ class AgenticStepProcessor:
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         user_input_queue: Optional[asyncio.Queue] = None,
         streaming_callback: Optional[Callable[[str, str], None]] = None,
-        step_timeout: Optional[float] = 120.0,  # Timeout per LLM call in seconds (default 2 min)
+        step_timeout: Optional[
+            float
+        ] = 120.0,  # Timeout per LLM call in seconds (default 2 min)
         # Smart context management parameters
         enable_summarization: bool = True,  # Enable history summarization
         summarize_every_n: int = 5,  # Summarize after N iterations
@@ -169,7 +187,9 @@ class AgenticStepProcessor:
         summarizer_model: str = "openai/gpt-4.1-mini-2025-04-14",  # Model for summarization
         preserve_last_n_turns: int = 2,  # Keep last N turns verbatim when summarizing
         # Two-tier model routing parameters (Phase 1: Quick Wins)
-        fallback_model: Optional[str] = None,  # Fast/cheap model for simple tasks (e.g., "openai/gpt-4o-mini")
+        fallback_model: Optional[
+            str
+        ] = None,  # Fast/cheap model for simple tasks (e.g., "openai/gpt-4o-mini")
         enable_two_tier_routing: bool = False,  # Enable intelligent model routing (default: off for backward compatibility)
         # Blackboard Architecture parameters (Phase 2: Token Optimization - 80% reduction)
         enable_blackboard: bool = False,  # Enable Blackboard structured state (default: off for backward compatibility)
@@ -242,7 +262,9 @@ class AgenticStepProcessor:
 
         # Validate history_mode
         if history_mode not in [mode.value for mode in HistoryMode]:
-            raise ValueError(f"Invalid history_mode: {history_mode}. Must be one of {[mode.value for mode in HistoryMode]}")
+            raise ValueError(
+                f"Invalid history_mode: {history_mode}. Must be one of {[mode.value for mode in HistoryMode]}"
+            )
 
         self.objective = objective
         self.max_internal_steps = max_internal_steps
@@ -250,11 +272,17 @@ class AgenticStepProcessor:
         self.model_params = model_params or {}
         self.history_mode = history_mode
         self.max_context_tokens = max_context_tokens
-        self.progress_callback = progress_callback  # T052: Progress callback for TUI updates
-        self.user_input_queue = user_input_queue  # Async queue for mid-execution user input
+        self.progress_callback = (
+            progress_callback  # T052: Progress callback for TUI updates
+        )
+        self.user_input_queue = (
+            user_input_queue  # Async queue for mid-execution user input
+        )
         self.streaming_callback = streaming_callback  # Real-time streaming of reasoning
         self.step_timeout = step_timeout  # Timeout for each LLM call
-        self.conversation_history: List[Dict[str, Any]] = []  # Accumulated history for progressive/kitchen_sink modes
+        self.conversation_history: List[
+            Dict[str, Any]
+        ] = []  # Accumulated history for progressive/kitchen_sink modes
         self._interrupt_requested = False  # Flag for graceful interruption
 
         # Token tracking for real-time display
@@ -290,11 +318,12 @@ class AgenticStepProcessor:
         self.blackboard = None  # Will be initialized on first use
         if self.enable_blackboard:
             from promptchain.utils.blackboard import Blackboard
+
             self.blackboard = Blackboard(
                 objective=objective,
                 max_plan_items=10,
                 max_facts=20,
-                max_observations=15
+                max_observations=15,
             )
             logger.info(
                 "✅ Blackboard Architecture enabled. "
@@ -316,6 +345,7 @@ class AgenticStepProcessor:
         self.checkpoint_manager = None
         if self.enable_checkpointing:
             from promptchain.utils.checkpoint_manager import CheckpointManager
+
             self.checkpoint_manager = CheckpointManager(stuck_threshold=3)
             logger.info(
                 "✅ Epistemic Checkpointing enabled (stuck_threshold=3). "
@@ -361,7 +391,7 @@ class AgenticStepProcessor:
         Returns:
             int: Number of internal reasoning steps completed
         """
-        return getattr(self, 'steps_executed', 0)
+        return getattr(self, "steps_executed", 0)
 
     @property
     def internal_history(self) -> List[Dict[str, Any]]:
@@ -378,9 +408,11 @@ class AgenticStepProcessor:
         Returns:
             List[Dict[str, Any]]: Internal conversation history, empty list if not yet executed
         """
-        return getattr(self, '_internal_history', [])
+        return getattr(self, "_internal_history", [])
 
-    async def _check_user_input(self, internal_history: List[Dict], llm_history: List[Dict]) -> Optional[str]:
+    async def _check_user_input(
+        self, internal_history: List[Dict], llm_history: List[Dict]
+    ) -> Optional[str]:
         """Check for and process user input from the queue.
 
         Non-blocking check - returns immediately if no input available.
@@ -401,7 +433,10 @@ class AgenticStepProcessor:
                 logger.info(f"Received mid-execution user input: {user_input[:100]}...")
 
                 # Inject as user message
-                user_msg = {"role": "user", "content": f"[User interrupt]: {user_input}"}
+                user_msg = {
+                    "role": "user",
+                    "content": f"[User interrupt]: {user_input}",
+                }
                 internal_history.append(user_msg)
                 llm_history.append(user_msg)
 
@@ -443,16 +478,16 @@ class AgenticStepProcessor:
             usage = None
 
             # Method 1: Direct attribute access (LiteLLM ModelResponse)
-            if hasattr(response, 'usage'):
+            if hasattr(response, "usage"):
                 usage = response.usage
             # Method 2: Dict access
-            elif isinstance(response, dict) and 'usage' in response:
-                usage = response['usage']
+            elif isinstance(response, dict) and "usage" in response:
+                usage = response["usage"]
             # Method 3: model_dump() for Pydantic objects
-            elif hasattr(response, 'model_dump'):
+            elif hasattr(response, "model_dump"):
                 try:
                     response_dict = response.model_dump()
-                    usage = response_dict.get('usage')
+                    usage = response_dict.get("usage")
                 except Exception:
                     pass
 
@@ -461,29 +496,33 @@ class AgenticStepProcessor:
                 prompt_tokens = 0
                 completion_tokens = 0
 
-                if hasattr(usage, 'prompt_tokens'):
+                if hasattr(usage, "prompt_tokens"):
                     prompt_tokens = usage.prompt_tokens or 0
                 elif isinstance(usage, dict):
-                    prompt_tokens = usage.get('prompt_tokens', 0)
+                    prompt_tokens = usage.get("prompt_tokens", 0)
 
-                if hasattr(usage, 'completion_tokens'):
+                if hasattr(usage, "completion_tokens"):
                     completion_tokens = usage.completion_tokens or 0
                 elif isinstance(usage, dict):
-                    completion_tokens = usage.get('completion_tokens', 0)
+                    completion_tokens = usage.get("completion_tokens", 0)
 
                 # Accumulate totals
                 self.total_prompt_tokens += prompt_tokens
                 self.total_completion_tokens += completion_tokens
 
                 # Emit token event
-                token_data = json.dumps({
-                    "prompt_tokens": self.total_prompt_tokens,
-                    "completion_tokens": self.total_completion_tokens,
-                    "last_prompt": prompt_tokens,
-                    "last_completion": completion_tokens
-                })
+                token_data = json.dumps(
+                    {
+                        "prompt_tokens": self.total_prompt_tokens,
+                        "completion_tokens": self.total_completion_tokens,
+                        "last_prompt": prompt_tokens,
+                        "last_completion": completion_tokens,
+                    }
+                )
                 self._stream_event("tokens", token_data)
-                logger.debug(f"Emitted token usage: prompt={self.total_prompt_tokens}, completion={self.total_completion_tokens}")
+                logger.debug(
+                    f"Emitted token usage: prompt={self.total_prompt_tokens}, completion={self.total_completion_tokens}"
+                )
 
         except Exception as e:
             logger.debug(f"Failed to emit token usage: {e}")
@@ -504,6 +543,7 @@ class AgenticStepProcessor:
         """
         if self._summarizer is None:
             from .history_summarizer import HistorySummarizer
+
             self._summarizer = HistorySummarizer(
                 model=self.summarizer_model,
                 max_summary_tokens=500,
@@ -532,7 +572,9 @@ class AgenticStepProcessor:
             return False
 
         # Trigger 1: Iteration-based (after every N iterations, starting from iteration N)
-        iteration_trigger = (iteration > 0) and ((iteration + 1) % self.summarize_every_n == 0)
+        iteration_trigger = (iteration > 0) and (
+            (iteration + 1) % self.summarize_every_n == 0
+        )
 
         # Trigger 2: Token-based (when exceeding threshold)
         token_trigger = False
@@ -580,11 +622,15 @@ class AgenticStepProcessor:
                 # Create summary message
                 summary_msg = {
                     "role": "system",
-                    "content": f"[Summary of previous {result.entries_summarized} exchanges]\n{result.summary}"
+                    "content": f"[Summary of previous {result.entries_summarized} exchanges]\n{result.summary}",
                 }
 
                 # Preserve recent turns
-                preserved_entries = self.conversation_history[-self.preserve_last_n_turns:] if self.preserve_last_n_turns > 0 else []
+                preserved_entries = (
+                    self.conversation_history[-self.preserve_last_n_turns :]
+                    if self.preserve_last_n_turns > 0
+                    else []
+                )
 
                 # Replace history with summary + preserved turns
                 self.conversation_history = [summary_msg] + preserved_entries
@@ -599,7 +645,10 @@ class AgenticStepProcessor:
                 )
 
                 # Stream completion
-                self._stream_event("thinking", f"History compressed: {result.savings_percent:.0f}% reduction")
+                self._stream_event(
+                    "thinking",
+                    f"History compressed: {result.savings_percent:.0f}% reduction",
+                )
 
                 return True
             else:
@@ -612,10 +661,7 @@ class AgenticStepProcessor:
             return False
 
     def _classify_task_complexity(
-        self,
-        messages: List[Dict[str, Any]],
-        tools: List[Dict[str, Any]],
-        step_num: int
+        self, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]], step_num: int
     ) -> str:
         """Classify task complexity to route between fast/slow models.
 
@@ -639,7 +685,9 @@ class AgenticStepProcessor:
         """
         # Early iterations (planning phase) - use primary model
         if step_num < 2:
-            logger.debug(f"[Two-Tier] Step {step_num}: Early planning phase → COMPLEX (use primary model)")
+            logger.debug(
+                f"[Two-Tier] Step {step_num}: Early planning phase → COMPLEX (use primary model)"
+            )
             return "complex"
 
         # Check if this is likely a tool-free reasoning step
@@ -648,26 +696,47 @@ class AgenticStepProcessor:
 
         # Patterns indicating complex reasoning
         complex_patterns = [
-            "think", "analyze", "plan", "strategy", "approach",
-            "why", "how", "multiple", "several", "compare"
+            "think",
+            "analyze",
+            "plan",
+            "strategy",
+            "approach",
+            "why",
+            "how",
+            "multiple",
+            "several",
+            "compare",
         ]
 
         if any(pattern in last_content.lower() for pattern in complex_patterns):
-            logger.debug(f"[Two-Tier] Step {step_num}: Complex reasoning detected → COMPLEX")
+            logger.debug(
+                f"[Two-Tier] Step {step_num}: Complex reasoning detected → COMPLEX"
+            )
             return "complex"
 
         # Simple patterns (execution, status updates)
         simple_patterns = [
-            "list", "get", "show", "display", "status",
-            "next", "continue", "done", "complete"
+            "list",
+            "get",
+            "show",
+            "display",
+            "status",
+            "next",
+            "continue",
+            "done",
+            "complete",
         ]
 
         if any(pattern in last_content.lower() for pattern in simple_patterns):
-            logger.debug(f"[Two-Tier] Step {step_num}: Simple execution detected → SIMPLE (use fallback)")
+            logger.debug(
+                f"[Two-Tier] Step {step_num}: Simple execution detected → SIMPLE (use fallback)"
+            )
             return "simple"
 
         # Default: Later iterations likely executing plan → Simple
-        logger.debug(f"[Two-Tier] Step {step_num}: Late iteration, default → SIMPLE (use fallback)")
+        logger.debug(
+            f"[Two-Tier] Step {step_num}: Late iteration, default → SIMPLE (use fallback)"
+        )
         return "simple"
 
     async def _smart_llm_call(
@@ -677,7 +746,7 @@ class AgenticStepProcessor:
         tools: List[Dict[str, Any]],
         tool_choice: str,
         step_num: int,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
     ) -> Any:
         """Intelligently route LLM call to fast or slow model based on complexity.
 
@@ -699,9 +768,7 @@ class AgenticStepProcessor:
         # If two-tier routing disabled, use primary model
         if not self.enable_two_tier_routing:
             return await llm_runner(
-                messages=messages,
-                tools=tools,
-                tool_choice=tool_choice
+                messages=messages, tools=tools, tool_choice=tool_choice
             )
 
         # If model override specified, respect it
@@ -711,7 +778,7 @@ class AgenticStepProcessor:
                 messages=messages,
                 tools=tools,
                 tool_choice=tool_choice,
-                model=model_override
+                model=model_override,
             )
 
         # Classify task complexity
@@ -729,7 +796,7 @@ class AgenticStepProcessor:
                 messages=messages,
                 tools=tools,
                 tool_choice=tool_choice,
-                model=self.fallback_model
+                model=self.fallback_model,
             )
         else:
             # Use primary model
@@ -738,9 +805,7 @@ class AgenticStepProcessor:
                 f"[Two-Tier] Step {step_num}: COMPLEX task → using primary model '{self.model_name or 'default'}'"
             )
             return await llm_runner(
-                messages=messages,
-                tools=tools,
-                tool_choice=tool_choice
+                messages=messages, tools=tools, tool_choice=tool_choice
             )
 
     def _ensure_cove_verifier(self, llm_runner: Callable[..., Awaitable[Any]]):
@@ -752,8 +817,11 @@ class AgenticStepProcessor:
         """
         if self.enable_cove and self.cove_verifier is None:
             from promptchain.utils.verification import CoVeVerifier
+
             # Use fallback model for verification (cheaper/faster) or primary if not available
-            verification_model = self.fallback_model if self.fallback_model else self.model_name
+            verification_model = (
+                self.fallback_model if self.fallback_model else self.model_name
+            )
             self.cove_verifier = CoVeVerifier(llm_runner, verification_model)
             logger.info(f"[CoVe] Initialized verifier with model: {verification_model}")
 
@@ -761,13 +829,25 @@ class AgenticStepProcessor:
         self,
         initial_input: str,
         available_tools: List[Dict[str, Any]],
-        llm_runner: Callable[..., Awaitable[Any]], # Should return LiteLLM-like response message
-        tool_executor: Callable[[Any], Awaitable[str]], # Takes tool_call, returns result string
+        llm_runner: Callable[
+            ..., Awaitable[Any]
+        ],  # Should return LiteLLM-like response message
+        tool_executor: Callable[
+            [Any], Awaitable[str]
+        ],  # Takes tool_call, returns result string
         return_metadata: bool = False,  # NEW: Return metadata instead of just string
-        callback_manager: Optional[Any] = None,  # ✅ NEW (v0.4.2): Observability support
-        user_input_queue: Optional[asyncio.Queue] = None,  # Runtime override for mid-execution input
-        streaming_callback: Optional[Callable[[str, str], None]] = None,  # Runtime override for streaming
-        step_timeout: Optional[float] = None  # Runtime override for timeout (default: use init value)
+        callback_manager: Optional[
+            Any
+        ] = None,  # ✅ NEW (v0.4.2): Observability support
+        user_input_queue: Optional[
+            asyncio.Queue
+        ] = None,  # Runtime override for mid-execution input
+        streaming_callback: Optional[
+            Callable[[str, str], None]
+        ] = None,  # Runtime override for streaming
+        step_timeout: Optional[
+            float
+        ] = None,  # Runtime override for timeout (default: use init value)
     ) -> Union[str, AgenticStepResult]:
         """
         Executes the internal agentic loop for this step with optional metadata return.
@@ -801,7 +881,7 @@ class AgenticStepProcessor:
         self.available_tools = available_tools
 
         # Log the tool names for proof
-        tool_names = [t['function']['name'] for t in available_tools if 'function' in t]
+        tool_names = [t["function"]["name"] for t in available_tools if "function" in t]
         logger.info(f"[AgenticStepProcessor] Available tools at start: {tool_names}")
 
         logger.info(f"Starting agentic step. Objective: {self.objective[:100]}...")
@@ -927,7 +1007,14 @@ FINAL ANSWER REQUIREMENTS:
 - WRONG: "I have explained how to add MCP servers" (user sees nothing useful)
 - CORRECT: Include the actual steps, code, and explanations from the tool response"""
         system_message = {"role": "system", "content": system_prompt}
-        user_message = {"role": "user", "content": f"The initial input for this step is: {initial_input}"} if initial_input else None
+        user_message = (
+            {
+                "role": "user",
+                "content": f"The initial input for this step is: {initial_input}",
+            }
+            if initial_input
+            else None
+        )
         internal_history.append(system_message)
         if user_message:
             internal_history.append(user_message)
@@ -947,17 +1034,19 @@ FINAL ANSWER REQUIREMENTS:
             if self._interrupt_requested:
                 logger.info("Interrupt detected - stopping execution gracefully")
                 execution_warnings.append("Execution interrupted by user")
-                final_answer = "[Execution interrupted by user. Partial results may be available.]"
+                final_answer = (
+                    "[Execution interrupted by user. Partial results may be available.]"
+                )
                 break
 
-            logger.info(f"Agentic step internal iteration {step_num + 1}/{self.max_internal_steps}")
+            logger.info(
+                f"Agentic step internal iteration {step_num + 1}/{self.max_internal_steps}"
+            )
 
             # T052: Invoke progress callback at start of each step
             if self.progress_callback:
                 self.progress_callback(
-                    step_num + 1,
-                    self.max_internal_steps,
-                    "Reasoning..."
+                    step_num + 1, self.max_internal_steps, "Reasoning..."
                 )
 
             # Phase 2: Increment Blackboard iteration counter
@@ -965,17 +1054,24 @@ FINAL ANSWER REQUIREMENTS:
                 self.blackboard.increment_iteration()
 
             # Phase 3: Create checkpoint for potential rollback
-            if self.enable_checkpointing and self.checkpoint_manager and self.blackboard:
+            if (
+                self.enable_checkpointing
+                and self.checkpoint_manager
+                and self.blackboard
+            ):
                 snapshot_id = self.blackboard.snapshot()
                 confidence = self.blackboard.get_state().get("confidence", 1.0)
                 self.checkpoint_manager.create_checkpoint(
                     iteration=step_num,
                     blackboard_snapshot=snapshot_id,
-                    confidence=confidence
+                    confidence=confidence,
                 )
 
             # Stream thinking event
-            self._stream_event("thinking", f"Step {step_num + 1}: Analyzing and planning next action...")
+            self._stream_event(
+                "thinking",
+                f"Step {step_num + 1}: Analyzing and planning next action...",
+            )
 
             # Track metadata for this step
             step_start_time = datetime.now()
@@ -999,8 +1095,8 @@ FINAL ANSWER REQUIREMENTS:
                         system_message,
                         {
                             "role": "user",
-                            "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}"
-                        }
+                            "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}",
+                        },
                     ]
                 elif self.history_mode == HistoryMode.MINIMAL.value:
                     llm_history_for_tao = [system_message]
@@ -1014,7 +1110,7 @@ FINAL ANSWER REQUIREMENTS:
                     llm_runner=llm_runner,
                     llm_history=llm_history_for_tao,
                     iteration_count=step_num,
-                    available_tools=available_tools
+                    available_tools=available_tools,
                 )
 
                 response_message = think_result["response"]
@@ -1025,7 +1121,16 @@ FINAL ANSWER REQUIREMENTS:
                 self._emit_token_usage(response_message)
 
                 # Add assistant's response to history
-                internal_history.append(response_message if isinstance(response_message, dict) else {"role": "assistant", "content": str(response_message)})
+                internal_history.append(
+                    response_message
+                    if isinstance(response_message, dict)
+                    else {"role": "assistant", "content": str(response_message)}
+                )
+
+                # DEBUG: Log the values
+                logger.debug(
+                    f"[TAO] DEBUG: has_tool_calls={has_tool_calls}, tool_calls={tool_calls}, len={len(tool_calls) if tool_calls else 0}"
+                )
 
                 if has_tool_calls and tool_calls:
                     # ACT phase: Execute tools (reuse existing tool execution code)
@@ -1034,12 +1139,18 @@ FINAL ANSWER REQUIREMENTS:
 
                     # Store original tool calls for TAO observe phase
                     tao_tool_calls = tool_calls
+                    logger.info(
+                        f"[TAO] Stored {len(tool_calls)} tool calls for execution"
+                    )
 
                     # Continue to existing tool execution code (lines 1090+)
                     # The existing CoVe verification and tool execution will handle this
                     pass  # Execution continues below in existing loop
                 else:
                     # No tool calls - check for completion
+                    logger.warning(
+                        f"[TAO] No tool calls to execute: has_tool_calls={has_tool_calls}, tool_calls={tool_calls}"
+                    )
                     tool_calls = None
 
                 # The TAO observe phase will be called after tool execution (after line 1315)
@@ -1058,13 +1169,19 @@ FINAL ANSWER REQUIREMENTS:
                 # Check for user input before LLM call
                 user_input = await self._check_user_input(internal_history, llm_history)
                 if user_input:
-                    logger.info(f"Processing user input mid-execution: {user_input[:50]}...")
+                    logger.info(
+                        f"Processing user input mid-execution: {user_input[:50]}..."
+                    )
                     # Continue loop to process the new input with LLM
                 # Prepare minimal valid messages for LLM
                 messages_for_llm = llm_history[:]
                 # Log the full structure of messages and tools for debugging
-                logger.debug(f"Messages sent to LLM: {json.dumps(messages_for_llm, indent=2)}")
-                logger.debug(f"Tools sent to LLM: {json.dumps(available_tools, indent=2)}")
+                logger.debug(
+                    f"Messages sent to LLM: {json.dumps(messages_for_llm, indent=2)}"
+                )
+                logger.debug(
+                    f"Tools sent to LLM: {json.dumps(available_tools, indent=2)}"
+                )
                 try:
                     # Call the LLM to decide next action or give final answer
                     logger.debug("Calling LLM for next action/final answer...")
@@ -1079,14 +1196,18 @@ FINAL ANSWER REQUIREMENTS:
                         messages=messages_for_llm,
                         tools=available_tools,
                         tool_choice=tool_choice,
-                        step_num=step_num
+                        step_num=step_num,
                     )
 
                     if self.step_timeout:
                         try:
-                            response_message = await asyncio.wait_for(llm_coro, timeout=self.step_timeout)
+                            response_message = await asyncio.wait_for(
+                                llm_coro, timeout=self.step_timeout
+                            )
                         except asyncio.TimeoutError:
-                            timeout_msg = f"LLM call timed out after {self.step_timeout} seconds"
+                            timeout_msg = (
+                                f"LLM call timed out after {self.step_timeout} seconds"
+                            )
                             logger.error(timeout_msg)
                             self._stream_event("error", timeout_msg)
                             execution_errors.append(timeout_msg)
@@ -1100,33 +1221,43 @@ FINAL ANSWER REQUIREMENTS:
 
                     # Add more detailed debugging
                     if isinstance(response_message, dict):
-                        logger.debug(f"Response message (dict): {json.dumps(response_message)}")
+                        logger.debug(
+                            f"Response message (dict): {json.dumps(response_message)}"
+                        )
                     else:
-                        logger.debug(f"Response message (object): type={type(response_message)}, dir={dir(response_message)}")
-                        if hasattr(response_message, 'model_dump'):
-                            logger.debug(f"Response message dump: {json.dumps(response_message.model_dump())}")
+                        logger.debug(
+                            f"Response message (object): type={type(response_message)}, dir={dir(response_message)}"
+                        )
+                        if hasattr(response_message, "model_dump"):
+                            logger.debug(
+                                f"Response message dump: {json.dumps(response_message.model_dump())}"
+                            )
 
                     # Append assistant's response (thought process + potential tool call) to internal history
-                    internal_history.append(response_message if isinstance(response_message, dict) else {"role": "assistant", "content": str(response_message)})
+                    internal_history.append(
+                        response_message
+                        if isinstance(response_message, dict)
+                        else {"role": "assistant", "content": str(response_message)}
+                    )
 
                     # Enhanced tool call detection - try multiple approaches
                     tool_calls = None
-                    
+
                     # Method 1: Try standard attribute/key access
                     if isinstance(response_message, dict):
-                        tool_calls = response_message.get('tool_calls')
+                        tool_calls = response_message.get("tool_calls")
                     else:
-                        tool_calls = getattr(response_message, 'tool_calls', None)
-                    
+                        tool_calls = getattr(response_message, "tool_calls", None)
+
                     # Method 2: For LiteLLM objects, try nested access via model_dump
-                    if tool_calls is None and hasattr(response_message, 'model_dump'):
+                    if tool_calls is None and hasattr(response_message, "model_dump"):
                         try:
                             response_dict = response_message.model_dump()
                             if isinstance(response_dict, dict):
-                                tool_calls = response_dict.get('tool_calls')
+                                tool_calls = response_dict.get("tool_calls")
                         except Exception as dump_err:
                             logger.warning(f"Error accessing model_dump: {dump_err}")
-                    
+
                     # Log the detected tool calls for debugging
                     if tool_calls:
                         logger.debug(f"Detected tool calls: {tool_calls}")
@@ -1149,11 +1280,17 @@ FINAL ANSWER REQUIREMENTS:
                             self.progress_callback(
                                 step_num + 1,
                                 self.max_internal_steps,
-                                f"Calling: {tool_names_str}" if tool_names_str else f"Calling {len(tool_calls)} tool(s)"
+                                f"Calling: {tool_names_str}"
+                                if tool_names_str
+                                else f"Calling {len(tool_calls)} tool(s)",
                             )
 
                         # Prepare new minimal LLM history: system, user, assistant (with tool_calls), tool(s)
-                        last_tool_call_assistant_msg = response_message if isinstance(response_message, dict) else {"role": "assistant", "content": str(response_message)}
+                        last_tool_call_assistant_msg = (
+                            response_message
+                            if isinstance(response_message, dict)
+                            else {"role": "assistant", "content": str(response_message)}
+                        )
                         last_tool_msgs = []
 
                         # Phase 3: Chain of Verification (CoVe) - verify tools before execution
@@ -1163,48 +1300,81 @@ FINAL ANSWER REQUIREMENTS:
 
                             verified_tool_calls = []
                             for tool_call in tool_calls:
-                                function_name = get_function_name_from_tool_call(tool_call)
+                                function_name = get_function_name_from_tool_call(
+                                    tool_call
+                                )
                                 if not function_name:
-                                    verified_tool_calls.append(tool_call)  # Can't verify, allow it
+                                    verified_tool_calls.append(
+                                        tool_call
+                                    )  # Can't verify, allow it
                                     continue
 
                                 # Parse arguments
                                 if isinstance(tool_call, dict):
-                                    tool_call_args = tool_call.get('function', {}).get('arguments', '{}')
+                                    tool_call_args = tool_call.get("function", {}).get(
+                                        "arguments", "{}"
+                                    )
                                 else:
-                                    func_obj = getattr(tool_call, 'function', None)
-                                    tool_call_args = getattr(func_obj, 'arguments', '{}') if func_obj else '{}'
+                                    func_obj = getattr(tool_call, "function", None)
+                                    tool_call_args = (
+                                        getattr(func_obj, "arguments", "{}")
+                                        if func_obj
+                                        else "{}"
+                                    )
 
                                 # Parse JSON args
                                 try:
-                                    tool_args_dict = json.loads(tool_call_args) if isinstance(tool_call_args, str) else tool_call_args
+                                    tool_args_dict = (
+                                        json.loads(tool_call_args)
+                                        if isinstance(tool_call_args, str)
+                                        else tool_call_args
+                                    )
                                 except json.JSONDecodeError:
                                     tool_args_dict = {}
 
                                 # Get context for verification
-                                context = self.blackboard.to_prompt() if (self.enable_blackboard and self.blackboard) else "No context available"
+                                context = (
+                                    self.blackboard.to_prompt()
+                                    if (self.enable_blackboard and self.blackboard)
+                                    else "No context available"
+                                )
 
                                 # Verify tool call
-                                verification = await self.cove_verifier.verify_tool_call(
-                                    tool_name=function_name,
-                                    tool_args=tool_args_dict,
-                                    context=context,
-                                    available_tools=available_tools
+                                verification = (
+                                    await self.cove_verifier.verify_tool_call(
+                                        tool_name=function_name,
+                                        tool_args=tool_args_dict,
+                                        context=context,
+                                        available_tools=available_tools,
+                                    )
                                 )
 
                                 # Check confidence threshold
-                                if verification.should_execute and verification.confidence >= self.cove_confidence_threshold:
+                                if (
+                                    verification.should_execute
+                                    and verification.confidence
+                                    >= self.cove_confidence_threshold
+                                ):
                                     # Apply suggested modifications if any
                                     if verification.suggested_modifications:
                                         # Merge modifications into tool args
-                                        modified_args = {**tool_args_dict, **verification.suggested_modifications}
+                                        modified_args = {
+                                            **tool_args_dict,
+                                            **verification.suggested_modifications,
+                                        }
                                         # Update tool call arguments
                                         if isinstance(tool_call, dict):
-                                            tool_call['function']['arguments'] = json.dumps(modified_args)
-                                        logger.info(f"[CoVe] Applied modifications to {function_name}")
+                                            tool_call["function"]["arguments"] = (
+                                                json.dumps(modified_args)
+                                            )
+                                        logger.info(
+                                            f"[CoVe] Applied modifications to {function_name}"
+                                        )
 
                                     verified_tool_calls.append(tool_call)
-                                    logger.info(f"[CoVe] ✅ Approved {function_name} (confidence={verification.confidence:.2f})")
+                                    logger.info(
+                                        f"[CoVe] ✅ Approved {function_name} (confidence={verification.confidence:.2f})"
+                                    )
                                 else:
                                     # Log skipped tool
                                     logger.warning(
@@ -1218,24 +1388,54 @@ FINAL ANSWER REQUIREMENTS:
 
                             # Replace tool calls with verified subset
                             tool_calls = verified_tool_calls
-                            logger.info(f"[CoVe] Verified {len(verified_tool_calls)}/{len(tool_calls)} tool calls")
+                            logger.info(
+                                f"[CoVe] Verified {len(verified_tool_calls)}/{len(tool_calls)} tool calls"
+                            )
 
-                        # Execute tools sequentially for simplicity
-                        for tool_call in tool_calls:
-                            # Extract tool call ID and function name using the helper function
-                            if isinstance(tool_call, dict):
-                                tool_call_id = tool_call.get('id')
-                                tool_call_args = tool_call.get('function', {}).get('arguments', {})
+                        # TAO ACT phase: Wrap tool execution with MLflow span (if TAO enabled)
+                        if self.enable_tao_loop and MLFLOW_AVAILABLE:
+                            act_span_context = mlflow.start_span(
+                                name=f"TAO_ACT_iter_{step_num}", span_type="TOOL"
+                            )
+                            act_span = act_span_context.__enter__()
+                        else:
+                            act_span_context = None
+                            act_span = None
+
+                        try:
+                            if self.enable_tao_loop:
+                                logger.info(
+                                    f"[TAO] ⚡ ACT phase (iteration {step_num}, {len(tool_calls)} tool calls)"
+                                )
+
+                            # Execute tools sequentially for simplicity
+                            for tool_call in tool_calls:
+                                # Extract tool call ID and function name using the helper function
+                                if isinstance(tool_call, dict):
+                                    tool_call_id = tool_call.get("id")
+                                    tool_call_args = tool_call.get("function", {}).get(
+                                        "arguments", {}
+                                    )
                             else:
-                                tool_call_id = getattr(tool_call, 'id', None)
-                                func_obj = getattr(tool_call, 'function', None)
-                                tool_call_args = getattr(func_obj, 'arguments', {}) if func_obj else {}
+                                tool_call_id = getattr(tool_call, "id", None)
+                                func_obj = getattr(tool_call, "function", None)
+                                tool_call_args = (
+                                    getattr(func_obj, "arguments", {})
+                                    if func_obj
+                                    else {}
+                                )
 
                             function_name = get_function_name_from_tool_call(tool_call)
 
                             if not function_name:
-                                logger.error(f"Could not extract function name from tool call: {tool_call}")
-                                tool_result_content = json.dumps({"error": "Could not determine function name for tool execution"})
+                                logger.error(
+                                    f"Could not extract function name from tool call: {tool_call}"
+                                )
+                                tool_result_content = json.dumps(
+                                    {
+                                        "error": "Could not determine function name for tool execution"
+                                    }
+                                )
                                 tool_msg = {
                                     "role": "tool",
                                     "tool_call_id": tool_call_id,
@@ -1245,19 +1445,26 @@ FINAL ANSWER REQUIREMENTS:
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
                                 # Track failed tool call
-                                step_tool_calls.append({
-                                    "name": "unknown_function",
-                                    "args": {},
-                                    "result": tool_result_content,
-                                    "time_ms": 0,
-                                    "error": "Could not determine function name"
-                                })
+                                step_tool_calls.append(
+                                    {
+                                        "name": "unknown_function",
+                                        "args": {},
+                                        "result": tool_result_content,
+                                        "time_ms": 0,
+                                        "error": "Could not determine function name",
+                                    }
+                                )
                                 continue
 
-                            logger.info(f"Executing tool: {function_name} (ID: {tool_call_id})")
+                            logger.info(
+                                f"Executing tool: {function_name} (ID: {tool_call_id})"
+                            )
 
                             # Stream tool call event
-                            self._stream_event("tool_call", f"{function_name}: {str(tool_call_args)[:200]}")
+                            self._stream_event(
+                                "tool_call",
+                                f"{function_name}: {str(tool_call_args)[:200]}",
+                            )
 
                             tool_exec_start = datetime.now()
                             try:
@@ -1266,11 +1473,12 @@ FINAL ANSWER REQUIREMENTS:
                                 if self.step_timeout:
                                     try:
                                         tool_result_content = await asyncio.wait_for(
-                                            tool_coro,
-                                            timeout=self.step_timeout
+                                            tool_coro, timeout=self.step_timeout
                                         )
                                     except asyncio.TimeoutError:
-                                        tool_exec_time = (datetime.now() - tool_exec_start).total_seconds() * 1000
+                                        tool_exec_time = (
+                                            datetime.now() - tool_exec_start
+                                        ).total_seconds() * 1000
                                         timeout_msg = f"Tool {function_name} timed out after {self.step_timeout}s"
                                         logger.error(timeout_msg)
                                         self._stream_event("error", timeout_msg)
@@ -1283,25 +1491,36 @@ FINAL ANSWER REQUIREMENTS:
                                         }
                                         internal_history.append(tool_msg)
                                         last_tool_msgs.append(tool_msg)
-                                        step_tool_calls.append({
-                                            "name": function_name,
-                                            "args": tool_call_args,
-                                            "result": tool_result_content,
-                                            "time_ms": tool_exec_time,
-                                            "error": timeout_msg
-                                        })
+                                        step_tool_calls.append(
+                                            {
+                                                "name": function_name,
+                                                "args": tool_call_args,
+                                                "result": tool_result_content,
+                                                "time_ms": tool_exec_time,
+                                                "error": timeout_msg,
+                                            }
+                                        )
                                         execution_errors.append(timeout_msg)
                                         continue  # Skip to next tool
                                 else:
                                     tool_result_content = await tool_coro
 
-                                tool_exec_time = (datetime.now() - tool_exec_start).total_seconds() * 1000
-                                logger.info(f"Tool {function_name} executed successfully.")
-                                logger.debug(f"Tool result content: {tool_result_content[:150]}...")
+                                tool_exec_time = (
+                                    datetime.now() - tool_exec_start
+                                ).total_seconds() * 1000
+                                logger.info(
+                                    f"Tool {function_name} executed successfully."
+                                )
+                                logger.debug(
+                                    f"Tool result content: {tool_result_content[:150]}..."
+                                )
 
                                 # Stream tool result event
                                 result_preview = str(tool_result_content)[:500]
-                                self._stream_event("tool_result", f"{function_name} completed: {result_preview}")
+                                self._stream_event(
+                                    "tool_result",
+                                    f"{function_name} completed: {result_preview}",
+                                )
 
                                 # Append tool result to internal history
                                 tool_msg = {
@@ -1313,16 +1532,23 @@ FINAL ANSWER REQUIREMENTS:
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
                                 # Track successful tool call
-                                step_tool_calls.append({
-                                    "name": function_name,
-                                    "args": tool_call_args,
-                                    "result": tool_result_content,
-                                    "time_ms": tool_exec_time
-                                })
+                                step_tool_calls.append(
+                                    {
+                                        "name": function_name,
+                                        "args": tool_call_args,
+                                        "result": tool_result_content,
+                                        "time_ms": tool_exec_time,
+                                    }
+                                )
                                 total_tools_called += 1
                             except Exception as tool_exec_error:
-                                tool_exec_time = (datetime.now() - tool_exec_start).total_seconds() * 1000
-                                logger.error(f"Error executing tool {function_name}: {tool_exec_error}", exc_info=True)
+                                tool_exec_time = (
+                                    datetime.now() - tool_exec_start
+                                ).total_seconds() * 1000
+                                logger.error(
+                                    f"Error executing tool {function_name}: {tool_exec_error}",
+                                    exc_info=True,
+                                )
                                 error_msg = str(tool_exec_error)
                                 tool_msg = {
                                     "role": "tool",
@@ -1333,21 +1559,43 @@ FINAL ANSWER REQUIREMENTS:
                                 internal_history.append(tool_msg)
                                 last_tool_msgs.append(tool_msg)
                                 # Track failed tool call
-                                step_tool_calls.append({
-                                    "name": function_name,
-                                    "args": tool_call_args,
-                                    "result": f"Error: {error_msg}",
-                                    "time_ms": tool_exec_time,
-                                    "error": error_msg
-                                })
-                                execution_errors.append(f"Tool {function_name}: {error_msg}")
+                                step_tool_calls.append(
+                                    {
+                                        "name": function_name,
+                                        "args": tool_call_args,
+                                        "result": f"Error: {error_msg}",
+                                        "time_ms": tool_exec_time,
+                                        "error": error_msg,
+                                    }
+                                )
+                                execution_errors.append(
+                                    f"Tool {function_name}: {error_msg}"
+                                )
+
+                            # Log ACT phase metrics to MLflow span
+                            if self.enable_tao_loop and act_span:
+                                act_span.set_attribute("iteration", step_num)
+                                act_span.set_attribute(
+                                    "tools_executed", len(last_tool_msgs)
+                                )
+                                act_span.set_attribute(
+                                    "total_tool_calls", len(tool_calls)
+                                )
+                                logger.info(
+                                    f"[TAO] ACT complete: {len(last_tool_msgs)} tools executed"
+                                )
+
+                        finally:
+                            # Close ACT phase MLflow span
+                            if act_span_context:
+                                act_span_context.__exit__(None, None, None)
 
                         # T052: Progress callback for synthesis phase
                         if self.progress_callback:
                             self.progress_callback(
                                 step_num + 1,
                                 self.max_internal_steps,
-                                "Synthesizing results..."
+                                "Synthesizing results...",
                             )
 
                         # Phase 2: Update Blackboard with tool execution results
@@ -1356,32 +1604,54 @@ FINAL ANSWER REQUIREMENTS:
                                 # Extract tool name from the tool call
                                 # Tool messages have tool_call_id, we need to match with tool_calls
                                 for tool_call in tool_calls:
-                                    if tool_msg.get("tool_call_id") == tool_call.get("id"):
-                                        function_name = tool_call.get("function", {}).get("name", "unknown")
+                                    if tool_msg.get("tool_call_id") == tool_call.get(
+                                        "id"
+                                    ):
+                                        function_name = tool_call.get(
+                                            "function", {}
+                                        ).get("name", "unknown")
                                         result_content = tool_msg.get("content", "")
-                                        self.blackboard.store_tool_result(function_name, result_content)
-                                        self.blackboard.add_observation(f"Executed {function_name}")
+                                        self.blackboard.store_tool_result(
+                                            function_name, result_content
+                                        )
+                                        self.blackboard.add_observation(
+                                            f"Executed {function_name}"
+                                        )
                                         break
-                            logger.debug(f"[Blackboard] Updated with {len(last_tool_msgs)} tool results")
+                            logger.debug(
+                                f"[Blackboard] Updated with {len(last_tool_msgs)} tool results"
+                            )
 
                         # Phase 3: Stuck state detection and rollback (after tool execution)
                         if self.enable_checkpointing and self.checkpoint_manager:
                             # Record tool execution for stuck state detection
                             for tool_call in tool_calls:
-                                function_name = tool_call.get("function", {}).get("name")
+                                function_name = tool_call.get("function", {}).get(
+                                    "name"
+                                )
                                 if function_name:
-                                    self.checkpoint_manager.record_tool_execution(function_name)
+                                    self.checkpoint_manager.record_tool_execution(
+                                        function_name
+                                    )
 
                             # Check for stuck state (same tool called 3+ times)
                             if self.checkpoint_manager.is_stuck():
-                                logger.warning("[Checkpoint] ⚠️  Stuck state detected - initiating rollback")
+                                logger.warning(
+                                    "[Checkpoint] ⚠️  Stuck state detected - initiating rollback"
+                                )
 
                                 # Get rollback checkpoint
-                                rollback_cp = self.checkpoint_manager.get_rollback_checkpoint()
+                                rollback_cp = (
+                                    self.checkpoint_manager.get_rollback_checkpoint()
+                                )
                                 if rollback_cp and self.blackboard:
                                     # Rollback blackboard state
-                                    self.blackboard.rollback(rollback_cp.blackboard_snapshot)
-                                    self.blackboard.add_error("Detected stuck state, rolled back to checkpoint")
+                                    self.blackboard.rollback(
+                                        rollback_cp.blackboard_snapshot
+                                    )
+                                    self.blackboard.add_error(
+                                        "Detected stuck state, rolled back to checkpoint"
+                                    )
 
                                     # Log rollback details
                                     logger.info(
@@ -1390,7 +1660,7 @@ FINAL ANSWER REQUIREMENTS:
                                     )
                                     self._stream_event(
                                         "checkpoint_rollback",
-                                        f"Stuck state detected, rolled back to iteration {rollback_cp.iteration}"
+                                        f"Stuck state detected, rolled back to iteration {rollback_cp.iteration}",
                                     )
                                 elif rollback_cp:
                                     logger.warning(
@@ -1402,32 +1672,45 @@ FINAL ANSWER REQUIREMENTS:
                                     )
 
                         # Phase 4: TAO OBSERVE phase (if TAO enabled and tools were executed)
-                        if self.enable_tao_loop and 'tao_tool_calls' in locals() and tao_tool_calls:
+                        if (
+                            self.enable_tao_loop
+                            and "tao_tool_calls" in locals()
+                            and tao_tool_calls
+                        ):
                             # Prepare results for OBSERVE phase
                             tao_act_results = []
                             for i, tool_call in enumerate(tao_tool_calls):
-                                tool_name = tool_call.get("function", {}).get("name", "unknown")
+                                tool_name = tool_call.get("function", {}).get(
+                                    "name", "unknown"
+                                )
                                 # Get corresponding result from last_tool_msgs
                                 if i < len(last_tool_msgs):
-                                    result = last_tool_msgs[i].get("content", "No result")
+                                    result = last_tool_msgs[i].get(
+                                        "content", "No result"
+                                    )
                                 else:
                                     result = "No result available"
 
-                                tao_act_results.append({
-                                    "tool_name": tool_name,
-                                    "tool_args": tool_call.get("function", {}).get("arguments", {}),
-                                    "result": result,
-                                    "prediction": None,  # Would be set by ACT phase if dry_run enabled
-                                    "prediction_accuracy": None
-                                })
+                                tao_act_results.append(
+                                    {
+                                        "tool_name": tool_name,
+                                        "tool_args": tool_call.get("function", {}).get(
+                                            "arguments", {}
+                                        ),
+                                        "result": result,
+                                        "prediction": None,  # Would be set by ACT phase if dry_run enabled
+                                        "prediction_accuracy": None,
+                                    }
+                                )
 
                             # Call OBSERVE phase to synthesize observations
                             observation_summary = await self._tao_observe_phase(
-                                act_results=tao_act_results,
-                                iteration_count=step_num
+                                act_results=tao_act_results, iteration_count=step_num
                             )
 
-                            logger.info(f"[TAO] Complete: THINK → ACT → OBSERVE cycle finished for iteration {step_num}")
+                            logger.info(
+                                f"[TAO] Complete: THINK → ACT → OBSERVE cycle finished for iteration {step_num}"
+                            )
 
                         # Build llm_history based on history_mode
                         # Phase 2: Use Blackboard if enabled (70-80% token reduction)
@@ -1438,10 +1721,12 @@ FINAL ANSWER REQUIREMENTS:
                                 system_message,
                                 {
                                     "role": "user",
-                                    "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}"
-                                }
+                                    "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}",
+                                },
                             ]
-                            logger.debug(f"[Blackboard] Using structured state ({len(blackboard_summary)} chars)")
+                            logger.debug(
+                                f"[Blackboard] Using structured state ({len(blackboard_summary)} chars)"
+                            )
                         elif self.history_mode == HistoryMode.MINIMAL.value:
                             # MINIMAL: Only keep last assistant + tool results (original behavior)
                             llm_history = [system_message]
@@ -1453,7 +1738,9 @@ FINAL ANSWER REQUIREMENTS:
                         elif self.history_mode == HistoryMode.PROGRESSIVE.value:
                             # PROGRESSIVE: Accumulate assistant messages + tool results
                             # Add to conversation history
-                            self.conversation_history.append(last_tool_call_assistant_msg)
+                            self.conversation_history.append(
+                                last_tool_call_assistant_msg
+                            )
                             self.conversation_history.extend(last_tool_msgs)
 
                             # Build history: system + user + accumulated conversation
@@ -1464,7 +1751,9 @@ FINAL ANSWER REQUIREMENTS:
 
                         elif self.history_mode == HistoryMode.KITCHEN_SINK.value:
                             # KITCHEN_SINK: Keep everything including user messages between iterations
-                            self.conversation_history.append(last_tool_call_assistant_msg)
+                            self.conversation_history.append(
+                                last_tool_call_assistant_msg
+                            )
                             self.conversation_history.extend(last_tool_msgs)
 
                             # Build history: system + user + accumulated everything
@@ -1488,8 +1777,13 @@ FINAL ANSWER REQUIREMENTS:
 
                                 # Log the new token count
                                 new_tokens = estimate_tokens(llm_history)
-                                logger.info(f"Post-summarization tokens: {new_tokens} (was {estimated_tokens})")
-                        elif self.max_context_tokens and estimated_tokens > self.max_context_tokens:
+                                logger.info(
+                                    f"Post-summarization tokens: {new_tokens} (was {estimated_tokens})"
+                                )
+                        elif (
+                            self.max_context_tokens
+                            and estimated_tokens > self.max_context_tokens
+                        ):
                             # Fallback warning if summarization not enabled/available
                             logger.warning(
                                 f"Context size ({estimated_tokens} tokens) exceeds max_context_tokens "
@@ -1502,13 +1796,15 @@ FINAL ANSWER REQUIREMENTS:
                     else:
                         # No tool calls, check for content or clarify
                         final_answer_content = None
-                        
+
                         # Try multiple approaches to get content
                         if isinstance(response_message, dict):
-                            final_answer_content = response_message.get('content')
+                            final_answer_content = response_message.get("content")
                         else:
-                            final_answer_content = getattr(response_message, 'content', None)
-                        
+                            final_answer_content = getattr(
+                                response_message, "content", None
+                            )
+
                         if final_answer_content is not None:
                             clarification_attempts = 0  # Reset on final answer
                             logger.info("LLM provided final answer for the step.")
@@ -1519,23 +1815,28 @@ FINAL ANSWER REQUIREMENTS:
 
                             # Phase 2: Mark step complete in Blackboard
                             if self.enable_blackboard and self.blackboard:
-                                self.blackboard.mark_step_complete(f"Iteration {step_num + 1}: Completed successfully")
+                                self.blackboard.mark_step_complete(
+                                    f"Iteration {step_num + 1}: Completed successfully"
+                                )
 
                             # T052: Progress callback for completion
                             if self.progress_callback:
                                 self.progress_callback(
-                                    step_num + 1,
-                                    self.max_internal_steps,
-                                    "Complete"
+                                    step_num + 1, self.max_internal_steps, "Complete"
                                 )
 
-                            break # Break inner while loop, increment step_num
+                            break  # Break inner while loop, increment step_num
                         else:
                             clarification_attempts += 1
                             step_clarification_attempts += 1
-                            logger.warning(f"LLM did not request tools and did not provide content. Clarification attempt {clarification_attempts}/{max_clarification_attempts}.")
+                            logger.warning(
+                                f"LLM did not request tools and did not provide content. Clarification attempt {clarification_attempts}/{max_clarification_attempts}."
+                            )
                             # Add a message indicating confusion or request for clarification
-                            clarification_msg = {"role": "user", "content": "Please either call a tool or provide the final answer."}
+                            clarification_msg = {
+                                "role": "user",
+                                "content": "Please either call a tool or provide the final answer.",
+                            }
                             internal_history.append(clarification_msg)
                             # For next LLM call, send: system, user, clarification
                             llm_history = [system_message]
@@ -1543,22 +1844,29 @@ FINAL ANSWER REQUIREMENTS:
                                 llm_history.append(user_message)
                             llm_history.append(clarification_msg)
                             if clarification_attempts >= max_clarification_attempts:
-                                logger.error(f"Agentic step exceeded {max_clarification_attempts} clarification attempts without tool call or answer. Breaking loop.")
+                                logger.error(
+                                    f"Agentic step exceeded {max_clarification_attempts} clarification attempts without tool call or answer. Breaking loop."
+                                )
                                 final_answer = "Error: LLM did not call a tool or provide an answer after multiple attempts."
                                 step_error = final_answer
                                 execution_errors.append(final_answer)
                                 break
                             continue
                 except Exception as llm_error:
-                    logger.error(f"Error during LLM call in agentic step: {llm_error}", exc_info=True)
+                    logger.error(
+                        f"Error during LLM call in agentic step: {llm_error}",
+                        exc_info=True,
+                    )
                     error_msg = f"Error during agentic step processing: {llm_error}"
                     final_answer = error_msg
                     step_error = error_msg
                     execution_errors.append(error_msg)
-                    break # Break inner while loop, increment step_num
+                    break  # Break inner while loop, increment step_num
 
             # Create step metadata after inner while loop completes
-            step_execution_time = (datetime.now() - step_start_time).total_seconds() * 1000
+            step_execution_time = (
+                datetime.now() - step_start_time
+            ).total_seconds() * 1000
             step_tokens = estimate_tokens(llm_history)
             total_tokens_used += step_tokens
 
@@ -1568,12 +1876,16 @@ FINAL ANSWER REQUIREMENTS:
                 tokens_used=step_tokens,
                 execution_time_ms=step_execution_time,
                 clarification_attempts=step_clarification_attempts,
-                error=step_error
+                error=step_error,
             )
             steps_metadata.append(step_metadata)
 
             # ✅ OBSERVABILITY (v0.4.2): Emit event AFTER iteration completes with actual activity
-            if callback_manager and hasattr(callback_manager, 'has_callbacks') and callback_manager.has_callbacks():
+            if (
+                callback_manager
+                and hasattr(callback_manager, "has_callbacks")
+                and callback_manager.has_callbacks()
+            ):
                 from .execution_events import ExecutionEvent, ExecutionEventType
 
                 # Get the assistant's thought/decision from this iteration
@@ -1582,18 +1894,21 @@ FINAL ANSWER REQUIREMENTS:
                     if msg.get("role") == "assistant":
                         assistant_thought = msg.get("content", "")
                         if not assistant_thought and msg.get("tool_calls"):
-                            assistant_thought = f"[Called {len(msg.get('tool_calls'))} tool(s)]"
+                            assistant_thought = (
+                                f"[Called {len(msg.get('tool_calls'))} tool(s)]"
+                            )
                         break
 
                 # ✅ Calculate internal history tokens for observability (v0.4.2)
                 internal_history_tokens = 0
                 try:
                     import tiktoken
+
                     enc = tiktoken.encoding_for_model("gpt-4")
                     # Serialize internal history to string for token counting
                     history_str = json.dumps(internal_history)
                     internal_history_tokens = len(enc.encode(history_str))
-                except:
+                except Exception:
                     # Fallback to character-based estimate
                     history_str = json.dumps(internal_history)
                     internal_history_tokens = len(history_str) // 4
@@ -1615,10 +1930,12 @@ FINAL ANSWER REQUIREMENTS:
                             "error": step_error,
                             # ✅ NEW (v0.4.2): Full internal conversation history for observability
                             "internal_history": internal_history,  # Complete conversation at this iteration
-                            "internal_history_length": len(internal_history),  # Number of messages
+                            "internal_history_length": len(
+                                internal_history
+                            ),  # Number of messages
                             "internal_history_tokens": internal_history_tokens,  # Token count
-                            "llm_history_sent": llm_history  # What was actually sent to LLM (might differ in progressive mode)
-                        }
+                            "llm_history_sent": llm_history,  # What was actually sent to LLM (might differ in progressive mode)
+                        },
                     )
                 )
 
@@ -1628,8 +1945,12 @@ FINAL ANSWER REQUIREMENTS:
 
         # After loop finishes (or breaks)
         if final_answer is None:
-            logger.warning(f"Agentic step reached max iterations ({self.max_internal_steps}) without a final answer.")
-            execution_warnings.append(f"Reached max iterations ({self.max_internal_steps}) without final answer")
+            logger.warning(
+                f"Agentic step reached max iterations ({self.max_internal_steps}) without a final answer."
+            )
+            execution_warnings.append(
+                f"Reached max iterations ({self.max_internal_steps}) without final answer"
+            )
             # Try to return the last assistant message with content, if any
             last_content = None
             for msg in reversed(internal_history):
@@ -1644,15 +1965,19 @@ FINAL ANSWER REQUIREMENTS:
         logger.info(f"Agentic step finished. Final output: {final_answer[:150]}...")
 
         # Calculate total execution time
-        total_execution_time = (datetime.now() - execution_start_time).total_seconds() * 1000
+        total_execution_time = (
+            datetime.now() - execution_start_time
+        ).total_seconds() * 1000
 
         # ✅ Store execution metadata as instance attributes for event emission and test access
         self.steps_executed = len(steps_metadata)
         self.total_tools_called = total_tools_called
         self.total_tokens_used = total_tokens_used
         self.execution_time_ms = total_execution_time
-        self.max_steps_reached = (len(steps_metadata) >= self.max_internal_steps)
-        self._internal_history = internal_history  # Store for internal_history property access
+        self.max_steps_reached = len(steps_metadata) >= self.max_internal_steps
+        self._internal_history = (
+            internal_history  # Store for internal_history property access
+        )
 
         # Log two-tier routing statistics
         if self.enable_two_tier_routing:
@@ -1670,7 +1995,10 @@ FINAL ANSWER REQUIREMENTS:
                 final_answer=final_answer,
                 total_steps=len(steps_metadata),
                 max_steps_reached=(len(steps_metadata) >= self.max_internal_steps),
-                objective_achieved=(final_answer is not None and not any(steps_metadata[-1].error for _ in [1] if steps_metadata)),
+                objective_achieved=(
+                    final_answer is not None
+                    and not any(steps_metadata[-1].error for _ in [1] if steps_metadata)
+                ),
                 steps=steps_metadata,
                 total_tools_called=total_tools_called,
                 total_tokens_used=total_tokens_used,
@@ -1679,7 +2007,7 @@ FINAL ANSWER REQUIREMENTS:
                 max_internal_steps=self.max_internal_steps,
                 model_name=self.model_name,
                 errors=execution_errors,
-                warnings=execution_warnings
+                warnings=execution_warnings,
             )
         else:
             # Backward compatible: just return the string
@@ -1694,7 +2022,7 @@ FINAL ANSWER REQUIREMENTS:
         llm_runner: Callable[..., Awaitable[Any]],
         llm_history: List[Dict],
         iteration_count: int,
-        available_tools: List[Dict]
+        available_tools: List[Dict],
     ) -> Dict[str, Any]:
         """
         THINK phase: LLM reasons about next action.
@@ -1716,51 +2044,104 @@ FINAL ANSWER REQUIREMENTS:
         """
         logger.info(f"[TAO] 🧠 THINK phase (iteration {iteration_count})")
 
-        # Add explicit thinking instruction to history
-        thinking_history = llm_history.copy()
-        thinking_history.append({
-            "role": "system",
-            "content": (
-                "THINK CAREFULLY:\n"
-                "1. What is the next best action to achieve the objective?\n"
-                "2. What information do we currently have?\n"
-                "3. What information do we still need?\n"
-                "4. What are the potential risks or challenges?\n"
-                "5. Should we use a tool, or can we answer based on what we know?\n\n"
-                "Reason through your decision step-by-step before taking action."
+        # Start MLflow span for observability
+        if MLFLOW_AVAILABLE:
+            span_context = mlflow.start_span(
+                name=f"TAO_THINK_iter_{iteration_count}", span_type="CHAIN"
             )
-        })
-
-        # Call LLM for thinking/reasoning
-        response = await llm_runner(
-            messages=thinking_history,
-            tools=available_tools if available_tools else None
-        )
-
-        # Extract tool calls if present
-        tool_calls = []
-        if isinstance(response, dict):
-            tool_calls = response.get("tool_calls", [])
+            span = span_context.__enter__()
         else:
-            tool_calls = getattr(response, "tool_calls", [])
+            span_context = None
+            span = None
 
-        has_tool_calls = bool(tool_calls and len(tool_calls) > 0)
+        try:
+            # Add explicit thinking instruction to history
+            thinking_history = llm_history.copy()
 
-        logger.info(
-            f"[TAO] THINK complete: tool_calls={len(tool_calls) if has_tool_calls else 0}"
-        )
+            # Build tool usage guidance if tools are available
+            if available_tools:
+                tool_names = [
+                    tool.get("function", {}).get("name", "unknown")
+                    for tool in available_tools
+                ]
+                tool_list = "\n".join([f"   - {name}" for name in tool_names])
+                tool_guidance = (
+                    f"\nAVAILABLE TOOLS:\n{tool_list}\n\n"
+                    "YOU MUST USE THESE TOOLS to gather information and accomplish the objective. "
+                    "DO NOT try to answer without using tools first.\n"
+                )
+            else:
+                tool_guidance = ""
 
-        return {
-            "response": response,
-            "tool_calls": tool_calls,
-            "has_tool_calls": has_tool_calls
-        }
+            thinking_history.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "THINK CAREFULLY:\n"
+                        "1. What is the next best action to achieve the objective?\n"
+                        "2. What information do we currently have?\n"
+                        "3. What information do we still need?\n"
+                        "4. What tool should we use to get that information?\n"
+                        f"{tool_guidance}"
+                        "If you need information, call a tool now. Do not provide an answer without using tools first."
+                    ),
+                }
+            )
+
+            # Call LLM for thinking/reasoning
+            logger.debug(
+                f"[TAO] DEBUG: Calling LLM with {len(available_tools) if available_tools else 0} tools"
+            )
+            response = await llm_runner(
+                messages=thinking_history,
+                tools=available_tools if available_tools else None,
+            )
+
+            # DEBUG: Log full response to understand structure
+            logger.debug(f"[TAO] DEBUG: Response type: {type(response)}")
+            logger.debug(f"[TAO] DEBUG: Response: {response}")
+
+            # Extract tool calls if present
+            tool_calls = []
+            if isinstance(response, dict):
+                tool_calls = response.get("tool_calls", [])
+                logger.debug(f"[TAO] DEBUG: tool_calls from dict: {tool_calls}")
+            else:
+                tool_calls = getattr(response, "tool_calls", [])
+                logger.debug(f"[TAO] DEBUG: tool_calls from attr: {tool_calls}")
+                # Also check if it's in content
+                content = getattr(response, "content", None)
+                if content:
+                    logger.debug(f"[TAO] DEBUG: Response content: {content}")
+
+            has_tool_calls = bool(tool_calls and len(tool_calls) > 0)
+
+            logger.info(
+                f"[TAO] THINK complete: tool_calls={len(tool_calls) if has_tool_calls else 0}"
+            )
+
+            # Log to MLflow span
+            if span:
+                span.set_attribute("iteration", iteration_count)
+                span.set_attribute(
+                    "tool_calls_count", len(tool_calls) if has_tool_calls else 0
+                )
+                span.set_attribute("has_tool_calls", has_tool_calls)
+
+            return {
+                "response": response,
+                "tool_calls": tool_calls,
+                "has_tool_calls": has_tool_calls,
+            }
+        finally:
+            if span_context:
+                span_context.__exit__(None, None, None)
 
     async def _tao_act_phase(
         self,
         tool_calls: List[Dict],
         llm_runner: Callable[..., Awaitable[Any]],
-        iteration_count: int
+        iteration_count: int,
     ) -> List[Dict[str, Any]]:
         """
         ACT phase: Execute tools with optional dry run prediction.
@@ -1784,65 +2165,97 @@ FINAL ANSWER REQUIREMENTS:
             - prediction: DryRunPrediction if dry_run enabled, else None
             - prediction_accuracy: Similarity score if dry_run enabled, else None
         """
-        logger.info(f"[TAO] ⚡ ACT phase (iteration {iteration_count}, {len(tool_calls)} tool calls)")
+        logger.info(
+            f"[TAO] ⚡ ACT phase (iteration {iteration_count}, {len(tool_calls)} tool calls)"
+        )
 
-        # Initialize dry run predictor if needed (lazy init)
-        if self.enable_dry_run and self.dry_run_predictor is None:
-            from promptchain.utils.dry_run import DryRunPredictor
-            # Use fallback model for predictions if available (cheaper/faster)
-            prediction_model = self.fallback_model if self.fallback_model else self.model_name
-            self.dry_run_predictor = DryRunPredictor(llm_runner, prediction_model)
-            logger.info(f"[DryRun] Initialized predictor with model: {prediction_model}")
+        # Start MLflow span for observability
+        if MLFLOW_AVAILABLE:
+            span_context = mlflow.start_span(
+                name=f"TAO_ACT_iter_{iteration_count}", span_type="TOOL"
+            )
+            span = span_context.__enter__()
+        else:
+            span_context = None
+            span = None
 
-        results = []
+        try:
+            # Initialize dry run predictor if needed (lazy init)
+            if self.enable_dry_run and self.dry_run_predictor is None:
+                from promptchain.utils.dry_run import DryRunPredictor
 
-        for tool_call in tool_calls:
-            tool_name = tool_call.get("function", {}).get("name", "unknown")
-            tool_args_str = tool_call.get("function", {}).get("arguments", "{}")
-
-            try:
-                tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
-            except json.JSONDecodeError:
-                tool_args = {"raw_args": tool_args_str}
-
-            # Optional: Dry run prediction
-            prediction = None
-            if self.enable_dry_run and self.dry_run_predictor:
-                context = self.blackboard.to_prompt() if (self.enable_blackboard and self.blackboard) else "No context available"
-
-                prediction = await self.dry_run_predictor.predict_outcome(
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                    context=context
+                # Use fallback model for predictions if available (cheaper/faster)
+                prediction_model = (
+                    self.fallback_model if self.fallback_model else self.model_name
                 )
-
+                self.dry_run_predictor = DryRunPredictor(llm_runner, prediction_model)
                 logger.info(
-                    f"[DryRun] 🔮 Predicted {tool_name}: "
-                    f"{prediction.predicted_output[:100]}... "
-                    f"(confidence={prediction.confidence:.2f})"
+                    f"[DryRun] Initialized predictor with model: {prediction_model}"
                 )
 
-            # NOTE: Actual tool execution would happen here in the full integration
-            # For now, we're just building the structure for TAO phase methods
-            # The actual execution will be integrated in Phase 4.4
+            results = []
 
-            result_dict = {
-                "tool_name": tool_name,
-                "tool_args": tool_args,
-                "result": None,  # Will be filled by actual execution
-                "prediction": prediction,
-                "prediction_accuracy": None  # Will be calculated after execution
-            }
+            for tool_call in tool_calls:
+                tool_name = tool_call.get("function", {}).get("name", "unknown")
+                tool_args_str = tool_call.get("function", {}).get("arguments", "{}")
 
-            results.append(result_dict)
+                try:
+                    tool_args = (
+                        json.loads(tool_args_str)
+                        if isinstance(tool_args_str, str)
+                        else tool_args_str
+                    )
+                except json.JSONDecodeError:
+                    tool_args = {"raw_args": tool_args_str}
 
-        logger.info(f"[TAO] ACT complete: {len(results)} tools processed")
-        return results
+                # Optional: Dry run prediction
+                prediction = None
+                if self.enable_dry_run and self.dry_run_predictor:
+                    context = (
+                        self.blackboard.to_prompt()
+                        if (self.enable_blackboard and self.blackboard)
+                        else "No context available"
+                    )
+
+                    prediction = await self.dry_run_predictor.predict_outcome(
+                        tool_name=tool_name, tool_args=tool_args, context=context
+                    )
+
+                    logger.info(
+                        f"[DryRun] 🔮 Predicted {tool_name}: "
+                        f"{prediction.predicted_output[:100]}... "
+                        f"(confidence={prediction.confidence:.2f})"
+                    )
+
+                # NOTE: Actual tool execution would happen here in the full integration
+                # For now, we're just building the structure for TAO phase methods
+                # The actual execution will be integrated in Phase 4.4
+
+                result_dict = {
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "result": None,  # Will be filled by actual execution
+                    "prediction": prediction,
+                    "prediction_accuracy": None,  # Will be calculated after execution
+                }
+
+                results.append(result_dict)
+
+            logger.info(f"[TAO] ACT complete: {len(results)} tools processed")
+
+            # Log to MLflow span
+            if span:
+                span.set_attribute("iteration", iteration_count)
+                span.set_attribute("tool_calls_count", len(tool_calls))
+                span.set_attribute("tools_processed", len(results))
+
+            return results
+        finally:
+            if span_context:
+                span_context.__exit__(None, None, None)
 
     async def _tao_observe_phase(
-        self,
-        act_results: List[Dict[str, Any]],
-        iteration_count: int
+        self, act_results: List[Dict[str, Any]], iteration_count: int
     ) -> str:
         """
         OBSERVE phase: Synthesize observations from action results.
@@ -1862,51 +2275,71 @@ FINAL ANSWER REQUIREMENTS:
         """
         logger.info(f"[TAO] 👁️  OBSERVE phase (iteration {iteration_count})")
 
-        observations = []
+        # Start MLflow span for observability
+        if MLFLOW_AVAILABLE:
+            span_context = mlflow.start_span(
+                name=f"TAO_OBSERVE_iter_{iteration_count}", span_type="CHAIN"
+            )
+            span = span_context.__enter__()
+        else:
+            span_context = None
+            span = None
 
-        for result in act_results:
-            tool_name = result["tool_name"]
-            actual_result = result.get("result", "No result available")
-            prediction = result.get("prediction")
+        try:
+            observations = []
 
-            # Format observation
-            obs_text = f"Executed {tool_name}"
+            for result in act_results:
+                tool_name = result["tool_name"]
+                actual_result = result.get("result", "No result available")
+                prediction = result.get("prediction")
 
-            # Add result preview
-            if actual_result and actual_result != "No result available":
-                result_preview = str(actual_result)[:200]
-                obs_text += f": {result_preview}"
-                if len(str(actual_result)) > 200:
-                    obs_text += "..."
+                # Format observation
+                obs_text = f"Executed {tool_name}"
 
-            # Compare prediction to actual if dry_run enabled
-            if prediction and actual_result and self.dry_run_predictor:
-                similarity = self.dry_run_predictor.compare_prediction_to_actual(
-                    prediction,
-                    str(actual_result)
-                )
-                result["prediction_accuracy"] = similarity
+                # Add result preview
+                if actual_result and actual_result != "No result available":
+                    result_preview = str(actual_result)[:200]
+                    obs_text += f": {result_preview}"
+                    if len(str(actual_result)) > 200:
+                        obs_text += "..."
 
-                if similarity > 0.7:
-                    accuracy_emoji = "✅"
-                elif similarity > 0.4:
-                    accuracy_emoji = "⚠️"
-                else:
-                    accuracy_emoji = "❌"
+                # Compare prediction to actual if dry_run enabled
+                if prediction and actual_result and self.dry_run_predictor:
+                    similarity = self.dry_run_predictor.compare_prediction_to_actual(
+                        prediction, str(actual_result)
+                    )
+                    result["prediction_accuracy"] = similarity
 
-                logger.info(
-                    f"[DryRun] {accuracy_emoji} Prediction accuracy for {tool_name}: {similarity:.2f}"
-                )
+                    if similarity > 0.7:
+                        accuracy_emoji = "✅"
+                    elif similarity > 0.4:
+                        accuracy_emoji = "⚠️"
+                    else:
+                        accuracy_emoji = "❌"
 
-                obs_text += f" [Prediction accuracy: {similarity:.2f}]"
+                    logger.info(
+                        f"[DryRun] {accuracy_emoji} Prediction accuracy for {tool_name}: {similarity:.2f}"
+                    )
 
-            observations.append(obs_text)
+                    obs_text += f" [Prediction accuracy: {similarity:.2f}]"
 
-            # Update Blackboard if enabled
-            if self.enable_blackboard and self.blackboard and actual_result:
-                self.blackboard.add_observation(obs_text)
+                observations.append(obs_text)
 
-        observation_summary = "\n".join(observations)
-        logger.info(f"[TAO] OBSERVE complete: {len(observations)} observations synthesized")
+                # Update Blackboard if enabled
+                if self.enable_blackboard and self.blackboard and actual_result:
+                    self.blackboard.add_observation(obs_text)
 
-        return observation_summary 
+            observation_summary = "\n".join(observations)
+            logger.info(
+                f"[TAO] OBSERVE complete: {len(observations)} observations synthesized"
+            )
+
+            # Log to MLflow span
+            if span:
+                span.set_attribute("iteration", iteration_count)
+                span.set_attribute("observations_count", len(observations))
+
+            return observation_summary
+        finally:
+            if span_context:
+                span_context.__exit__(None, None, None)

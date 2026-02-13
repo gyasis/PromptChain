@@ -340,7 +340,9 @@ def setup_mlflow_tracking(experiment_name: str) -> None:
         print(f"   Then visit: http://localhost:5000")
 
     except ImportError:
-        print("❌ MLflow not installed. Run: pip install mlflow")
+        print("⚠️  MLflow not installed")
+        print("   To enable full tracking: pip install mlflow")
+        print("   Tutorial will still work - metrics displayed but not logged")
 
 
 def compare_runs(run_ids: List[str]) -> Dict[str, Any]:
@@ -369,6 +371,8 @@ def compare_runs(run_ids: List[str]) -> Dict[str, Any]:
         return df.to_dict('records')
 
     except ImportError:
+        print("⚠️  MLflow or pandas not installed")
+        print("   To enable run comparison: pip install mlflow pandas")
         return {"error": "MLflow or pandas not installed"}
 
 
