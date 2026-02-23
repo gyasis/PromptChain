@@ -6,6 +6,10 @@ This module implements the ghost decorator pattern which provides:
 - Graceful degradation when MLflow is not installed
 
 The key insight: check _ENABLED once at module import, not on every function call.
+
+BUG-022 fix: If you change environment variables after import, call reload_config()
+to re-evaluate the enabled state. This allows dynamic configuration while maintaining
+performance benefits of import-time evaluation by default.
 """
 
 from typing import Callable, Any, Optional, TypeVar
@@ -27,6 +31,51 @@ except ImportError:
 
 # Type variable for decorated functions
 F = TypeVar('F', bound=Callable[..., Any])
+
+
+def reload_config() -> bool:
+    """Re-evaluate tracking configuration from environment variables.
+
+    BUG-022 fix: Call this function if you change PROMPTCHAIN_MLFLOW_ENABLED
+    or install MLflow after the module was imported. This allows dynamic
+    configuration while maintaining the performance benefit of import-time
+    evaluation by default.
+
+    Returns:
+        True if tracking is now enabled, False otherwise
+
+    Example:
+        ```python
+        import os
+        from promptchain.observability import ghost
+
+        # Change environment after import
+        os.environ['PROMPTCHAIN_MLFLOW_ENABLED'] = 'true'
+
+        # Reload to pick up the change
+        ghost.reload_config()
+
+        # Now tracking is enabled
+        assert ghost.is_tracking_enabled() == True
+        ```
+    """
+    global _ENABLED, _MLFLOW_AVAILABLE
+
+    # Re-check MLflow availability
+    try:
+        import mlflow
+        _MLFLOW_AVAILABLE = True
+    except ImportError:
+        _MLFLOW_AVAILABLE = False
+
+    # Re-evaluate enabled state from environment
+    _ENABLED = is_enabled()
+
+    # If MLflow not available, force disabled regardless of config
+    if not _MLFLOW_AVAILABLE:
+        _ENABLED = False
+
+    return _ENABLED
 
 
 def make_ghost_decorator() -> Callable[[F], F]:

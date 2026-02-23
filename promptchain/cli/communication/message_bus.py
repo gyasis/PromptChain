@@ -256,7 +256,8 @@ class MessageBus:
         if message_type:
             messages = [m for m in messages if m.type == message_type]
 
-        return messages[-limit:][::-1]
+        # BUG-011 fix: Ensure newest-first ordering
+        return list(reversed(messages[-limit:]))
 
     def clear_history(self) -> int:
         """Clear message history. Returns count of cleared messages."""

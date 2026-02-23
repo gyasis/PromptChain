@@ -21,17 +21,22 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.tree import Tree
 
+# Issue #2 Fix: Import centralized event loop manager
+from ..utils.event_loop_manager import run_async_in_context
+
 console = Console()
 
 
 def run_async(coro):
-    """Execute async coroutine in sync context."""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+    """Execute async coroutine in sync context.
+
+    FIXED: Uses centralized event loop management to handle both:
+    - CLI context (no running loop) - creates new loop via asyncio.run()
+    - TUI context (running loop) - raises clear error to use await instead
+
+    This fixes Issue #2: Event Loop Race Conditions in TUI Pattern Commands.
+    """
+    return run_async_in_context(coro)
 
 
 def handle_errors(func):

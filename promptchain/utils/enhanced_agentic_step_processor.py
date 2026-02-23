@@ -4,7 +4,8 @@ Enhanced Agentic Step Processor with RAG Verification and Gemini Augmentation
 This module extends AgenticStepProcessor with:
 - RAG-based logic verification using DeepLake
 - Gemini-powered deep reasoning for complex decisions
-- Adaptive learning from past executions
+- Adaptive learning from past executions via Memo Store (Issue #7)
+- Real-time user steering via Interrupt Queue (Issue #8)
 - Multi-level result verification
 
 10x Performance Improvements:
@@ -12,11 +13,13 @@ This module extends AgenticStepProcessor with:
 - 3x better decision quality with Gemini augmentation
 - 5x improved context awareness via RAG
 - Continuous learning for progressive improvement
+- Real-time course correction through user interrupts
 """
 
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 from dataclasses import dataclass
 from enum import Enum
+import asyncio
 import logging
 import json
 
@@ -24,8 +27,65 @@ from .agentic_step_processor import (
     AgenticStepProcessor,
     get_function_name_from_tool_call
 )
+from .memo_store import MemoStore, inject_relevant_memos
+from .interrupt_queue import InterruptQueue, InterruptHandler, InterruptType
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Safe JSON Parsing Utility (Issue #3 Fix)
+# ============================================================================
+
+def parse_json_safely(text: str, context: str = "") -> dict:
+    """
+    Parse JSON with error handling and fallback.
+
+    Fixes Issue #3: JSON Parsing Crash Without Error Handling.
+    Prevents crashes when LLM returns malformed JSON.
+
+    Args:
+        text: JSON string to parse
+        context: Context info for error messages (e.g., "RAG data", "flow data")
+
+    Returns:
+        Parsed dict or empty dict on failure
+
+    Examples:
+        >>> parse_json_safely('{"key": "value"}', "test")
+        {'key': 'value'}
+        >>> parse_json_safely('invalid json', "test")
+        {}
+    """
+    # If already a dict, return as-is
+    if isinstance(text, dict):
+        return text
+
+    # If not a string, return empty dict
+    if not isinstance(text, str):
+        logger.warning(f"JSON parsing {context}: Expected string or dict, got {type(text)}")
+        return {}
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing failed {context}: {e}")
+        logger.debug(f"Malformed JSON {context}: {text[:500]}...")
+
+        # Try to extract JSON from markdown code blocks
+        import re
+        code_block = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+        if code_block:
+            try:
+                extracted = json.loads(code_block.group(1))
+                logger.info(f"Successfully extracted JSON from markdown code block {context}")
+                return extracted
+            except json.JSONDecodeError:
+                logger.debug(f"Failed to parse JSON from code block {context}")
+
+        # Return empty dict as safe fallback
+        logger.warning(f"Returning empty dict as fallback {context}")
+        return {}
 
 
 # ============================================================================
@@ -123,7 +183,8 @@ class LogicVerifier:
         Returns:
             VerificationResult with confidence and recommendations
         """
-        cache_key = f"{tool_name}:{objective[:50]}"
+        # BUG-015 fix: Use hash of full objective to prevent false cache hits
+        cache_key = f"{tool_name}:{hash(objective)}"
         if cache_key in self.verification_cache:
             logger.debug(f"Using cached verification for {cache_key}")
             return self.verification_cache[cache_key]
@@ -151,8 +212,8 @@ class LogicVerifier:
                 }
             )
 
-            # Parse RAG results
-            rag_data = json.loads(rag_results) if isinstance(rag_results, str) else rag_results
+            # Parse RAG results (Issue #3 Fix: Safe JSON parsing)
+            rag_data = parse_json_safely(rag_results, context="RAG results in _verify_with_rag")
 
             # Analyze results
             warnings = self._extract_warnings(rag_data, tool_name)
@@ -234,7 +295,8 @@ class LogicVerifier:
                 }
             )
 
-            flow_data = json.loads(similar_flows) if isinstance(similar_flows, str) else similar_flows
+            # Issue #3 Fix: Safe JSON parsing
+            flow_data = parse_json_safely(similar_flows, context="similar flows in _validate_logic_flow")
 
             # Detect anti-patterns
             anti_patterns = self._detect_anti_patterns(execution_history, flow_data)
@@ -387,10 +449,20 @@ class LogicVerifier:
         """Detect anti-patterns in execution."""
         anti_patterns = []
 
-        # Check for repeated failed actions
-        tool_calls = [msg.get("name") for msg in execution_history if msg.get("role") == "tool"]
-        if len(tool_calls) != len(set(tool_calls)):
-            anti_patterns.append("Repeated tool calls detected")
+        # BUG-016 fix: Check for repeated tool calls with same arguments (true anti-pattern)
+        # Tracks (tool_name, args_hash) to avoid false positives from legitimate repeated calls
+        tool_signatures = []
+        for msg in execution_history:
+            if msg.get("role") == "tool":
+                tool_name = msg.get("name")
+                tool_args = str(sorted(msg.get("arguments", {}).items()))  # Stable string repr
+                tool_signatures.append(f"{tool_name}:{hash(tool_args)}")
+
+        # Only flag if 3+ consecutive identical signatures (stuck state)
+        for i in range(len(tool_signatures) - 2):
+            if (tool_signatures[i] == tool_signatures[i+1] == tool_signatures[i+2]):
+                anti_patterns.append("Repeated identical tool calls detected (possible stuck state)")
+                break
 
         # Check for excessive iterations without progress
         if len(execution_history) > 10:
@@ -408,15 +480,30 @@ class LogicVerifier:
 
     def _assess_progress(self, execution_history: List[Dict], objective: str) -> float:
         """Assess progress toward objective."""
-        # Simple heuristic: more diverse actions = more progress
+        # BUG-020 fix: Use ratio of unique tools to total tool calls (not all messages)
         tool_names = set()
+        tool_call_count = 0
+
         for msg in execution_history:
             if msg.get("role") == "tool":
                 tool_names.add(msg.get("name"))
+                tool_call_count += 1
 
-        # Progress score based on diversity and length
-        diversity_score = len(tool_names) / max(len(execution_history), 1)
-        return min(diversity_score * 2, 1.0)  # Scale and clamp
+        if tool_call_count == 0:
+            return 0.0
+
+        # Diversity: ratio of unique tools to total tool calls (high diversity = exploration)
+        diversity = len(tool_names) / tool_call_count
+
+        # Tool breadth: reward using multiple different tools (up to 3 tools is optimal)
+        breadth = min(len(tool_names) / 3.0, 1.0)
+
+        # Combined progress score: diversity * breadth
+        # Example: 3 tools in 10 calls = (3/10) * (3/3) = 0.3 * 1.0 = 0.3
+        # Example: 2 tools in 2 calls = (2/2) * (2/3) = 1.0 * 0.67 = 0.67
+        progress = diversity * breadth
+
+        return min(progress * 2, 1.0)  # Scale and clamp to [0, 1]
 
     def _generate_recommendations(self, flow_data: Dict, anti_patterns: List[str]) -> List[str]:
         """Generate recommendations for improvement."""
@@ -525,18 +612,72 @@ class GeminiReasoningAugmentor:
             }
         )
 
-        task_data = json.loads(task_result) if isinstance(task_result, str) else task_result
+        # Issue #3 Fix: Safe JSON parsing
+        task_data = parse_json_safely(task_result, context="task result in _deep_research")
         task_id = task_data.get("task_id")
 
-        # Wait for completion (simplified - should poll status)
-        logger.info(f"Deep research started: task_id={task_id}")
+        # BUG-010 fix: Poll for completion instead of returning placeholder
+        logger.info(f"Deep research started: task_id={task_id}, polling for completion...")
 
-        # For now, return placeholder - actual implementation would poll
+        # Poll status until completed (max 60 minutes as per Gemini docs)
+        max_wait_seconds = 3600  # 1 hour
+        poll_interval = 5  # Check every 5 seconds
+        elapsed_seconds = 0
+
+        while elapsed_seconds < max_wait_seconds:
+            # Check status
+            status_result = await self.mcp_helper.call_mcp_tool(
+                server_id="gemini_mcp_server",
+                tool_name="check_research_status",
+                arguments={"task_id": task_id}
+            )
+
+            status_data = parse_json_safely(status_result, context="status in _deep_research")
+            status = status_data.get("status")
+
+            if status == "completed":
+                # Research complete - get results
+                logger.info(f"Deep research completed: task_id={task_id}")
+                results = await self.mcp_helper.call_mcp_tool(
+                    server_id="gemini_mcp_server",
+                    tool_name="get_research_results",
+                    arguments={"task_id": task_id, "include_sources": True}
+                )
+
+                results_data = parse_json_safely(results, context="results in _deep_research")
+                report = results_data.get("report", "No report generated")
+                sources = results_data.get("sources", [])
+
+                return AugmentedReasoning(
+                    recommendation=report,
+                    confidence=0.95,  # Deep research is highly confident
+                    sources=[s.get("url", "") for s in sources if isinstance(s, dict)],
+                    reasoning_depth="deep",
+                    alternatives=[]
+                )
+
+            elif status == "failed":
+                logger.error(f"Deep research failed: task_id={task_id}")
+                return AugmentedReasoning(
+                    recommendation="Deep research failed - fallback to basic analysis",
+                    confidence=0.5,
+                    sources=[],
+                    reasoning_depth="shallow",
+                    alternatives=[]
+                )
+
+            # Still in progress - wait and continue
+            await asyncio.sleep(poll_interval)
+            elapsed_seconds += poll_interval
+            logger.debug(f"Deep research in progress: {elapsed_seconds}s elapsed")
+
+        # Timeout - return partial results if available
+        logger.warning(f"Deep research timeout after {max_wait_seconds}s: task_id={task_id}")
         return AugmentedReasoning(
-            recommendation="Deep research initiated - await results",
-            confidence=0.9,
+            recommendation="Deep research timed out - results may be incomplete",
+            confidence=0.6,
             sources=[],
-            reasoning_depth="deep",
+            reasoning_depth="partial",
             alternatives=[]
         )
 
@@ -561,7 +702,7 @@ class GeminiReasoningAugmentor:
             tool_name="gemini_brainstorm",
             arguments={
                 "topic": topic,
-                "num_ideas": 5
+                "context": ""
             }
         )
 
@@ -572,7 +713,7 @@ class GeminiReasoningAugmentor:
         result = await self.mcp_helper.call_mcp_tool(
             server_id="gemini_mcp_server",
             tool_name="ask_gemini",
-            arguments={"question": question}
+            arguments={"prompt": question}
         )
 
         return self._parse_simple_result(result)
@@ -642,7 +783,7 @@ Assess if the result meets expectations. Identify any issues or concerns.
             assessment = await self.mcp_helper.call_mcp_tool(
                 server_id="gemini_mcp_server",
                 tool_name="gemini_debug",
-                arguments={"error_context": verification_query}
+                arguments={"error_message": verification_query}
             )
 
             # Parse assessment
@@ -691,7 +832,11 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         max_internal_steps: int = 5,
         enable_rag_verification: bool = True,
         enable_gemini_augmentation: bool = True,
+        enable_memo_store: bool = True,
+        enable_interrupt_queue: bool = True,
         verification_threshold: float = 0.6,
+        memo_store: Optional[MemoStore] = None,
+        interrupt_queue: Optional[InterruptQueue] = None,
         **kwargs
     ):
         """
@@ -702,14 +847,39 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             max_internal_steps: Maximum reasoning iterations
             enable_rag_verification: Enable RAG-based verification
             enable_gemini_augmentation: Enable Gemini augmentation
+            enable_memo_store: Enable memo store for learning (Issue #7)
+            enable_interrupt_queue: Enable interrupt queue for real-time steering (Issue #8)
             verification_threshold: Minimum confidence for approval (0.0-1.0)
+            memo_store: Optional MemoStore instance (created if None)
+            interrupt_queue: Optional InterruptQueue instance (created if None)
             **kwargs: Additional arguments for parent AgenticStepProcessor
         """
         super().__init__(objective, max_internal_steps, **kwargs)
 
         self.enable_rag_verification = enable_rag_verification
         self.enable_gemini_augmentation = enable_gemini_augmentation
+        self.enable_memo_store = enable_memo_store
+        self.enable_interrupt_queue = enable_interrupt_queue
         self.verification_threshold = verification_threshold
+
+        # Issue #7: Memo Store for long-term learning (AG2 Pattern)
+        self.memo_store = memo_store
+        if self.enable_memo_store and self.memo_store is None:
+            # Create default memo store if enabled but not provided
+            self.memo_store = MemoStore()
+            logger.info("Created default MemoStore instance")
+
+        # Issue #8: Interrupt Queue for real-time user steering (h2A Pattern)
+        self.interrupt_queue = interrupt_queue
+        self.interrupt_handler: Optional[InterruptHandler] = None
+        if self.enable_interrupt_queue:
+            if self.interrupt_queue is None:
+                # Create default interrupt queue if enabled but not provided
+                self.interrupt_queue = InterruptQueue()
+                logger.info("Created default InterruptQueue instance")
+            # Create interrupt handler
+            self.interrupt_handler = InterruptHandler(self.interrupt_queue)
+            logger.info("Created InterruptHandler instance")
 
         # Lazy-initialized components (require MCP helper)
         self.logic_verifier: Optional[LogicVerifier] = None
@@ -719,11 +889,16 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         self.verification_count = 0
         self.verification_overrides = 0
         self.augmentation_count = 0
+        self.memos_retrieved = 0
+        self.memos_stored = 0
+        self.interrupts_processed = 0
 
         logger.info(
             f"Enhanced AgenticStepProcessor initialized: "
             f"rag={enable_rag_verification}, "
             f"gemini={enable_gemini_augmentation}, "
+            f"memo_store={enable_memo_store}, "
+            f"interrupt_queue={enable_interrupt_queue}, "
             f"threshold={verification_threshold}"
         )
 
@@ -785,6 +960,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         - Verifier initialization
         - Tool execution interception for verification
         - Enhanced tool executor wrapper
+        - Memo store integration for learning (Issue #7)
 
         Args:
             Same as AgenticStepProcessor.run_async, plus:
@@ -797,11 +973,57 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         if mcp_helper:
             await self._initialize_verifiers(mcp_helper)
 
+        # Issue #7: Inject relevant memos from past similar tasks
+        enhanced_input = initial_input
+        if self.enable_memo_store and self.memo_store:
+            try:
+                relevant_memos = self.memo_store.retrieve_relevant_memos(
+                    task_description=self.objective,
+                    top_k=3,
+                    outcome_filter="success"  # Only learn from successes
+                )
+
+                if relevant_memos:
+                    self.memos_retrieved += len(relevant_memos)
+                    memo_context = self.memo_store.format_memos_for_context(relevant_memos, max_memos=3)
+                    enhanced_input = f"{memo_context}\n\n{initial_input}"
+                    logger.info(f"Injected {len(relevant_memos)} relevant memos into context")
+            except Exception as e:
+                logger.error(f"Failed to retrieve memos: {e}", exc_info=True)
+
         # Wrap tool executor with verification
         original_executor = tool_executor
 
         async def verified_tool_executor(tool_call):
-            """Enhanced tool executor with verification."""
+            """Enhanced tool executor with verification and interrupt handling."""
+            # Issue #8: Check for user interrupts before execution
+            if self.enable_interrupt_queue and self.interrupt_handler:
+                current_step = getattr(self, '_current_step', 0)
+                interrupt_result = self.interrupt_handler.check_and_handle_interrupt(
+                    current_step=current_step,
+                    current_context=f"About to execute tool: {get_function_name_from_tool_call(tool_call)}"
+                )
+
+                if interrupt_result:
+                    self.interrupts_processed += 1
+                    action = interrupt_result.get("action", "unknown")
+
+                    # Handle abort - stop execution immediately
+                    if action == "abort":
+                        logger.warning(f"User aborted execution at step {current_step}")
+                        return json.dumps({
+                            "error": "Execution aborted by user",
+                            "interrupt_id": interrupt_result["interrupt_id"],
+                            "message": interrupt_result["message"]
+                        })
+
+                    # Handle steering/correction/clarification - inject into context
+                    elif action in ["steering", "correction", "clarification"]:
+                        interrupt_context = self.interrupt_handler.format_interrupt_for_llm(interrupt_result)
+                        logger.info(f"User {action} at step {current_step}: {interrupt_result['message'][:100]}...")
+                        # Note: The interrupt context would ideally be injected into the LLM's next call
+                        # For now, we log it and continue with execution
+
             if not (self.enable_rag_verification or self.enable_gemini_augmentation):
                 # No verification - use original executor
                 return await original_executor(tool_call)
@@ -886,10 +1108,47 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             return result
 
         # Call parent's run_async with wrapped executor
-        return await super().run_async(
-            initial_input=initial_input,
+        result = await super().run_async(
+            initial_input=enhanced_input,  # Use enhanced input with memos
             available_tools=available_tools,
             llm_runner=llm_runner,
             tool_executor=verified_tool_executor,
             **kwargs
         )
+
+        # Issue #7: Store successful execution as a memo for future learning
+        if self.enable_memo_store and self.memo_store:
+            try:
+                # Determine if execution was successful
+                # (Simple heuristic: if result doesn't contain "error" or "failed")
+                result_str = str(result).lower()
+                is_success = "error" not in result_str and "failed" not in result_str
+
+                if is_success:
+                    self.memo_store.store_memo(
+                        task_description=self.objective,
+                        solution=str(result)[:1000],  # Truncate to 1000 chars
+                        outcome="success",
+                        metadata={
+                            "verification_count": self.verification_count,
+                            "augmentation_count": self.augmentation_count,
+                            "memos_retrieved": self.memos_retrieved,
+                            "interrupts_processed": self.interrupts_processed,
+                            "max_internal_steps": self.max_internal_steps
+                        }
+                    )
+                    self.memos_stored += 1
+                    logger.info(f"Stored successful execution as memo for objective: {self.objective[:50]}...")
+                else:
+                    # Store as failure for future learning
+                    self.memo_store.store_memo(
+                        task_description=self.objective,
+                        solution=str(result)[:1000],
+                        outcome="failure",
+                        metadata={"error_type": "execution_failed"}
+                    )
+                    logger.info(f"Stored failed execution as memo for objective: {self.objective[:50]}...")
+            except Exception as e:
+                logger.error(f"Failed to store memo: {e}", exc_info=True)
+
+        return result

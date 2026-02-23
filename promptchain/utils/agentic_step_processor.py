@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Callable, Awaitable, Optional, Union, TYPE_CHECKING
 import logging
+import warnings
 import json
 import asyncio
 from enum import Enum
@@ -367,11 +368,13 @@ class AgenticStepProcessor:
                 "Tool outcomes predicted before execution (~10-15% overhead)."
             )
 
-        # Deprecation warning for minimal mode
+        # BUG-023 fix: Use warnings.warn() instead of logger.info() for deprecation warnings
         if self.history_mode == HistoryMode.MINIMAL.value:
-            logger.info(
-                "⚠️  Using 'minimal' history mode (default). This mode may be deprecated in future versions. "
-                "Consider using 'progressive' mode for better multi-hop reasoning capabilities."
+            warnings.warn(
+                "Using 'minimal' history mode (default). This mode may be deprecated in future versions. "
+                "Consider using 'progressive' mode for better multi-hop reasoning capabilities.",
+                DeprecationWarning,
+                stacklevel=2
             )
 
         logger.debug(

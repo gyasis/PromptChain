@@ -460,8 +460,14 @@ class SessionManager:
                     context="creating session",
                     metadata={"session_name": name, "working_directory": str(working_directory)},
                 )
-            except Exception:
-                pass  # Don't fail on logging error
+            except Exception as log_error:
+                # BUG-012 fix: Log the logging failure to stderr as last resort
+                import sys
+                print(
+                    f"WARNING: Failed to log session creation error to file: {log_error}",
+                    file=sys.stderr
+                )
+                print(f"Original error was: {e}", file=sys.stderr)
 
             raise RuntimeError(f"Failed to create session: {e}")
         finally:

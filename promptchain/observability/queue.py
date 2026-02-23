@@ -14,6 +14,7 @@ Architecture:
 import queue
 import threading
 import logging
+import time
 from typing import Callable, Any, Dict, Optional
 
 from .mlflow_adapter import (
@@ -121,6 +122,9 @@ class BackgroundLogger:
     def flush(self, timeout: Optional[float] = 10.0) -> bool:
         """Wait for all queued operations to complete.
 
+        Fixes Issue #4: Queue Flush Timeout Ignored in MLflow Observability.
+        Now properly respects timeout parameter to prevent indefinite hangs.
+
         Args:
             timeout: Maximum seconds to wait (None = infinite)
 
@@ -130,9 +134,37 @@ class BackgroundLogger:
         if not self.enabled:
             return True
 
+        if timeout is None:
+            # Infinite timeout - use original blocking join
+            try:
+                self.queue.join()
+                return True
+            except Exception as e:
+                logger.error("Error flushing queue: %s", e)
+                return False
+
+        # Timeout-aware flush implementation
+        start_time = time.time()
+
         try:
-            self.queue.join()  # Wait for all tasks to be processed
+            while not self.queue.empty():
+                elapsed = time.time() - start_time
+                if elapsed >= timeout:
+                    remaining_items = self.queue.qsize()
+                    logger.warning(
+                        f"Queue flush timed out after {timeout}s "
+                        f"({remaining_items} items remain)"
+                    )
+                    return False
+
+                # Wait for remaining time or 0.1s, whichever is less
+                remaining = timeout - elapsed
+                time.sleep(min(0.1, remaining))
+
+            # Queue is empty - success
+            logger.debug("Queue flushed successfully")
             return True
+
         except Exception as e:
             logger.error("Error flushing queue: %s", e)
             return False

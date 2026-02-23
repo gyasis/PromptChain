@@ -84,15 +84,17 @@ class MCPToolHijacker:
         # State management
         self._connected = False
         self._performance_stats: Dict[str, Dict[str, Any]] = {}
-        
+        self._stats_lock = asyncio.Lock()  # BUG-005 fix: Thread-safe stats updates
+
         # Logging
         self.logger = logging.getLogger(__name__)
         if verbose:
             self.logger.setLevel(logging.DEBUG)
         
-        # Tool execution hooks
-        self.pre_execution_hooks: List[Callable] = []
-        self.post_execution_hooks: List[Callable] = []
+        # Tool execution hooks (BUG-006 fix: support blocking hooks)
+        # Format: List[Tuple[Callable, bool]] where bool is blocking flag
+        self.pre_execution_hooks: List[Tuple[Callable, bool]] = []
+        self.post_execution_hooks: List[Tuple[Callable, bool]] = []
         
         self.logger.info(f"MCPToolHijacker initialized with {len(self.mcp_servers_config)} servers")
     
@@ -237,18 +239,22 @@ class MCPToolHijacker:
         """
         self.param_manager.set_required_params(tool_name, param_names)
     
-    def add_execution_hook(self, hook: Callable, stage: str = "pre") -> None:
+    def add_execution_hook(self, hook: Callable, stage: str = "pre", blocking: bool = False) -> None:
         """
         Add execution hook.
-        
+
+        BUG-006 fix: Added blocking parameter to control hook failure behavior.
+
         Args:
             hook: Callable to execute (receives tool_name, params)
             stage: "pre" for before execution, "post" for after execution
+            blocking: If True, tool execution aborts if hook fails.
+                     If False, hook failures only log warnings (default).
         """
         if stage == "pre":
-            self.pre_execution_hooks.append(hook)
+            self.pre_execution_hooks.append((hook, blocking))
         elif stage == "post":
-            self.post_execution_hooks.append(hook)
+            self.post_execution_hooks.append((hook, blocking))
         else:
             raise ValueError("Stage must be 'pre' or 'post'")
     
@@ -327,12 +333,19 @@ class MCPToolHijacker:
         start_time = time.time()
         
         try:
-            # Execute pre-execution hooks
-            for hook in self.pre_execution_hooks:
+            # Execute pre-execution hooks (BUG-006 fix: blocking hooks abort execution)
+            for hook, blocking in self.pre_execution_hooks:
                 try:
                     hook(tool_name, kwargs)
                 except Exception as e:
-                    self.logger.warning(f"Pre-execution hook failed: {e}")
+                    if blocking:
+                        # Blocking hook failure - abort tool execution
+                        error_msg = f"Blocking pre-execution hook failed for {tool_name}: {e}"
+                        self.logger.error(error_msg)
+                        raise ToolExecutionError(error_msg)
+                    else:
+                        # Non-blocking hook - just log warning
+                        self.logger.warning(f"Pre-execution hook failed: {e}")
             
             # Process parameters
             if self.parameter_validation:
@@ -350,17 +363,24 @@ class MCPToolHijacker:
             
             # Execute tool via connection manager
             result = await self.connection_manager.execute_tool(tool_name, processed_params)
-            
+
             # Update performance stats
             execution_time = time.time() - start_time
-            self._update_performance_stats(tool_name, execution_time, success=True)
+            await self._update_performance_stats(tool_name, execution_time, success=True)
             
-            # Execute post-execution hooks
-            for hook in self.post_execution_hooks:
+            # Execute post-execution hooks (BUG-006 fix: blocking hooks abort execution)
+            for hook, blocking in self.post_execution_hooks:
                 try:
                     hook(tool_name, processed_params, result, execution_time)
                 except Exception as e:
-                    self.logger.warning(f"Post-execution hook failed: {e}")
+                    if blocking:
+                        # Blocking hook failure - raise error (result already obtained)
+                        error_msg = f"Blocking post-execution hook failed for {tool_name}: {e}"
+                        self.logger.error(error_msg)
+                        raise ToolExecutionError(error_msg)
+                    else:
+                        # Non-blocking hook - just log warning
+                        self.logger.warning(f"Post-execution hook failed: {e}")
             
             if self.verbose:
                 self.logger.debug(f"Tool {tool_name} executed successfully in {execution_time:.3f}s")
@@ -370,40 +390,45 @@ class MCPToolHijacker:
         except (ParameterValidationError, ParameterTransformationError) as e:
             # Parameter processing errors
             execution_time = time.time() - start_time
-            self._update_performance_stats(tool_name, execution_time, success=False)
+            await self._update_performance_stats(tool_name, execution_time, success=False)
             self.logger.error(f"Parameter error for {tool_name}: {e}")
             raise
             
         except Exception as e:
             # Tool execution errors
             execution_time = time.time() - start_time
-            self._update_performance_stats(tool_name, execution_time, success=False)
+            await self._update_performance_stats(tool_name, execution_time, success=False)
             error_msg = f"Tool execution failed for {tool_name}: {e}"
             self.logger.error(error_msg)
             raise ToolExecutionError(error_msg)
     
-    def _update_performance_stats(self, tool_name: str, execution_time: float, success: bool) -> None:
-        """Update performance statistics for a tool."""
-        if tool_name not in self._performance_stats:
-            self._performance_stats[tool_name] = {
-                "call_count": 0,
-                "total_time": 0.0,
-                "avg_time": 0.0,
-                "last_call_time": 0.0,
-                "error_count": 0,
-                "success_rate": 1.0
-            }
-        
-        stats = self._performance_stats[tool_name]
-        stats["call_count"] += 1
-        stats["total_time"] += execution_time
-        stats["last_call_time"] = execution_time
-        stats["avg_time"] = stats["total_time"] / stats["call_count"]
-        
-        if not success:
-            stats["error_count"] += 1
-        
-        stats["success_rate"] = (stats["call_count"] - stats["error_count"]) / stats["call_count"]
+    async def _update_performance_stats(self, tool_name: str, execution_time: float, success: bool) -> None:
+        """Update performance statistics for a tool (thread-safe).
+
+        BUG-005 fix: Uses asyncio.Lock to prevent race conditions during
+        concurrent batch_call_tools execution.
+        """
+        async with self._stats_lock:
+            if tool_name not in self._performance_stats:
+                self._performance_stats[tool_name] = {
+                    "call_count": 0,
+                    "total_time": 0.0,
+                    "avg_time": 0.0,
+                    "last_call_time": 0.0,
+                    "error_count": 0,
+                    "success_rate": 1.0
+                }
+
+            stats = self._performance_stats[tool_name]
+            stats["call_count"] += 1
+            stats["total_time"] += execution_time
+            stats["last_call_time"] = execution_time
+            stats["avg_time"] = stats["total_time"] / stats["call_count"]
+
+            if not success:
+                stats["error_count"] += 1
+
+            stats["success_rate"] = (stats["call_count"] - stats["error_count"]) / stats["call_count"]
     
     async def call_tool_batch(self, batch_calls: List[Dict[str, Any]], 
                              max_concurrent: int = 5) -> List[Dict[str, Any]]:

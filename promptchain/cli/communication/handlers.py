@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from enum import Enum
 import asyncio
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +57,16 @@ class HandlerRegistry:
     """Global registry for communication handlers."""
 
     _instance: Optional["HandlerRegistry"] = None
+    _lock = threading.Lock()  # BUG-021 fix: Thread-safe singleton
 
     def __new__(cls) -> "HandlerRegistry":
+        # BUG-021 fix: Use double-checked locking for thread safety
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._handlers: List[CommunicationHandler] = []
+            with cls._lock:
+                # Double-check inside lock to prevent race condition
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._handlers: List[CommunicationHandler] = []
         return cls._instance
 
     @classmethod
@@ -98,9 +104,22 @@ class HandlerRegistry:
         message_type: MessageType,
         sender: str,
         receiver: str,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
+        stop_on_error: bool = False
     ) -> List[Any]:
-        """Dispatch message to all matching handlers."""
+        """Dispatch message to all matching handlers.
+
+        Args:
+            message_type: Type of message to dispatch
+            sender: Sending agent/component name
+            receiver: Receiving agent/component name
+            payload: Message payload
+            stop_on_error: If True, stop dispatching after first handler error.
+                          If False (default), continue with remaining handlers (FR-020).
+
+        Returns:
+            List of handler results (may include error dicts if handlers failed)
+        """
         handlers = self.get_matching_handlers(message_type, sender, receiver)
         results = []
 
@@ -113,8 +132,17 @@ class HandlerRegistry:
                 results.append(result)
             except Exception as e:
                 logger.error(f"Handler {handler.name} failed: {e}")
-                # FR-020: System continues on handler exception
-                results.append({"error": str(e), "handler": handler.name})
+                error_result = {"error": str(e), "handler": handler.name}
+                results.append(error_result)
+
+                # BUG-014 fix: Optionally stop on first error for critical handler chains
+                if stop_on_error:
+                    logger.warning(
+                        f"Stopping handler dispatch after {handler.name} failure "
+                        f"(stop_on_error=True)"
+                    )
+                    break
+                # FR-020: System continues on handler exception (default behavior)
 
         return results
 

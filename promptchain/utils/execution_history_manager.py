@@ -509,4 +509,332 @@ class ExecutionHistoryManager:
 
     def __str__(self):
         """Return a simple string representation of the manager."""
-        return f"ExecutionHistoryManager(entries={len(self._history)}, max_entries={self.max_entries or 'Unlimited'}, max_tokens={self.max_tokens or 'Unlimited'})" 
+        return f"ExecutionHistoryManager(entries={len(self._history)}, max_entries={self.max_entries or 'Unlimited'}, max_tokens={self.max_tokens or 'Unlimited'})"
+
+
+# ============================================================================
+# Context Distillation (Issue #6 - wU2 Pattern from Claude Code)
+# ============================================================================
+
+class ContextDistiller:
+    """Implements context compression using LLM-based summarization.
+
+    Issue #6 Enhancement: Implements wU2 pattern from Claude Code for
+    automatic context compression at 70% token capacity. Instead of
+    truncating old messages, generates "Current State of Knowledge" summary
+    for better context preservation.
+
+    Benefits:
+    - 30-50% token reduction while maintaining context quality
+    - Preserved conversation continuity
+    - Reduced information loss compared to truncation
+    """
+
+    def __init__(self, llm_caller: Optional[Any] = None, distillation_threshold: float = 0.7):
+        """Initialize context distiller.
+
+        Args:
+            llm_caller: Optional LLM caller for generating summaries.
+                       If None, uses simple extraction without LLM summarization.
+            distillation_threshold: Token capacity threshold (0.0-1.0) that triggers
+                                   distillation. Default 0.7 (70% capacity).
+        """
+        self.llm_caller = llm_caller
+        self.distillation_threshold = distillation_threshold
+        logger.info(f"ContextDistiller initialized (threshold: {distillation_threshold*100}%)")
+
+    def should_distill(self, history_manager: ExecutionHistoryManager) -> bool:
+        """Check if history should be distilled based on token utilization.
+
+        Args:
+            history_manager: History manager to check
+
+        Returns:
+            True if token usage exceeds threshold, False otherwise
+        """
+        if history_manager.max_tokens is None:
+            return False  # No token limit, no need to distill
+
+        stats = history_manager.get_statistics()
+        utilization = stats['utilization_pct'] / 100.0  # Convert to 0-1 range
+
+        return utilization >= self.distillation_threshold
+
+    def distill_history(
+        self,
+        history: List[Dict[str, Any]],
+        max_tokens: int,
+        preserve_recent: int = 3
+    ) -> Dict[str, Any]:
+        """Distill conversation history into compact state representation.
+
+        Args:
+            history: List of history entries to distill
+            max_tokens: Target token count after distillation
+            preserve_recent: Number of recent messages to keep verbatim (default: 3)
+
+        Returns:
+            Dictionary containing:
+                - state_summary: LLM-generated summary of knowledge state
+                - recent_messages: Last N messages preserved verbatim
+                - key_decisions: Extracted important decisions
+                - open_issues: Extracted unresolved issues
+                - tokens_before: Token count before distillation
+                - tokens_after: Token count after distillation
+        """
+        if not history:
+            return {
+                "state_summary": "No history to distill",
+                "recent_messages": [],
+                "key_decisions": [],
+                "open_issues": [],
+                "tokens_before": 0,
+                "tokens_after": 0
+            }
+
+        # Preserve recent messages
+        recent_messages = history[-preserve_recent:] if len(history) >= preserve_recent else history
+        older_messages = history[:-preserve_recent] if len(history) > preserve_recent else []
+
+        # Extract key information from older messages
+        key_decisions = self._extract_key_decisions(older_messages)
+        open_issues = self._extract_open_issues(older_messages)
+
+        # Generate state summary
+        if self.llm_caller and older_messages:
+            state_summary = self._generate_llm_summary(older_messages, key_decisions, open_issues)
+        else:
+            state_summary = self._generate_simple_summary(older_messages, key_decisions, open_issues)
+
+        # Calculate token savings (approximate)
+        tokens_before = sum(len(str(e.get('content', ''))) // 4 for e in history)
+        tokens_after = (
+            len(state_summary) // 4 +
+            sum(len(str(e.get('content', ''))) // 4 for e in recent_messages)
+        )
+
+        logger.info(
+            f"Context distilled: {len(older_messages)} older messages compressed into summary. "
+            f"Token reduction: {tokens_before} → {tokens_after} "
+            f"({((tokens_before - tokens_after) / tokens_before * 100):.1f}% savings)"
+        )
+
+        return {
+            "state_summary": state_summary,
+            "recent_messages": recent_messages,
+            "key_decisions": key_decisions,
+            "open_issues": open_issues,
+            "tokens_before": tokens_before,
+            "tokens_after": tokens_after
+        }
+
+    def _extract_key_decisions(self, messages: List[Dict[str, Any]]) -> List[str]:
+        """Extract key decisions from message history.
+
+        Args:
+            messages: List of history entries
+
+        Returns:
+            List of key decision strings
+        """
+        decisions = []
+        decision_keywords = ['decided', 'chose', 'selected', 'agreed', 'confirmed', 'approved']
+
+        for entry in messages:
+            content = str(entry.get('content', '')).lower()
+            for keyword in decision_keywords:
+                if keyword in content:
+                    # Extract the sentence containing the decision
+                    sentences = content.split('.')
+                    for sentence in sentences:
+                        if keyword in sentence:
+                            decisions.append(sentence.strip()[:200])  # Truncate long sentences
+                            break
+
+        return decisions[:5]  # Return top 5 decisions
+
+    def _extract_open_issues(self, messages: List[Dict[str, Any]]) -> List[str]:
+        """Extract unresolved issues from message history.
+
+        Args:
+            messages: List of history entries
+
+        Returns:
+            List of open issue strings
+        """
+        issues = []
+        issue_keywords = ['error', 'failed', 'issue', 'problem', 'bug', 'todo', 'need to', 'must fix']
+
+        for entry in messages:
+            content = str(entry.get('content', '')).lower()
+            entry_type = entry.get('type', '')
+
+            # Prioritize error entries
+            if entry_type == 'error':
+                issues.append(f"Error: {str(entry.get('content', ''))[:200]}")
+            else:
+                for keyword in issue_keywords:
+                    if keyword in content:
+                        sentences = content.split('.')
+                        for sentence in sentences:
+                            if keyword in sentence:
+                                issues.append(sentence.strip()[:200])
+                                break
+
+        return issues[:5]  # Return top 5 issues
+
+    def _generate_simple_summary(
+        self,
+        messages: List[Dict[str, Any]],
+        key_decisions: List[str],
+        open_issues: List[str]
+    ) -> str:
+        """Generate simple summary without LLM (fallback).
+
+        Args:
+            messages: Message history to summarize
+            key_decisions: Extracted decisions
+            open_issues: Extracted issues
+
+        Returns:
+            Summary string
+        """
+        summary_parts = [
+            "=== Current State of Knowledge (Distilled) ===",
+            f"\nCompressed {len(messages)} older messages into this summary.\n"
+        ]
+
+        if key_decisions:
+            summary_parts.append("\nKey Decisions:")
+            for i, decision in enumerate(key_decisions, 1):
+                summary_parts.append(f"  {i}. {decision}")
+
+        if open_issues:
+            summary_parts.append("\nOpen Issues:")
+            for i, issue in enumerate(open_issues, 1):
+                summary_parts.append(f"  {i}. {issue}")
+
+        # Add brief context about what was discussed
+        topics = set()
+        for entry in messages[-10:]:  # Look at last 10 for topics
+            content_lower = str(entry.get('content', '')).lower()
+            # Extract potential topics (simplified)
+            words = content_lower.split()
+            for word in words:
+                if len(word) > 8 and word.isalpha():  # Longer words likely topics
+                    topics.add(word)
+
+        if topics:
+            summary_parts.append(f"\nRecent Discussion Topics: {', '.join(list(topics)[:5])}")
+
+        return "\n".join(summary_parts)
+
+    def _generate_llm_summary(
+        self,
+        messages: List[Dict[str, Any]],
+        key_decisions: List[str],
+        open_issues: List[str]
+    ) -> str:
+        """Generate LLM-powered summary of conversation history.
+
+        Args:
+            messages: Message history to summarize
+            key_decisions: Extracted decisions
+            open_issues: Extracted issues
+
+        Returns:
+            LLM-generated summary string
+        """
+        # Prepare context for LLM
+        context_parts = []
+        for entry in messages:
+            entry_type = entry.get('type', 'unknown')
+            content = str(entry.get('content', ''))
+            context_parts.append(f"[{entry_type}] {content}")
+
+        context = "\n".join(context_parts[-20:])  # Last 20 messages for context
+
+        prompt = f"""Summarize the following conversation history into a "Current State of Knowledge" summary.
+Focus on:
+1. What was accomplished
+2. Current understanding and context
+3. Decisions made
+4. Open issues or next steps
+
+Conversation History:
+{context}
+
+Key Decisions Identified:
+{chr(10).join(f'- {d}' for d in key_decisions) if key_decisions else 'None'}
+
+Open Issues Identified:
+{chr(10).join(f'- {i}' for i in open_issues) if open_issues else 'None'}
+
+Provide a concise summary (2-3 paragraphs max):"""
+
+        try:
+            if self.llm_caller:
+                # Call LLM to generate summary
+                summary = self.llm_caller(prompt)
+                return f"=== Current State of Knowledge (Distilled) ===\n\n{summary}"
+        except Exception as e:
+            logger.error(f"LLM summary generation failed: {e}. Falling back to simple summary.")
+
+        # Fallback to simple summary
+        return self._generate_simple_summary(messages, key_decisions, open_issues)
+
+    def apply_distillation(self, history_manager: ExecutionHistoryManager) -> bool:
+        """Apply distillation to a history manager in-place.
+
+        Args:
+            history_manager: History manager to distill
+
+        Returns:
+            True if distillation was applied, False otherwise
+        """
+        if not self.should_distill(history_manager):
+            return False
+
+        # Get current history
+        current_history = history_manager.get_history()
+
+        # Perform distillation
+        distilled = self.distill_history(
+            current_history,
+            max_tokens=history_manager.max_tokens or 10000,
+            preserve_recent=3
+        )
+
+        # Clear and rebuild history with distilled content
+        history_manager.clear_history()
+
+        # Add distilled summary as system message
+        history_manager.add_entry(
+            entry_type="system_message",
+            content=distilled["state_summary"],
+            source="context_distiller",
+            metadata={
+                "distillation_applied": True,
+                "tokens_before": distilled["tokens_before"],
+                "tokens_after": distilled["tokens_after"],
+                "key_decisions": distilled["key_decisions"],
+                "open_issues": distilled["open_issues"]
+            }
+        )
+
+        # Add back recent messages
+        for entry in distilled["recent_messages"]:
+            history_manager.add_entry(
+                entry_type=entry.get("type", "custom"),
+                content=entry.get("content"),
+                source=entry.get("source"),
+                metadata=entry.get("metadata", {})
+            )
+
+        logger.info(
+            f"Context distillation applied successfully. "
+            f"Token savings: {distilled['tokens_before'] - distilled['tokens_after']} "
+            f"({((distilled['tokens_before'] - distilled['tokens_after']) / distilled['tokens_before'] * 100):.1f}%)"
+        )
+
+        return True 

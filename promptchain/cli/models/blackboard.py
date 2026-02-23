@@ -75,10 +75,37 @@ class BlackboardEntry:
 
     @classmethod
     def from_db_row(cls, row: tuple) -> "BlackboardEntry":
-        """Create from database row (matches blackboard table columns)."""
+        """Create from database row.
+
+        BUG-013 fix: Validates column count to detect schema changes.
+
+        IMPORTANT: This method assumes the following SELECT column order:
+            SELECT session_id, key, value_json, written_by, written_at, version
+
+        If the SELECT query uses a different column order, this method will fail.
+        Callers MUST ensure consistent column ordering in SELECT statements.
+
+        Args:
+            row: Database row tuple with 6 columns in the order above
+
+        Returns:
+            BlackboardEntry instance
+
+        Raises:
+            ValueError: If row doesn't have expected 6 columns
+        """
+        # BUG-013 fix: Validate column count to catch schema changes early
+        expected_columns = 6
+        if len(row) != expected_columns:
+            raise ValueError(
+                f"BlackboardEntry.from_db_row expects {expected_columns} columns "
+                f"(session_id, key, value_json, written_by, written_at, version) "
+                f"but got {len(row)} columns. Check SELECT statement column order."
+            )
+
         # Columns: session_id, key, value_json, written_by, written_at, version
         return cls(
-            key=row[1],  # Skip session_id
+            key=row[1],  # Skip session_id at row[0]
             value=json.loads(row[2]) if row[2] else None,
             written_by=row[3],
             written_at=row[4],
