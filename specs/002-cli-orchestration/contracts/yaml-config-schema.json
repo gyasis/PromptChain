@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://promptchain.io/schemas/yaml-config.json",
+  "title": "YAML Configuration",
+  "description": "Schema for declarative PromptChain CLI configuration via YAML files",
+  "type": "object",
+  "properties": {
+    "mcp_servers": {
+      "type": "array",
+      "description": "MCP server configurations",
+      "items": {
+        "$ref": "mcp-server-schema.json"
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent definitions keyed by agent name",
+      "additionalProperties": {
+        "$ref": "agent-config-schema.json"
+      }
+    },
+    "orchestration": {
+      "type": "object",
+      "description": "AgentChain orchestration settings",
+      "properties": {
+        "execution_mode": {
+          "type": "string",
+          "enum": ["router", "pipeline", "round-robin", "broadcast"],
+          "default": "router",
+          "description": "How agents are selected/executed"
+        },
+        "default_agent": {
+          "type": "string",
+          "description": "Fallback agent name if routing fails"
+        },
+        "router": {
+          "type": "object",
+          "description": "Router configuration (required if execution_mode='router')",
+          "properties": {
+            "model": {
+              "type": "string",
+              "default": "openai/gpt-4o-mini",
+              "description": "Fast model for routing decisions"
+            },
+            "decision_prompt": {
+              "type": "string",
+              "description": "Template for routing decision"
+            }
+          }
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "description": "Session default settings",
+      "properties": {
+        "auto_save_interval": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600,
+          "default": 300,
+          "description": "Auto-save interval in seconds"
+        },
+        "max_history_entries": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 200,
+          "default": 50,
+          "description": "Maximum history entries per session"
+        },
+        "working_directory": {
+          "type": "string",
+          "description": "Session working directory (supports ${ENV_VAR})"
+        }
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "description": "CLI user preferences",
+      "properties": {
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose logging"
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light", "auto"],
+          "default": "dark",
+          "description": "TUI color theme"
+        },
+        "show_token_usage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Display token usage in status bar"
+        },
+        "show_reasoning_steps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Display AgenticStepProcessor reasoning progress"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "mcp_servers": [
+        {
+          "id": "filesystem",
+          "type": "stdio",
+          "command": "mcp-server-filesystem",
+          "args": ["--root", "${PWD}"],
+          "auto_connect": true
+        }
+      ],
+      "agents": {
+        "researcher": {
+          "model": "openai/gpt-4",
+          "description": "Research specialist",
+          "instruction_chain": [
+            "Analyze: {input}",
+            {
+              "type": "agentic_step",
+              "objective": "Research comprehensively",
+              "max_internal_steps": 8
+            }
+          ],
+          "tools": ["web_search"],
+          "history_config": {
+            "max_tokens": 8000
+          }
+        }
+      },
+      "orchestration": {
+        "execution_mode": "router",
+        "router": {
+          "model": "openai/gpt-4o-mini"
+        }
+      },
+      "preferences": {
+        "verbose": false,
+        "show_token_usage": true
+      }
+    }
+  ]
+}

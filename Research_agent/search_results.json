@@ -1,0 +1,161 @@
+{
+  "search_query": "machine learning in healthcare",
+  "total_results": 2,
+  "papers": [
+    {
+      "id": "arxiv_2206.14397v3",
+      "title": "Fair Machine Learning in Healthcare: A Review",
+      "authors": [
+        "Qizhang Feng",
+        "Mengnan Du",
+        "Na Zou",
+        "Xia Hu"
+      ],
+      "publication_year": 2022,
+      "doi": "10.10001/3tier.service.4822",
+      "abstract": "The digitization of healthcare data coupled with advances in computational\ncapabilities has propelled the adoption of machine learning (ML) in healthcare.\nHowever, these methods can perpetuate or even exacerbate existing disparities,\nleading to fairness concerns such as the unequal distribution of resources and\ndiagnostic inaccuracies among different demographic groups. Addressing these\nfairness problem is paramount to prevent further entrenchment of social\ninjustices. In this survey, we analyze the intersection of fairness in machine\nlearning and healthcare disparities. We adopt a framework based on the\nprinciples of distributive justice to categorize fairness concerns into two\ndistinct classes: equal allocation and equal performance. We provide a critical\nreview of the associated fairness metrics from a machine learning standpoint\nand examine biases and mitigation strategies across the stages of the ML\nlifecycle, discussing the relationship between biases and their\ncountermeasures. The paper concludes with a discussion on the pressing\nchallenges that remain unaddressed in ensuring fairness in healthcare ML, and\nproposes several new research directions that hold promise for developing\nethical and equitable ML applications in healthcare.",
+      "source": "arxiv",
+      "tier": "arxiv",
+      "search_method": "arxiv_api_direct",
+      "url": "http://arxiv.org/abs/2206.14397v3",
+      "pdf_url": null,
+      "metadata": {
+        "arxiv_id": "2206.14397v3",
+        "categories": [
+          "cs.LG",
+          "cs.AI",
+          "cs.CY"
+        ],
+        "published_date": "2022-06-29T04:32:10+00:00",
+        "updated_date": "2024-02-01T05:03:56+00:00",
+        "comment": null,
+        "primary_category": "cs.LG",
+        "journal": "arXiv preprint",
+        "pdf_url": "http://arxiv.org/pdf/2206.14397v3",
+        "full_text_available": true,
+        "database_priority": 0.8,
+        "retrieved_at": "2025-08-31T08:41:51.037680",
+        "paper_index": 1,
+        "search_topic": "machine learning in healthcare",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-31T08:41:59.255835",
+        "session_id": null,
+        "citation": "Qizhang Feng, Mengnan Du, Na Zou et al. (2022). Fair Machine Learning in Healthcare: A Review",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "arxiv",
+          "search_method": "arxiv_api_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "preprint",
+        "peer_reviewed": false,
+        "open_access": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    },
+    {
+      "id": "pubmed_37749579",
+      "title": "Machine learning in precision diabetes care and cardiovascular risk prediction.",
+      "authors": [
+        "Oikonomou, Evangelos K",
+        "Khera, Rohan"
+      ],
+      "publication_year": 2023,
+      "doi": "10.10002/3tier.service.2337",
+      "abstract": "Artificial intelligence and machine learning are driving a paradigm shift in medicine, promising data-driven, personalized solutions for managing diabetes and the excess cardiovascular risk it poses. In this comprehensive review of machine learning applications in the care of patients with diabetes at increased cardiovascular risk, we offer a broad overview of various data-driven methods and how they may be leveraged in developing predictive models for personalized care. We review existing as well as expected artificial intelligence solutions in the context of diagnosis, prognostication, phenotyping, and treatment of diabetes and its cardiovascular complications. In addition to discussing the key properties of such models that enable their successful application in complex risk prediction, we define challenges that arise from their misuse and the role of methodological standards in overcoming these limitations. We also identify key issues in equity and bias mitigation in healthcare and discuss how the current regulatory framework should ensure the efficacy and safety of medical artificial intelligence products in transforming cardiovascular care and outcomes in diabetes.",
+      "source": "pubmed",
+      "tier": "pubmed",
+      "search_method": "pubmed_api_direct",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37749579/",
+      "pdf_url": null,
+      "metadata": {
+        "pmid": "37749579",
+        "journal": "Cardiovascular diabetology",
+        "full_text_available": false,
+        "mesh_terms": [
+          {
+            "QualifierName": [],
+            "DescriptorName": "Humans"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Artificial Intelligence"
+          },
+          {
+            "QualifierName": [
+              "diagnosis",
+              "epidemiology",
+              "prevention & control"
+            ],
+            "DescriptorName": "Cardiovascular Diseases"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Risk Factors"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Machine Learning"
+          },
+          {
+            "QualifierName": [
+              "diagnosis",
+              "epidemiology",
+              "therapy"
+            ],
+            "DescriptorName": "Diabetes Mellitus"
+          },
+          {
+            "QualifierName": [],
+            "DescriptorName": "Heart Disease Risk Factors"
+          }
+        ],
+        "keywords": [
+          [
+            "Artificial intelligence",
+            "Cardiovascular disease",
+            "Diabetes",
+            "Digital health",
+            "Machine learning",
+            "Personalized medicine",
+            "Prediction"
+          ]
+        ],
+        "publication_types": [
+          "Journal Article",
+          "Review",
+          "Research Support, N.I.H., Extramural",
+          "Research Support, Non-U.S. Gov't"
+        ],
+        "database_priority": 0.6,
+        "retrieved_at": "2025-08-31T08:41:52.974033",
+        "paper_index": 2,
+        "search_topic": "machine learning in healthcare",
+        "retrieval_method": "3tier_search_service",
+        "timestamp": "2025-08-31T08:41:59.255835",
+        "session_id": null,
+        "citation": "Oikonomou, Evangelos K, Khera, Rohan (2023). Machine learning in precision diabetes care and cardiovascular risk prediction.",
+        "document_search_service": {
+          "version": "4.0.0",
+          "architecture": "production_3tier_distinct_search",
+          "tier": "pubmed",
+          "search_method": "pubmed_api_direct",
+          "enhanced": true,
+          "fallback_attempted": true,
+          "fallback_successful": false
+        },
+        "repository_type": "biomedical",
+        "peer_reviewed": true,
+        "mesh_indexed": true
+      },
+      "fallback_attempted": true,
+      "fallback_successful": false,
+      "fallback_result": null
+    }
+  ]
+}

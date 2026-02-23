@@ -194,6 +194,495 @@ The SQLite connection is automatically closed when:
 - The AgentChain object is garbage collected
 - The `close_cache()` method is called explicitly
 
+## Per-Agent History Configuration (v0.4.2)
+
+AgentChain now supports fine-grained control over conversation history on a per-agent basis. This powerful feature allows you to optimize token usage, reduce costs, and improve response times by configuring exactly what historical context each agent receives.
+
+### Overview
+
+**Why Per-Agent History Configuration?**
+
+Different agents have different history requirements:
+- **Stateless agents** (e.g., calculator, unit converter) don't need conversation history
+- **Contextual agents** (e.g., research, writing) benefit from full conversation context
+- **Specialized agents** (e.g., code analyzer) may only need specific types of history
+
+Benefits:
+- **Token Savings**: Avoid sending unnecessary history to agents that don't need it
+- **Cost Reduction**: Lower API costs by reducing prompt token usage
+- **Faster Responses**: Smaller prompts = faster processing
+- **Better Focus**: Agents receive only relevant context for their task
+
+### Configuration Options
+
+Each agent can have its own history configuration with the following options:
+
+```python
+{
+    "enabled": bool,                    # Enable/disable history for this agent
+    "max_tokens": int,                  # Maximum tokens in history context
+    "max_entries": int,                 # Maximum number of history entries
+    "truncation_strategy": str,         # How to truncate ("oldest_first", "keep_last")
+    "include_types": List[str],         # Only include these message types
+    "exclude_sources": List[str]        # Exclude messages from these sources
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `bool` | `True` | Whether to include history for this agent |
+| `max_tokens` | `int` | AgentChain's `max_history_tokens` | Maximum tokens to include in history |
+| `max_entries` | `int` | `None` (unlimited) | Maximum number of history entries |
+| `truncation_strategy` | `str` | `"oldest_first"` | How to truncate when limits exceeded |
+| `include_types` | `List[str]` | `None` (all types) | Filter to only these message types ("user", "assistant") |
+| `exclude_sources` | `List[str]` | `None` (no exclusions) | Exclude messages from these agent sources |
+
+### Complete Code Example
+
+```python
+from promptchain.utils.agent_chain import AgentChain
+from promptchain import PromptChain
+
+# Define specialized agents
+terminal_agent = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Execute terminal command: {input}"]
+)
+
+research_agent = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Research topic: {input}"]
+)
+
+coding_agent = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=["Generate code: {input}"]
+)
+
+writing_agent = PromptChain(
+    models=["anthropic/claude-3-sonnet-20240229"],
+    instructions=["Write content: {input}"]
+)
+
+# Configure per-agent history settings
+agent_history_configs = {
+    # Terminal agent: No history needed (stateless operations)
+    "terminal": {
+        "enabled": False
+    },
+
+    # Research agent: Full history with generous limits
+    "research": {
+        "enabled": True,
+        "max_tokens": 8000,              # Large context window
+        "truncation_strategy": "keep_last",
+        "include_types": ["user", "assistant"]  # Only conversation, no tool calls
+    },
+
+    # Coding agent: Recent history only
+    "coding": {
+        "enabled": True,
+        "max_entries": 10,               # Last 10 messages only
+        "max_tokens": 4000,
+        "exclude_sources": ["terminal"]  # Don't include terminal outputs
+    },
+
+    # Writing agent: Full conversation context
+    "writing": {
+        "enabled": True,
+        "max_tokens": 6000,
+        "include_types": ["user", "assistant"]
+    }
+}
+
+# Create AgentChain with per-agent history configuration
+agent_chain = AgentChain(
+    agents={
+        "terminal": terminal_agent,
+        "research": research_agent,
+        "coding": coding_agent,
+        "writing": writing_agent
+    },
+    agent_descriptions={
+        "terminal": "Executes terminal commands",
+        "research": "Researches topics and gathers information",
+        "coding": "Generates and analyzes code",
+        "writing": "Creates written content and documentation"
+    },
+    agent_history_configs=agent_history_configs,
+    auto_include_history=False,  # Use per-agent configs instead of global setting
+    execution_mode="router",
+    router=router_config
+)
+
+# Usage
+result = await agent_chain.process_input("Write a Python function to calculate Fibonacci")
+# Coding agent receives its configured history (last 10 entries, max 4000 tokens)
+
+result = await agent_chain.process_input("ls -la")
+# Terminal agent receives NO history (enabled=False)
+```
+
+### Configuration Patterns
+
+#### Pattern 1: Disable History for Stateless Agents
+
+```python
+agent_history_configs = {
+    "calculator": {"enabled": False},
+    "unit_converter": {"enabled": False},
+    "timestamp": {"enabled": False}
+}
+```
+
+**Use Case**: Mathematical, conversion, or utility agents that don't need context
+
+**Token Savings**: 100% for these agents (no history sent)
+
+#### Pattern 2: Token-Limited History for Cost Optimization
+
+```python
+agent_history_configs = {
+    "standard_agent": {
+        "enabled": True,
+        "max_tokens": 2000  # Instead of default 4000
+    },
+    "budget_agent": {
+        "enabled": True,
+        "max_tokens": 1000  # Very constrained
+    }
+}
+```
+
+**Use Case**: Balance context with cost when using expensive models
+
+**Token Savings**: 50-75% reduction in history tokens
+
+#### Pattern 3: Type-Filtered History
+
+```python
+agent_history_configs = {
+    "chat_agent": {
+        "enabled": True,
+        "include_types": ["user", "assistant"],  # Only conversation
+        "max_tokens": 4000
+    },
+    "tool_analyzer": {
+        "enabled": True,
+        "include_types": ["tool_call", "tool_result"],  # Only tool execution
+        "max_tokens": 3000
+    }
+}
+```
+
+**Use Case**: Agents that only need specific types of context
+
+**Token Savings**: Varies by conversation structure (typically 30-50%)
+
+#### Pattern 4: Source Exclusion
+
+```python
+agent_history_configs = {
+    "summary_agent": {
+        "enabled": True,
+        "exclude_sources": ["debug_agent", "diagnostic_agent"],
+        "max_tokens": 5000
+    }
+}
+```
+
+**Use Case**: Exclude noisy or irrelevant agents from context
+
+**Token Savings**: Depends on excluded agent verbosity (10-40%)
+
+#### Pattern 5: Entry-Limited Recent Context
+
+```python
+agent_history_configs = {
+    "quick_response": {
+        "enabled": True,
+        "max_entries": 5,  # Last 5 messages only
+        "truncation_strategy": "keep_last"
+    }
+}
+```
+
+**Use Case**: Fast agents that only need immediate context
+
+**Token Savings**: 60-80% in long conversations
+
+### Token Savings Examples
+
+#### Example 1: Mixed Agent System
+
+```python
+# 100-turn conversation scenario
+# Default: All agents get full 4000-token history
+
+# Conversation stats:
+# - 100 user messages (avg 50 tokens each) = 5,000 tokens
+# - 100 assistant messages (avg 150 tokens each) = 15,000 tokens
+# - Total history: 20,000 tokens (truncated to 4000 tokens per agent)
+
+# Without per-agent config:
+# - 10 calculator calls × 4000 tokens = 40,000 history tokens
+# - 20 research calls × 4000 tokens = 80,000 history tokens
+# - 30 coding calls × 4000 tokens = 120,000 history tokens
+# Total: 240,000 history tokens sent
+
+# With per-agent config:
+agent_history_configs = {
+    "calculator": {"enabled": False},           # 0 tokens
+    "research": {"max_tokens": 8000},           # 20 × 8000 = 160,000 tokens
+    "coding": {"max_entries": 10, "max_tokens": 3000}  # 30 × 3000 = 90,000 tokens
+}
+
+# New total: 250,000 history tokens
+# Wait, this is MORE? Let's optimize:
+
+agent_history_configs = {
+    "calculator": {"enabled": False},           # 0 tokens (was 40,000)
+    "research": {
+        "max_tokens": 6000,
+        "include_types": ["user", "assistant"]  # 20 × 4000 = 80,000 tokens (was 80,000)
+    },
+    "coding": {
+        "max_entries": 8,
+        "max_tokens": 2000                      # 30 × 2000 = 60,000 tokens (was 120,000)
+    }
+}
+
+# Optimized total: 140,000 history tokens
+# Savings: 100,000 tokens (42% reduction)
+# At $5 per 1M tokens: $0.50 saved per 100-turn session
+```
+
+#### Example 2: Stateless vs Stateful Mix
+
+```python
+# Session with 50% stateless operations
+agent_history_configs = {
+    # Stateless agents (no history needed)
+    "math": {"enabled": False},
+    "convert": {"enabled": False},
+    "format": {"enabled": False},
+    "validate": {"enabled": False},
+
+    # Stateful agents (need context)
+    "research": {"max_tokens": 6000},
+    "writer": {"max_tokens": 6000},
+    "reviewer": {"max_tokens": 4000}
+}
+
+# 100 operations: 50 stateless, 50 stateful
+# Without config: 100 × 4000 = 400,000 history tokens
+# With config: (0 × 50) + (varying × 50) ≈ 260,000 history tokens
+# Savings: 140,000 tokens (35% reduction)
+```
+
+### AgenticStepProcessor Isolation
+
+**Important**: AgenticStepProcessor internal reasoning is automatically isolated from per-agent history configuration.
+
+When using `AgenticStepProcessor` within an agent:
+- The processor's internal tool calls and reasoning steps are NOT exposed to the agent's conversation history
+- Only the final output from the AgenticStepProcessor is added to history
+- This prevents history pollution from complex multi-step internal reasoning
+
+```python
+from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+
+# Agent with internal agentic reasoning
+research_chain = PromptChain(
+    models=["openai/gpt-4"],
+    instructions=[
+        AgenticStepProcessor(
+            objective="Research topic thoroughly",
+            max_internal_steps=10  # These 10 steps won't appear in history
+        ),
+        "Synthesize findings: {input}"
+    ]
+)
+
+agent_chain = AgentChain(
+    agents={"research": research_chain},
+    agent_descriptions={"research": "Deep research agent"},
+    agent_history_configs={
+        "research": {
+            "enabled": True,
+            "max_tokens": 4000,
+            "include_types": ["user", "assistant"]  # Only sees user queries and final outputs
+        }
+    }
+)
+
+# When research agent runs:
+# 1. AgenticStepProcessor executes 10 internal reasoning steps (NOT added to history)
+# 2. Only the final synthesized output is added to conversation history
+# 3. Next call to research agent sees clean history without internal reasoning clutter
+```
+
+**Why This Matters**:
+- Prevents token waste from internal reasoning traces
+- Keeps conversation history clean and focused
+- Avoids confusing the agent with its own internal tool calls
+- Maintains the abstraction boundary between internal processing and external conversation
+
+### Best Practices
+
+#### 1. Start with Defaults, Optimize Based on Need
+
+```python
+# Initially, let all agents use default history
+agent_chain = AgentChain(
+    agents=agents,
+    agent_descriptions=descriptions,
+    auto_include_history=True  # Use default for all
+)
+
+# After observing behavior, optimize specific agents
+agent_chain = AgentChain(
+    agents=agents,
+    agent_descriptions=descriptions,
+    agent_history_configs={
+        # Only configure agents that need different settings
+        "calculator": {"enabled": False},  # Clearly stateless
+        "writer": {"max_tokens": 8000}     # Needs more context
+    },
+    auto_include_history=False
+)
+```
+
+#### 2. Monitor Token Usage
+
+```python
+from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+
+# Track history usage
+history_mgr = ExecutionHistoryManager(max_tokens=10000)
+
+# After each agent call
+stats = history_mgr.get_statistics()
+print(f"History tokens: {stats['total_tokens']}")
+print(f"Utilization: {stats['utilization_pct']:.1f}%")
+
+# Adjust per-agent configs based on actual usage
+if stats['utilization_pct'] > 80:
+    print("Consider reducing max_tokens for some agents")
+```
+
+#### 3. Use include_types for Focused Context
+
+```python
+# Conversational agents: Only need user/assistant messages
+agent_history_configs = {
+    "chat_agent": {
+        "include_types": ["user", "assistant"]
+    }
+}
+
+# Debugging agents: Need tool execution traces
+agent_history_configs = {
+    "debug_agent": {
+        "include_types": ["tool_call", "tool_result", "error"]
+    }
+}
+```
+
+#### 4. Validate Configuration Keys
+
+```python
+# AgentChain validates agent names at initialization
+try:
+    agent_chain = AgentChain(
+        agents={"math": math_agent, "research": research_agent},
+        agent_descriptions={...},
+        agent_history_configs={
+            "math": {"enabled": False},
+            "writing": {"max_tokens": 4000}  # ERROR: 'writing' not in agents
+        }
+    )
+except ValueError as e:
+    print(f"Configuration error: {e}")
+    # ValueError: agent_history_configs contains invalid agent names: {'writing'}
+```
+
+#### 5. Consider Conversation Length
+
+```python
+# Short conversations: Default settings fine
+# Long conversations (100+ turns): Optimize aggressively
+
+agent_history_configs = {
+    "frequent_agent": {
+        "max_entries": 20,  # Prevent excessive history in long sessions
+        "max_tokens": 3000
+    }
+}
+```
+
+#### 6. Document Your Configuration
+
+```python
+# Add comments explaining why each agent has specific settings
+agent_history_configs = {
+    # Calculator: Stateless mathematical operations, no context needed
+    "calculator": {"enabled": False},
+
+    # Research: Needs broad context to maintain topic coherence across queries
+    "research": {"max_tokens": 8000, "include_types": ["user", "assistant"]},
+
+    # Code reviewer: Only needs recent code-related history
+    "code_reviewer": {
+        "max_entries": 15,
+        "exclude_sources": ["calculator", "weather"]  # Irrelevant to code review
+    }
+}
+```
+
+### Integration with ExecutionHistoryManager
+
+Per-agent history configuration works seamlessly with `ExecutionHistoryManager`:
+
+```python
+from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+
+# Create shared history manager
+shared_history = ExecutionHistoryManager(
+    max_tokens=10000,
+    max_entries=200
+)
+
+# AgentChain uses its own internal history management
+# But you can use ExecutionHistoryManager for custom tracking
+agent_chain = AgentChain(
+    agents=agents,
+    agent_descriptions=descriptions,
+    agent_history_configs=agent_history_configs
+)
+
+# Track all interactions in your own history manager
+async def process_with_tracking(user_input: str):
+    # Add to your history tracker
+    shared_history.add_entry("user_input", user_input, source="user")
+
+    # AgentChain handles per-agent history internally
+    result = await agent_chain.process_input(user_input)
+
+    # Add result to your tracker
+    shared_history.add_entry("agent_output", result, source="agent_chain")
+
+    return result
+
+# Get your custom history view
+my_history = shared_history.get_formatted_history(
+    max_tokens=2000,
+    format_style="chat"
+)
+```
+
+For complete `ExecutionHistoryManager` documentation, see: [ExecutionHistoryManager.md](../ExecutionHistoryManager.md)
+
 ## Core Methods
 
 -   `async process_input(user_input: str) -> str`:

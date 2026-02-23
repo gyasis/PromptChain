@@ -1,0 +1,14 @@
+artifact_uri: file:///home/gyasis/Documents/code/PromptChain/examples/mlruns/696014718332867630/2e1f123c8c0b471f8ca08f9af855ec8e/artifacts
+end_time: 1768686505058
+entry_point_name: ''
+experiment_id: '696014718332867630'
+lifecycle_stage: active
+run_id: 2e1f123c8c0b471f8ca08f9af855ec8e
+run_name: 01_Baseline
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1768686504986
+status: 3
+tags: []
+user_id: gyasis

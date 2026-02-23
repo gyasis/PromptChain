@@ -260,7 +260,7 @@ class PromptEngineer:
         # Restore backtick content
         for i, (variable_name, content) in enumerate(protected_sections.items()):
             if variable_name.startswith("__PROTECTED_CONTENT_"):
-                marker_match = re.search(f"__CONTENT_MARKER_(\d+)__", variable_name)
+                marker_match = re.search(r"__CONTENT_MARKER_(\d+)__", variable_name)
                 if marker_match:
                     marker_index = marker_match.group(1)
                     marker = f"__CONTENT_MARKER_{marker_index}__"

@@ -1,0 +1,66 @@
+{
+  "8d2250d3be7995c2ae00ad06c5769848c0eb6869a51324b151b014bb001445ce": {
+    "path": "inputs/txt/machine_learning_optimization.txt",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2",
+      "tier3_graphrag"
+    ],
+    "processed_at": "2025-08-15T03:11:19.627005",
+    "file_size": 1832,
+    "processing_time": 19.558671
+  },
+  "3a2a72020308ad7ee266ca3619c5cb0c5db3a5d764337cfd63fe9ec0110d96fe": {
+    "path": "inputs/txt/neural_network_architectures.txt",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2",
+      "tier3_graphrag"
+    ],
+    "processed_at": "2025-08-15T03:11:19.635235",
+    "file_size": 2059,
+    "processing_time": 19.566738
+  },
+  "6d9ce2ad150bc5e84ae7f7291599d5fd44de810f1d2390af26993b71ea8d02b8": {
+    "path": "inputs/README.md",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2"
+    ],
+    "processed_at": "2025-08-15T03:11:19.630768",
+    "file_size": 712,
+    "processing_time": 0.003018
+  },
+  "d48462f832c40a3705f390a710bd9d94d8c364d6bd095570a2ccdf6ef8099cbe": {
+    "path": "papers/README.md",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2"
+    ],
+    "processed_at": "2025-08-15T03:11:19.636588",
+    "file_size": 540,
+    "processing_time": 0.004914
+  },
+  "a5f5d292a63446e03820b57463f6320fe538300033d0ec66425c6fe2eeabc04d": {
+    "path": "inputs/txt/ai_ethics_frameworks.txt",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2",
+      "tier3_graphrag"
+    ],
+    "processed_at": "2025-08-15T03:11:29.269848",
+    "file_size": 2118,
+    "processing_time": 9.673306
+  },
+  "e833a98c1cbaf95c19c37826e68e5dadeba941a5673adfb5be282a605ae09ba8": {
+    "path": "inputs/txt/quantum_computing_review.txt",
+    "tiers": [
+      "tier1_lightrag",
+      "tier2_paperqa2",
+      "tier3_graphrag"
+    ],
+    "processed_at": "2025-08-15T03:11:19.595957",
+    "file_size": 1858,
+    "processing_time": 19.52784
+  }
+}

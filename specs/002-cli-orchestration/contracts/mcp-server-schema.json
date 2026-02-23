@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://promptchain.io/schemas/mcp-server.json",
+  "title": "MCP Server Configuration",
+  "description": "Schema for Model Context Protocol server connection settings",
+  "type": "object",
+  "required": ["id", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique server identifier (e.g., 'filesystem', 'web_search')"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["stdio", "http"],
+      "description": "Server communication protocol"
+    },
+    "auto_connect": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to automatically connect at session start"
+    },
+    "command": {
+      "type": "string",
+      "description": "Command to execute for stdio servers (required if type='stdio')"
+    },
+    "args": {
+      "type": "array",
+      "description": "Command-line arguments for stdio servers",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Server URL for http servers (required if type='http')"
+    },
+    "headers": {
+      "type": "object",
+      "description": "HTTP headers for http servers",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "status": {
+      "type": "string",
+      "enum": ["connected", "disconnected", "error"],
+      "default": "disconnected",
+      "description": "Current connection status (managed by system)"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error message if status='error'"
+    },
+    "last_connected": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last successful connection"
+    },
+    "discovered_tools": {
+      "type": "array",
+      "description": "List of tool names discovered from server",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "if": {
+    "properties": {
+      "type": {
+        "const": "stdio"
+      }
+    }
+  },
+  "then": {
+    "required": ["command"]
+  },
+  "else": {
+    "if": {
+      "properties": {
+        "type": {
+          "const": "http"
+        }
+      }
+    },
+    "then": {
+      "required": ["url"]
+    }
+  },
+  "examples": [
+    {
+      "id": "filesystem",
+      "type": "stdio",
+      "command": "mcp-server-filesystem",
+      "args": ["--root", "/home/user/projects"],
+      "auto_connect": true,
+      "status": "connected",
+      "discovered_tools": ["filesystem_read", "filesystem_write", "filesystem_list"]
+    },
+    {
+      "id": "web_search",
+      "type": "http",
+      "url": "http://localhost:3000",
+      "headers": {
+        "Authorization": "Bearer token123"
+      },
+      "auto_connect": false,
+      "status": "disconnected"
+    }
+  ]
+}

@@ -2,8 +2,10 @@ import asyncio
 import logging
 import os
 import json
+import time
 from contextlib import AsyncExitStack
 from typing import Dict, List, Any, Optional, Callable
+from datetime import datetime
 
 # Attempt to import MCP components, define dummies if not available
 try:
@@ -24,6 +26,17 @@ except ImportError:
         async def __aexit__(self, *args): pass
         async def enter_async_context(self, cm): return await cm.__aenter__()
         async def aclose(self): pass
+
+# Import event system
+try:
+    from .execution_events import ExecutionEvent, ExecutionEventType
+    from .execution_callback import CallbackManager
+    EVENTS_AVAILABLE = True
+except ImportError:
+    EVENTS_AVAILABLE = False
+    ExecutionEvent = None
+    ExecutionEventType = None
+    CallbackManager = None
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +71,14 @@ class AsyncProcessContextManager:
 class MCPHelper:
     """Manages MCP connections, tool discovery, and execution."""
     def __init__(self, mcp_servers: Optional[List[Dict[str, Any]]], verbose: bool, logger_instance: logging.Logger,
-                 local_tool_schemas_ref: List[Dict], local_tool_functions_ref: Dict[str, Callable]):
+                 local_tool_schemas_ref: List[Dict], local_tool_functions_ref: Dict[str, Callable],
+                 callback_manager: Optional['CallbackManager'] = None):
         self.mcp_servers = mcp_servers or []
         self.verbose = verbose
         self.logger = logger_instance
         self.local_tool_schemas_ref = local_tool_schemas_ref # Reference for conflict check
         self.local_tool_functions_ref = local_tool_functions_ref # Reference for conflict check
+        self.callback_manager = callback_manager # Optional callback manager for event firing
 
         self.mcp_sessions: Dict[str, ClientSession] = {} # Maps server_id to MCP session
         self.mcp_tools_map: Dict[str, Dict[str, Any]] = {} # Maps prefixed_tool_name -> {'original_schema': ..., 'server_id': ...}
@@ -74,6 +89,23 @@ class MCPHelper:
 
         if self.mcp_servers and not MCP_AVAILABLE:
             self.logger.warning("MCPHelper initialized with servers, but 'mcp' library not installed. MCP features disabled.")
+
+    async def _emit_event(self, event_type: 'ExecutionEventType', metadata: Dict[str, Any] = None) -> None:
+        """Emit an event if callback manager is available and events are enabled.
+
+        Args:
+            event_type: The type of event to emit
+            metadata: Optional metadata to include with the event
+        """
+        if not EVENTS_AVAILABLE or not self.callback_manager:
+            return
+
+        event = ExecutionEvent(
+            event_type=event_type,
+            timestamp=datetime.now(),
+            metadata=metadata or {}
+        )
+        await self.callback_manager.emit(event)
 
     def connect_mcp(self):
         """ Synchronous version of connect_mcp_async. """
@@ -126,6 +158,17 @@ class MCPHelper:
             if not server_id: self.logger.warning("Skipping MCP config with missing 'id'."); continue
             if server_id in self.mcp_sessions: self.logger.warning(f"Server ID '{server_id}' already connected, skipping."); connect_success_count +=1; continue
 
+            # Emit connection start event
+            await self._emit_event(
+                ExecutionEventType.MCP_CONNECT_START,
+                {
+                    "server_id": server_id,
+                    "server_type": server_type,
+                    "command": command,
+                    "transport": server_type
+                }
+            )
+
             try:
                 if server_type == "stdio":
                     if not command: self.logger.warning(f"Skipping stdio server '{server_id}' missing 'command'."); continue
@@ -148,6 +191,17 @@ class MCPHelper:
                     self.mcp_sessions[server_id] = session
                     connect_success_count += 1
                     if self.verbose: self.logger.debug(f"  ✅ Connected MCP server '{server_id}' (Cmd: {command} {' '.join(args)})")
+
+                    # Emit connection end event (success)
+                    await self._emit_event(
+                        ExecutionEventType.MCP_CONNECT_END,
+                        {
+                            "server_id": server_id,
+                            "status": "connected",
+                            "transport": server_type,
+                            "command": command
+                        }
+                    )
 
                     try: # Discover tools
                         if self.verbose: self.logger.debug(f"  🔍 Discovering tools on '{server_id}'...")
@@ -173,11 +227,41 @@ class MCPHelper:
                             self.mcp_tools_map[prefixed_tool_name] = {'original_schema': tool_schema_dict, 'server_id': server_id}
                             current_all_tool_names.add(prefixed_tool_name) # Update the set for next check
                             if self.verbose: self.logger.debug(f"    -> Registered MCP tool: {prefixed_tool_name} (original: {original_tool_name})")
+
+                            # Emit tool discovered event
+                            await self._emit_event(
+                                ExecutionEventType.MCP_TOOL_DISCOVERED,
+                                {
+                                    "server_id": server_id,
+                                    "tool_name": prefixed_tool_name,
+                                    "original_tool_name": original_tool_name,
+                                    "tool_schema": prefixed_schema
+                                }
+                            )
                     except Exception as tool_err: self.logger.error(f"Error discovering tools on MCP server '{server_id}': {tool_err}", exc_info=self.verbose)
                 else:
                     self.logger.warning(f"Unsupported MCP server type '{server_type}' for '{server_id}'.")
+                    # Emit error event for unsupported type
+                    await self._emit_event(
+                        ExecutionEventType.MCP_ERROR,
+                        {
+                            "server_id": server_id,
+                            "error": f"Unsupported server type: {server_type}",
+                            "phase": "connection"
+                        }
+                    )
             except Exception as conn_err:
                 self.logger.error(f"Error connecting/initializing MCP server '{server_id}': {conn_err}", exc_info=self.verbose)
+                # Emit error event for connection failure
+                await self._emit_event(
+                    ExecutionEventType.MCP_ERROR,
+                    {
+                        "server_id": server_id,
+                        "error": str(conn_err),
+                        "error_type": type(conn_err).__name__,
+                        "phase": "connection"
+                    }
+                )
 
         if connect_success_count > 0: self.logger.info(f"MCP Connection: {connect_success_count}/{len(self.mcp_servers)} servers connected.")
         elif self.mcp_servers: self.logger.error("MCP Connection failed for all configured servers.")
@@ -202,7 +286,20 @@ class MCPHelper:
             self._reset_mcp_state() # Ensure clean state
             return
 
+        # Create a copy of server IDs to avoid race conditions during disconnection
+        server_ids = list(self.mcp_sessions.keys())
+
+        # Emit disconnect start event for each connected server
+        for server_id in server_ids:
+            await self._emit_event(
+                ExecutionEventType.MCP_DISCONNECT_START,
+                {
+                    "server_id": server_id
+                }
+            )
+
         if self.verbose: self.logger.debug("🔌 Closing MCP connections via AsyncExitStack...")
+        disconnect_success = True  # Initialize to True before try block
         try:
             await self.exit_stack.aclose()
             # Re-initialize exit_stack for potential reuse within the same helper instance
@@ -210,9 +307,29 @@ class MCPHelper:
             if self.verbose:
                 self.logger.debug("  ✅ MCP connections closed and exit stack reset.")
         except Exception as e:
+             disconnect_success = False  # Set to False on error
              self.logger.error(f"Error during MCP connection closing: {e}", exc_info=True)
              # Attempt to reset stack even if closing failed partially
              self.exit_stack = AsyncExitStack() if MCP_AVAILABLE and self.mcp_servers else None
+             # Emit error event
+             await self._emit_event(
+                 ExecutionEventType.MCP_ERROR,
+                 {
+                     "error": str(e),
+                     "error_type": type(e).__name__,
+                     "phase": "disconnection"
+                 }
+             )
+
+        # Emit disconnect end events for each server using the copied list
+        for server_id in server_ids:
+            await self._emit_event(
+                ExecutionEventType.MCP_DISCONNECT_END,
+                {
+                    "server_id": server_id,
+                    "status": "disconnected" if disconnect_success else "error"
+                }
+            )
 
         # Clear state regardless of close success
         self._reset_mcp_state()
@@ -258,20 +375,64 @@ class MCPHelper:
             # Get tool call ID
             tool_call_id = getattr(tool_call, 'id', 'N/A')
 
+        # Parse arguments to dict for event metadata
+        try:
+            tool_args_dict = json.loads(function_args_str) if function_args_str else {}
+        except json.JSONDecodeError:
+            tool_args_dict = {"raw_args": function_args_str}
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # EMIT TOOL_CALL_START EVENT (v0.4.1 Observability)
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        start_time = time.time()
+        await self._emit_event(
+            ExecutionEventType.TOOL_CALL_START,
+            {
+                "tool_name": function_name,
+                "tool_args": tool_args_dict,
+                "tool_call_id": tool_call_id,
+                "is_mcp_tool": True
+            }
+        )
+
         # Log debug information
         self.logger.debug(f"[MCP Helper] Processing MCP tool call: {function_name} (ID: {tool_call_id})")
         self.logger.debug(f"[MCP Helper] Tool call argument string: {function_args_str}")
-        
+
         tool_output_str = json.dumps({"error": f"MCP tool '{function_name}' execution failed."})
 
         if not function_name or function_name not in self.mcp_tools_map:
+            error_msg = f"MCP tool function '{function_name}' not found in map."
             self.logger.error(f"[MCP Helper] Tool function '{function_name}' (ID: {tool_call_id}) not found in map.")
             self.logger.debug(f"[MCP Helper] Available MCP tools: {list(self.mcp_tools_map.keys())}")
-            return json.dumps({"error": f"MCP tool function '{function_name}' not found in map."})
+            # Emit error event
+            await self._emit_event(
+                ExecutionEventType.MCP_ERROR,
+                {
+                    "error": error_msg,
+                    "tool_name": function_name,
+                    "tool_call_id": tool_call_id,
+                    "phase": "tool_execution",
+                    "available_tools": list(self.mcp_tools_map.keys())
+                }
+            )
+            return json.dumps({"error": error_msg})
 
         if not MCP_AVAILABLE or not experimental_mcp_client:
+            error_msg = f"MCP library not available to call tool '{function_name}'."
             self.logger.error(f"[MCP Helper] Tool '{function_name}' (ID: {tool_call_id}) called, but MCP library/client not available.")
-            return json.dumps({"error": f"MCP library not available to call tool '{function_name}'."})
+            # Emit error event
+            await self._emit_event(
+                ExecutionEventType.MCP_ERROR,
+                {
+                    "error": error_msg,
+                    "tool_name": function_name,
+                    "tool_call_id": tool_call_id,
+                    "phase": "tool_execution",
+                    "reason": "MCP library not available"
+                }
+            )
+            return json.dumps({"error": error_msg})
 
         try:
             mcp_info = self.mcp_tools_map[function_name]
@@ -279,8 +440,21 @@ class MCPHelper:
             session = self.mcp_sessions.get(server_id)
 
             if not session:
+                error_msg = f"MCP session '{server_id}' unavailable for tool '{function_name}'."
                 self.logger.error(f"[MCP Helper] Session '{server_id}' not found for tool '{function_name}' (ID: {tool_call_id}).")
-                return json.dumps({"error": f"MCP session '{server_id}' unavailable for tool '{function_name}'."})
+                # Emit error event
+                await self._emit_event(
+                    ExecutionEventType.MCP_ERROR,
+                    {
+                        "error": error_msg,
+                        "server_id": server_id,
+                        "tool_name": function_name,
+                        "tool_call_id": tool_call_id,
+                        "phase": "tool_execution",
+                        "reason": "Session not found"
+                    }
+                )
+                return json.dumps({"error": error_msg})
 
             original_schema = mcp_info['original_schema']
             original_tool_name = original_schema['function']['name']
@@ -318,11 +492,64 @@ class MCPHelper:
 
             if self.verbose: self.logger.debug(f"  [MCP Helper] Result (ID: {tool_call_id}): {tool_output_str[:150]}...")
 
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # EMIT TOOL_CALL_END EVENT (v0.4.1 Observability)
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._emit_event(
+                ExecutionEventType.TOOL_CALL_END,
+                {
+                    "tool_name": function_name,
+                    "original_tool_name": original_tool_name,
+                    "tool_call_id": tool_call_id,
+                    "result": tool_output_str[:500] if tool_output_str else "",  # Preview for logging
+                    "result_length": len(tool_output_str) if tool_output_str else 0,
+                    "execution_time_ms": execution_time_ms,
+                    "success": True,
+                    "is_mcp_tool": True,
+                    "server_id": server_id
+                }
+            )
+
         except Exception as e:
             # Extract original name if possible for better error message
             original_tool_name_err = mcp_info.get('original_schema',{}).get('function',{}).get('name','?') if 'mcp_info' in locals() else '?'
             server_id_err = server_id if 'server_id' in locals() else '?'
             self.logger.error(f"[MCP Helper] Error executing tool {function_name} (Original: {original_tool_name_err}, ID: {tool_call_id}) on {server_id_err}: {e}", exc_info=self.verbose)
+
+            # Emit MCP-specific error event
+            await self._emit_event(
+                ExecutionEventType.MCP_ERROR,
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "server_id": server_id_err,
+                    "tool_name": function_name,
+                    "original_tool_name": original_tool_name_err,
+                    "tool_call_id": tool_call_id,
+                    "phase": "tool_execution"
+                }
+            )
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # EMIT TOOL_CALL_ERROR EVENT (v0.4.1 Observability)
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            execution_time_ms = (time.time() - start_time) * 1000
+            await self._emit_event(
+                ExecutionEventType.TOOL_CALL_ERROR,
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "server_id": server_id_err,
+                    "tool_name": function_name,
+                    "original_tool_name": original_tool_name_err,
+                    "tool_call_id": tool_call_id,
+                    "execution_time_ms": execution_time_ms,
+                    "phase": "tool_execution",
+                    "is_mcp_tool": True
+                }
+            )
+
             tool_output_str = json.dumps({"error": f"Error executing MCP tool {function_name}: {str(e)}"}) # Return error as JSON
 
         return tool_output_str

@@ -1,0 +1,247 @@
+OBSERVABILITY SYSTEMS ARCHITECTURE - CURRENT STATE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           USER EXECUTES CLI                                 │
+│                         `promptchain --session test`                        │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CLI INITIALIZATION                                   │
+│                   (promptchain/cli/main.py)                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Line 197: @track_session()                                                 │
+│            def _launch_tui():                                               │
+│                                                                             │
+│  Line 201:     init_mlflow()          ◄── Exits early (disabled)           │
+│  Line 204:     setup_logging()                                             │
+│  Line 247:     shutdown_mlflow()      ◄── Exits early (disabled)           │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PromptChain CREATION                                │
+│                 (promptchain/utils/promptchaining.py)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Line 14:  from promptchain.observability import track_llm_call             │
+│            ▲                                                                │
+│            │                                                                │
+│            └── Import triggers ghost.py evaluation                          │
+│                                                                             │
+│  Line 234: self.callback_manager = CallbackManager()  ◄── ACTIVE           │
+│                                                                             │
+│  Line 1834: @track_llm_call(...)                      ◄── NO-OP (ghost)    │
+│             async def run_model_async():                                    │
+└───────────────────────────────┬─────────────────────────────────────────────┘
+                                │
+                                ▼
+        ┌───────────────────────┴───────────────────────┐
+        │                                               │
+        ▼                                               ▼
+┌──────────────────────────┐                ┌──────────────────────────┐
+│   CALLBACK SYSTEM        │                │   MLFLOW SYSTEM          │
+│   (OLD - v0.4.1)         │                │   (NEW - spec 005)       │
+├──────────────────────────┤                ├──────────────────────────┤
+│ ✓ ACTIVE                 │                │ ✗ INACTIVE               │
+│                          │                │                          │
+│ CallbackManager          │                │ Ghost Pattern            │
+│   ├─ emit() called 50+   │                │   ├─ _ENABLED = False    │
+│   │   times during exec  │                │   ├─ MLflow not installed│
+│   │                      │                │   └─ Env var not set     │
+│   ├─ CHAIN_START (✓)     │                │                          │
+│   ├─ STEP_START (✓)      │                │ conditional_decorator()  │
+│   ├─ MODEL_CALL_START(✓) │                │   └─ Returns ghost:      │
+│   ├─ MODEL_CALL_END (✓)  │                │       def ghost(func):   │
+│   ├─ STEP_END (✓)        │                │         return func      │
+│   └─ CHAIN_END (✓)       │                │                          │
+│                          │                │ Result:                  │
+│ ExecutionHistoryManager  │                │   Decorators are         │
+│   ├─ Token counting      │                │   identity functions     │
+│   ├─ Entry storage       │                │   (no wrapping)          │
+│   └─ Truncation          │                │                          │
+│                          │                │ Evidence:                │
+│ Integration:             │                │   ├─ No closure on       │
+│   ├─ Line 522-1790 calls │                │   │   run_model_async    │
+│   ├─ AgenticStepProc     │                │   ├─ No __wrapped__      │
+│   │   receives manager   │                │   ├─ init_mlflow() exits │
+│   └─ Active in all runs  │                │   └─ 0 MLflow runs       │
+└──────────────────────────┘                └──────────────────────────┘
+
+================================================================================
+                              EXECUTION FLOW
+================================================================================
+
+User Input
+    │
+    ▼
+PromptChain.process_prompt_async()
+    │
+    ├─ Line 522: callback_manager.emit(CHAIN_START)      ◄── ✓ FIRES
+    │
+    ├─ @track_session() wrapper                          ◄── ✗ NO-OP (ghost)
+    │
+    ├─ For each instruction step:
+    │    │
+    │    ├─ Line 800: callback_manager.emit(STEP_START)  ◄── ✓ FIRES
+    │    │
+    │    ├─ run_model_async() called
+    │    │    │
+    │    │    ├─ @track_llm_call() wrapper               ◄── ✗ NO-OP (ghost)
+    │    │    │
+    │    │    ├─ Line 871: callback_manager.emit(MODEL_CALL_START) ◄── ✓ FIRES
+    │    │    │
+    │    │    ├─ await acompletion() [LiteLLM call]
+    │    │    │
+    │    │    ├─ Line 1315: callback_manager.emit(MODEL_CALL_END)   ◄── ✓ FIRES
+    │    │    │
+    │    │    └─ return result
+    │    │
+    │    └─ Line 1502: callback_manager.emit(STEP_END)   ◄── ✓ FIRES
+    │
+    └─ Line 1787: callback_manager.emit(CHAIN_END)       ◄── ✓ FIRES
+
+RESULT:
+  - Callback system captures 6 events
+  - MLflow captures 0 events (decorators are no-ops)
+  - User sees "0/0 activities" in MLflow UI
+
+================================================================================
+                           GHOST PATTERN FLOW
+================================================================================
+
+Module Import Time (happens ONCE when Python loads promptchain.observability):
+
+  promptchain/observability/ghost.py:
+      │
+      ├─ Line 17: _ENABLED = is_enabled()
+      │                         │
+      │                         └─> config.is_enabled() returns False
+      │                             (PROMPTCHAIN_MLFLOW_ENABLED not set)
+      │
+      ├─ Line 20-26: Try import mlflow
+      │                │
+      │                └─> ImportError (mlflow not installed)
+      │                    _ENABLED = False  (forced)
+      │
+      └─ _ENABLED = False (final state)
+
+
+Decorator Application Time (when @track_llm_call is applied):
+
+  @track_llm_call(...)
+      │
+      ├─ decorators.py:226: return conditional_decorator(decorator)
+      │                                  │
+      │                                  └─> ghost.py:conditional_decorator()
+      │                                          │
+      │                                          ├─ if _ENABLED:  # False
+      │                                          │      return tracking_decorator
+      │                                          │
+      │                                          └─ else:
+      │                                                 return make_ghost_decorator()
+      │                                                          │
+      │                                                          └─> def ghost(func):
+      │                                                                  return func
+      │
+      └─ Result: @track_llm_call becomes @ghost
+                 run_model_async = ghost(run_model_async)
+                 run_model_async = run_model_async  (identity)
+
+
+Function Execution Time (when run_model_async is called):
+
+  await run_model_async()
+      │
+      ├─ No decorator wrapper (ghost pattern returned identity)
+      │
+      ├─ Function executes as written (no tracking code)
+      │
+      └─ Callback system fires events (separate mechanism)
+
+
+================================================================================
+                        CONFLICT MATRIX
+================================================================================
+
+                    │ Callbacks │ MLflow   │ Conflict?
+────────────────────┼───────────┼──────────┼──────────────────────────────
+Current State:      │           │          │
+  Tracking Active   │    ✓      │    ✗     │  NO (MLflow is no-op)
+  Events Captured   │    6      │    0     │  NO (no overlap)
+  Performance Cost  │  Minimal  │  Zero    │  NO (ghost is identity)
+  Resource Usage    │  In-mem   │  None    │  NO (MLflow inactive)
+────────────────────┼───────────┼──────────┼──────────────────────────────
+If MLflow Enabled:  │           │          │
+  Tracking Active   │    ✓      │    ✓     │  YES (both track)
+  Events Captured   │    6      │    ~6    │  YES (duplication)
+  Performance Cost  │  Minimal  │  HTTP    │  YES (2x overhead)
+  Resource Usage    │  In-mem   │  Network │  YES (2x resources)
+  Token Counting    │  tiktoken │  LiteLLM │  MAYBE (different sources)
+  Error Logging     │  Events   │  Params  │  YES (same errors 2x)
+  Execution Time    │  Tracked  │  Tracked │  YES (same durations 2x)
+────────────────────┴───────────┴──────────┴──────────────────────────────
+
+================================================================================
+                           ROOT CAUSE SUMMARY
+================================================================================
+
+USER EXPECTATION:
+  "MLflow should be tracking my LLM calls"
+
+ACTUAL STATE:
+  MLflow is DISABLED because:
+    1. PROMPTCHAIN_MLFLOW_ENABLED environment variable NOT set (defaults False)
+    2. MLflow library NOT installed (pip install mlflow)
+    3. Ghost pattern correctly disables decorators when tracking disabled
+
+EVIDENCE:
+  ✓ Diagnostic confirms _ENABLED = False
+  ✓ run_model_async has no closure (decorator is identity function)
+  ✓ init_mlflow() exits early at line 678 (disabled check)
+  ✓ Callback system works (6 events captured)
+  ✓ MLflow UI shows 0/0 activities
+
+WHY ZERO TRACKING:
+  The ghost pattern is working AS DESIGNED. When MLflow is disabled:
+    - conditional_decorator() returns identity function
+    - Decorators become transparent (zero overhead)
+    - No MLflow runs created
+    - No HTTP calls to tracking server
+
+  This is NOT a bug - it's a feature. The ghost pattern ensures:
+    - Zero performance penalty when disabled
+    - No dependencies when not needed
+    - Clean separation of concerns
+
+  User issue: Expected MLflow to be enabled by default, but it's opt-in.
+
+================================================================================
+                          RESOLUTION PATHS
+================================================================================
+
+IMMEDIATE (Enable MLflow):
+  1. export PROMPTCHAIN_MLFLOW_ENABLED=true
+  2. pip install mlflow
+  3. mlflow ui --backend-store-uri sqlite:///mlruns.db
+  4. Re-run CLI → Decorators will wrap, tracking will occur
+
+SHORT-TERM (Bridge Systems):
+  1. Implement MLflowCallbackAdapter
+  2. Register adapter with CallbackManager
+  3. Callbacks forward events to MLflow
+  4. Single source of truth (callbacks)
+
+LONG-TERM (Unify Architecture):
+  Option A: Remove callbacks, use decorators only
+  Option B: Remove decorators, use callbacks + optional MLflow adapter
+  Option C: Keep both, document use cases
+
+RECOMMENDED: Option B (callbacks primary, MLflow optional via adapter)
+  - Backward compatible
+  - Industry standard backend (MLflow)
+  - Zero overhead when disabled (existing ghost pattern)
+  - Single source of truth (callbacks)
+  - Clean separation (adapter pattern)
+
+================================================================================

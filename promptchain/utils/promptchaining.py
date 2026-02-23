@@ -1,8 +1,9 @@
 # REMOVED: from future import annotations (Not needed in modern Python 3.7+)
 from litellm import completion, acompletion
 import os
-from typing import Union, Callable, List, Dict, Optional, Any, Tuple
+from typing import Union, Callable, List, Dict, Optional, Any, Tuple, Set
 from dotenv import load_dotenv
+from datetime import datetime
 import inspect
 import json
 import asyncio
@@ -10,6 +11,7 @@ from contextlib import AsyncExitStack
 import logging
 import time
 import functools # Added import
+from promptchain.observability import track_llm_call
 
 # CORRECTED: Standard Python import syntax
 # Assuming preprompt.py and other .py files are in the same directory or package
@@ -27,19 +29,48 @@ try:
     # from .models import ChainStep, ChainTechnique, ChainInstruction
     # from .mcp_helpers import AsyncProcessContextManager
     from .agentic_step_processor import AgenticStepProcessor
+    from .chain_models import ChainCall  # ChainFactory chain execution marker
     from .mcp_helpers import MCPHelper # Import the new helper class
     from .mcp_tool_hijacker import MCPToolHijacker # Import the tool hijacker
     from .model_management import ModelManagerFactory, ModelProvider, ModelManagementConfig, get_global_config
     from .ollama_model_manager import OllamaModelManager
+    from .execution_events import ExecutionEvent, ExecutionEventType
+    from .execution_callback import CallbackManager, CallbackFunction
+    from .ephemeral_executor import EphemeralToolExecutor, EphemeralResult  # Smart context management
     MODEL_MANAGEMENT_AVAILABLE = True
+    EPHEMERAL_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import dependencies relative to current file: {e}")
     MODEL_MANAGEMENT_AVAILABLE = False
+    EPHEMERAL_AVAILABLE = False
     # Define dummy classes/types if needed
+    from enum import Enum, auto
+
+    class ExecutionEventType(Enum):
+        CHAIN_START = auto()
+        CHAIN_END = auto()
+
+    class ExecutionEvent:
+        def __init__(self, *args, **kwargs): pass
+
+    class CallbackManager:
+        def __init__(self): pass
+        def register(self, *args, **kwargs): pass
+        def emit(self, *args): pass
+        def emit_sync(self, *args): pass
+        def has_callbacks(self): return False
+
+    CallbackFunction = Any
+
     class AgenticStepProcessor:
         objective = "Dummy Objective" # Add objective attribute for process_prompt_async
         def __init__(self, *args, **kwargs): pass
         async def run_async(self, *args, **kwargs): return "AgenticStepProcessor not available"
+    class ChainCall:  # Dummy ChainCall if import fails
+        def __init__(self, chain_ref: str):
+            self.chain_ref = chain_ref
+            self.model = chain_ref.split(':')[0] if ':' in chain_ref else chain_ref
+            self.version = chain_ref.split(':')[1] if ':' in chain_ref else "latest"
     class MCPHelper: # Define dummy if import fails
         def __init__(self, *args, **kwargs): self.verbose = False
         async def connect_mcp_async(self): pass
@@ -154,9 +185,9 @@ class PromptChain:
         self.models = []
         self.model_params = []
 
-        # Count non-function/non-agentic instructions to match with models
+        # Count non-function/non-agentic/non-chain instructions to match with models
         model_instruction_count = sum(1 for instr in instructions
-                                      if not callable(instr) and not isinstance(instr, AgenticStepProcessor))
+                                      if not callable(instr) and not isinstance(instr, AgenticStepProcessor) and not isinstance(instr, ChainCall))
 
         # Handle single model case
         if models and len(models) == 1 and model_instruction_count > 0:
@@ -173,7 +204,8 @@ class PromptChain:
                 self.model_params.append({})
 
         # Validate model count against instructions needing models
-        if len(self.models) != model_instruction_count:
+        # Skip validation if all instructions are agentic/functions (model_instruction_count = 0)
+        if model_instruction_count > 0 and len(self.models) != model_instruction_count:
             raise ValueError(
                 f"Number of models ({len(self.models)}) must match number of non-function/non-agentic instructions ({model_instruction_count})"
                 f"\nModels provided: {models}"
@@ -188,9 +220,18 @@ class PromptChain:
         self.step_outputs = {}
         self.chainbreakers = chainbreakers or []
 
+        # Token usage tracking (cumulative across all LLM calls)
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
+        self.last_prompt_tokens = 0
+        self.last_completion_tokens = 0
+
         # Renamed attributes for local tools
         self.local_tools: List[Dict] = [] # Schemas for LOCAL functions
         self.local_tool_functions: Dict[str, Callable] = {} # Implementations for LOCAL functions
+
+        # Initialize callback system BEFORE MCPHelper (needed for MCP event firing)
+        self.callback_manager = CallbackManager()
 
         # Instantiate MCPHelper if MCP is available and configured
         self.mcp_helper: Optional[MCPHelper] = None
@@ -200,7 +241,8 @@ class PromptChain:
                 verbose=self.verbose,
                 logger_instance=logger,
                 local_tool_schemas_ref=self.local_tools, # Pass reference
-                local_tool_functions_ref=self.local_tool_functions # Pass reference
+                local_tool_functions_ref=self.local_tool_functions, # Pass reference
+                callback_manager=self.callback_manager # Pass callback manager for event firing
             )
         elif mcp_servers and not MCP_AVAILABLE:
              logger.warning("mcp_servers configured but 'mcp' library not installed. MCP tools will not be available.")
@@ -223,12 +265,26 @@ class PromptChain:
         elif enable_mcp_hijacker and not mcp_servers:
             logger.warning("MCP Tool Hijacker enabled but no mcp_servers configured. Hijacker will not be available.")
 
+        # Initialize Ephemeral Tool Executor for smart context management
+        self.ephemeral_executor: Optional[EphemeralToolExecutor] = None
+        self.enable_ephemeral_execution = True  # Enable by default
+        if EPHEMERAL_AVAILABLE:
+            self.ephemeral_executor = EphemeralToolExecutor(
+                timeout=300,  # 5 minute timeout
+                summarize_success=True,
+                capture_full_errors=True,
+            )
+            if self.verbose:
+                logger.info("Ephemeral Tool Executor initialized for smart context management")
+
         self.reset_model_index()
 
         # ADDED: Initialize memory bank and shared context (Keep as these are not MCP related)
         self.memory_bank: Dict[str, Dict[str, Any]] = {}
         self.shared_context: Dict[str, Dict[str, Any]] = {"global": {}} # Example structure
-        
+
+        # NOTE: CallbackManager initialized earlier (line 217) before MCPHelper
+
         # Initialize Model Management
         self.model_manager = None
         self.model_management_enabled = False
@@ -354,6 +410,61 @@ class PromptChain:
         if self.verbose:
             logger.debug(f"🔧 Registered local function for tool: {tool_name}")
 
+    # === Callback Registration Methods ===
+
+    def register_callback(
+        self,
+        callback: CallbackFunction,
+        event_filter: Optional[Set[ExecutionEventType]] = None
+    ) -> None:
+        """Register a callback for execution events.
+
+        Callbacks can be either synchronous or asynchronous functions that
+        receive ExecutionEvent objects. They can optionally filter which
+        event types they want to receive.
+
+        Args:
+            callback: Callback function (sync or async) to register
+            event_filter: Optional set of event types to filter for.
+                         If None, callback receives all events.
+
+        Example:
+            def my_callback(event: ExecutionEvent):
+                print(f"Event: {event.event_type.name}")
+
+            chain.register_callback(my_callback)
+
+            # Or with filtering:
+            chain.register_callback(
+                my_callback,
+                {ExecutionEventType.CHAIN_START, ExecutionEventType.CHAIN_END}
+            )
+        """
+        self.callback_manager.register(callback, event_filter)
+        if self.verbose:
+            filter_info = f" (filtering {len(event_filter)} event types)" if event_filter else ""
+            logger.debug(f"📡 Registered callback{filter_info}")
+
+    def unregister_callback(self, callback: CallbackFunction) -> bool:
+        """Unregister a callback.
+
+        Args:
+            callback: Callback function to unregister
+
+        Returns:
+            True if callback was found and removed, False otherwise
+        """
+        result = self.callback_manager.unregister(callback)
+        if result and self.verbose:
+            logger.debug(f"📡 Unregistered callback")
+        return result
+
+    def clear_callbacks(self) -> None:
+        """Remove all registered callbacks."""
+        self.callback_manager.clear()
+        if self.verbose:
+            logger.debug(f"📡 Cleared all callbacks")
+
     def process_prompt(self, initial_input: Optional[str] = None):
         """
         Synchronous version of process_prompt_async.
@@ -371,34 +482,56 @@ class PromptChain:
             try:
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
-                    # If in a running loop (e.g., Jupyter), create a task
-                    logger.debug("Detected running event loop. Creating task for process_prompt_async.")
-                    # Running sync wrapper from async context is tricky.
-                    # Simplest approach for compatibility is often a new loop,
-                    # but this can have side effects. Raising error is safer.
-                    # Forcing via run_until_complete in new loop as per original logic.
-                    new_loop = asyncio.new_event_loop()
-                    try:
-                        return new_loop.run_until_complete(self.process_prompt_async(initial_input))
-                    finally:
-                        new_loop.close()
+                    # Raise clear error instead of creating new loop
+                    # This prevents confusing "asyncio.run() cannot be called from a running event loop" errors
+                    raise RuntimeError(
+                        "Cannot call sync method process_prompt() from async context. "
+                        "Use process_prompt_async() instead. "
+                        "\n\nThis error occurs when calling sync PromptChain methods from within "
+                        "an async function or event loop (e.g., pytest-asyncio tests, Jupyter notebooks)."
+                        "\n\nFix: Replace chain.process_prompt(input) with await chain.process_prompt_async(input)"
+                    )
                 else:
                     # Loop exists but isn't running, can use run_until_complete
                     return loop.run_until_complete(self.process_prompt_async(initial_input))
-            except RuntimeError: # No running loop
-                # Need to create a new event loop via asyncio.run()
+            except RuntimeError as e:
+                if "Cannot call sync method" in str(e):
+                    raise  # Re-raise our custom error
+                # No running loop - safe to use asyncio.run()
                 return asyncio.run(self.process_prompt_async(initial_input))
 
         except Exception as e:
             logger.error(f"Error in process_prompt sync wrapper: {e}", exc_info=True)
             raise # Re-raise the exception
 
-    async def process_prompt_async(self, initial_input: Optional[str] = None):
+    async def process_prompt_async(
+        self,
+        initial_input: Optional[str] = None,
+        user_input_queue: Optional[Any] = None,  # REACT: asyncio.Queue for mid-execution input
+        streaming_callback: Optional[Callable[[str, str], None]] = None  # REACT: streaming events
+    ):
         """
         Asynchronous version of process_prompt.
         This is the main implementation that handles MCP and async operations.
         :param initial_input: Optional initial string input for the chain.
+        :param user_input_queue: Optional asyncio.Queue for REACT-style mid-execution input.
+        :param streaming_callback: Optional callback for streaming events (event_type, content).
         """
+        # Emit CHAIN_START event
+        chain_start_time = datetime.now()
+        if self.callback_manager.has_callbacks():
+            await self.callback_manager.emit(
+                ExecutionEvent(
+                    event_type=ExecutionEventType.CHAIN_START,
+                    timestamp=chain_start_time,
+                    metadata={
+                        "initial_input": initial_input,
+                        "num_instructions": len(self.instructions),
+                        "models": self.models
+                    }
+                )
+            )
+
         # Reset model index at the start of each chain
         self.reset_model_index()
         
@@ -505,8 +638,8 @@ class PromptChain:
                  logger.warning("[Agentic Callback] No models defined in PromptChain, using fallback 'openai/gpt-4o'.")
 
             logger.debug(f"[Agentic Callback] Running LLM: {model_name} with {len(messages)} messages. Tools: {len(tools) if tools else 0}")
-            # Use the existing static method, ensures consistent calling
-            return await PromptChain.run_model_async(
+            # Use the instance method for consistent calling and token tracking
+            result = await self.run_model_async(
                 model_name=model_name,
                 messages=messages,
                 params=params,
@@ -514,16 +647,33 @@ class PromptChain:
                 tool_choice=tool_choice
             )
 
-        # --- REVISED tool_executor_callback using MCPHelper ---
+            # Emit token update event if streaming callback is available (real-time token display)
+            if streaming_callback:
+                try:
+                    # Send token data as JSON string for the "tokens" event type
+                    token_data = json.dumps({
+                        "prompt_tokens": self.total_prompt_tokens,
+                        "completion_tokens": self.total_completion_tokens,
+                        "last_prompt": self.last_prompt_tokens,
+                        "last_completion": self.last_completion_tokens
+                    })
+                    streaming_callback("tokens", token_data)
+                except Exception as e:
+                    logger.debug(f"Failed to emit token event: {e}")
+
+            return result
+
+        # --- REVISED tool_executor_callback using MCPHelper + Ephemeral Execution ---
         async def tool_executor_callback(tool_call: Any) -> str:
             """
             Callback passed to AgenticStepProcessor.
             Determines tool type and calls the appropriate internal helper.
+            Uses ephemeral execution for heavy tools to save tokens.
             Returns JSON string representation of the tool result or error.
             """
             # Import the helper function from agentic_step_processor.py
             from promptchain.utils.agentic_step_processor import get_function_name_from_tool_call
-            
+
             function_name = get_function_name_from_tool_call(tool_call)
             logger.debug(f"[Agentic Callback] Received request to execute tool: {function_name}")
 
@@ -531,19 +681,74 @@ class PromptChain:
                 logger.error("[Agentic Callback] Tool call missing function name.")
                 return json.dumps({"error": "Tool call missing function name."})
 
-            # Dispatch to the appropriate internal helper method
-            if function_name in self.local_tool_functions:
-                logger.debug(f"[Agentic Callback] Dispatching to local tool helper for: {function_name}")
-                result_str = await self._execute_local_tool_internal(tool_call)
-                return result_str
-            elif self.mcp_helper and function_name in self.mcp_helper.get_mcp_tools_map(): # Check helper's map
-                logger.debug(f"[Agentic Callback] Dispatching to MCP tool helper for: {function_name}")
-                # Call the helper's execution method
-                result_str = await self.mcp_helper.execute_mcp_tool(tool_call)
-                return result_str
+            # Extract tool arguments for ephemeral check
+            tool_args = {}
+            if isinstance(tool_call, dict):
+                tool_args = tool_call.get('function', {}).get('arguments', {})
+                if isinstance(tool_args, str):
+                    try:
+                        tool_args = json.loads(tool_args)
+                    except json.JSONDecodeError:
+                        tool_args = {}
             else:
-                logger.warning(f"[Agentic Callback] Tool function '{function_name}' not found locally or via MCP.")
-                return json.dumps({"error": f"Tool function '{function_name}' is not available."})
+                func_obj = getattr(tool_call, 'function', None)
+                if func_obj:
+                    args_str = getattr(func_obj, 'arguments', '{}')
+                    if isinstance(args_str, str):
+                        try:
+                            tool_args = json.loads(args_str)
+                        except json.JSONDecodeError:
+                            tool_args = {}
+                    else:
+                        tool_args = args_str or {}
+
+            # Check if this tool should use ephemeral execution
+            use_ephemeral = (
+                self.enable_ephemeral_execution and
+                self.ephemeral_executor and
+                self.ephemeral_executor.is_heavy_tool(function_name, tool_args)
+            )
+
+            if use_ephemeral:
+                logger.debug(f"[Agentic Callback] Using ephemeral execution for heavy tool: {function_name}")
+
+            # Define the actual tool executor (wraps dispatch logic)
+            async def execute_tool_direct(name: str, args: Dict[str, Any]) -> str:
+                if name in self.local_tool_functions:
+                    return await self._execute_local_tool_internal(tool_call)
+                elif self.mcp_helper and name in self.mcp_helper.get_mcp_tools_map():
+                    return await self.mcp_helper.execute_mcp_tool(tool_call)
+                else:
+                    return json.dumps({"error": f"Tool function '{name}' is not available."})
+
+            # Execute with or without ephemeral wrapper
+            if use_ephemeral:
+                result = await self.ephemeral_executor.execute(
+                    tool_name=function_name,
+                    tool_args=tool_args,
+                    tool_executor=execute_tool_direct,
+                )
+                if result.success:
+                    return result.summary
+                else:
+                    # Include error details for failed executions
+                    error_msg = result.summary
+                    if result.error_details:
+                        error_msg += f"\nDetails: {result.error_details}"
+                    return error_msg
+            else:
+                # Direct execution without ephemeral wrapper
+                if function_name in self.local_tool_functions:
+                    logger.debug(f"[Agentic Callback] Dispatching to local tool helper for: {function_name}")
+                    result_str = await self._execute_local_tool_internal(tool_call)
+                    return result_str
+                elif self.mcp_helper and function_name in self.mcp_helper.get_mcp_tools_map():
+                    logger.debug(f"[Agentic Callback] Dispatching to MCP tool helper for: {function_name}")
+                    result_str = await self.mcp_helper.execute_mcp_tool(tool_call)
+                    return result_str
+                else:
+                    logger.warning(f"[Agentic Callback] Tool function '{function_name}' not found locally or via MCP.")
+                    return json.dumps({"error": f"Tool function '{function_name}' is not available."})
         # --- END of REVISED tool_executor_callback ---
 
         # == End of Helper Callbacks ==
@@ -559,6 +764,17 @@ class PromptChain:
                     logger.debug(f"Step {step_num}:")
                     logger.debug("-"*50)
 
+                # Emit STEP_START event
+                step_start_time = datetime.now()
+
+                # Determine instruction description (needed whether or not callbacks are registered)
+                if callable(instruction) and not isinstance(instruction, AgenticStepProcessor):
+                    instr_desc = getattr(instruction, '__name__', 'function')
+                elif isinstance(instruction, AgenticStepProcessor):
+                    instr_desc = f"agentic: {instruction.objective}"
+                else:
+                    instr_desc = str(instruction)[:100] + "..." if len(str(instruction)) > 100 else str(instruction)
+
                 # Determine input for this step based on history mode
                 step_input_content = result
 
@@ -572,6 +788,30 @@ class PromptChain:
                 step_model_params = None
                 step_output = None # Output of the current step
 
+                # Determine step type for enhanced event metadata
+                if callable(instruction) and not isinstance(instruction, AgenticStepProcessor):
+                    step_type = "function"
+                elif isinstance(instruction, AgenticStepProcessor):
+                    step_type = "agentic"
+                else:
+                    step_type = "prompt"
+
+                # Emit enhanced STEP_START event with step type (only if callbacks registered)
+                if self.callback_manager.has_callbacks():
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.STEP_START,
+                            timestamp=step_start_time,
+                            step_number=step_num,
+                            step_instruction=instr_desc,
+                            metadata={
+                                "input_length": len(str(result)),
+                                "step_type": step_type,
+                                "instruction_preview": instr_desc
+                            }
+                        )
+                    )
+
                 # Check if this step is a function, an agentic processor, or an instruction
                 if callable(instruction) and not isinstance(instruction, AgenticStepProcessor): # Explicitly exclude AgenticStepProcessor here
                     step_type = "function"
@@ -582,9 +822,24 @@ class PromptChain:
                     if self.verbose:
                         logger.debug(f"\n🔧 Executing Local Function: {func_name}")
 
+                    func_start_time = datetime.now()
+
+                    # Emit FUNCTION_CALL_START event
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.FUNCTION_CALL_START,
+                            timestamp=func_start_time,
+                            step_number=step_num,
+                            metadata={
+                                "function_name": func_name,
+                                "function_args": step_input_content[:500] if step_input_content else None  # Truncate for logging
+                            }
+                        )
+                    )
+
                     start_time = time.time()
                     try:
-                        # --- Execute local function --- 
+                        # --- Execute local function ---
                         sig = inspect.signature(instruction)
                         takes_args = len(sig.parameters) > 0
 
@@ -607,17 +862,51 @@ class PromptChain:
                             logger.warning(f"Function {func_name} did not return a string. Attempting to convert. Output type: {type(step_output)}")
                             step_output = str(step_output)
 
+                        end_time = time.time()
+                        step_time = end_time - start_time
+                        func_end_time = datetime.now()
+                        func_duration_ms = (func_end_time - func_start_time).total_seconds() * 1000
+
+                        # Emit FUNCTION_CALL_END event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.FUNCTION_CALL_END,
+                                timestamp=func_end_time,
+                                step_number=step_num,
+                                metadata={
+                                    "function_name": func_name,
+                                    "execution_time_ms": func_duration_ms,
+                                    "result_length": len(step_output) if step_output else 0,
+                                    "success": True
+                                }
+                            )
+                        )
+
+                        if self.verbose:
+                            logger.debug(f"Function executed in {step_time:.2f} seconds.")
+                            logger.debug(f"Output:\n{step_output}")
+
                     except Exception as e:
+                        func_error_time = datetime.now()
+                        func_error_duration_ms = (func_error_time - func_start_time).total_seconds() * 1000
+
+                        # Emit FUNCTION_CALL_ERROR event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.FUNCTION_CALL_ERROR,
+                                timestamp=func_error_time,
+                                step_number=step_num,
+                                metadata={
+                                    "function_name": func_name,
+                                    "error": str(e),
+                                    "execution_time_ms": func_error_duration_ms
+                                }
+                            )
+                        )
+
                         logger.error(f"Error executing function {func_name}: {e}", exc_info=self.verbose)
                         logger.error(f"\n❌ Error in chain processing at step {step_num}: Function execution failed.")
                         raise # Re-raise the exception to stop processing
-
-                    end_time = time.time()
-                    step_time = end_time - start_time
-
-                    if self.verbose:
-                        logger.debug(f"Function executed in {step_time:.2f} seconds.")
-                        logger.debug(f"Output:\n{step_output}")
 
                     # Add function output as assistant message if using full history
                     if self.full_history:
@@ -630,33 +919,168 @@ class PromptChain:
                     if self.verbose:
                         logger.debug(f"\n🤖 Executing Agentic Step: Objective = {instruction.objective[:100]}...")
 
+                    agentic_start_time = datetime.now()
+
+                    # Emit AGENTIC_STEP_START event
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.AGENTIC_STEP_START,
+                            timestamp=agentic_start_time,
+                            step_number=step_num,
+                            metadata={
+                                "objective": instruction.objective[:200],  # Truncate for logging
+                                "max_internal_steps": instruction.max_internal_steps
+                            }
+                        )
+                    )
+
                     start_time = time.time()
                     try:
                         # Agentic step receives the current input content
+                        # REACT Loop: Pass queue/callback for mid-execution interaction (v0.4.3)
                         step_output = await instruction.run_async(
                             initial_input=step_input_content, # Pass current content
                             available_tools=available_tools, # Pass all available tools (combined)
                             llm_runner=lambda messages, tools, tool_choice=None: llm_runner_callback(messages, tools, tool_choice, agentic_instruction=instruction), # Pass the LLM runner helper with agentic_instruction
-                            tool_executor=tool_executor_callback # Pass the revised tool executor helper
+                            tool_executor=tool_executor_callback, # Pass the revised tool executor helper
+                            callback_manager=self.callback_manager,  # ✅ NEW (v0.4.2): Pass callback_manager for observability
+                            user_input_queue=user_input_queue,  # ✅ REACT (v0.4.3): Mid-execution user input
+                            streaming_callback=streaming_callback  # ✅ REACT (v0.4.3): Streaming events
                         )
                         # Ensure output is string
                         if not isinstance(step_output, str):
                             logger.warning(f"Agentic step did not return a string. Converting. Output type: {type(step_output)}")
                             step_output = str(step_output)
 
+                        end_time = time.time()
+                        step_time = end_time - start_time
+                        agentic_end_time = datetime.now()
+                        agentic_duration_ms = (agentic_end_time - agentic_start_time).total_seconds() * 1000
+
+                        # Get steps executed from the result if available
+                        steps_executed = getattr(instruction, 'steps_executed', None)
+
+                        # Emit AGENTIC_STEP_END event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.AGENTIC_STEP_END,
+                                timestamp=agentic_end_time,
+                                step_number=step_num,
+                                metadata={
+                                    "objective": instruction.objective[:200],
+                                    "execution_time_ms": agentic_duration_ms,
+                                    "steps_executed": steps_executed,
+                                    "result_length": len(step_output) if step_output else 0,
+                                    "success": True
+                                }
+                            )
+                        )
+
+                        if self.verbose:
+                            logger.debug(f"Agentic step executed in {step_time:.2f} seconds.")
+                            logger.debug(f"Output:\n{step_output}")
+
                     except Exception as e:
+                        agentic_error_time = datetime.now()
+                        agentic_error_duration_ms = (agentic_error_time - agentic_start_time).total_seconds() * 1000
+
+                        # Emit AGENTIC_STEP_ERROR event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.AGENTIC_STEP_ERROR,
+                                timestamp=agentic_error_time,
+                                step_number=step_num,
+                                metadata={
+                                    "objective": instruction.objective[:200],
+                                    "error": str(e),
+                                    "execution_time_ms": agentic_error_duration_ms
+                                }
+                            )
+                        )
+
                         logger.error(f"Error executing agentic step: {e}", exc_info=self.verbose)
                         logger.error(f"\n❌ Error in chain processing at step {step_num} (Agentic Step): {e}")
                         raise # Re-raise the exception
 
-                    end_time = time.time()
-                    step_time = end_time - start_time
+                    # Treat agentic output like model/function output. Add to history if using full history.
+                    if self.full_history:
+                        current_messages.append({"role": "assistant", "content": step_output})
+
+
+                elif isinstance(instruction, ChainCall):
+                    # ChainCall instruction - execute a nested chain via ChainExecutor
+                    step_type = "chain"
+                    chain_start_time = datetime.now()
 
                     if self.verbose:
-                        logger.debug(f"Agentic step executed in {step_time:.2f} seconds.")
-                        logger.debug(f"Output:\n{step_output}")
+                        logger.debug(f"Executing ChainCall: {instruction.chain_ref}")
 
-                    # Treat agentic output like model/function output. Add to history if using full history.
+                    try:
+                        # Import ChainExecutor here to avoid circular imports
+                        from .chain_executor import ChainExecutor
+                        from .chain_factory import ChainFactory
+
+                        # Create executor with factory
+                        factory = ChainFactory()
+                        executor = ChainExecutor(factory=factory, verbose=self.verbose)
+
+                        # Resolve and execute the chain
+                        chain_def = factory.resolve(instruction.chain_ref)
+
+                        # Execute chain with current input
+                        start_time = time.time()
+                        step_output = await executor.execute_async(
+                            chain=chain_def,
+                            input_data=step_input_content
+                        )
+                        end_time = time.time()
+                        step_time = end_time - start_time
+
+                        chain_end_time = datetime.now()
+                        chain_duration_ms = (chain_end_time - chain_start_time).total_seconds() * 1000
+
+                        # Emit CHAIN_STEP_END event (using generic event type for now)
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.STEP_END,
+                                timestamp=chain_end_time,
+                                step_number=step_num,
+                                metadata={
+                                    "chain_ref": instruction.chain_ref,
+                                    "chain_vin": chain_def.vin,
+                                    "execution_time_ms": chain_duration_ms,
+                                    "result_length": len(step_output) if step_output else 0,
+                                    "success": True
+                                }
+                            )
+                        )
+
+                        if self.verbose:
+                            logger.debug(f"ChainCall executed in {step_time:.2f} seconds.")
+                            logger.debug(f"Chain output:\n{step_output[:500]}..." if len(step_output) > 500 else f"Chain output:\n{step_output}")
+
+                    except Exception as e:
+                        chain_error_time = datetime.now()
+                        chain_error_duration_ms = (chain_error_time - chain_start_time).total_seconds() * 1000
+
+                        # Emit error event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.STEP_ERROR,
+                                timestamp=chain_error_time,
+                                step_number=step_num,
+                                metadata={
+                                    "chain_ref": instruction.chain_ref,
+                                    "error": str(e),
+                                    "execution_time_ms": chain_error_duration_ms
+                                }
+                            )
+                        )
+
+                        logger.error(f"Error executing ChainCall {instruction.chain_ref}: {e}", exc_info=self.verbose)
+                        raise
+
+                    # Treat chain output like model/function output. Add to history if using full history.
                     if self.full_history:
                         current_messages.append({"role": "assistant", "content": step_output})
 
@@ -664,111 +1088,263 @@ class PromptChain:
                 else: # It's a model instruction (string)
                     step_type = "model"
                     instruction_str = str(instruction) # Work with string version
+                    chain_executed = False  # Track if we handled a chain instead of model
 
-                    # === Logic for handling {input} append vs replace === 
-                    should_append_input = False
-                    load_instruction_id_or_path = instruction_str # Default
-                    if instruction_str.endswith("{input}"):
-                        should_append_input = True
-                        load_instruction_id_or_path = instruction_str[:-len("{input}")].strip()
-                        if not load_instruction_id_or_path:
-                            load_instruction_id_or_path = "" # Handle instruction being just "{input}"
-                    # === End {input} handling === 
+                    # === Check for chain: prefix at start (before PrePrompt resolution) ===
+                    if instruction_str.startswith("chain:"):
+                        step_type = "chain"
+                        chain_ref = instruction_str[6:]  # Remove "chain:" prefix
+                        chain_start_time = datetime.now()
 
-                    resolved_instruction_content = "" # Initialize resolved content
+                        if self.verbose:
+                            logger.debug(f"Executing chain instruction: {chain_ref}")
 
-                    # --- Try resolving using PrePrompt or loading file path --- 
-                    if load_instruction_id_or_path: # Only load if we have an ID/path
                         try:
-                            resolved_instruction_content = self.preprompter.load(load_instruction_id_or_path)
+                            from .chain_executor import ChainExecutor
+                            from .chain_factory import ChainFactory
+
+                            factory = ChainFactory()
+                            executor = ChainExecutor(factory=factory, verbose=self.verbose)
+
+                            chain_def = factory.resolve(chain_ref)
+
+                            start_time = time.time()
+                            step_output = await executor.execute_async(
+                                chain=chain_def,
+                                input_data=step_input_content
+                            )
+                            end_time = time.time()
+                            step_time = end_time - start_time
+
+                            chain_end_time = datetime.now()
+                            chain_duration_ms = (chain_end_time - chain_start_time).total_seconds() * 1000
+
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.STEP_END,
+                                    timestamp=chain_end_time,
+                                    step_number=step_num,
+                                    metadata={
+                                        "chain_ref": chain_ref,
+                                        "chain_vin": chain_def.vin,
+                                        "execution_time_ms": chain_duration_ms,
+                                        "result_length": len(step_output) if step_output else 0,
+                                        "success": True
+                                    }
+                                )
+                            )
+
                             if self.verbose:
-                                logger.debug(f"Resolved instruction '{load_instruction_id_or_path}' using PrePrompt.")
-                        except FileNotFoundError:
-                            if os.path.isfile(load_instruction_id_or_path):
-                                try:
-                                    with open(load_instruction_id_or_path, 'r', encoding='utf-8') as file:
-                                        resolved_instruction_content = file.read()
-                                    if self.verbose:
-                                        logger.debug(f"Loaded instruction from file path: {load_instruction_id_or_path}")
-                                except Exception as e:
-                                    logger.warning(f"Could not read instruction file '{load_instruction_id_or_path}': {e}. Treating as literal.")
-                                    resolved_instruction_content = load_instruction_id_or_path # Fallback
-                            else:
+                                logger.debug(f"Chain executed in {step_time:.2f} seconds.")
+
+                            chain_executed = True
+
+                        except Exception as e:
+                            chain_error_time = datetime.now()
+                            chain_error_duration_ms = (chain_error_time - chain_start_time).total_seconds() * 1000
+
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.STEP_ERROR,
+                                    timestamp=chain_error_time,
+                                    step_number=step_num,
+                                    metadata={
+                                        "chain_ref": chain_ref,
+                                        "error": str(e),
+                                        "execution_time_ms": chain_error_duration_ms
+                                    }
+                                )
+                            )
+
+                            logger.error(f"Error executing chain instruction: {e}", exc_info=self.verbose)
+                            raise
+
+                        if self.full_history:
+                            current_messages.append({"role": "assistant", "content": step_output})
+
+                    # === Only proceed with model execution if chain wasn't executed ===
+                    if not chain_executed:
+                        # === Logic for handling {input} append vs replace ===
+                        should_append_input = False
+                        load_instruction_id_or_path = instruction_str # Default
+                        if instruction_str.endswith("{input}"):
+                            should_append_input = True
+                            load_instruction_id_or_path = instruction_str[:-len("{input}")].strip()
+                            if not load_instruction_id_or_path:
+                                load_instruction_id_or_path = "" # Handle instruction being just "{input}"
+                        # === End {input} handling ===
+
+                        resolved_instruction_content = "" # Initialize resolved content
+
+                        # --- Try resolving using PrePrompt or loading file path ---
+                        if load_instruction_id_or_path: # Only load if we have an ID/path
+                            try:
+                                resolved_instruction_content = self.preprompter.load(load_instruction_id_or_path)
                                 if self.verbose:
-                                    logger.debug(f"Treating instruction '{load_instruction_id_or_path}' as literal template (not found via PrePrompt or as file path).")
-                                resolved_instruction_content = load_instruction_id_or_path # Use literal
-                        except (ValueError, IOError) as e:
-                            logger.warning(f"Error loading instruction '{load_instruction_id_or_path}' via PrePrompt: {e}. Treating as literal.")
-                            resolved_instruction_content = load_instruction_id_or_path # Fallback
-                        except Exception as e:
-                             logger.error(f"Unexpected error loading instruction '{load_instruction_id_or_path}' via PrePrompt: {e}. Treating as literal.")
-                             resolved_instruction_content = load_instruction_id_or_path # Fallback
-                    else: # If load_instruction_id_or_path was empty (e.g., instruction was just "{input}")
-                         resolved_instruction_content = "" # Start with empty content
-
-                    # --- Prepare final prompt for model --- 
-                    if should_append_input:
-                        separator = "\n\n" if resolved_instruction_content and step_input_content else ""
-                        prompt_for_model = resolved_instruction_content + separator + step_input_content
-                    else:
-                        # Standard replace {input} if it exists in the resolved content
-                        prompt_for_model = resolved_instruction_content.replace("{input}", step_input_content)
-
-                    if self.model_index >= len(self.models):
-                        logger.error(f"Model index {self.model_index} out of range for available models ({len(self.models)}).")
-                        raise IndexError(f"Not enough models configured for instruction at step {step_num}")
-
-                    model = self.models[self.model_index]
-                    step_model_params = self.model_params[self.model_index]
-                    self.model_index += 1 # Increment for the next model step
-
-                    if self.verbose:
-                        logger.debug(f"\n🤖 Using Model: {model}")
-                        if step_model_params:
-                            logger.debug(f"Parameters: {step_model_params}")
-                        logger.debug(f"\nInstruction Prompt (for model):\n{prompt_for_model}")
-
-                    # Add the user's prompt message for this step
-                    user_message_this_step = {"role": "user", "content": prompt_for_model}
-
-                    # Determine messages to send to the model based on history mode
-                    if self.full_history:
-                        current_messages.append(user_message_this_step) # Add to running history
-                        messages_for_llm = current_messages
-                    else:
-                        # If not full history, only send this step's prompt
-                        messages_for_llm = [user_message_this_step]
-
-
-                    # ===== Model Management: Pre-load model if enabled =====
-                    if self.model_management_enabled and self.model_manager:
-                        try:
-                            if self.verbose:
-                                logger.debug(f"🔄 Model Management: Loading {model}")
-                            
-                            # Load model and get its info (including context length)
-                            model_info = await self.model_manager.load_model_async(model, step_model_params)
-                            
-                            # If model has context length info, update the step params for LiteLLM
-                            if model_info and hasattr(model_info, 'parameters') and model_info.parameters:
-                                if 'max_context_length' in model_info.parameters:
-                                    # Add context length to LiteLLM params
-                                    if 'num_ctx' not in step_model_params:
-                                        step_model_params['num_ctx'] = model_info.parameters['max_context_length']
+                                    logger.debug(f"Resolved instruction '{load_instruction_id_or_path}' using PrePrompt.")
+                            except FileNotFoundError:
+                                if os.path.isfile(load_instruction_id_or_path):
+                                    try:
+                                        with open(load_instruction_id_or_path, 'r', encoding='utf-8') as file:
+                                            resolved_instruction_content = file.read()
                                         if self.verbose:
-                                            logger.debug(f"🔄 Using max context length: {model_info.parameters['max_context_length']}")
-                                            
-                        except Exception as e:
-                            logger.warning(f"Model management failed to load {model}: {e}")
-                    
-                    # ===== Tool Calling Logic integrated with Model Call =====
-                    response_message_dict = await self.run_model_async(
-                        model_name=model,
-                        messages=messages_for_llm, # Pass appropriate history
-                        params=step_model_params,
-                        tools=available_tools if available_tools else None, # Pass combined tools
-                        tool_choice="auto" if available_tools else None
+                                            logger.debug(f"Loaded instruction from file path: {load_instruction_id_or_path}")
+                                    except Exception as e:
+                                        logger.warning(f"Could not read instruction file '{load_instruction_id_or_path}': {e}. Treating as literal.")
+                                        resolved_instruction_content = load_instruction_id_or_path # Fallback
+                                else:
+                                    if self.verbose:
+                                        logger.debug(f"Treating instruction '{load_instruction_id_or_path}' as literal template (not found via PrePrompt or as file path).")
+                                    resolved_instruction_content = load_instruction_id_or_path # Use literal
+                            except (ValueError, IOError) as e:
+                                logger.warning(f"Error loading instruction '{load_instruction_id_or_path}' via PrePrompt: {e}. Treating as literal.")
+                                resolved_instruction_content = load_instruction_id_or_path # Fallback
+                            except Exception as e:
+                                logger.error(f"Unexpected error loading instruction '{load_instruction_id_or_path}' via PrePrompt: {e}. Treating as literal.")
+                                resolved_instruction_content = load_instruction_id_or_path # Fallback
+                        else: # If load_instruction_id_or_path was empty (e.g., instruction was just "{input}")
+                            resolved_instruction_content = "" # Start with empty content
+
+                        # --- Prepare final prompt for model ---
+                        if should_append_input:
+                            separator = "\n\n" if resolved_instruction_content and step_input_content else ""
+                            prompt_for_model = resolved_instruction_content + separator + step_input_content
+                        else:
+                            # Standard replace {input} if it exists in the resolved content
+                            prompt_for_model = resolved_instruction_content.replace("{input}", step_input_content)
+
+                        if self.model_index >= len(self.models):
+                            logger.error(f"Model index {self.model_index} out of range for available models ({len(self.models)}).")
+                            raise IndexError(f"Not enough models configured for instruction at step {step_num}")
+
+                        model = self.models[self.model_index]
+                        step_model_params = self.model_params[self.model_index]
+                        self.model_index += 1 # Increment for the next model step
+
+                        if self.verbose:
+                            logger.debug(f"\n🤖 Using Model: {model}")
+                            if step_model_params:
+                                logger.debug(f"Parameters: {step_model_params}")
+                            logger.debug(f"\nInstruction Prompt (for model):\n{prompt_for_model}")
+
+                        # Add the user's prompt message for this step
+                        user_message_this_step = {"role": "user", "content": prompt_for_model}
+
+                        # Determine messages to send to the model based on history mode
+                        if self.full_history:
+                            current_messages.append(user_message_this_step) # Add to running history
+                            messages_for_llm = current_messages
+                        else:
+                            # If not full history, only send this step's prompt
+                            messages_for_llm = [user_message_this_step]
+
+
+                        # ===== Model Management: Pre-load model if enabled =====
+                        if self.model_management_enabled and self.model_manager:
+                            try:
+                                if self.verbose:
+                                    logger.debug(f"🔄 Model Management: Loading {model}")
+
+                                # Load model and get its info (including context length)
+                                model_info = await self.model_manager.load_model_async(model, step_model_params)
+
+                                # If model has context length info, update the step params for LiteLLM
+                                if model_info and hasattr(model_info, 'parameters') and model_info.parameters:
+                                    if 'max_context_length' in model_info.parameters:
+                                        # Add context length to LiteLLM params
+                                        if 'num_ctx' not in step_model_params:
+                                            step_model_params['num_ctx'] = model_info.parameters['max_context_length']
+                                            if self.verbose:
+                                                logger.debug(f"🔄 Using max context length: {model_info.parameters['max_context_length']}")
+
+                            except Exception as e:
+                                logger.warning(f"Model management failed to load {model}: {e}")
+
+                        # ===== Tool Calling Logic integrated with Model Call =====
+                        model_call_start_time = datetime.now()
+
+                    # Emit MODEL_CALL_START event
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.MODEL_CALL_START,
+                            timestamp=model_call_start_time,
+                            step_number=step_num,
+                            model_name=model,
+                            metadata={
+                                "message_count": len(messages_for_llm),
+                                "params": step_model_params,
+                                "tools_available": len(available_tools) if available_tools else 0
+                            }
+                        )
                     )
+
+                    try:
+                        response_message_dict = await self.run_model_async(
+                            model_name=model,
+                            messages=messages_for_llm, # Pass appropriate history
+                            params=step_model_params,
+                            tools=available_tools if available_tools else None, # Pass combined tools
+                            tool_choice="auto" if available_tools else None
+                        )
+
+                        model_call_end_time = datetime.now()
+                        model_call_duration_ms = (model_call_end_time - model_call_start_time).total_seconds() * 1000
+
+                        # Extract token usage from run_model_async tracking
+                        tokens_used = {
+                            "prompt_tokens": self.last_prompt_tokens,
+                            "completion_tokens": self.last_completion_tokens,
+                            "total_prompt_tokens": self.total_prompt_tokens,
+                            "total_completion_tokens": self.total_completion_tokens,
+                        }
+
+                        # Emit token update via streaming callback for real-time UI updates
+                        if streaming_callback:
+                            try:
+                                token_data = json.dumps({
+                                    "prompt_tokens": self.total_prompt_tokens,
+                                    "completion_tokens": self.total_completion_tokens,
+                                    "last_prompt": self.last_prompt_tokens,
+                                    "last_completion": self.last_completion_tokens
+                                })
+                                streaming_callback("tokens", token_data)
+                            except Exception as e:
+                                logger.debug(f"Failed to emit token event: {e}")
+
+                        # Emit MODEL_CALL_END event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.MODEL_CALL_END,
+                                timestamp=model_call_end_time,
+                                step_number=step_num,
+                                model_name=model,
+                                metadata={
+                                    "execution_time_ms": model_call_duration_ms,
+                                    "tokens_used": tokens_used,
+                                    "has_tool_calls": bool(response_message_dict.get('tool_calls')),
+                                    "success": True
+                                }
+                            )
+                        )
+
+                    except Exception as model_error:
+                        model_call_error_time = datetime.now()
+                        model_call_error_duration_ms = (model_call_error_time - model_call_start_time).total_seconds() * 1000
+
+                        # Emit MODEL_CALL_ERROR event
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.MODEL_CALL_ERROR,
+                                timestamp=model_call_error_time,
+                                step_number=step_num,
+                                model_name=model,
+                                metadata={
+                                    "error": str(model_error),
+                                    "execution_time_ms": model_call_error_duration_ms
+                                }
+                            )
+                        )
+                        raise  # Re-raise the error
 
                     # Add model's response to history if using full history
                     if self.full_history:
@@ -816,16 +1392,78 @@ class PromptChain:
 
                             tool_call_obj = TempToolCall(tool_call)
 
-                            # --- Routing: Local vs MCP --- 
-                            if function_name in self.local_tool_functions:
-                                logger.debug(f"  - Executing local tool via internal helper: {function_name}")
-                                tool_output_str = await self._execute_local_tool_internal(tool_call_obj) # Pass object
-                            elif self.mcp_helper and function_name in self.mcp_helper.get_mcp_tools_map():
-                                logger.debug(f"  - Executing MCP tool via helper: {function_name}")
-                                tool_output_str = await self.mcp_helper.execute_mcp_tool(tool_call_obj) # Pass object to helper
-                            else: # Tool name not found
-                                logger.error(f"Tool function '{function_name}' requested by model not registered.")
-                                tool_output_str = json.dumps({"error": f"Tool function '{function_name}' is not available."})
+                            # Parse function arguments for event metadata
+                            try:
+                                tool_args = json.loads(function_args_str) if function_args_str else {}
+                            except json.JSONDecodeError:
+                                tool_args = {"raw": function_args_str}
+
+                            tool_call_start_time = datetime.now()
+
+                            # Emit TOOL_CALL_START event
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.TOOL_CALL_START,
+                                    timestamp=tool_call_start_time,
+                                    step_number=step_num,
+                                    metadata={
+                                        "tool_name": function_name,
+                                        "tool_args": tool_args,
+                                        "tool_call_id": tool_call_id
+                                    }
+                                )
+                            )
+
+                            try:
+                                # --- Routing: Local vs MCP ---
+                                if function_name in self.local_tool_functions:
+                                    logger.debug(f"  - Executing local tool via internal helper: {function_name}")
+                                    tool_output_str = await self._execute_local_tool_internal(tool_call_obj) # Pass object
+                                elif self.mcp_helper and function_name in self.mcp_helper.get_mcp_tools_map():
+                                    logger.debug(f"  - Executing MCP tool via helper: {function_name}")
+                                    tool_output_str = await self.mcp_helper.execute_mcp_tool(tool_call_obj) # Pass object to helper
+                                else: # Tool name not found
+                                    logger.error(f"Tool function '{function_name}' requested by model not registered.")
+                                    tool_output_str = json.dumps({"error": f"Tool function '{function_name}' is not available."})
+
+                                tool_call_end_time = datetime.now()
+                                tool_call_duration_ms = (tool_call_end_time - tool_call_start_time).total_seconds() * 1000
+
+                                # Emit TOOL_CALL_END event
+                                await self.callback_manager.emit(
+                                    ExecutionEvent(
+                                        event_type=ExecutionEventType.TOOL_CALL_END,
+                                        timestamp=tool_call_end_time,
+                                        step_number=step_num,
+                                        metadata={
+                                            "tool_name": function_name,
+                                            "execution_time_ms": tool_call_duration_ms,
+                                            "result_length": len(tool_output_str) if tool_output_str else 0,
+                                            "success": True
+                                        }
+                                    )
+                                )
+
+                            except Exception as tool_error:
+                                tool_call_error_time = datetime.now()
+                                tool_call_error_duration_ms = (tool_call_error_time - tool_call_start_time).total_seconds() * 1000
+
+                                # Emit TOOL_CALL_ERROR event
+                                await self.callback_manager.emit(
+                                    ExecutionEvent(
+                                        event_type=ExecutionEventType.TOOL_CALL_ERROR,
+                                        timestamp=tool_call_error_time,
+                                        step_number=step_num,
+                                        metadata={
+                                            "tool_name": function_name,
+                                            "error": str(tool_error),
+                                            "execution_time_ms": tool_call_error_duration_ms
+                                        }
+                                    )
+                                )
+
+                                # Create error output for the tool
+                                tool_output_str = json.dumps({"error": str(tool_error)})
 
                             # Append result message for this tool call
                             tool_results_messages.append({
@@ -858,13 +1496,83 @@ class PromptChain:
                                     logger.debug(f"  [{msg_idx}] Role: {msg.get('role')}, Content: {str(msg.get('content', ''))[:100]}..., ToolCalls: {bool(msg.get('tool_calls'))}")
 
                         # Second model call with tool results
-                        final_response_message_dict = await self.run_model_async(
-                            model_name=model, # Use the same model
-                            messages=messages_for_follow_up, # Pass history including tool results
-                            params=step_model_params,
-                            tools=available_tools, # Pass tools again
-                            tool_choice="none" # Force text response, no more tool calls
+                        followup_call_start_time = datetime.now()
+
+                        # Emit MODEL_CALL_START event for follow-up call
+                        await self.callback_manager.emit(
+                            ExecutionEvent(
+                                event_type=ExecutionEventType.MODEL_CALL_START,
+                                timestamp=followup_call_start_time,
+                                step_number=step_num,
+                                model_name=model,
+                                metadata={
+                                    "message_count": len(messages_for_follow_up),
+                                    "params": step_model_params,
+                                    "is_followup": True,
+                                    "tool_results_count": len(tool_results_messages)
+                                }
+                            )
                         )
+
+                        try:
+                            final_response_message_dict = await self.run_model_async(
+                                model_name=model, # Use the same model
+                                messages=messages_for_follow_up, # Pass history including tool results
+                                params=step_model_params,
+                                tools=available_tools, # Pass tools again
+                                tool_choice="none" # Force text response, no more tool calls
+                            )
+
+                            followup_call_end_time = datetime.now()
+                            followup_call_duration_ms = (followup_call_end_time - followup_call_start_time).total_seconds() * 1000
+
+                            # Emit token update via streaming callback for real-time UI updates
+                            if streaming_callback:
+                                try:
+                                    token_data = json.dumps({
+                                        "prompt_tokens": self.total_prompt_tokens,
+                                        "completion_tokens": self.total_completion_tokens,
+                                        "last_prompt": self.last_prompt_tokens,
+                                        "last_completion": self.last_completion_tokens
+                                    })
+                                    streaming_callback("tokens", token_data)
+                                except Exception as e:
+                                    logger.debug(f"Failed to emit token event: {e}")
+
+                            # Emit MODEL_CALL_END event for follow-up call
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.MODEL_CALL_END,
+                                    timestamp=followup_call_end_time,
+                                    step_number=step_num,
+                                    model_name=model,
+                                    metadata={
+                                        "execution_time_ms": followup_call_duration_ms,
+                                        "is_followup": True,
+                                        "success": True
+                                    }
+                                )
+                            )
+
+                        except Exception as followup_error:
+                            followup_call_error_time = datetime.now()
+                            followup_call_error_duration_ms = (followup_call_error_time - followup_call_start_time).total_seconds() * 1000
+
+                            # Emit MODEL_CALL_ERROR event for follow-up call
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.MODEL_CALL_ERROR,
+                                    timestamp=followup_call_error_time,
+                                    step_number=step_num,
+                                    model_name=model,
+                                    metadata={
+                                        "error": str(followup_error),
+                                        "execution_time_ms": followup_call_error_duration_ms,
+                                        "is_followup": True
+                                    }
+                                )
+                            )
+                            raise  # Re-raise the error
 
                         # Add the final response to history if using full history
                         if self.full_history:
@@ -927,6 +1635,24 @@ class PromptChain:
                         "model_params": step_model_params if step_type == "model" else None
                     }
 
+                # Emit STEP_END event with enhanced metadata
+                if self.callback_manager.has_callbacks():
+                    step_end_time = datetime.now()
+                    step_execution_time_ms = (step_end_time - step_start_time).total_seconds() * 1000
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.STEP_END,
+                            timestamp=step_end_time,
+                            step_number=step_num,
+                            metadata={
+                                "step_type": step_type,
+                                "execution_time_ms": step_execution_time_ms,
+                                "result_length": len(result) if result else 0,
+                                "success": True
+                            }
+                        )
+                    )
+
                 # Check chainbreakers
                 break_chain = False
                 for breaker in self.chainbreakers:
@@ -963,6 +1689,20 @@ class PromptChain:
                                 chain_history[-1]["output"] = result
                                 if self.store_steps:
                                     self.step_outputs[f"step_{step_num}"]["output"] = result
+
+                            # Emit CHAIN_BREAK event
+                            await self.callback_manager.emit(
+                                ExecutionEvent(
+                                    event_type=ExecutionEventType.CHAIN_BREAK,
+                                    timestamp=datetime.now(),
+                                    step_number=step_num,
+                                    metadata={
+                                        "reason": break_reason,
+                                        "breaker_name": breaker.__name__,
+                                        "output_modified": break_output is not None
+                                    }
+                                )
+                            )
 
                             # CORRECTED: Alignment
                             break_chain = True # Set flag to exit outer loop
@@ -1002,6 +1742,25 @@ class PromptChain:
 
         except Exception as e:
             logger.error(f"\n❌ Error in chain processing at step {step_num}: {e}", exc_info=True) # Use full traceback
+
+            # Emit CHAIN_ERROR event
+            if self.callback_manager.has_callbacks():
+                error_time = datetime.now()
+                execution_time_ms = (error_time - chain_start_time).total_seconds() * 1000
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.CHAIN_ERROR,
+                        timestamp=error_time,
+                        step_number=step_num,
+                        metadata={
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "execution_time_ms": execution_time_ms,
+                            "failed_at_step": step_num
+                        }
+                    )
+                )
+
             raise # Re-raise the exception after logging
         finally:
             # ===== Model Management: Cleanup on completion/error =====
@@ -1024,12 +1783,27 @@ class PromptChain:
             logger.debug("\n📊 Final Output:")
             logger.debug(f"{result}\n")
 
+        # Emit CHAIN_END event
+        if self.callback_manager.has_callbacks():
+            chain_end_time = datetime.now()
+            execution_time_ms = (chain_end_time - chain_start_time).total_seconds() * 1000
+            await self.callback_manager.emit(
+                ExecutionEvent(
+                    event_type=ExecutionEventType.CHAIN_END,
+                    timestamp=chain_end_time,
+                    metadata={
+                        "execution_time_ms": execution_time_ms,
+                        "total_steps": len(chain_history) - 1,  # -1 for initial step
+                        "final_output_length": len(str(result))
+                    }
+                )
+            )
+
         # Return the final result or the full history based on the flag
         return chain_history if self.full_history else result
 
 
-    @staticmethod
-    def run_model(model_name: str, messages: List[Dict], params: dict = None,
+    def run_model(self, model_name: str, messages: List[Dict], params: dict = None,
                   tools: List[Dict] = None, tool_choice: str = None) -> Dict:
         """
         Synchronous version of run_model_async.
@@ -1044,12 +1818,12 @@ class PromptChain:
                     raise RuntimeError("run_model (sync) called from within a running event loop. Use run_model_async instead.")
                 else:
                     return loop.run_until_complete(
-                        PromptChain.run_model_async(
+                        self.run_model_async(
                             model_name, messages, params, tools, tool_choice
                         )
                     )
             except RuntimeError: # No running loop
-                 return asyncio.run(PromptChain.run_model_async(
+                 return asyncio.run(self.run_model_async(
                      model_name, messages, params, tools, tool_choice
                  ))
         except Exception as e:
@@ -1057,8 +1831,11 @@ class PromptChain:
              return {"role": "assistant", "content": f"Error running model: {e}", "error": True}
 
 
-    @staticmethod
-    async def run_model_async(model_name: str, messages: List[Dict], params: dict = None,
+    @track_llm_call(
+        model_param="model_name",
+        extract_args=["temperature", "max_tokens", "max_completion_tokens", "top_p"]
+    )
+    async def run_model_async(self, model_name: str, messages: List[Dict], params: dict = None,
                            tools: List[Dict] = None, tool_choice: str = None) -> Dict:
         """
         Asynchronous version of run_model. Calls LiteLLM's acompletion.
@@ -1105,6 +1882,24 @@ class PromptChain:
 
 
             response = await acompletion(**model_params)
+
+            # Extract and track token usage from response
+            if hasattr(response, 'usage') and response.usage:
+                usage = response.usage
+                prompt_tokens = getattr(usage, 'prompt_tokens', 0) or 0
+                completion_tokens = getattr(usage, 'completion_tokens', 0) or 0
+
+                # Store last call's usage
+                self.last_prompt_tokens = prompt_tokens
+                self.last_completion_tokens = completion_tokens
+
+                # Accumulate totals
+                self.total_prompt_tokens += prompt_tokens
+                self.total_completion_tokens += completion_tokens
+
+                if self.verbose:
+                    logger.debug(f"Token usage - Prompt: {prompt_tokens}, Completion: {completion_tokens}, "
+                                f"Cumulative: {self.total_prompt_tokens}+{self.total_completion_tokens}")
 
             # Check response structure (LiteLLM usually returns this structure)
             if not response or 'choices' not in response or not response['choices']:
@@ -1322,11 +2117,57 @@ class PromptChain:
     async def cleanup_models_async(self):
         """Cleanup all loaded models (useful for shutdown)"""
         if self.model_management_enabled and self.model_manager:
+            cleanup_start_time = datetime.now()
             try:
+                # Get loaded models before cleanup
+                loaded_models = await self.model_manager.get_loaded_models_async()
+
+                # Emit MODEL_UNLOAD event for each model being cleaned up
+                for model_name in loaded_models:
+                    await self.callback_manager.emit(
+                        ExecutionEvent(
+                            event_type=ExecutionEventType.MODEL_UNLOAD,
+                            timestamp=cleanup_start_time,
+                            model_name=model_name,
+                            metadata={
+                                "action": "cleanup",
+                                "reason": "cleanup_models_async called"
+                            }
+                        )
+                    )
+
                 await self.model_manager.cleanup_async()
+
+                cleanup_end_time = datetime.now()
+                cleanup_duration_ms = (cleanup_end_time - cleanup_start_time).total_seconds() * 1000
+
+                # Emit final cleanup event
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_UNLOAD,
+                        timestamp=cleanup_end_time,
+                        metadata={
+                            "action": "cleanup_complete",
+                            "models_cleaned": len(loaded_models),
+                            "execution_time_ms": cleanup_duration_ms
+                        }
+                    )
+                )
+
                 if self.verbose:
                     logger.info("Model management cleanup completed")
             except Exception as e:
+                cleanup_error_time = datetime.now()
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_UNLOAD,
+                        timestamp=cleanup_error_time,
+                        metadata={
+                            "action": "cleanup_error",
+                            "error": str(e)
+                        }
+                    )
+                )
                 logger.warning(f"Model management cleanup failed: {e}")
     
     def cleanup_models(self):
@@ -1350,14 +2191,64 @@ class PromptChain:
     async def unload_model_async(self, model_name: str):
         """Manually unload a specific model"""
         if self.model_management_enabled and self.model_manager:
+            unload_start_time = datetime.now()
             try:
                 # Handle ollama/ prefix
                 actual_model = model_name.replace("ollama/", "") if "ollama/" in model_name else model_name
+
+                # Emit MODEL_UNLOAD event with start metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_UNLOAD,
+                        timestamp=unload_start_time,
+                        model_name=actual_model,
+                        metadata={
+                            "action": "unload_start"
+                        }
+                    )
+                )
+
                 result = await self.model_manager.unload_model_async(actual_model)
+
+                unload_end_time = datetime.now()
+                unload_duration_ms = (unload_end_time - unload_start_time).total_seconds() * 1000
+
+                # Emit MODEL_UNLOAD event with end metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_UNLOAD,
+                        timestamp=unload_end_time,
+                        model_name=actual_model,
+                        metadata={
+                            "action": "unload_end",
+                            "success": True,
+                            "execution_time_ms": unload_duration_ms
+                        }
+                    )
+                )
+
                 if self.verbose:
                     logger.info(f"Manually unloaded model: {actual_model}")
                 return result
             except Exception as e:
+                unload_error_time = datetime.now()
+                unload_error_duration_ms = (unload_error_time - unload_start_time).total_seconds() * 1000
+
+                # Emit MODEL_UNLOAD event with error metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_UNLOAD,
+                        timestamp=unload_error_time,
+                        model_name=model_name,
+                        metadata={
+                            "action": "unload_error",
+                            "success": False,
+                            "error": str(e),
+                            "execution_time_ms": unload_error_duration_ms
+                        }
+                    )
+                )
+
                 logger.warning(f"Failed to unload model {model_name}: {e}")
                 return False
         return False
@@ -1369,14 +2260,66 @@ class PromptChain:
     async def load_model_async(self, model_name: str, model_params: Optional[Dict] = None):
         """Manually load a specific model"""
         if self.model_management_enabled and self.model_manager:
+            load_start_time = datetime.now()
             try:
                 # Handle ollama/ prefix
                 actual_model = model_name.replace("ollama/", "") if "ollama/" in model_name else model_name
+
+                # Emit MODEL_LOAD event with start metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_LOAD,
+                        timestamp=load_start_time,
+                        model_name=actual_model,
+                        metadata={
+                            "action": "load_start",
+                            "model_params": model_params
+                        }
+                    )
+                )
+
                 result = await self.model_manager.load_model_async(actual_model, model_params)
+
+                load_end_time = datetime.now()
+                load_duration_ms = (load_end_time - load_start_time).total_seconds() * 1000
+
+                # Emit MODEL_LOAD event with end metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_LOAD,
+                        timestamp=load_end_time,
+                        model_name=actual_model,
+                        metadata={
+                            "action": "load_end",
+                            "success": True,
+                            "execution_time_ms": load_duration_ms,
+                            "model_params": model_params
+                        }
+                    )
+                )
+
                 if self.verbose:
                     logger.info(f"Manually loaded model: {actual_model}")
                 return result
             except Exception as e:
+                load_error_time = datetime.now()
+                load_error_duration_ms = (load_error_time - load_start_time).total_seconds() * 1000
+
+                # Emit MODEL_LOAD event with error metadata
+                await self.callback_manager.emit(
+                    ExecutionEvent(
+                        event_type=ExecutionEventType.MODEL_LOAD,
+                        timestamp=load_error_time,
+                        model_name=model_name,
+                        metadata={
+                            "action": "load_error",
+                            "success": False,
+                            "error": str(e),
+                            "execution_time_ms": load_error_duration_ms
+                        }
+                    )
+                )
+
                 logger.warning(f"Failed to load model {model_name}: {e}")
                 return None
         return None

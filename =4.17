@@ -1,0 +1,7 @@
+Requirement already satisfied: pyyaml in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (6.0.3)
+Requirement already satisfied: jsonschema in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (4.24.0)
+Requirement already satisfied: attrs>=22.2.0 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from jsonschema) (25.3.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from jsonschema) (2025.4.1)
+Requirement already satisfied: referencing>=0.28.4 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from jsonschema) (0.36.2)
+Requirement already satisfied: rpds-py>=0.7.1 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from jsonschema) (0.26.0)
+Requirement already satisfied: typing-extensions>=4.4.0 in /home/gyasis/miniconda3/envs/deeplake/lib/python3.12/site-packages (from referencing>=0.28.4->jsonschema) (4.15.0)

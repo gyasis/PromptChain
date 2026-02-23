@@ -459,7 +459,7 @@ class TestToolParameterManager:
         
         # Configure tool
         manager.set_default_params("tool1", temperature=0.5)
-        manager.set_static_params("tool1", model="gpt-4")
+        manager.set_static_params("tool1", model="gpt-4.1-mini-2025-04-14")
         manager.set_required_params("tool1", ["message"])
         manager.add_transformer("tool1", "temperature", CommonTransformers.clamp_float(0.0, 1.0))
         manager.add_validator("tool1", "message", CommonValidators.is_non_empty_string())
@@ -473,7 +473,7 @@ class TestToolParameterManager:
         
         assert result["message"] == "Hello"
         assert result["temperature"] == 1.0
-        assert result["model"] == "gpt-4"
+        assert result["model"] == "gpt-4.1-mini-2025-04-14"
 
 
 class TestMCPSchemaValidator:
@@ -573,7 +573,7 @@ class TestIntegrationWithPromptChain:
         
         # Create PromptChain with hijacker enabled
         chain = PromptChain(
-            models=["openai/gpt-4"],
+            models=["gpt-4.1-mini-2025-04-14"],
             instructions=["Process: {input}"],
             mcp_servers=mock_mcp_config,
             enable_mcp_hijacker=True,
@@ -597,7 +597,7 @@ class TestIntegrationWithPromptChain:
         from promptchain.utils.promptchaining import PromptChain
         
         chain = PromptChain(
-            models=["openai/gpt-4"],
+            models=["gpt-4.1-mini-2025-04-14"],
             instructions=["Process: {input}"],
             mcp_servers=mock_mcp_config,
             enable_mcp_hijacker=True

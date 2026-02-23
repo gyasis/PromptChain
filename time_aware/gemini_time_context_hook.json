@@ -1,0 +1,20 @@
+{
+  "description": "Remove outdated year references (2024-2025) and inject current time context into Gemini MCP research tools (ask_gemini, deep_research, gemini_research, etc.)",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": {
+          "pattern": "mcp_gemini-mcp_(ask_gemini|start_deep_research|gemini_research|gemini_brainstorm|gemini_code_review|gemini_debug)",
+          "type": "regex"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python3 -c \"import sys,json,re;from datetime import datetime,timedelta;d=json.load(sys.stdin);ti=d.get('tool_input',{});n=datetime.now();cy=str(n.year);cd=n.strftime('%Y-%m-%d');sma=n-timedelta(days=180);tc=f'Current date: {cd}. Focus on recent information from {sma.strftime(\\\"%B %Y\\\")} onwards.';oy=['2024','2025'] if cy not in ['2024','2025'] else [];def ct(t):\n  if not t or not isinstance(t,str):return t\n  c=t\n  for y in oy:\n    if y!=cy:\n      c=re.sub(r'\\\\b'+re.escape(y)+r'\\\\b',cy,c)\n      c=re.sub(r'\\\\b'+re.escape(y)+r'\\\\s+(tutorial|guide|article|news|update|release|version|best practices|implementation|research|study|paper|development|advancement|trend|breakthrough|framework|library|tool)\\\\b',f'{cy} \\\\1',c,flags=re.I)\n  if not re.search(r'current date|as of|recent|latest|\\\\d{4}-\\\\d{2}-\\\\d{2}|since \\\\d{4}',c,re.I):\n    c=f'{c} ({tc})'\n  return c\nfor p in['prompt','query','topic','question','context']:\n  if p in ti and ti[p]:\n    o=str(ti[p]);cl=ct(o)\n    if cl!=o:ti[p]=cl\nprint(json.dumps({'modifiedToolInput':ti}))\""
+          }
+        ]
+      }
+    ]
+  }
+}

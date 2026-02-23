@@ -1,0 +1,194 @@
+# Terminal Tool Default Configuration
+# This file provides default settings for the PromptChain Terminal Tool
+
+# Security Settings
+security:
+  # Require user permission for risky commands
+  require_permission: true
+  
+  # Block destructive commands completely
+  block_destructive: true
+  
+  # Permission timeout in seconds
+  permission_timeout: 30
+  
+  # Auto-approve permissions (USE WITH EXTREME CAUTION - for testing only)
+  auto_approve: false
+  
+  # Custom blocked command patterns (regex)
+  custom_blocked_patterns: []
+  
+  # Custom caution patterns (regex)
+  custom_caution_patterns: []
+  
+  # Whitelisted patterns that are always safe (regex)
+  whitelist_patterns:
+    - "^ls\b.*"          # List directory contents
+    - "^pwd$"            # Print working directory
+    - "^whoami$"         # Print current user
+    - "^date$"           # Print current date
+    - "^echo\b.*"        # Echo commands
+    - "^cat\b.*"         # Display file contents (read-only)
+    - "^head\b.*"        # Display file head
+    - "^tail\b.*"        # Display file tail
+    - "^grep\b.*"        # Search in files (read-only)
+    - "^find\b.*"        # Find files (read-only)
+    - "^which\b.*"       # Find executable location
+    - "^python\s+--version$"  # Check Python version
+    - "^node\s+--version$"    # Check Node version
+    - "^git\s+status$"        # Git status (read-only)
+    - "^git\s+log\b.*"        # Git log (read-only)
+    - "^git\s+diff\b.*"       # Git diff (read-only)
+
+# Execution Settings
+execution:
+  # Default timeout in seconds
+  timeout: 60
+  
+  # Log all executed commands
+  log_all_commands: true
+  
+  # Verbose output for debugging
+  verbose: false
+  
+  # Maximum command history to keep in memory
+  max_history: 100
+
+# Environment Management
+environment:
+  # Automatically activate detected environments
+  auto_activate_env: false
+  
+  # Preferred environment type ('conda', 'venv', 'nvm', etc.)
+  prefer_environment: null
+  
+  # Create missing environments if requested
+  create_if_missing: false
+  
+  # Custom environment paths
+  custom_environment_paths: {}
+    # Example:
+    # my_env:
+    #   path: "/path/to/my/environment"
+    #   activation_command: "source /path/to/activate"
+    #   executable: "/path/to/executable"
+
+# Path Resolution
+path_resolution:
+  # Enable path caching for performance
+  enable_path_cache: true
+  
+  # Cache TTL in seconds
+  cache_ttl_seconds: 300
+  
+  # Custom search paths (checked before system PATH)
+  custom_search_paths: []
+    # Example:
+    # - "/usr/local/custom/bin"
+    # - "/opt/my-tools/bin"
+  
+  # Priority paths (checked first)
+  priority_paths: []
+    # Example:
+    # - "/usr/local/bin"
+    # - "/opt/homebrew/bin"
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Log to file (optional)
+  file: null
+  # file: "/path/to/terminal_tool.log"
+
+# Command-Specific Settings
+commands:
+  # Package installation commands and their settings
+  installation:
+    pip:
+      # Always require permission for pip install
+      require_permission: true
+      # Warn about potential security risks
+      show_warnings: true
+    
+    npm:
+      require_permission: true
+      show_warnings: true
+      
+    conda:
+      require_permission: true
+      show_warnings: true
+      
+    apt:
+      require_permission: true
+      show_warnings: true
+      
+    brew:
+      require_permission: true
+      show_warnings: true
+
+# Platform-Specific Settings
+platform:
+  # Windows-specific settings
+  windows:
+    # Executable extensions to search for
+    executable_extensions: [".exe", ".bat", ".cmd", ".com"]
+    
+  # Unix-like systems (Linux, macOS)
+  unix:
+    # Additional search paths
+    additional_paths:
+      - "/usr/local/bin"
+      - "/opt/homebrew/bin"  # macOS Homebrew on Apple Silicon
+      - "/snap/bin"          # Ubuntu Snap packages
+
+# Integration Settings
+integration:
+  # PromptChain-specific settings
+  promptchain:
+    # Tool name when registered
+    tool_name: "terminal"
+    
+    # Tool description for LLM
+    tool_description: "Execute terminal commands securely with environment management and safety guardrails"
+    
+    # Schema for tool registration
+    tool_schema:
+      type: "function"
+      function:
+        name: "terminal"
+        description: "Execute terminal commands safely. Supports common commands like ls, pwd, python, pip, git, etc. Automatically handles environment activation and path resolution."
+        parameters:
+          type: "object"
+          properties:
+            command:
+              type: "string"
+              description: "Terminal command to execute (e.g., 'ls -la', 'python --version', 'pip list')"
+          required: ["command"]
+
+# Example Usage Configurations
+examples:
+  # Safe development workflow
+  development:
+    require_permission: true
+    auto_activate_env: true
+    verbose: true
+    timeout: 120
+    
+  # Production/CI environment (more restrictive)
+  production:
+    require_permission: true
+    block_destructive: true
+    auto_approve: false
+    timeout: 30
+    
+  # Testing environment (less restrictive)
+  testing:
+    require_permission: false
+    auto_approve: true
+    verbose: true
+    timeout: 60

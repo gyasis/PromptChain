@@ -4,6 +4,7 @@ import json
 import re
 from promptchain.utils.promptchaining import PromptChain
 from promptchain.utils.logging_utils import RunLogger
+from promptchain.utils.agent_execution_result import AgentExecutionResult
 from typing import List, Dict, Any, Optional, Union, Tuple, Callable, TYPE_CHECKING
 import os
 import traceback
@@ -16,6 +17,7 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.theme import Theme
 import sqlite3
+from promptchain.observability import track_routing
 
 # Strategy imports
 from .strategies.single_dispatch_strategy import execute_single_dispatch_strategy_async
@@ -88,9 +90,10 @@ class AgentChain:
             raise ValueError("At least one agent must be provided.")
         if not agent_descriptions or set(agents.keys()) != set(agent_descriptions.keys()):
             raise ValueError("agent_descriptions must be provided for all agents and match agent keys.")
-        # --> Add validation: Router is required if mode is router <--
-        if execution_mode == "router" and router is None:
-            raise ValueError("A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router'.")
+        # --> Add validation: Router is required if mode is router (unless using supervisor) <--
+        use_supervisor = kwargs.get("use_supervisor", False)
+        if execution_mode == "router" and router is None and not use_supervisor:
+            raise ValueError("A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router', unless use_supervisor=True.")
 
         # --- Initialize basic attributes ---
         self.agents = agents
@@ -131,9 +134,24 @@ class AgentChain:
         self.router_strategy = kwargs.get("router_strategy", "single_agent_dispatch")
         # Enable auto-history inclusion when set
         self.auto_include_history = kwargs.get("auto_include_history", False)
+        # Default agent for fallback when router fails
+        self.default_agent = kwargs.get("default_agent", None)
         valid_router_strategies = ["single_agent_dispatch", "static_plan", "dynamic_decomposition"]
         if self.execution_mode == 'router' and self.router_strategy not in valid_router_strategies:
             raise ValueError(f"Invalid router_strategy '{self.router_strategy}'. Must be one of {valid_router_strategies}")
+
+        # <<< NEW: Per-Agent History Configuration (v0.4.2) >>>
+        # Store agent_history_configs with validation
+        raw_configs = kwargs.get("agent_history_configs", None)
+        self.agent_history_configs = self._validate_and_process_history_configs(raw_configs)
+
+        # T077: Create ExecutionHistoryManager instances for each agent based on configs
+        self._history_managers: Dict[str, Any] = self._create_history_managers()
+
+        # ✅ NEW: OrchestratorSupervisor support (v0.4.1k)
+        self.use_supervisor = kwargs.get("use_supervisor", False)
+        self.supervisor_strategy = kwargs.get("supervisor_strategy", "adaptive")
+        self.orchestrator_supervisor = None  # Will be initialized if use_supervisor=True
         log_init_data = {
             "event": "AgentChain initialized",
             "execution_mode": self.execution_mode,
@@ -145,6 +163,7 @@ class AgentChain:
             "synthesizer_configured": bool(self.synthesizer_config) if execution_mode == 'broadcast' else 'N/A',
             "router_strategy": self.router_strategy if self.execution_mode == 'router' else 'N/A',
             "auto_include_history": self.auto_include_history,
+            "default_agent": self.default_agent,
             "enable_cache": self.enable_cache,
             "cache_path": self.cache_path if self.enable_cache else 'N/A',
             "cache_config": self.cache_config
@@ -160,13 +179,58 @@ class AgentChain:
         self._conversation_history: List[Dict[str, str]] = []
         self._tokenizer = None # Initialize tokenizer
 
+        # ✅ NEW: Event callback system for multi-agent orchestration observability
+        self._orchestration_callbacks: List[Callable] = []
+
+        # ✅ T039: Track last selected agent for router mode status display
+        self.last_selected_agent: Optional[str] = None
+
+        # ✅ NEW: Per-agent history configuration (v0.4.2)
+        # Allows each agent to control if/how it receives conversation history
+        self._agent_history_configs: Dict[str, Dict[str, Any]] = kwargs.get("agent_history_configs", {})
+
+        # Validate agent_history_configs keys match agent names
+        if self._agent_history_configs:
+            invalid_agents = set(self._agent_history_configs.keys()) - set(self.agent_names)
+            if invalid_agents:
+                raise ValueError(f"agent_history_configs contains invalid agent names: {invalid_agents}. Valid agents: {self.agent_names}")
+            logger.info(f"Per-agent history configurations loaded for: {list(self._agent_history_configs.keys())}")
+
+        # ✅ NEW: ActivityLogger integration for comprehensive agent activity logging
+        # Captures ALL agent interactions without affecting chat history or token usage
+        self.activity_logger = kwargs.get("activity_logger", None)
+        if self.activity_logger:
+            logger.info("ActivityLogger enabled for comprehensive agent activity tracking")
+
         # Setup cache if enabled
         if self.enable_cache:
             self._setup_cache()
 
         # --- Configure Router ---
         if self.execution_mode == 'router':
-            if isinstance(router, dict):
+            # ✅ Option 1: Use OrchestratorSupervisor (new library feature)
+            if self.use_supervisor:
+                from promptchain.utils.orchestrator_supervisor import OrchestratorSupervisor
+
+                # Create supervisor with strategy preference
+                self.orchestrator_supervisor = OrchestratorSupervisor(
+                    agent_descriptions=agent_descriptions,
+                    log_event_callback=self.logger.log_run if log_dir else None,
+                    dev_print_callback=None,  # Can be set later via kwargs
+                    max_reasoning_steps=kwargs.get("supervisor_max_steps", 8),
+                    model_name=kwargs.get("supervisor_model", "openai/gpt-4.1-mini"),
+                    strategy_preference=self.supervisor_strategy
+                )
+
+                # Use supervisor as router function
+                self.custom_router_function = self.orchestrator_supervisor.as_router_function()
+                log_init_data["router_type"] = "OrchestratorSupervisor"
+                log_init_data["supervisor_strategy"] = self.supervisor_strategy
+                if self.verbose:
+                    print(f"AgentChain router mode initialized with OrchestratorSupervisor (strategy: {self.supervisor_strategy})")
+
+            # ✅ Option 2: Traditional router configuration
+            elif isinstance(router, dict):
                 log_init_data["router_config_model"] = router.get('models', ['N/A'])[0]
                 self._configure_default_llm_router(router) # Pass the whole config dict
                 if self.verbose: print(f"AgentChain router mode initialized with default LLM router (Strategy: {self.router_strategy}).")
@@ -271,6 +335,110 @@ class AgentChain:
             self.enable_cache = False  # Disable cache if database initialization fails
             self.db_connection = None
             self.session_instance_uuid = None
+
+    def _validate_and_process_history_configs(
+        self, raw_configs: Optional[Dict[str, Dict[str, Any]]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Validate and process per-agent history configurations (v0.4.2).
+
+        Args:
+            raw_configs: Dictionary mapping agent names to history config dicts,
+                        or None to use defaults for all agents.
+
+        Returns:
+            Dictionary mapping agent names to validated history config dicts.
+
+        Raises:
+            ValueError: If agent name not found or config validation fails.
+        """
+        from promptchain.cli.models.agent_config import HistoryConfig
+
+        if raw_configs is None:
+            return {}
+
+        validated_configs = {}
+
+        for agent_name, config_dict in raw_configs.items():
+            # Validate agent name exists
+            if agent_name not in self.agents:
+                raise ValueError(
+                    f"Invalid agent name '{agent_name}' in agent_history_configs. "
+                    f"Available agents: {list(self.agents.keys())}"
+                )
+
+            # Validate and convert to HistoryConfig
+            try:
+                # This will raise ValueError if config is invalid
+                history_config = HistoryConfig.from_dict(config_dict)
+
+                # Store back as dict for easy access
+                validated_configs[agent_name] = history_config.to_dict()
+
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid history config for agent '{agent_name}': {e}"
+                )
+
+        return validated_configs
+
+    def _create_history_managers(self) -> Dict[str, Any]:
+        """Create ExecutionHistoryManager instances per agent (T077).
+
+        Creates history managers based on agent_history_configs. If no config is provided
+        for an agent, uses auto_include_history setting to determine default behavior.
+
+        Returns:
+            Dictionary mapping agent names to ExecutionHistoryManager instances (or None if disabled).
+        """
+        from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+
+        history_managers = {}
+
+        for agent_name in self.agent_names:
+            # Get agent-specific config or use global auto_include_history setting
+            if agent_name in self.agent_history_configs:
+                config = self.agent_history_configs[agent_name]
+
+                # If history is disabled for this agent, set to None
+                if not config.get("enabled", True):
+                    history_managers[agent_name] = None
+                    if self.verbose:
+                        print(f"History disabled for agent '{agent_name}' (token savings enabled)")
+                    continue
+
+                # Create manager with agent-specific settings
+                # Note: include_types and exclude_sources are used in get_formatted_history(),
+                # not during initialization (T077)
+                history_managers[agent_name] = ExecutionHistoryManager(
+                    max_tokens=config.get("max_tokens", 4000),
+                    max_entries=config.get("max_entries", 20),
+                    truncation_strategy=config.get("truncation_strategy", "oldest_first")
+                )
+
+                if self.verbose:
+                    print(f"History manager created for agent '{agent_name}': "
+                          f"max_tokens={config.get('max_tokens', 4000)}, "
+                          f"max_entries={config.get('max_entries', 20)}")
+
+            elif self.auto_include_history:
+                # Use default history config when auto_include_history is True
+                history_managers[agent_name] = ExecutionHistoryManager(
+                    max_tokens=self.max_history_tokens,
+                    max_entries=20,  # Default entry limit
+                    truncation_strategy="oldest_first"
+                )
+
+                if self.verbose:
+                    print(f"Default history manager created for agent '{agent_name}': "
+                          f"max_tokens={self.max_history_tokens}, max_entries=20")
+
+            else:
+                # No history for this agent
+                history_managers[agent_name] = None
+                if self.verbose:
+                    print(f"No history manager for agent '{agent_name}' (auto_include_history=False)")
+
+        return history_managers
 
     def _configure_default_llm_router(self, config: Dict[str, Any]):
         """Initializes the default 2-step LLM decision maker chain."""
@@ -419,9 +587,56 @@ class AgentChain:
                 return "No previous conversation history."
         return final_history_str
 
+    def _format_chat_history_for_agent(
+        self,
+        agent_name: str,
+        max_tokens: Optional[int] = None,
+        max_entries: Optional[int] = None,
+        truncation_strategy: str = "oldest_first",
+        include_types: Optional[List[str]] = None,
+        exclude_sources: Optional[List[str]] = None
+    ) -> str:
+        """Formats chat history for a specific agent with custom filtering and limits (T077).
+
+        This method now uses ExecutionHistoryManager when available for token-aware
+        history management with automatic truncation.
+
+        Args:
+            agent_name (str): Name of the agent (for logging/tracking)
+            max_tokens (Optional[int]): Max tokens for this agent's history view
+            max_entries (Optional[int]): Max number of entries for this agent
+            truncation_strategy (str): Strategy for truncation ("oldest_first", "keep_last")
+            include_types (Optional[List[str]]): Only include these message types (e.g., ["user", "assistant"])
+            exclude_sources (Optional[List[str]]): Exclude messages from these sources
+
+        Returns:
+            str: Formatted history string customized for the agent
+        """
+        # T077: Use ExecutionHistoryManager if available for this agent
+        history_manager = self._history_managers.get(agent_name)
+
+        if history_manager is None:
+            # Agent has history disabled (e.g., terminal agents)
+            if self.verbose:
+                print(f"No history for agent '{agent_name}' (disabled for token efficiency)")
+            return "No previous conversation history."
+
+        # Get formatted history from ExecutionHistoryManager
+        formatted_history = history_manager.get_formatted_history(
+            format_style="chat",
+            max_tokens=max_tokens,
+            include_types=include_types,
+            exclude_sources=exclude_sources
+        )
+
+        if not formatted_history or formatted_history == "No history available.":
+            return "No previous conversation history."
+
+        return formatted_history
+
     def _add_to_history(self, role: str, content: str, agent_name: Optional[str] = None):
-        """Adds a message to the conversation history, ensuring role and content are present.
-        
+        """Adds a message to the conversation history, ensuring role and content are present (T077).
+
         Args:
             role (str): The role of the message (user, assistant, system)
             content (str): The content of the message
@@ -434,7 +649,7 @@ class AgentChain:
         # Store the original role for the conversation history
         entry = {"role": role, "content": content}
         self._conversation_history.append(entry)
-        
+
         # Add agent name to role for the database if this is an assistant message
         db_role = role
         if role == "assistant" and agent_name:
@@ -444,10 +659,21 @@ class AgentChain:
         else:
             if self.verbose:
                 print(f"History updated - Role: {role}, Content: {content[:100]}...")
-                
+
         # Log history addition minimally to avoid excessive logging
         self.logger.log_run({"event": "history_add", "role": db_role, "content_length": len(content)})
-        
+
+        # T077: Add to ExecutionHistoryManagers for all agents
+        entry_type = "user_input" if role == "user" else "agent_output" if role == "assistant" else "system_message"
+        source = agent_name if agent_name else role
+
+        for agent, history_manager in self._history_managers.items():
+            if history_manager is not None:  # Only add if agent has history enabled
+                try:
+                    history_manager.add_entry(entry_type, content, source=source)
+                except Exception as e:
+                    logging.warning(f"Failed to add entry to history manager for agent '{agent}': {e}")
+
         # Append to cache if enabled
         if self.enable_cache:
             try:
@@ -602,6 +828,7 @@ class AgentChain:
             cleaned = cleaned[:-3]
         return cleaned.strip()
 
+    @track_routing(extract_decision=True)
     def _parse_decision(self, decision_output: str) -> Dict[str, Any]:
         """Parses the decision maker's JSON output based on the router strategy."""
         if not decision_output:
@@ -707,6 +934,7 @@ class AgentChain:
             }, exc_info=True)
             return {}
 
+    @track_routing(extract_decision=True)
     def _simple_router(self, user_input: str) -> Optional[str]:
         """Performs simple pattern-based routing (example)."""
         # Simple Math Check: Look for numbers and common math operators
@@ -739,10 +967,51 @@ class AgentChain:
         self.logger.log_run({"event": "simple_router_defer", "input": user_input})
         return None
 
-    async def process_input(self, user_input: str, override_include_history: Optional[bool] = None) -> str:
-        """Processes user input based on the configured execution_mode."""
-        self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input})
+    async def process_input(
+        self,
+        user_input: str,
+        override_include_history: Optional[bool] = None,
+        return_metadata: bool = False
+    ) -> Union[str, AgentExecutionResult]:
+        """Processes user input based on the configured execution_mode.
+
+        Args:
+            user_input: User's query
+            override_include_history: Override history inclusion
+            return_metadata: If True, return AgentExecutionResult instead of str
+
+        Returns:
+            - str: Just the response (default, backward compatible)
+            - AgentExecutionResult: Full metadata (if return_metadata=True)
+        """
+        # Track execution metadata
+        start_time = datetime.now()
+        errors: List[str] = []
+        warnings: List[str] = []
+        router_decision: Optional[Dict[str, Any]] = None
+        orchestrator_reasoning_steps = 0  # ✅ RENAMED from router_steps (v0.4.2)
+        fallback_used = False
+        tools_called: List[Dict[str, Any]] = []  # TODO: Capture from agent responses
+        total_tokens: Optional[int] = None  # TODO: Aggregate from agent LLM calls
+        prompt_tokens: Optional[int] = None
+        completion_tokens: Optional[int] = None
+
+        self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input, "return_metadata": return_metadata})
         self._add_to_history("user", user_input)
+
+        # ✅ Activity Logging: Start interaction chain and log user input
+        if self.activity_logger:
+            chain_id = self.activity_logger.start_interaction_chain()
+            self.activity_logger.log_activity(
+                activity_type="user_input",
+                agent_name=None,
+                content={"input": user_input},
+                metadata={
+                    "execution_mode": self.execution_mode,
+                    "timestamp": start_time.isoformat()
+                },
+                tags=["root_interaction", self.execution_mode]
+            )
 
         # Determine if we should include history for this call
         include_history = self.auto_include_history
@@ -769,9 +1038,55 @@ class AgentChain:
                 if include_history:
                     formatted_history = self._format_chat_history()
                     pipeline_step_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{pipeline_step_input}"
+
+                    # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                    history_tokens = 0
+                    try:
+                        import tiktoken
+                        enc = tiktoken.encoding_for_model("gpt-4")
+                        history_tokens = len(enc.encode(formatted_history))
+                    except ImportError:
+                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        history_tokens = -1
+                    except Exception as e:
+                        logging.warning(f"Error calculating token count: {e}")
+                        history_tokens = -1
+
+                    # ✅ Track cumulative token count across conversation
+                    if not hasattr(self, '_cumulative_history_tokens'):
+                        self._cumulative_history_tokens = 0
+                    if history_tokens > 0:
+                        self._cumulative_history_tokens += history_tokens
+
+                    # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                    orange_start = "\033[38;5;208m"
+                    orange_end = "\033[0m"
+
+                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=pipeline | agent={agent_name} | step={step_num} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                    for line in formatted_history.split('\n'):
+                        logging.info(f"{orange_start}{line}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                     if self.verbose:
-                        print(f"  Including history for pipeline step {step_num} ({agent_name})")
-                
+                        print(f"  Including history for pipeline step {step_num} ({agent_name}), {token_display}")
+
+                    # Log detailed history metadata
+                    self.logger.log_run({
+                        "event": "pipeline_history_injected",
+                        "step": step_num,
+                        "agent": agent_name,
+                        "history_length": len(formatted_history),
+                        "history_tokens": history_tokens,
+                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                        "history_content": formatted_history
+                    })
+
                 if self.verbose:
                     print(f"  Pipeline Step {step_num}/{len(agent_order)}: Running agent '{agent_name}'")
                     print(f"    Input Type: String")
@@ -794,6 +1109,22 @@ class AgentChain:
                         "agent": agent_name,
                         "response_length": len(current_input)
                     })
+
+                    # ✅ Activity Logging: Log agent output
+                    if self.activity_logger:
+                        self.activity_logger.log_activity(
+                            activity_type="agent_output",
+                            agent_name=agent_name,
+                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            content={"output": agent_response},
+                            metadata={
+                                "execution_mode": "pipeline",
+                                "pipeline_step": step_num,
+                                "total_steps": len(agent_order)
+                            },
+                            tags=["pipeline", "success"]
+                        )
+
                     if self.verbose: print(f"    Output from {agent_name} (Input for next): {current_input[:150]}...")
                 except Exception as e:
                     error_msg = f"Error running agent {agent_name} in pipeline step {step_num}: {e}"
@@ -804,6 +1135,21 @@ class AgentChain:
                         "agent": agent_name,
                         "error": str(e)
                     })
+
+                    # ✅ Activity Logging: Log error
+                    if self.activity_logger:
+                        self.activity_logger.log_activity(
+                            activity_type="error",
+                            agent_name=agent_name,
+                            content={"error": str(e), "error_type": type(e).__name__},
+                            metadata={
+                                "execution_mode": "pipeline",
+                                "pipeline_step": step_num,
+                                "total_steps": len(agent_order)
+                            },
+                            tags=["pipeline", "error"]
+                        )
+
                     final_response = f"Pipeline failed at step {step_num} ({agent_name}): {e}"
                     pipeline_failed = True
                     break
@@ -833,9 +1179,54 @@ class AgentChain:
                 if include_history:
                     formatted_history = self._format_chat_history()
                     round_robin_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{round_robin_input}"
+
+                    # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                    history_tokens = 0
+                    try:
+                        import tiktoken
+                        enc = tiktoken.encoding_for_model("gpt-4")
+                        history_tokens = len(enc.encode(formatted_history))
+                    except ImportError:
+                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        history_tokens = -1
+                    except Exception as e:
+                        logging.warning(f"Error calculating token count: {e}")
+                        history_tokens = -1
+
+                    # ✅ Track cumulative token count across conversation
+                    if not hasattr(self, '_cumulative_history_tokens'):
+                        self._cumulative_history_tokens = 0
+                    if history_tokens > 0:
+                        self._cumulative_history_tokens += history_tokens
+
+                    # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                    orange_start = "\033[38;5;208m"
+                    orange_end = "\033[0m"
+
+                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=round_robin | agent={selected_agent_name} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                    for line in formatted_history.split('\n'):
+                        logging.info(f"{orange_start}{line}{orange_end}")
+                    logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                    logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                     if self.verbose:
-                        print(f"  Including history for round-robin agent {selected_agent_name}")
-                
+                        print(f"  Including history for round-robin agent {selected_agent_name}, {token_display}")
+
+                    # Log detailed history metadata
+                    self.logger.log_run({
+                        "event": "round_robin_history_injected",
+                        "agent": selected_agent_name,
+                        "history_length": len(formatted_history),
+                        "history_tokens": history_tokens,
+                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                        "history_content": formatted_history
+                    })
+
                 if self.verbose:
                     print(f"  Round Robin: Selected agent '{selected_agent_name}' (Next index: {self._round_robin_index})")
                     print(f"    Input Content (Truncated): {round_robin_input[:100]}...")
@@ -852,6 +1243,21 @@ class AgentChain:
                         "agent": selected_agent_name,
                         "response_length": len(final_response)
                     })
+
+                    # ✅ Activity Logging: Log agent output
+                    if self.activity_logger:
+                        self.activity_logger.log_activity(
+                            activity_type="agent_output",
+                            agent_name=selected_agent_name,
+                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            content={"output": final_response},
+                            metadata={
+                                "execution_mode": "round_robin",
+                                "selected_index": self._round_robin_index - 1 if self._round_robin_index > 0 else len(agent_order) - 1
+                            },
+                            tags=["round_robin", "success"]
+                        )
+
                     if self.verbose: print(f"    Output from {selected_agent_name}: {final_response[:150]}...")
                 except Exception as e:
                     error_msg = f"Error running agent {selected_agent_name} in round_robin: {e}"
@@ -861,6 +1267,17 @@ class AgentChain:
                         "agent": selected_agent_name,
                         "error": str(e)
                     })
+
+                    # ✅ Activity Logging: Log error
+                    if self.activity_logger:
+                        self.activity_logger.log_activity(
+                            activity_type="error",
+                            agent_name=selected_agent_name,
+                            content={"error": str(e), "error_type": type(e).__name__},
+                            metadata={"execution_mode": "round_robin"},
+                            tags=["round_robin", "error"]
+                        )
+
                     final_response = f"Round robin agent {selected_agent_name} failed: {e}"
 
         elif self.execution_mode == 'router':
@@ -877,12 +1294,55 @@ class AgentChain:
                 
                 # Get the agent name from router via simple or complex routing
                 chosen_agent_name = await self._get_agent_name_from_router(user_input)
-                
+
+                # ✅ Activity Logging: Log router decision
+                if self.activity_logger:
+                    self.activity_logger.log_activity(
+                        activity_type="router_decision",
+                        agent_name=None,
+                        content={
+                            "chosen_agent": chosen_agent_name,
+                            "available_agents": list(self.agents.keys()),
+                            "router_strategy": self.router_strategy
+                        },
+                        metadata={"execution_mode": "router"},
+                        tags=["router", "decision"]
+                    )
+
                 # Execute the agent if we got a valid name
                 if chosen_agent_name and chosen_agent_name in self.agents:
                     final_response = await execute_single_dispatch_strategy_async(self, user_input, strategy_data)
+
+                    # ✅ Activity Logging: Log agent output from router execution
+                    if self.activity_logger:
+                        agent_instance = self.agents[chosen_agent_name]
+                        self.activity_logger.log_activity(
+                            activity_type="agent_output",
+                            agent_name=chosen_agent_name,
+                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            content={"output": final_response},
+                            metadata={
+                                "execution_mode": "router",
+                                "router_strategy": "single_agent_dispatch"
+                            },
+                            tags=["router", "single_dispatch", "success"]
+                        )
                 else:
                     final_response = "I couldn't determine which agent should handle your request."
+
+                    # ✅ Activity Logging: Log router fallback
+                    if self.activity_logger:
+                        self.activity_logger.log_activity(
+                            activity_type="router_fallback",
+                            agent_name=None,
+                            content={
+                                "reason": "No valid agent selected",
+                                "chosen_agent": chosen_agent_name,
+                                "fallback_response": final_response
+                            },
+                            metadata={"execution_mode": "router"},
+                            tags=["router", "fallback", "error"]
+                        )
             
             elif self.router_strategy == "static_plan":
                 # Execute with the static plan strategy
@@ -890,7 +1350,16 @@ class AgentChain:
                 self.logger.log_run({"event": "router_strategy", "strategy": "static_plan"})
                 plan_response = await execute_static_plan_strategy_async(self, user_input)
                 final_response = plan_response  # Use the string result directly
-                chosen_agent_name = "state"  # For static plan, use the last agent as the chosen agent
+
+                # ✅ Get actual agent info from plan metadata instead of hardcoding "state"
+                plan_meta = getattr(self, '_last_plan_metadata', None)
+                if plan_meta and plan_meta.get('last_agent'):
+                    chosen_agent_name = plan_meta['last_agent']
+                elif plan_meta and plan_meta.get('plan'):
+                    # Fallback to showing all agents in plan
+                    chosen_agent_name = f"multi-agent: {' → '.join(plan_meta['plan'])}"
+                else:
+                    chosen_agent_name = "multi-agent"  # Better than "state"
             
             elif self.router_strategy == "dynamic_decomposition":
                 # Execute with the dynamic decomposition strategy
@@ -898,7 +1367,13 @@ class AgentChain:
                 self.logger.log_run({"event": "router_strategy", "strategy": "dynamic_decomposition"})
                 decomp_response = await execute_dynamic_decomposition_strategy_async(self, user_input)
                 final_response = decomp_response  # Use the string result directly
-                chosen_agent_name = "state"  # For dynamic decomposition, also use a default agent name
+
+                # ✅ Get actual agent info from decomposition metadata
+                decomp_meta = getattr(self, '_last_decomp_metadata', None)
+                if decomp_meta and decomp_meta.get('last_agent'):
+                    chosen_agent_name = decomp_meta['last_agent']
+                else:
+                    chosen_agent_name = "dynamic-decomp"  # Better than "state"
             
             else:
                 # This shouldn't happen due to validation in __init__ but just in case
@@ -920,9 +1395,54 @@ class AgentChain:
                     if include_history:
                         formatted_history = self._format_chat_history()
                         broadcast_input = f"Conversation History:\n---\n{formatted_history}\n---\n\nCurrent Input:\n{broadcast_input}"
+
+                        # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+                        history_tokens = 0
+                        try:
+                            import tiktoken
+                            enc = tiktoken.encoding_for_model("gpt-4")
+                            history_tokens = len(enc.encode(formatted_history))
+                        except ImportError:
+                            logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                            history_tokens = -1
+                        except Exception as e:
+                            logging.warning(f"Error calculating token count: {e}")
+                            history_tokens = -1
+
+                        # ✅ Track cumulative token count across conversation
+                        if not hasattr(self, '_cumulative_history_tokens'):
+                            self._cumulative_history_tokens = 0
+                        if history_tokens > 0:
+                            self._cumulative_history_tokens += history_tokens
+
+                        # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+                        orange_start = "\033[38;5;208m"
+                        orange_end = "\033[0m"
+
+                        token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
+                        cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+
+                        logging.info(f"{orange_start}[HISTORY INJECTED] mode=broadcast | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+                        logging.info(f"{orange_start}{'='*80}{orange_end}")
+                        logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+                        for line in formatted_history.split('\n'):
+                            logging.info(f"{orange_start}{line}{orange_end}")
+                        logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+                        logging.info(f"{orange_start}{'='*80}{orange_end}")
+
                         if self.verbose:
-                            print(f"  Including history for broadcast agent {agent_name}")
-                    
+                            print(f"  Including history for broadcast agent {agent_name}, {token_display}")
+
+                        # Log detailed history metadata
+                        self.logger.log_run({
+                            "event": "broadcast_history_injected",
+                            "agent": agent_name,
+                            "history_length": len(formatted_history),
+                            "history_tokens": history_tokens,
+                            "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
+                            "history_content": formatted_history
+                        })
+
                     async def run_agent_task(name, agent, inp):
                         try:
                             return name, await agent.process_prompt_async(inp)
@@ -941,9 +1461,31 @@ class AgentChain:
                         logging.error(f"Error executing agent {agent_name} during broadcast: {result}", exc_info=result)
                         self.logger.log_run({"event": "broadcast_agent_error", "agent": agent_name, "error": str(result)})
                         processed_results[agent_name] = f"Error: {result}"
+
+                        # ✅ Activity Logging: Log broadcast agent error
+                        if self.activity_logger:
+                            self.activity_logger.log_activity(
+                                activity_type="error",
+                                agent_name=agent_name,
+                                content={"error": str(result), "error_type": type(result).__name__},
+                                metadata={"execution_mode": "broadcast"},
+                                tags=["broadcast", "error"]
+                            )
                     else:
                         self.logger.log_run({"event": "broadcast_agent_success", "agent": agent_name, "response_length": len(result)})
                         processed_results[agent_name] = result
+
+                        # ✅ Activity Logging: Log broadcast agent output
+                        if self.activity_logger:
+                            agent_instance = self.agents[agent_name]
+                            self.activity_logger.log_activity(
+                                activity_type="agent_output",
+                                agent_name=agent_name,
+                                agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                                content={"output": result},
+                                metadata={"execution_mode": "broadcast"},
+                                tags=["broadcast", "success"]
+                            )
                 
                 if not self.synthesizer_config:
                     # Simple concatenation if no synthesizer is configured
@@ -995,14 +1537,57 @@ class AgentChain:
 
         # Add to history with the agent name
         self._add_to_history("assistant", final_response, agent_name=chosen_agent_name)
-        
+
+        # Calculate execution time
+        end_time = datetime.now()
+        execution_time_ms = (end_time - start_time).total_seconds() * 1000
+
+        # ✅ NEW (v0.4.2): Capture orchestrator metrics if OrchestratorSupervisor was used
+        if hasattr(self, '_last_orchestrator_metrics') and self._last_orchestrator_metrics:
+            orchestrator_reasoning_steps = self._last_orchestrator_metrics.get('reasoning_steps', 0)
+            # Note: tools_called from orchestrator are reasoning tool calls, not agent tool calls
+            # Agent tool calls will be captured separately in the future
+            if self.verbose:
+                print(f"  Captured orchestrator metrics: {orchestrator_reasoning_steps} reasoning steps")
+
         self.logger.log_run({
             "event": "process_input_end",
             "mode": self.execution_mode,
             "response_length": len(final_response),
-            "agent_used": chosen_agent_name
+            "agent_used": chosen_agent_name,
+            "execution_time_ms": execution_time_ms,
+            "return_metadata": return_metadata
         })
-        return final_response
+
+        # ✅ Activity Logging: End interaction chain
+        if self.activity_logger:
+            self.activity_logger.end_interaction_chain(
+                status="completed" if not any(isinstance(e, Exception) for e in errors) else "failed"
+            )
+
+        # Return metadata if requested
+        if return_metadata:
+            return AgentExecutionResult(
+                response=final_response,
+                agent_name=chosen_agent_name or "unknown",
+                execution_time_ms=execution_time_ms,
+                start_time=start_time,
+                end_time=end_time,
+                router_decision=router_decision,
+                router_steps=orchestrator_reasoning_steps,  # ✅ Now captures actual orchestrator steps
+                fallback_used=fallback_used,
+                agent_execution_metadata=None,  # TODO: Capture from agent if available
+                tools_called=tools_called,  # ✅ Now initialized, TODO: Capture from agents
+                total_tokens=total_tokens,  # ✅ Now initialized, TODO: Aggregate from agent LLM calls
+                prompt_tokens=prompt_tokens,  # ✅ Now initialized, TODO: Aggregate
+                completion_tokens=completion_tokens,  # ✅ Now initialized, TODO: Aggregate
+                cache_hit=False,  # TODO: Check cache status
+                cache_key=None,  # TODO: Get cache key if used
+                errors=errors,
+                warnings=warnings
+            )
+        else:
+            return final_response
 
     async def run_agent_direct(self, agent_name: str, user_input: str, send_history: bool = False) -> str:
         """Runs a specific agent directly, bypassing the routing logic.
@@ -1032,7 +1617,22 @@ class AgentChain:
         if send_history:
             if self.verbose: print(f"  Prepending conversation history for {agent_name}...")
             formatted_history = self._format_chat_history() # Use internal method with its truncation
-            history_tokens = self._count_tokens(formatted_history)
+
+            # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
+            history_tokens = 0
+            try:
+                import tiktoken
+                enc = tiktoken.encoding_for_model("gpt-4")
+                history_tokens = len(enc.encode(formatted_history))
+            except ImportError:
+                logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                # Fallback to existing method
+                history_tokens = self._count_tokens(formatted_history)
+            except Exception as e:
+                logging.warning(f"Error calculating token count: {e}")
+                # Fallback to existing method
+                history_tokens = self._count_tokens(formatted_history)
+
             # Add a warning threshold (e.g., 6000 tokens)
             HISTORY_WARNING_THRESHOLD = 6000
             if history_tokens > HISTORY_WARNING_THRESHOLD:
@@ -1040,10 +1640,37 @@ class AgentChain:
                 print(f"\033[93m{warning_msg}\033[0m") # Yellow warning
                 self.logger.log_run({"event": "run_direct_history_warning", "agent": agent_name, "history_tokens": history_tokens, "threshold": HISTORY_WARNING_THRESHOLD})
 
+            # ✅ Track cumulative token count across conversation
+            if not hasattr(self, '_cumulative_history_tokens'):
+                self._cumulative_history_tokens = 0
+            if history_tokens > 0:
+                self._cumulative_history_tokens += history_tokens
+
+            # ✅ FULL HISTORY VISIBILITY: Display with orange color for easy skipping
+            orange_start = "\033[38;5;208m"
+            orange_end = "\033[0m"
+
+            token_display = f"{history_tokens} tokens"
+            cumulative_display = f" | cumulative: {self._cumulative_history_tokens}"
+
+            logging.info(f"{orange_start}[HISTORY INJECTED] mode=run_direct | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+            logging.info(f"{orange_start}{'='*80}{orange_end}")
+            logging.info(f"{orange_start}[HISTORY START]{orange_end}")
+            for line in formatted_history.split('\n'):
+                logging.info(f"{orange_start}{line}{orange_end}")
+            logging.info(f"{orange_start}[HISTORY END]{orange_end}")
+            logging.info(f"{orange_start}{'='*80}{orange_end}")
+
             query_for_agent = f"Conversation History:\n---\n{formatted_history}\n---\n\nUser Request:\n{user_input}"
             if self.verbose:
                 print(f"  Input for {agent_name} with history (truncated): {query_for_agent[:200]}...")
-            self.logger.log_run({"event": "run_direct_history_prepended", "agent": agent_name, "history_tokens": history_tokens})
+            self.logger.log_run({
+                "event": "run_direct_history_prepended",
+                "agent": agent_name,
+                "history_tokens": history_tokens,
+                "cumulative_history_tokens": self._cumulative_history_tokens,
+                "history_content": formatted_history
+            })
         # --- End history prepending ---
 
         try:
@@ -1206,6 +1833,108 @@ class AgentChain:
 
         print("\n--- Chat Finished ---")
 
+    @track_routing(extract_decision=True)
+    async def run_chat_turn_async(
+        self,
+        user_input: str,
+        user_input_queue: Optional[Any] = None,  # REACT: asyncio.Queue for mid-execution input
+        streaming_callback: Optional[Callable[[str, str], None]] = None  # REACT: streaming events
+    ) -> str:
+        """Process a single chat turn and return the response.
+
+        This method is used for programmatic interaction with the AgentChain,
+        where you want to process a single user input and get back a response.
+        It's a simpler interface than run_chat() which runs an interactive loop.
+
+        This is the method used by the TUI integration tests and the actual TUI.
+
+        For router mode, this method directly uses _route_to_agent() to select
+        the appropriate agent, then executes that agent. This bypasses the
+        strategy pattern used by process_input() for backward compatibility.
+
+        Args:
+            user_input (str): The user's input message to process
+            user_input_queue: Optional asyncio.Queue for REACT-style mid-execution input (v0.4.3)
+            streaming_callback: Optional callback for streaming events (v0.4.3)
+
+        Returns:
+            str: The agent's response to the user input
+
+        Example:
+            >>> agent_chain = AgentChain(agents=..., execution_mode="router", ...)
+            >>> response = await agent_chain.run_chat_turn_async("What is 2+2?")
+            >>> print(response)
+            "The answer is 4."
+        """
+        # For router mode, use direct routing via _route_to_agent() (T037)
+        if self.execution_mode == "router":
+            # Route to appropriate agent
+            agent_name, refined_query = await self._route_to_agent(user_input)
+
+            # T039: Track last selected agent for status bar display
+            self.last_selected_agent = agent_name
+
+            # Add user input to conversation history
+            self._conversation_history.append(
+                {"role": "user", "content": refined_query if refined_query else user_input}
+            )
+
+            # Execute selected agent
+            selected_agent = self.agents[agent_name]
+
+            # Format history for agent if auto_include_history is enabled
+            if self.auto_include_history:
+                formatted_history = self._format_chat_history()
+                if formatted_history:
+                    agent_input = f"Previous conversation:\n{formatted_history}\n\nUser: {refined_query if refined_query else user_input}"
+                else:
+                    agent_input = refined_query if refined_query else user_input
+            else:
+                agent_input = refined_query if refined_query else user_input
+
+            # Execute agent with REACT params (v0.4.3)
+            response = await selected_agent.process_prompt_async(
+                agent_input,
+                user_input_queue=user_input_queue,
+                streaming_callback=streaming_callback
+            )
+
+            # Add agent response to conversation history
+            self._conversation_history.append({"role": "assistant", "content": response})
+
+            return response
+        else:
+            # For other modes, use existing process_input() flow
+            return await self.process_input(user_input)
+
+    def register_orchestration_callback(self, callback: Callable):
+        """
+        Register a callback for multi-agent orchestration events.
+
+        Callback will be called with (event_type: str, data: dict):
+        - "plan_agent_start": When an agent in a multi-agent plan starts executing
+        - "plan_agent_complete": When an agent in a multi-agent plan completes
+
+        Args:
+            callback: Callable that accepts (event_type: str, data: dict)
+        """
+        if callback not in self._orchestration_callbacks:
+            self._orchestration_callbacks.append(callback)
+
+    def _emit_orchestration_event(self, event_type: str, data: dict):
+        """
+        Emit an orchestration event to all registered callbacks.
+
+        Args:
+            event_type: Type of orchestration event
+            data: Event data dictionary
+        """
+        for callback in self._orchestration_callbacks:
+            try:
+                callback(event_type, data)
+            except Exception as e:
+                logging.error(f"Orchestration callback error: {e}", exc_info=True)
+
     def add_agent(self, name: str, agent: PromptChain, description: str):
         """
         Adds a new agent to the AgentChain.
@@ -1294,8 +2023,129 @@ class AgentChain:
                 
         except Exception as e:
             logging.error(f"Error getting agent name from router: {e}", exc_info=True)
-            
+
         return None
+
+    @track_routing(extract_decision=True)
+    async def _route_to_agent(self, user_input: str) -> Tuple[str, str]:
+        """
+        Routes the user input to an appropriate agent and returns both the agent name
+        and optionally refined query.
+
+        This is the main routing method used by the TUI integration and tests.
+        It combines agent selection with query refinement capabilities.
+
+        Args:
+            user_input (str): The user's input message
+
+        Returns:
+            Tuple[str, str]: A tuple of (agent_name, refined_query).
+                            If no query refinement, returns (agent_name, user_input).
+
+        Raises:
+            Exception: If routing fails and no default agent is configured
+
+        Example:
+            >>> agent_name, query = await agent_chain._route_to_agent("Research AI trends")
+            >>> print(agent_name)  # "researcher"
+            >>> print(query)  # "Research AI trends" or refined version
+        """
+        try:
+            # Try simple router first (pattern matching)
+            chosen_agent_name = self._simple_router(user_input)
+            if chosen_agent_name:
+                if self.verbose:
+                    print(f"  Simple router selected: {chosen_agent_name}")
+                # T041: Log simple router selection
+                self.logger.log_run({
+                    "event": "router_decision",
+                    "router_type": "simple",
+                    "selected_agent": chosen_agent_name,
+                    "user_input": user_input[:100],  # Truncate for logging
+                    "refined_query": None
+                })
+                return (chosen_agent_name, user_input)  # No refinement from simple router
+
+            # If simple router didn't match, use complex router
+            if self.verbose:
+                print(f"  Simple router didn't match, using complex router...")
+
+            # Format the conversation history for the router
+            formatted_history = self._format_chat_history()
+
+            # Prepare decision maker prompt or use custom router
+            if self.custom_router_function:
+                if self.verbose:
+                    print(f"  Executing custom router function...")
+                decision_output = await self.custom_router_function(
+                    user_input,
+                    self._conversation_history,
+                    self.agent_descriptions
+                )
+            else:
+                if self.verbose:
+                    print(f"  Executing LLM decision maker chain...")
+                decision_output = await self.decision_maker_chain.process_prompt_async(user_input)
+
+            # Parse the decision output to get chosen agent and optional refined query
+            parsed_decision_dict = self._parse_decision(decision_output)
+            chosen_agent_name = parsed_decision_dict.get("chosen_agent")
+            refined_query = parsed_decision_dict.get("refined_query")
+
+            if chosen_agent_name:
+                if self.verbose:
+                    print(f"  Complex router selected: {chosen_agent_name}")
+                    if refined_query:
+                        print(f"  Refined query: {refined_query}")
+
+                # T041: Log complex router (LLM) selection with reasoning
+                self.logger.log_run({
+                    "event": "router_decision",
+                    "router_type": "complex_llm",
+                    "selected_agent": chosen_agent_name,
+                    "user_input": user_input[:100],  # Truncate for logging
+                    "refined_query": refined_query[:100] if refined_query else None,
+                    "decision_output": decision_output[:200] if decision_output else None,  # Include LLM reasoning
+                    "history_tokens": self._count_tokens(formatted_history) if formatted_history else 0
+                })
+
+                # Return refined query if provided, otherwise return original input
+                return (chosen_agent_name, refined_query if refined_query else user_input)
+            else:
+                # No agent chosen, fall back to default
+                if self.verbose:
+                    print(f"  Router did not return valid agent, falling back to default")
+                # T041: Log fallback to default agent
+                self.logger.log_run({
+                    "event": "router_fallback",
+                    "reason": "no_agent_selected",
+                    "default_agent": self.default_agent,
+                    "user_input": user_input[:100]
+                })
+                if self.default_agent:
+                    return (self.default_agent, user_input)
+                else:
+                    raise Exception("Router failed to select agent and no default agent configured")
+
+        except Exception as e:
+            logging.error(f"Error in _route_to_agent: {e}", exc_info=True)
+
+            # T041: Log router error and fallback
+            self.logger.log_run({
+                "event": "router_error",
+                "error": str(e),
+                "default_agent": self.default_agent,
+                "user_input": user_input[:100]
+            })
+
+            # Fall back to default agent if configured
+            if self.default_agent:
+                if self.verbose:
+                    print(f"  Router error, falling back to default agent: {self.default_agent}")
+                return (self.default_agent, user_input)
+            else:
+                # Re-raise if no fallback available
+                raise
 
 
 # Example usage (remains the same, using default router mode)

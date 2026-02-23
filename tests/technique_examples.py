@@ -21,7 +21,7 @@ def test_basic_usage_without_techniques():
     """Demonstrate basic usage without any techniques."""
     # Single instruction chain
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Explain this topic: {input}"]
     )
     
@@ -31,7 +31,7 @@ def test_basic_usage_without_techniques():
     
     # Multiple instruction chain
     chain = PromptChain(
-        models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+        models=["gpt-4.1-mini-2025-04-14", "anthropic/claude-3-sonnet-20240229"],
         instructions=[
             "Analyze this topic: {input}",
             "Summarize the analysis: {input}"
@@ -46,7 +46,7 @@ def test_basic_usage_without_techniques():
 def test_required_parameter_techniques():
     """Test techniques that require parameters."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Analyze the following topic: {input}"]
     )
     
@@ -62,7 +62,7 @@ def test_required_parameter_techniques():
     
     # Using persona emulation and forbidden words
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Provide investment advice about: {input}"]
     )
     
@@ -95,7 +95,7 @@ def test_optional_parameter_techniques():
     
     # Using tree of thought and comparative answering
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Compare and analyze: {input}"]
     )
     
@@ -111,7 +111,7 @@ def test_optional_parameter_techniques():
 def test_no_parameter_techniques():
     """Test techniques that don't use parameters."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Solve this problem: {input}"]
     )
     
@@ -144,7 +144,7 @@ def test_no_parameter_techniques():
 def test_combined_techniques():
     """Test combining different types of techniques."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=[
             "Research and analyze: {input}",
             "Provide recommendations based on: {input}"
@@ -174,7 +174,7 @@ def test_combined_techniques():
 def test_error_cases():
     """Test error cases and validation."""
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["gpt-4.1-mini-2025-04-14"],
         instructions=["Analyze: {input}"]
     )
     

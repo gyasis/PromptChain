@@ -1,27 +1,15 @@
-# Core dependencies
-litellm>=1.0.0        # For unified LLM access
-python-dotenv>=1.0.0  # For environment variable management
+# Core dependencies (required for all users)
+litellm>=1.0.0           # Unified LLM access
+python-dotenv>=1.0.0     # Environment variable management
+pydantic>=2.0.0          # Data validation
+requests>=2.31.0         # API calls
+typing-extensions>=4.8.0 # Improved type hints
+tiktoken>=0.5.0          # Token counting in execution history
+rich>=13.0.0             # Console output in agent_chain
+httpx>=0.25.0            # HTTP requests
+pyyaml>=6.0              # YAML configuration files
+jsonschema>=4.17         # YAML schema validation
+nest-asyncio>=1.5.0      # Async support for nested event loops
 
-# Optional but recommended
-pydantic>=2.0.0      # For data validation (if needed later)
-requests>=2.31.0     # For API calls
-typing-extensions>=4.8.0  # For improved type hints
-
-# Development dependencies
-pytest>=7.4.0        # For testing
-black>=23.12.0       # For code formatting
-isort>=5.13.0        # For import sorting
-flake8>=6.1.0        # For linting
-mypy>=1.7.0          # For type checking
-
-# Documentation
-mkdocs>=1.5.0        # For documentation generation (optional)
-mkdocs-material>=9.5.0  # For documentation theme (optional)
-
-# Additional dependencies based on code imports
-tiktoken>=0.5.0      # For token counting in execution history
-rich>=13.0.0         # For console output in agent_chain
-httpx>=0.25.0        # For HTTP requests in the codebase
-
+# Note: asyncio is part of Python standard library (3.4+) and doesn't need to be installed
 # Note: 'mcp' package should be installed separately as it's not on PyPI
-# asyncio is part of Python standard library (3.4+) and doesn't need to be installed 
