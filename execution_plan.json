@@ -1,0 +1,1004 @@
+{
+  "execution_plan": {
+    "phase_id": "006 PromptChain Improvements",
+    "waves": [
+      {
+        "wave_id": 1,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 1: 21 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T001",
+            "agent_role": "Developer",
+            "instruction": "T001 Create feature branch `006-promptchain-improvements` from `main`",
+            "file_locks": [],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Create feature branch `006-promptchain-improvements` from `main`' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T002",
+            "agent_role": "Developer",
+            "instruction": "T002 [P] Create `tests/unit/` subdirectory stubs: `test_interrupt_queue_integration.py`, `test_memo_store_integration.py`, `test_context_distiller_wiring.py`, `test_pubsub_bus.py`, `test_async_agent_inbox.py`, `test_janitor_agent.py`",
+            "file_locks": [
+              "test_pubsub_bus.py",
+              "test_context_distiller_wiring.py",
+              "test_memo_store_integration.py",
+              "test_janitor_agent.py",
+              "test_interrupt_queue_integration.py",
+              "test_async_agent_inbox.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [P] Create `tests/unit/` subdirectory stubs: `test_interrupt_queue_integration.py`, `test_memo_store_integration.py`, `test_context_distiller_wiring.py`, `test_pubsub_bus.py`, `test_async_agent_inbox.py`, `test_janitor_agent.py`' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T003",
+            "agent_role": "Developer",
+            "instruction": "T003 [P] Create `tests/integration/test_006_bug_fixes.py` and `tests/integration/test_006_steering_flow.py` with empty test class skeletons",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py",
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T003 [P] Create `tests/integration/test_006_bug_fixes.py` and `tests/integration/test_006_steering_flow.py` with empty test class skeletons' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T004",
+            "agent_role": "Developer",
+            "instruction": "T004 Audit `promptchain/observability/config.py` \u2014 confirm ALL public accessors (`get_observability_config`, etc.) route through `_load_yaml_config()` cache; add missing routes where found",
+            "file_locks": [
+              "promptchain/observability/config.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T004 Audit `promptchain/observability/config.py` \u2014 confirm ALL public accessors (`get_observability_config`, etc.) route through `_load_yaml_config()` cache; add missing routes where found' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T005",
+            "agent_role": "Developer",
+            "instruction": "T005 [P] Fix `promptchain/observability/queue.py` `shutdown()` method (lines ~172\u2013188): call `self.flush(timeout=timeout)` before `self.worker.join(timeout=timeout)` to guarantee bounded shutdown per FR-004",
+            "file_locks": [
+              "promptchain/observability/queue.py",
+              "self.worker.join"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T005 [P] Fix `promptchain/observability/queue.py` `shutdown()` method (lines ~172\u2013188): call `self.flush(timeout=timeout)` before `self.worker.join(timeout=timeout)` to guarantee bounded shutdown per FR-004' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T006",
+            "agent_role": "Developer",
+            "instruction": "T006 [P] Add `copy.deepcopy()` return in `promptchain/utils/enhanced_agentic_step_processor.py` line ~190 (`verify_logic` cache retrieval) to prevent cache corruption per FR-006 / BUG-009",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T006 [P] Add `copy.deepcopy()` return in `promptchain/utils/enhanced_agentic_step_processor.py` line ~190 (`verify_logic` cache retrieval) to prevent cache corruption per FR-006 / BUG-009' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T007",
+            "agent_role": "Developer",
+            "instruction": "T007 Harden `promptchain/utils/json_output_parser.py` `extract()` top-level except block (line ~92): catch all `Exception`, log warning with raw string, return configured `default` \u2014 never propagate per FR-003",
+            "file_locks": [
+              "promptchain/utils/json_output_parser.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T007 Harden `promptchain/utils/json_output_parser.py` `extract()` top-level except block (line ~92): catch all `Exception`, log warning with raw string, return configured `default` \u2014 never propagate per FR-003' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T019",
+            "agent_role": "Developer",
+            "instruction": "T019 [US1] Audit all TUI pattern command handlers in `promptchain/cli/tui/app.py` and any files under `promptchain/cli/` that call `asyncio.run()`: replace with `run_async_in_context()` from `promptchain/cli/utils/event_loop_manager.py` per FR-002 / BUG-001",
+            "file_locks": [
+              "promptchain/cli/tui/app.py",
+              "asyncio.run",
+              "promptchain/cli/utils/event_loop_manager.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T019 [US1] Audit all TUI pattern command handlers in `promptchain/cli/tui/app.py` and any files under `promptchain/cli/` that call `asyncio.run()`: replace with `run_async_in_context()` from `promptchain/cli/utils/event_loop_manager.py` per FR-002 / BUG-001' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T020",
+            "agent_role": "Developer",
+            "instruction": "T020 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_triggered_at_threshold` \u2014 build `ExecutionHistoryManager` at 75% token usage, instantiate `AgenticStepProcessor` with `context_distiller`, call one step, assert `ContextDistiller.distill()` was called",
+            "file_locks": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T020 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_triggered_at_threshold` \u2014 build `ExecutionHistoryManager` at 75% token usage, instantiate `AgenticStepProcessor` with `context_distiller`, call one step, assert `ContextDistiller.distill()` was called' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T023",
+            "agent_role": "Developer",
+            "instruction": "T023 [P] [US2] Write test in `tests/unit/test_memo_store_integration.py`: `test_memo_injected_into_context_before_llm_call` \u2014 store one memo, instantiate `AgenticStepProcessor` with `memo_store`, run step, assert memo content appears in captured context string",
+            "file_locks": [
+              "tests/unit/test_memo_store_integration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T023 [P] [US2] Write test in `tests/unit/test_memo_store_integration.py`: `test_memo_injected_into_context_before_llm_call` \u2014 store one memo, instantiate `AgenticStepProcessor` with `memo_store`, run step, assert memo content appears in captured context string' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T025",
+            "agent_role": "Developer",
+            "instruction": "T025 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_compresses_at_threshold` \u2014 set compression_threshold=0.5, fill history to 60%, start janitor, wait 2\u00d7 check_interval, assert `distill()` called",
+            "file_locks": [
+              "tests/unit/test_janitor_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T025 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_compresses_at_threshold` \u2014 set compression_threshold=0.5, fill history to 60%, start janitor, wait 2\u00d7 check_interval, assert `distill()` called' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T029",
+            "agent_role": "Developer",
+            "instruction": "T029 [US2] Create `promptchain/utils/janitor_agent.py`: implement `JanitorAgent` class with `start()`, `stop()`, `_monitor_loop()` as specified in `contracts/context-memory.md`; uses `asyncio.Task` for non-blocking background monitoring per FR-010",
+            "file_locks": [
+              "promptchain/utils/janitor_agent.py",
+              "contracts/context-memory.md",
+              "asyncio.Task"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T029 [US2] Create `promptchain/utils/janitor_agent.py`: implement `JanitorAgent` class with `start()`, `stop()`, `_monitor_loop()` as specified in `contracts/context-memory.md`; uses `asyncio.Task` for non-blocking background monitoring per FR-010' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T030",
+            "agent_role": "Developer",
+            "instruction": "T030 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_interrupt_checked_each_thought_cycle` \u2014 submit steering interrupt, run 3-step agentic task, assert interrupt processed by step 2",
+            "file_locks": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T030 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_interrupt_checked_each_thought_cycle` \u2014 submit steering interrupt, run 3-step agentic task, assert interrupt processed by step 2' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T039",
+            "agent_role": "Developer",
+            "instruction": "T039 [US3] Add `send_global_override()` method and `\"agent.global_override\"` topic handling to `promptchain/cli/communication/message_bus.py`; wire `_handle_override()` subscription into `AgenticStepProcessor` per FR-014",
+            "file_locks": [
+              "promptchain/cli/communication/message_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T039 [US3] Add `send_global_override()` method and `\"agent.global_override\"` topic handling to `promptchain/cli/communication/message_bus.py`; wire `_handle_override()` subscription into `AgenticStepProcessor` per FR-014' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T041",
+            "agent_role": "Developer",
+            "instruction": "T041 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_send_receive_normal_priority` \u2014 send `InboxMessage(priority=1, topic=\"task\", payload=\"x\")`, receive, assert payload matches",
+            "file_locks": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T041 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_send_receive_normal_priority` \u2014 send `InboxMessage(priority=1, topic=\"task\", payload=\"x\")`, receive, assert payload matches' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T044",
+            "agent_role": "Developer",
+            "instruction": "T044 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_publish_triggers_all_subscribers_concurrently` \u2014 subscribe 3 callbacks with `asyncio.Event` flags, publish, assert all 3 flags set",
+            "file_locks": [
+              "asyncio.Event",
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T044 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_publish_triggers_all_subscribers_concurrently` \u2014 subscribe 3 callbacks with `asyncio.Event` flags, publish, assert all 3 flags set' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T053",
+            "agent_role": "Developer",
+            "instruction": "T053 [P] Validate SC-001: exercise Gemini tools, TUI event loop, JSON parser with integration tests; confirm zero errors",
+            "file_locks": [],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T053 [P] Validate SC-001: exercise Gemini tools, TUI event loop, JSON parser with integration tests; confirm zero errors' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T056",
+            "agent_role": "Developer",
+            "instruction": "T056 [P] Validate SC-006: two-agent parallel benchmark; confirm <5% I/O overhead; add `tests/integration/test_006_concurrency.py::test_two_agent_overhead`",
+            "file_locks": [
+              "tests/integration/test_006_concurrency.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T056 [P] Validate SC-006: two-agent parallel benchmark; confirm <5% I/O overhead; add `tests/integration/test_006_concurrency.py::test_two_agent_overhead`' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T057",
+            "agent_role": "Developer",
+            "instruction": "T057 Update `CLAUDE.md` \"Recent Changes\" section to record 006-promptchain-improvements as complete",
+            "file_locks": [
+              "CLAUDE.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T057 Update `CLAUDE.md` \"Recent Changes\" section to record 006-promptchain-improvements as complete' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T058",
+            "agent_role": "Developer",
+            "instruction": "T058 [P] Update `promptchain/__init__.py` exports to expose `AsyncAgentInbox`, `PubSubBus`, `JanitorAgent`, `MemoStore`, `InterruptQueue` at top-level package per library-first principle",
+            "file_locks": [
+              "promptchain/__init__.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T058 [P] Update `promptchain/__init__.py` exports to expose `AsyncAgentInbox`, `PubSubBus`, `JanitorAgent`, `MemoStore`, `InterruptQueue` at top-level package per library-first principle' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T059",
+            "agent_role": "Developer",
+            "instruction": "T059 [P] Run `black . && isort . && flake8 promptchain/` and fix any linting issues in new/modified files",
+            "file_locks": [],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T059 [P] Run `black . && isort . && flake8 promptchain/` and fix any linting issues in new/modified files' to [x]",
+            "dependencies": []
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 1 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 2,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 2: 10 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T008",
+            "agent_role": "Developer",
+            "instruction": "T008 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_gemini_debug_correct_params` \u2014 mock MCP call, assert `error_message` key present, `error_context` absent",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_gemini_debug_correct_params` \u2014 mock MCP call, assert `error_message` key present, `error_context` absent' to [x]",
+            "dependencies": [
+              "T003"
+            ]
+          },
+          {
+            "task_id": "T016",
+            "agent_role": "Developer",
+            "instruction": "T016 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~645: change `error_context` \u2192 `error_message` in `gemini_debug` tool call arguments per FR-001 / BUG-017",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~645: change `error_context` \u2192 `error_message` in `gemini_debug` tool call arguments per FR-001 / BUG-017' to [x]",
+            "dependencies": [
+              "T006"
+            ]
+          },
+          {
+            "task_id": "T021",
+            "agent_role": "Developer",
+            "instruction": "T021 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_not_triggered_below_threshold` \u2014 history at 50%, assert `distill()` NOT called",
+            "file_locks": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T021 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_not_triggered_below_threshold` \u2014 history at 50%, assert `distill()` NOT called' to [x]",
+            "dependencies": [
+              "T020"
+            ]
+          },
+          {
+            "task_id": "T024",
+            "agent_role": "Developer",
+            "instruction": "T024 [P] [US2] Write test in `tests/unit/test_memo_store_integration.py`: `test_successful_task_stored_as_memo` \u2014 run step that completes successfully, assert `MemoStore.store_memo()` called with `outcome=\"success\"`",
+            "file_locks": [
+              "tests/unit/test_memo_store_integration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T024 [P] [US2] Write test in `tests/unit/test_memo_store_integration.py`: `test_successful_task_stored_as_memo` \u2014 run step that completes successfully, assert `MemoStore.store_memo()` called with `outcome=\"success\"`' to [x]",
+            "dependencies": [
+              "T023"
+            ]
+          },
+          {
+            "task_id": "T026",
+            "agent_role": "Developer",
+            "instruction": "T026 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_stop_cancels_task` \u2014 start janitor, await stop(), assert background task is cancelled within 5 s",
+            "file_locks": [
+              "tests/unit/test_janitor_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T026 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_stop_cancels_task` \u2014 start janitor, await stop(), assert background task is cancelled within 5 s' to [x]",
+            "dependencies": [
+              "T025"
+            ]
+          },
+          {
+            "task_id": "T031",
+            "agent_role": "Developer",
+            "instruction": "T031 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_abort_interrupt_halts_execution` \u2014 submit `ABORT` interrupt, assert `AgenticStepResult.status == \"aborted\"` returned without further LLM calls",
+            "file_locks": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T031 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_abort_interrupt_halts_execution` \u2014 submit `ABORT` interrupt, assert `AgenticStepResult.status == \"aborted\"` returned without further LLM calls' to [x]",
+            "dependencies": [
+              "T030"
+            ]
+          },
+          {
+            "task_id": "T033",
+            "agent_role": "Developer",
+            "instruction": "T033 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_micro_checkpoint_saved_after_tool_call` \u2014 run step with one tool call, assert `_micro_checkpoints` dict has one entry with `tool_call_index=0`",
+            "file_locks": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T033 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_micro_checkpoint_saved_after_tool_call` \u2014 run step with one tool call, assert `_micro_checkpoints` dict has one entry with `tool_call_index=0`' to [x]",
+            "dependencies": [
+              "T003"
+            ]
+          },
+          {
+            "task_id": "T040",
+            "agent_role": "Developer",
+            "instruction": "T040 [US3] Add `handle_interrupt_command()` to `promptchain/cli/tui/app.py` TUI input handler: non-blocking `submit_interrupt()` call to global `InterruptQueue` per FR-012",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T040 [US3] Add `handle_interrupt_command()` to `promptchain/cli/tui/app.py` TUI input handler: non-blocking `submit_interrupt()` call to global `InterruptQueue` per FR-012' to [x]",
+            "dependencies": [
+              "T019"
+            ]
+          },
+          {
+            "task_id": "T042",
+            "agent_role": "Developer",
+            "instruction": "T042 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_priority_ordering` \u2014 send priority-2 then priority-0 messages, assert priority-0 received first",
+            "file_locks": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T042 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_priority_ordering` \u2014 send priority-2 then priority-0 messages, assert priority-0 received first' to [x]",
+            "dependencies": [
+              "T041"
+            ]
+          },
+          {
+            "task_id": "T045",
+            "agent_role": "Developer",
+            "instruction": "T045 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_subscriber_exception_does_not_propagate` \u2014 subscriber raises exception, publish still returns without error",
+            "file_locks": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T045 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_subscriber_exception_does_not_propagate` \u2014 subscriber raises exception, publish still returns without error' to [x]",
+            "dependencies": [
+              "T044"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 2 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 3,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 3: 7 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T009",
+            "agent_role": "Developer",
+            "instruction": "T009 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_gemini_brainstorm_no_num_ideas` \u2014 mock MCP, assert `num_ideas` key absent from call args",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_gemini_brainstorm_no_num_ideas` \u2014 mock MCP, assert `num_ideas` key absent from call args' to [x]",
+            "dependencies": [
+              "T003",
+              "T008"
+            ]
+          },
+          {
+            "task_id": "T017",
+            "agent_role": "Developer",
+            "instruction": "T017 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~564: remove `num_ideas` parameter from `gemini_brainstorm` tool call arguments per FR-001 / BUG-018",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~564: remove `num_ideas` parameter from `gemini_brainstorm` tool call arguments per FR-001 / BUG-018' to [x]",
+            "dependencies": [
+              "T016",
+              "T006"
+            ]
+          },
+          {
+            "task_id": "T022",
+            "agent_role": "Developer",
+            "instruction": "T022 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_llm_failure_leaves_history_unchanged` \u2014 mock LLM call raising exception, assert history unmodified after distill attempt",
+            "file_locks": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T022 [P] [US2] Write test in `tests/unit/test_context_distiller_wiring.py`: `test_distiller_llm_failure_leaves_history_unchanged` \u2014 mock LLM call raising exception, assert history unmodified after distill attempt' to [x]",
+            "dependencies": [
+              "T020",
+              "T021"
+            ]
+          },
+          {
+            "task_id": "T032",
+            "agent_role": "Developer",
+            "instruction": "T032 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_steering_message_injected_into_context` \u2014 submit steering interrupt, assert interrupt text present in messages passed to LLM",
+            "file_locks": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T032 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_steering_message_injected_into_context` \u2014 submit steering interrupt, assert interrupt text present in messages passed to LLM' to [x]",
+            "dependencies": [
+              "T031",
+              "T030"
+            ]
+          },
+          {
+            "task_id": "T034",
+            "agent_role": "Developer",
+            "instruction": "T034 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_rewind_to_checkpoint_restores_state` \u2014 save checkpoint, modify conversation, rewind, assert conversation matches checkpoint snapshot",
+            "file_locks": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T034 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_rewind_to_checkpoint_restores_state` \u2014 save checkpoint, modify conversation, rewind, assert conversation matches checkpoint snapshot' to [x]",
+            "dependencies": [
+              "T003",
+              "T033"
+            ]
+          },
+          {
+            "task_id": "T043",
+            "agent_role": "Developer",
+            "instruction": "T043 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_try_receive_returns_none_when_empty` \u2014 call `try_receive()` on empty inbox, assert `None` returned without blocking",
+            "file_locks": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T043 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_try_receive_returns_none_when_empty` \u2014 call `try_receive()` on empty inbox, assert `None` returned without blocking' to [x]",
+            "dependencies": [
+              "T041",
+              "T042"
+            ]
+          },
+          {
+            "task_id": "T046",
+            "agent_role": "Developer",
+            "instruction": "T046 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_unsubscribe_removes_callback` \u2014 subscribe, unsubscribe, publish, assert callback NOT called",
+            "file_locks": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T046 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_unsubscribe_removes_callback` \u2014 subscribe, unsubscribe, publish, assert callback NOT called' to [x]",
+            "dependencies": [
+              "T045",
+              "T044"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 3 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 4,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 4: 4 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T010",
+            "agent_role": "Developer",
+            "instruction": "T010 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_ask_gemini_prompt_param` \u2014 mock MCP, assert `prompt` key present, `question` absent",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_ask_gemini_prompt_param` \u2014 mock MCP, assert `prompt` key present, `question` absent' to [x]",
+            "dependencies": [
+              "T009",
+              "T003",
+              "T008"
+            ]
+          },
+          {
+            "task_id": "T018",
+            "agent_role": "Developer",
+            "instruction": "T018 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~575: change `question` \u2192 `prompt` in `ask_gemini` tool call arguments per FR-001 / BUG-019",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T018 [US1] Fix `promptchain/utils/enhanced_agentic_step_processor.py` line ~575: change `question` \u2192 `prompt` in `ask_gemini` tool call arguments per FR-001 / BUG-019' to [x]",
+            "dependencies": [
+              "T016",
+              "T006",
+              "T017"
+            ]
+          },
+          {
+            "task_id": "T035",
+            "agent_role": "Developer",
+            "instruction": "T035 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_global_override_replaces_prompt` \u2014 subscribe `AgenticStepProcessor` to `\"agent.global_override\"` topic, publish override, assert active prompt updated at next cycle",
+            "file_locks": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T035 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_global_override_replaces_prompt` \u2014 subscribe `AgenticStepProcessor` to `\"agent.global_override\"` topic, publish override, assert active prompt updated at next cycle' to [x]",
+            "dependencies": [
+              "T034",
+              "T003",
+              "T033"
+            ]
+          },
+          {
+            "task_id": "T047",
+            "agent_role": "Developer",
+            "instruction": "T047 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_publish_sync_works_from_non_async_context` \u2014 call `publish_sync()` from plain function, assert subscriber received payload",
+            "file_locks": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T047 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_publish_sync_works_from_non_async_context` \u2014 call `publish_sync()` from plain function, assert subscriber received payload' to [x]",
+            "dependencies": [
+              "T045",
+              "T046",
+              "T044"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 4 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 5,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 5: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T011",
+            "agent_role": "Developer",
+            "instruction": "T011 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_event_loop_no_crash_in_tui_context` \u2014 simulate Textual running loop, invoke pattern command handler, assert no `RuntimeError`",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_event_loop_no_crash_in_tui_context` \u2014 simulate Textual running loop, invoke pattern command handler, assert no `RuntimeError`' to [x]",
+            "dependencies": [
+              "T009",
+              "T003",
+              "T008",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T027",
+            "agent_role": "Developer",
+            "instruction": "T027 [US2] Wire `ContextDistiller` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `context_distiller: Optional[ContextDistiller] = None` parameter to `__init__()`, call `should_distill()` / `await distill()` at start of each thought cycle per FR-007",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T027 [US2] Wire `ContextDistiller` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `context_distiller: Optional[ContextDistiller] = None` parameter to `__init__()`, call `should_distill()` / `await distill()` at start of each thought cycle per FR-007' to [x]",
+            "dependencies": [
+              "T016",
+              "T006",
+              "T018",
+              "T017"
+            ]
+          },
+          {
+            "task_id": "T036",
+            "agent_role": "Developer",
+            "instruction": "T036 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_tui_interrupt_command_enqueues_without_blocking` \u2014 call `handle_interrupt_command(\"steering\", \"msg\")`, assert enqueued, assert returns < 10 ms",
+            "file_locks": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T036 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_tui_interrupt_command_enqueues_without_blocking` \u2014 call `handle_interrupt_command(\"steering\", \"msg\")`, assert enqueued, assert returns < 10 ms' to [x]",
+            "dependencies": [
+              "T034",
+              "T003",
+              "T033",
+              "T035"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 5 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 6,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 6: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T012",
+            "agent_role": "Developer",
+            "instruction": "T012 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_json_parser_malformed_returns_default` \u2014 feed invalid JSON to `JSONOutputParser.extract()`, assert default returned and no exception raised",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_json_parser_malformed_returns_default` \u2014 feed invalid JSON to `JSONOutputParser.extract()`, assert default returned and no exception raised' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T010",
+              "T003",
+              "T008"
+            ]
+          },
+          {
+            "task_id": "T028",
+            "agent_role": "Developer",
+            "instruction": "T028 [US2] Wire `MemoStore` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `memo_store: Optional[MemoStore] = None` parameter to `__init__()`, call `inject_relevant_memos()` before LLM context build, call `store_memo()` on task completion per FR-008/FR-009",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T028 [US2] Wire `MemoStore` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `memo_store: Optional[MemoStore] = None` parameter to `__init__()`, call `inject_relevant_memos()` before LLM context build, call `store_memo()` on task completion per FR-008/FR-009' to [x]",
+            "dependencies": [
+              "T018",
+              "T006",
+              "T016",
+              "T027",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 6 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 7,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 7: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T013",
+            "agent_role": "Developer",
+            "instruction": "T013 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_mlflow_shutdown_bounded` \u2014 mock unresponsive queue, call `shutdown(timeout=2.0)`, assert returns within 3 s",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_mlflow_shutdown_bounded` \u2014 mock unresponsive queue, call `shutdown(timeout=2.0)`, assert returns within 3 s' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T012",
+              "T010",
+              "T003",
+              "T008"
+            ]
+          },
+          {
+            "task_id": "T037",
+            "agent_role": "Developer",
+            "instruction": "T037 [US3] Wire `InterruptQueue` + `InterruptHandler` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `interrupt_queue: Optional[InterruptQueue] = None` to `__init__()`, call `check_and_handle_interrupt()` at start of each thought cycle, handle abort/steering/correction/clarification actions per FR-011",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T037 [US3] Wire `InterruptQueue` + `InterruptHandler` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `interrupt_queue: Optional[InterruptQueue] = None` to `__init__()`, call `check_and_handle_interrupt()` at start of each thought cycle, handle abort/steering/correction/clarification actions per FR-011' to [x]",
+            "dependencies": [
+              "T018",
+              "T006",
+              "T016",
+              "T027",
+              "T028",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 7 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 8,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 8: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T014",
+            "agent_role": "Developer",
+            "instruction": "T014 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_config_cache_no_disk_read_on_second_call` \u2014 call `get_observability_config()` twice, assert file open count == 1",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_config_cache_no_disk_read_on_second_call` \u2014 call `get_observability_config()` twice, assert file open count == 1' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T012",
+              "T010",
+              "T003",
+              "T008",
+              "T013"
+            ]
+          },
+          {
+            "task_id": "T038",
+            "agent_role": "Developer",
+            "instruction": "T038 [US3] Add `MicroCheckpoint` dataclass to `promptchain/utils/checkpoint_manager.py` per `data-model.md` schema; add `_save_micro_checkpoint()` and `rewind_to_last_checkpoint()` methods to `EnhancedAgenticStepProcessor` in `promptchain/utils/enhanced_agentic_step_processor.py`; call save after each successful tool call per FR-013",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py",
+              "promptchain/utils/checkpoint_manager.py",
+              "data-model.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T038 [US3] Add `MicroCheckpoint` dataclass to `promptchain/utils/checkpoint_manager.py` per `data-model.md` schema; add `_save_micro_checkpoint()` and `rewind_to_last_checkpoint()` methods to `EnhancedAgenticStepProcessor` in `promptchain/utils/enhanced_agentic_step_processor.py`; call save after each successful tool call per FR-013' to [x]",
+            "dependencies": [
+              "T018",
+              "T006",
+              "T016",
+              "T037",
+              "T027",
+              "T028",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 8 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 9,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 9: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T015",
+            "agent_role": "Developer",
+            "instruction": "T015 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_verification_result_deep_copy` \u2014 retrieve cached result, mutate it, re-retrieve, assert original cache entry unchanged",
+            "file_locks": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] [US1] Write test in `tests/integration/test_006_bug_fixes.py`: `test_verification_result_deep_copy` \u2014 retrieve cached result, mutate it, re-retrieve, assert original cache entry unchanged' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T012",
+              "T014",
+              "T010",
+              "T003",
+              "T008",
+              "T013"
+            ]
+          },
+          {
+            "task_id": "T048",
+            "agent_role": "Developer",
+            "instruction": "T048 [US4] Create `promptchain/utils/async_agent_inbox.py`: implement `InboxMessage` dataclass and `AsyncAgentInbox` class using `asyncio.PriorityQueue` per `contracts/async-execution.md` and `data-model.md`",
+            "file_locks": [
+              "asyncio.PriorityQueue",
+              "contracts/async-execution.md",
+              "promptchain/utils/async_agent_inbox.py",
+              "data-model.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T048 [US4] Create `promptchain/utils/async_agent_inbox.py`: implement `InboxMessage` dataclass and `AsyncAgentInbox` class using `asyncio.PriorityQueue` per `contracts/async-execution.md` and `data-model.md`' to [x]",
+            "dependencies": [
+              "T038"
+            ]
+          },
+          {
+            "task_id": "T050",
+            "agent_role": "Developer",
+            "instruction": "T050 [US4] Refactor LLM calls in `promptchain/utils/agentic_step_processor.py` and `promptchain/utils/enhanced_agentic_step_processor.py`: replace any `litellm.completion()` calls in async contexts with `await litellm.acompletion()` per FR-015",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py",
+              "promptchain/utils/agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T050 [US4] Refactor LLM calls in `promptchain/utils/agentic_step_processor.py` and `promptchain/utils/enhanced_agentic_step_processor.py`: replace any `litellm.completion()` calls in async contexts with `await litellm.acompletion()` per FR-015' to [x]",
+            "dependencies": [
+              "T018",
+              "T006",
+              "T016",
+              "T038",
+              "T037",
+              "T027",
+              "T028",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 9 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 10,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 10: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T049",
+            "agent_role": "Developer",
+            "instruction": "T049 [US4] Add `PubSubBus` class to `promptchain/cli/communication/message_bus.py`: `subscribe()`, `unsubscribe()`, `publish()` (async, `asyncio.gather` fan-out, per-subscriber error isolation), `publish_sync()` wrapper per FR-017 / `contracts/async-execution.md`",
+            "file_locks": [
+              "contracts/async-execution.md",
+              "asyncio.gather",
+              "promptchain/cli/communication/message_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T049 [US4] Add `PubSubBus` class to `promptchain/cli/communication/message_bus.py`: `subscribe()`, `unsubscribe()`, `publish()` (async, `asyncio.gather` fan-out, per-subscriber error isolation), `publish_sync()` wrapper per FR-017 / `contracts/async-execution.md`' to [x]",
+            "dependencies": [
+              "T048",
+              "T039"
+            ]
+          },
+          {
+            "task_id": "T051",
+            "agent_role": "Developer",
+            "instruction": "T051 [US4] Add optional `inbox: Optional[AsyncAgentInbox] = None` parameter to `EnhancedAgenticStepProcessor.__init__()` in `promptchain/utils/enhanced_agentic_step_processor.py`; integrate inbox message polling alongside interrupt queue check per FR-016",
+            "file_locks": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T051 [US4] Add optional `inbox: Optional[AsyncAgentInbox] = None` parameter to `EnhancedAgenticStepProcessor.__init__()` in `promptchain/utils/enhanced_agentic_step_processor.py`; integrate inbox message polling alongside interrupt queue check per FR-016' to [x]",
+            "dependencies": [
+              "T018",
+              "T006",
+              "T016",
+              "T038",
+              "T050",
+              "T037",
+              "T027",
+              "T028",
+              "T017"
+            ]
+          },
+          {
+            "task_id": "T052",
+            "agent_role": "Developer",
+            "instruction": "T052 [P] Run `pytest tests/integration/test_006_bug_fixes.py tests/integration/test_006_steering_flow.py tests/unit/ -v` and confirm all tests green; record results in `specs/006-promptchain-improvements/test-results.md`",
+            "file_locks": [
+              "specs/006-promptchain-improvements/test-results.md",
+              "tests/integration/test_006_bug_fixes.py",
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T052 [P] Run `pytest tests/integration/test_006_bug_fixes.py tests/integration/test_006_steering_flow.py tests/unit/ -v` and confirm all tests green; record results in `specs/006-promptchain-improvements/test-results.md`' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T012",
+              "T033",
+              "T036",
+              "T015",
+              "T014",
+              "T010",
+              "T034",
+              "T003",
+              "T008",
+              "T013",
+              "T035"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 10 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 11,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 11: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T054",
+            "agent_role": "Developer",
+            "instruction": "T054 [P] Validate SC-004: run token consumption baseline (truncation-only) vs distillation path; confirm \u226530% reduction documented in `specs/006-promptchain-improvements/test-results.md`",
+            "file_locks": [
+              "specs/006-promptchain-improvements/test-results.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T054 [P] Validate SC-004: run token consumption baseline (truncation-only) vs distillation path; confirm \u226530% reduction documented in `specs/006-promptchain-improvements/test-results.md`' to [x]",
+            "dependencies": [
+              "T052"
+            ]
+          },
+          {
+            "task_id": "T055",
+            "agent_role": "Developer",
+            "instruction": "T055 [P] Validate SC-005: time interrupt submission to LLM context inclusion; confirm \u22642 s acknowledgment in `tests/integration/test_006_steering_flow.py::test_interrupt_ack_latency`",
+            "file_locks": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T055 [P] Validate SC-005: time interrupt submission to LLM context inclusion; confirm \u22642 s acknowledgment in `tests/integration/test_006_steering_flow.py::test_interrupt_ack_latency`' to [x]",
+            "dependencies": [
+              "T052",
+              "T033",
+              "T036",
+              "T034",
+              "T003",
+              "T035"
+            ]
+          },
+          {
+            "task_id": "T060",
+            "agent_role": "Developer",
+            "instruction": "T060 Run `mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py` and resolve all type errors",
+            "file_locks": [
+              "promptchain/utils/janitor_agent.py",
+              "mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py",
+              "promptchain/utils/async_agent_inbox.py",
+              "promptchain/cli/communication/message_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T060 Run `mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py` and resolve all type errors' to [x]",
+            "dependencies": [
+              "T048",
+              "T039",
+              "T029",
+              "T049"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 11 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      }
+    ]
+  }
+}

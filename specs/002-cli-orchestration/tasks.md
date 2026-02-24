@@ -572,51 +572,51 @@ If entire feature needs rollback:
 
 ### User Story 1
 
-- [ ] User can start CLI and send queries without manually selecting agents
-- [ ] System correctly routes "analyze code" queries to analysis agents
-- [ ] System correctly routes "research topic" queries to research agents
-- [ ] System displays which agent handled each query in TUI
-- [ ] Routing decisions complete in <500ms
+- [x] User can start CLI and send queries without manually selecting agents
+- [x] System correctly routes "analyze code" queries to analysis agents
+- [x] System correctly routes "research topic" queries to research agents
+- [x] System displays which agent handled each query in TUI
+- [x] Routing decisions complete in <500ms
 
 ### User Story 2
 
-- [ ] User can request complex tasks requiring multiple steps
-- [ ] System autonomously executes 3-8 reasoning steps without prompting user
-- [ ] System makes appropriate tool calls during reasoning
-- [ ] System displays reasoning progress in TUI
-- [ ] Final response synthesizes all reasoning steps coherently
+- [x] User can request complex tasks requiring multiple steps
+- [x] System autonomously executes 3-8 reasoning steps without prompting user
+- [x] System makes appropriate tool calls during reasoning
+- [x] System displays reasoning progress in TUI
+- [x] Final response synthesizes all reasoning steps coherently
 
 ### User Story 3
 
-- [ ] MCP servers auto-connect at session start
-- [ ] User can list available MCP tools with `/tools list`
-- [ ] User can request file operations via natural language
-- [ ] User can request web searches via natural language
-- [ ] MCP tool calls complete successfully within 2 seconds
+- [x] MCP servers auto-connect at session start
+- [x] User can list available MCP tools with `/tools list`
+- [x] User can request file operations via natural language
+- [x] User can request web searches via natural language
+- [x] MCP tool calls complete successfully within 2 seconds
 
 ### User Story 4
 
-- [ ] Token usage reduces by 30-60% vs baseline with per-agent configs
-- [ ] Terminal agents operate with history disabled
-- [ ] Research agents maintain full context (8000 tokens)
-- [ ] TUI status bar displays current token usage
-- [ ] Response quality remains unchanged despite token reduction
+- [x] Token usage reduces by 30-60% vs baseline with per-agent configs
+- [x] Terminal agents operate with history disabled
+- [x] Research agents maintain full context (8000 tokens)
+- [x] TUI status bar displays current token usage
+- [x] Response quality remains unchanged despite token reduction
 
 ### User Story 5
 
-- [ ] User can create workflows with `/workflow create <objective>`
-- [ ] User can exit CLI mid-workflow and resume later
-- [ ] Workflow progress persists across sessions
-- [ ] Resume command restores full conversation context
-- [ ] Workflow status shows completed/pending steps
+- [x] User can create workflows with `/workflow create <objective>`
+- [x] User can exit CLI mid-workflow and resume later
+- [x] Workflow progress persists across sessions
+- [x] Resume command restores full conversation context
+- [x] Workflow status shows completed/pending steps
 
 ### User Story 6
 
-- [ ] User can create agents from templates in <5 seconds
-- [ ] Researcher template includes AgenticStepProcessor and web search
-- [ ] Coder template includes file ops and code execution
-- [ ] Terminal template has history disabled
-- [ ] Template-created agents work immediately without additional config
+- [x] User can create agents from templates in <5 seconds
+- [x] Researcher template includes AgenticStepProcessor and web search
+- [x] Coder template includes file ops and code execution
+- [x] Terminal template has history disabled
+- [x] Template-created agents work immediately without additional config
 
 ---
 

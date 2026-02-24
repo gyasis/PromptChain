@@ -60,17 +60,17 @@ Based on plan.md structure:
 ### Tasks
 
 **Wave 1** (parallel - 2 agents):
-- [ ] T001 [W1] [sql-pro] [schema.sql] Add V3 SQLite schema tables (task_queue, blackboard, workflow_state) in promptchain/cli/schema.sql
-- [ ] T002 [P] [W1] [python-pro] [communication/__init__.py] Create communication module init in promptchain/cli/communication/__init__.py
+- [x] T001 [W1] [sql-pro] [schema.sql] Add V3 SQLite schema tables (task_queue, blackboard, workflow_state) in promptchain/cli/schema.sql
+- [x] T002 [P] [W1] [python-pro] [communication/__init__.py] Create communication module init in promptchain/cli/communication/__init__.py
 
 **Wave 2** (parallel - 4 agents, after W1):
-- [ ] T003 [P] [W2] [python-pro] [models/message.py] Add Message and MessageType dataclasses in promptchain/cli/models/message.py
-- [ ] T004 [P] [W2] [python-pro] [models/task.py] Add Task dataclass in promptchain/cli/models/task.py
-- [ ] T005 [P] [W2] [python-pro] [models/blackboard.py] Add BlackboardEntry dataclass in promptchain/cli/models/blackboard.py
-- [ ] T006 [P] [W2] [python-pro] [models/workflow.py] Add WorkflowState and WorkflowStage in promptchain/cli/models/workflow.py
+- [x] T003 [P] [W2] [python-pro] [models/message.py] Add Message and MessageType dataclasses in promptchain/cli/models/message.py
+- [x] T004 [P] [W2] [python-pro] [models/task.py] Add Task dataclass in promptchain/cli/models/task.py
+- [x] T005 [P] [W2] [python-pro] [models/blackboard.py] Add BlackboardEntry dataclass in promptchain/cli/models/blackboard.py
+- [x] T006 [P] [W2] [python-pro] [models/workflow.py] Add WorkflowState and WorkflowStage in promptchain/cli/models/workflow.py
 
 **Wave 3** (sequential - requires W2):
-- [ ] T007 [W3] [python-pro] [models/__init__.py] Update promptchain/cli/models/__init__.py to export new models
+- [x] T007 [W3] [python-pro] [models/__init__.py] Update promptchain/cli/models/__init__.py to export new models
 
 **CHECKPOINT**: After T007, spawn memory-bank-keeper + git-version-manager for Phase 1 sync
 
@@ -102,17 +102,17 @@ Based on plan.md structure:
 ### Tasks
 
 **Wave 1** (sequential - foundation):
-- [ ] T008 [W1] [python-pro] [session_manager.py] Implement V3 schema migration in promptchain/cli/session_manager.py (method: _check_and_migrate_v3)
+- [x] T008 [W1] [python-pro] [session_manager.py] Implement V3 schema migration in promptchain/cli/session_manager.py (method: _check_and_migrate_v3)
 
 **Wave 2** (parallel - 5 agents, after W1):
-- [ ] T009 [P] [W2] [python-pro] [session_manager.py:blackboard] Add blackboard CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [ ] T010 [P] [W2] [python-pro] [session_manager.py:task_queue] Add task_queue CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [ ] T011 [P] [W2] [python-pro] [session_manager.py:workflow] Add workflow_state CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [ ] T012 [P] [W2] [python-pro] [tools/registry.py:metadata] Extend ToolMetadata with allowed_agents and capabilities fields in promptchain/cli/tools/registry.py
+- [x] T009 [P] [W2] [python-pro] [session_manager.py:blackboard] Add blackboard CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T010 [P] [W2] [python-pro] [session_manager.py:task_queue] Add task_queue CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T011 [P] [W2] [python-pro] [session_manager.py:workflow] Add workflow_state CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T012 [P] [W2] [python-pro] [tools/registry.py:metadata] Extend ToolMetadata with allowed_agents and capabilities fields in promptchain/cli/tools/registry.py
 - [ ] T014 [P] [W2] [test-automator] [tests/cli/] Create test directory structure: tests/cli/communication/, tests/cli/e2e/
 
 **Wave 3** (sequential - requires T012):
-- [ ] T013 [W3] [python-pro] [tools/registry.py:discover] Add discover_capabilities() method to ToolRegistry in promptchain/cli/tools/registry.py
+- [x] T013 [W3] [python-pro] [tools/registry.py:discover] Add discover_capabilities() method to ToolRegistry in promptchain/cli/tools/registry.py
 
 **CHECKPOINT**: Foundation ready - spawn memory-bank-keeper + git-version-manager, then user story implementation can begin
 
@@ -154,21 +154,21 @@ Based on plan.md structure:
 ### Implementation for User Story 1
 
 **Wave 2** (sequential - decorator changes):
-- [ ] T018 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept allowed_agents param in promptchain/cli/tools/registry.py
-- [ ] T019 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept capabilities param in promptchain/cli/tools/registry.py
+- [x] T018 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept allowed_agents param in promptchain/cli/tools/registry.py
+- [x] T019 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept capabilities param in promptchain/cli/tools/registry.py
 
 **Wave 3** (sequential - after decorator):
-- [ ] T020 [W3] [US1] [python-pro] [tools/registry.py] Implement discover_capabilities(agent_name, capability_filter) in promptchain/cli/tools/registry.py
+- [x] T020 [W3] [US1] [python-pro] [tools/registry.py] Implement discover_capabilities(agent_name, capability_filter) in promptchain/cli/tools/registry.py
 - [ ] T021 [W3] [US1] [test-automator] [test_registry.py] Add backward compatibility test - tools without allowed_agents work for all agents
 
 **Wave 4** (parallel - 4 agents, tool tagging):
-- [ ] T022 [P] [W4] [US1] [python-pro] [registration.py:filesystem] Tag filesystem tools with capabilities in promptchain/cli/tools/library/registration.py
-- [ ] T023 [P] [W4] [US1] [python-pro] [registration.py:session] Tag session tools with capabilities in promptchain/cli/tools/library/registration.py
-- [ ] T024 [P] [W4] [US1] [python-pro] [registration.py:shell] Tag shell tools with capabilities in promptchain/cli/tools/library/registration.py
-- [ ] T025 [P] [W4] [US1] [python-pro] [registration.py:context] Tag context tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T022 [P] [W4] [US1] [python-pro] [registration.py:filesystem] Tag filesystem tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T023 [P] [W4] [US1] [python-pro] [registration.py:session] Tag session tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T024 [P] [W4] [US1] [python-pro] [registration.py:shell] Tag shell tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T025 [P] [W4] [US1] [python-pro] [registration.py:context] Tag context tools with capabilities in promptchain/cli/tools/library/registration.py
 
 **Wave 5** (sequential - CLI integration):
-- [ ] T026 [W5] [US1] [python-pro] [command_handler.py] Add /capabilities CLI command in promptchain/cli/command_handler.py
+- [x] T026 [W5] [US1] [python-pro] [command_handler.py] Add /capabilities CLI command in promptchain/cli/command_handler.py
 
 **CHECKPOINT**: Capability discovery fully functional - spawn memory-bank-keeper + git-version-manager
 
@@ -208,14 +208,14 @@ Based on plan.md structure:
 ### Implementation for User Story 2
 
 **Wave 2** (sequential - core delegation):
-- [ ] T030 [W2] [US2] [python-pro] [delegation_tools.py] Implement delegate_task() tool in promptchain/cli/tools/library/delegation_tools.py
-- [ ] T031 [W2] [US2] [python-pro] [delegation_tools.py] Implement get_pending_tasks() helper in promptchain/cli/tools/library/delegation_tools.py
-- [ ] T032 [W2] [US2] [python-pro] [delegation_tools.py] Implement update_task_status() helper in promptchain/cli/tools/library/delegation_tools.py
+- [x] T030 [W2] [US2] [python-pro] [delegation_tools.py] Implement delegate_task() tool in promptchain/cli/tools/library/delegation_tools.py
+- [x] T031 [W2] [US2] [python-pro] [delegation_tools.py] Implement get_pending_tasks() helper in promptchain/cli/tools/library/delegation_tools.py
+- [x] T032 [W2] [US2] [python-pro] [delegation_tools.py] Implement update_task_status() helper in promptchain/cli/tools/library/delegation_tools.py
 
 **Wave 3** (parallel - 2 agents, integration):
-- [ ] T033 [P] [W3] [US2] [python-pro] [library/__init__.py] Register delegation tools in promptchain/cli/tools/library/__init__.py
-- [ ] T034 [P] [W3] [US2] [python-pro] [command_handler.py] Add /tasks CLI command in promptchain/cli/command_handler.py
-- [ ] T035 [W3] [US2] [python-pro] [delegation_tools.py] Add task validation (target_agent != source_agent) in delegation_tools.py
+- [x] T033 [P] [W3] [US2] [python-pro] [library/__init__.py] Register delegation tools in promptchain/cli/tools/library/__init__.py
+- [x] T034 [P] [W3] [US2] [python-pro] [command_handler.py] Add /tasks CLI command in promptchain/cli/command_handler.py
+- [x] T035 [W3] [US2] [python-pro] [delegation_tools.py] Add task validation (target_agent != source_agent) in delegation_tools.py
 - [ ] T036 [W3] [US2] [python-pro] [delegation_tools.py] Add activity logger integration for task events in delegation_tools.py
 
 **CHECKPOINT**: Task delegation fully functional - spawn memory-bank-keeper + git-version-manager
@@ -257,14 +257,14 @@ Based on plan.md structure:
 ### Implementation for User Story 3
 
 **Wave 2** (sequential - core blackboard):
-- [ ] T041 [W2] [US3] [python-pro] [blackboard_tools.py] Implement write_to_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [ ] T042 [W2] [US3] [python-pro] [blackboard_tools.py] Implement read_from_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [ ] T043 [W2] [US3] [python-pro] [blackboard_tools.py] Implement list_blackboard_keys() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [ ] T044 [W2] [US3] [python-pro] [blackboard_tools.py] Add upsert logic with version incrementing in blackboard_tools.py
+- [x] T041 [W2] [US3] [python-pro] [blackboard_tools.py] Implement write_to_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T042 [W2] [US3] [python-pro] [blackboard_tools.py] Implement read_from_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T043 [W2] [US3] [python-pro] [blackboard_tools.py] Implement list_blackboard_keys() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T044 [W2] [US3] [python-pro] [blackboard_tools.py] Add upsert logic with version incrementing in blackboard_tools.py
 
 **Wave 3** (parallel - 2 agents, integration):
-- [ ] T045 [P] [W3] [US3] [python-pro] [library/__init__.py] Register blackboard tools in promptchain/cli/tools/library/__init__.py
-- [ ] T046 [P] [W3] [US3] [python-pro] [command_handler.py] Add /blackboard CLI command in promptchain/cli/command_handler.py
+- [x] T045 [P] [W3] [US3] [python-pro] [library/__init__.py] Register blackboard tools in promptchain/cli/tools/library/__init__.py
+- [x] T046 [P] [W3] [US3] [python-pro] [command_handler.py] Add /blackboard CLI command in promptchain/cli/command_handler.py
 - [ ] T047 [W3] [US3] [python-pro] [blackboard_tools.py] Add activity logger integration for blackboard events
 
 **CHECKPOINT**: Blackboard sharing fully functional - spawn memory-bank-keeper + git-version-manager
@@ -307,18 +307,18 @@ Based on plan.md structure:
 ### Implementation for User Story 4
 
 **Wave 2** (sequential - handlers):
-- [ ] T052 [W2] [US4] [python-pro] [handlers.py] Implement @cli_communication_handler decorator in promptchain/cli/communication/handlers.py
-- [ ] T053 [W2] [US4] [python-pro] [handlers.py] Add handler filtering logic (sender, receiver, type) in handlers.py
+- [x] T052 [W2] [US4] [python-pro] [handlers.py] Implement @cli_communication_handler decorator in promptchain/cli/communication/handlers.py
+- [x] T053 [W2] [US4] [python-pro] [handlers.py] Add handler filtering logic (sender, receiver, type) in handlers.py
 
 **Wave 3** (sequential - message bus):
-- [ ] T054 [W3] [US4] [python-pro] [message_bus.py] Implement MessageBus class with send() in promptchain/cli/communication/message_bus.py
-- [ ] T055 [W3] [US4] [python-pro] [message_bus.py] Implement broadcast() method in message_bus.py
-- [ ] T056 [W3] [US4] [python-pro] [message_bus.py] Add handler registry for message routing in message_bus.py
-- [ ] T057 [W3] [US4] [python-pro] [message_bus.py] Integrate activity logger for message events in message_bus.py
-- [ ] T058 [W3] [US4] [python-pro] [message_bus.py] Add fail-safe error handling (log and continue) in message_bus.py
+- [x] T054 [W3] [US4] [python-pro] [message_bus.py] Implement MessageBus class with send() in promptchain/cli/communication/message_bus.py
+- [x] T055 [W3] [US4] [python-pro] [message_bus.py] Implement broadcast() method in message_bus.py
+- [x] T056 [W3] [US4] [python-pro] [message_bus.py] Add handler registry for message routing in message_bus.py
+- [x] T057 [W3] [US4] [python-pro] [message_bus.py] Integrate activity logger for message events in message_bus.py
+- [x] T058 [W3] [US4] [python-pro] [message_bus.py] Add fail-safe error handling (log and continue) in message_bus.py
 
 **Wave 4** (sequential - exports):
-- [ ] T059 [W4] [US4] [python-pro] [communication/__init__.py] Export communication module in promptchain/cli/communication/__init__.py
+- [x] T059 [W4] [US4] [python-pro] [communication/__init__.py] Export communication module in promptchain/cli/communication/__init__.py
 
 **CHECKPOINT**: Messaging fully functional - spawn memory-bank-keeper + git-version-manager
 
@@ -363,9 +363,9 @@ Based on plan.md structure:
 - [ ] T066 [W2] [US5] [python-pro] [session_manager.py] Implement get_workflow_state() in session_manager.py
 
 **Wave 3** (parallel - 2 agents, integration):
-- [ ] T067 [P] [W3] [US5] [python-pro] [command_handler.py] Add /workflow CLI command in promptchain/cli/command_handler.py
+- [x] T067 [P] [W3] [US5] [python-pro] [command_handler.py] Add /workflow CLI command in promptchain/cli/command_handler.py
 - [ ] T068 [P] [W3] [US5] [python-pro] [delegation_tools.py] Integrate workflow updates with task completion callbacks
-- [ ] T069 [W3] [US5] [python-pro] [session_manager.py] Add workflow state restoration on session load
+- [x] T069 [W3] [US5] [python-pro] [session_manager.py] Add workflow state restoration on session load
 
 **CHECKPOINT**: Workflow tracking fully functional - spawn memory-bank-keeper + git-version-manager
 
@@ -403,12 +403,12 @@ Based on plan.md structure:
 ### Implementation for User Story 6
 
 **Wave 2** (sequential - help system):
-- [ ] T072 [W2] [US6] [python-pro] [delegation_tools.py] Implement request_help() tool in promptchain/cli/tools/library/delegation_tools.py
-- [ ] T073 [W2] [US6] [python-pro] [delegation_tools.py] Add capability matching logic for help routing in delegation_tools.py
-- [ ] T074 [W2] [US6] [python-pro] [delegation_tools.py] Add broadcast fallback when no matching capability found
+- [x] T072 [W2] [US6] [python-pro] [delegation_tools.py] Implement request_help() tool in promptchain/cli/tools/library/delegation_tools.py
+- [x] T073 [W2] [US6] [python-pro] [delegation_tools.py] Add capability matching logic for help routing in delegation_tools.py
+- [x] T074 [W2] [US6] [python-pro] [delegation_tools.py] Add broadcast fallback when no matching capability found
 
 **Wave 3** (sequential - registration):
-- [ ] T075 [W3] [US6] [python-pro] [library/__init__.py] Register request_help tool in library/__init__.py
+- [x] T075 [W3] [US6] [python-pro] [library/__init__.py] Register request_help tool in library/__init__.py
 
 **CHECKPOINT**: Help request fully functional - spawn memory-bank-keeper + git-version-manager
 

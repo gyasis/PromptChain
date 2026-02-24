@@ -107,9 +107,9 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Integration module imports work
-  - [ ] Graceful fallback when hybridrag not installed
-  - [ ] `LIGHTRAG_AVAILABLE` flag accessible
+  - [x] Integration module imports work
+  - [x] Graceful fallback when hybridrag not installed
+  - [x] `LIGHTRAG_AVAILABLE` flag accessible
 
 ---
 
@@ -165,10 +165,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] BasePattern ABC defined with execute method
-  - [ ] PatternConfig and PatternResult dataclasses
-  - [ ] Event emission hooks present
-  - [ ] Blackboard integration hooks present
+  - [x] BasePattern ABC defined with execute method
+  - [x] PatternConfig and PatternResult dataclasses
+  - [x] Event emission hooks present
+  - [x] Blackboard integration hooks present
 
 ---
 
@@ -221,10 +221,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] Uses HybridLightRAGCore for hypothesis generation
-  - [ ] Scores hypotheses using LLM judge
-  - [ ] Emits pattern.branching.* events
+  - [x] Implements BasePattern interface
+  - [x] Uses HybridLightRAGCore for hypothesis generation
+  - [x] Scores hypotheses using LLM judge
+  - [x] Emits pattern.branching.* events
 
 ---
 
@@ -258,10 +258,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] Uses SearchInterface.multi_query_search
-  - [ ] Supports SYNONYM, SEMANTIC, ACRONYM strategies
-  - [ ] Deduplicates results with proper scoring
+  - [x] Implements BasePattern interface
+  - [x] Uses SearchInterface.multi_query_search
+  - [x] Supports SYNONYM, SEMANTIC, ACRONYM strategies
+  - [x] Deduplicates results with proper scoring
 
 ---
 
@@ -296,10 +296,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] ShardRegistry for multiple LightRAG databases
-  - [ ] Parallel query execution across shards
-  - [ ] Result aggregation with source tracking
+  - [x] Implements BasePattern interface
+  - [x] ShardRegistry for multiple LightRAG databases
+  - [x] Parallel query execution across shards
+  - [x] Result aggregation with source tracking
 
 ---
 
@@ -339,10 +339,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] Wraps SearchInterface.agentic_search
-  - [ ] Tracks hops/steps executed
-  - [ ] Identifies unanswered aspects
+  - [x] Implements BasePattern interface
+  - [x] Wraps SearchInterface.agentic_search
+  - [x] Tracks hops/steps executed
+  - [x] Identifies unanswered aspects
 
 ---
 
@@ -383,10 +383,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] Uses local + global query modes
-  - [ ] Implements RRF fusion algorithm
-  - [ ] Tracks per-technique contributions
+  - [x] Implements BasePattern interface
+  - [x] Uses local + global query modes
+  - [x] Implements RRF fusion algorithm
+  - [x] Tracks per-technique contributions
 
 ---
 
@@ -433,11 +433,11 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Implements BasePattern interface
-  - [ ] Tracks query history for pattern analysis
-  - [ ] Predicts likely next queries
-  - [ ] Caches speculative results with TTL
-  - [ ] Reports cache hit rate and latency savings
+  - [x] Implements BasePattern interface
+  - [x] Tracks query history for pattern analysis
+  - [x] Predicts likely next queries
+  - [x] Caches speculative results with TTL
+  - [x] Reports cache hit rate and latency savings
 
 ---
 
@@ -479,9 +479,9 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Mixin class for MessageBus integration
-  - [ ] Pattern events published to bus
-  - [ ] Cross-pattern subscriptions work
+  - [x] Mixin class for MessageBus integration
+  - [x] Pattern events published to bus
+  - [x] Cross-pattern subscriptions work
 
 ---
 
@@ -512,9 +512,9 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Mixin class for Blackboard integration
-  - [ ] Patterns can share results via Blackboard
-  - [ ] Cross-pattern state access works
+  - [x] Mixin class for Blackboard integration
+  - [x] Patterns can share results via Blackboard
+  - [x] Cross-pattern state access works
 
 ---
 
@@ -556,9 +556,9 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] PatternEvent dataclass defined
-  - [ ] Standard event types for each pattern
-  - [ ] Event payloads documented
+  - [x] PatternEvent dataclass defined
+  - [x] Standard event types for each pattern
+  - [x] Event payloads documented
 
 ---
 
@@ -606,10 +606,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Unit tests for each pattern (6 files)
-  - [ ] 80%+ code coverage
-  - [ ] Mocked LightRAG dependencies
-  - [ ] Tests pass without external dependencies
+  - [x] Unit tests for each pattern (6 files)
+  - [x] 80%+ code coverage
+  - [x] Mocked LightRAG dependencies
+  - [x] Tests pass without external dependencies
 
 ---
 
@@ -646,10 +646,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Tests patterns with MessageBus
-  - [ ] Tests patterns with Blackboard
-  - [ ] Cross-pattern communication tested
-  - [ ] Event propagation verified
+  - [x] Tests patterns with MessageBus
+  - [x] Tests patterns with Blackboard
+  - [x] Cross-pattern communication tested
+  - [x] Event propagation verified
 
 ---
 
@@ -691,10 +691,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] Multi-pattern workflow tests
-  - [ ] Real LightRAG integration (optional, marked)
-  - [ ] Performance benchmarks captured
-  - [ ] Error scenarios tested
+  - [x] Multi-pattern workflow tests
+  - [x] Real LightRAG integration (optional, marked)
+  - [x] Performance benchmarks captured
+  - [x] Error scenarios tested
 
 ---
 
@@ -751,12 +751,12 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] `promptchain patterns branch` command
-  - [ ] `promptchain patterns expand` command
-  - [ ] `promptchain patterns multihop` command
-  - [ ] `promptchain patterns hybrid` command
-  - [ ] `promptchain patterns speculate` command
-  - [ ] Help text and examples
+  - [x] `promptchain patterns branch` command
+  - [x] `promptchain patterns expand` command
+  - [x] `promptchain patterns multihop` command
+  - [x] `promptchain patterns hybrid` command
+  - [x] `promptchain patterns speculate` command
+  - [x] Help text and examples
 
 ---
 
@@ -792,10 +792,10 @@
   ```
 
   **Acceptance Criteria**:
-  - [ ] docs/patterns/README.md
-  - [ ] Pattern-specific documentation (6 files)
-  - [ ] examples/patterns/ with runnable scripts
-  - [ ] quickstart.md updated with real examples
+  - [x] docs/patterns/README.md
+  - [x] Pattern-specific documentation (6 files)
+  - [x] examples/patterns/ with runnable scripts
+  - [x] quickstart.md updated with real examples
 
 ---
 
@@ -848,9 +848,9 @@ After each Wave completion:
 
 ## Success Criteria
 
-- [ ] All 16 tasks completed
-- [ ] 80%+ test coverage for new code
-- [ ] All patterns integrate with MessageBus/Blackboard
-- [ ] CLI commands functional
-- [ ] Documentation complete
-- [ ] No regressions in existing functionality
+- [x] All 16 tasks completed
+- [x] 80%+ test coverage for new code
+- [x] All patterns integrate with MessageBus/Blackboard
+- [x] CLI commands functional
+- [x] Documentation complete
+- [x] No regressions in existing functionality
