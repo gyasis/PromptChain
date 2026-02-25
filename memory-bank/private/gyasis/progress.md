@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-02-25 06:23:03
+**Last Updated**: 2026-02-25 08:31:10
 
 ## Overall Progress
 - Total Tasks: 62
-- Completed: 40 ✅
-- Pending: 22 ⏳
-- Progress: 64%
+- Completed: 60 ✅
+- Pending: 2 ⏳
+- Progress: 96%
 
 ## Task Breakdown
 - [x] T001 Create feature branch `006-promptchain-improvements` from `main`
@@ -35,9 +35,9 @@
 - [x] T024 [P] [US2] Write test in `tests/unit/test_memo_store_integration.py`: `test_successful_task_stored_as_memo` — run step that completes successfully, assert `MemoStore.store_memo()` called with `outcome="success"`
 - [x] T025 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_compresses_at_threshold` — set compression_threshold=0.5, fill history to 60%, start janitor, wait 2× check_interval, assert `distill()` called
 - [x] T026 [P] [US2] Write test in `tests/unit/test_janitor_agent.py`: `test_janitor_stop_cancels_task` — start janitor, await stop(), assert background task is cancelled within 5 s
-- [ ] T027 [US2] Wire `ContextDistiller` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `context_distiller: Optional[ContextDistiller] = None` parameter to `__init__()`, call `should_distill()` / `await distill()` at start of each thought cycle per FR-007
-- [ ] T028 [US2] Wire `MemoStore` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `memo_store: Optional[MemoStore] = None` parameter to `__init__()`, call `inject_relevant_memos()` before LLM context build, call `store_memo()` on task completion per FR-008/FR-009
-- [ ] T029 [US2] Create `promptchain/utils/janitor_agent.py`: implement `JanitorAgent` class with `start()`, `stop()`, `_monitor_loop()` as specified in `contracts/context-memory.md`; uses `asyncio.Task` for non-blocking background monitoring per FR-010
+- [x] T027 [US2] Wire `ContextDistiller` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `context_distiller: Optional[ContextDistiller] = None` parameter to `__init__()`, call `should_distill()` / `await distill()` at start of each thought cycle per FR-007
+- [x] T028 [US2] Wire `MemoStore` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `memo_store: Optional[MemoStore] = None` parameter to `__init__()`, call `inject_relevant_memos()` before LLM context build, call `store_memo()` on task completion per FR-008/FR-009
+- [x] T029 [US2] Create `promptchain/utils/janitor_agent.py`: implement `JanitorAgent` class with `start()`, `stop()`, `_monitor_loop()` as specified in `contracts/context-memory.md`; uses `asyncio.Task` for non-blocking background monitoring per FR-010
 - [x] T030 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_interrupt_checked_each_thought_cycle` — submit steering interrupt, run 3-step agentic task, assert interrupt processed by step 2
 - [x] T031 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_abort_interrupt_halts_execution` — submit `ABORT` interrupt, assert `AgenticStepResult.status == "aborted"` returned without further LLM calls
 - [x] T032 [P] [US3] Write test in `tests/unit/test_interrupt_queue_integration.py`: `test_steering_message_injected_into_context` — submit steering interrupt, assert interrupt text present in messages passed to LLM
@@ -45,10 +45,10 @@
 - [x] T034 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_rewind_to_checkpoint_restores_state` — save checkpoint, modify conversation, rewind, assert conversation matches checkpoint snapshot
 - [x] T035 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_global_override_replaces_prompt` — subscribe `AgenticStepProcessor` to `"agent.global_override"` topic, publish override, assert active prompt updated at next cycle
 - [x] T036 [P] [US3] Write test in `tests/integration/test_006_steering_flow.py`: `test_tui_interrupt_command_enqueues_without_blocking` — call `handle_interrupt_command("steering", "msg")`, assert enqueued, assert returns < 10 ms
-- [ ] T037 [US3] Wire `InterruptQueue` + `InterruptHandler` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `interrupt_queue: Optional[InterruptQueue] = None` to `__init__()`, call `check_and_handle_interrupt()` at start of each thought cycle, handle abort/steering/correction/clarification actions per FR-011
-- [ ] T038 [US3] Add `MicroCheckpoint` dataclass to `promptchain/utils/checkpoint_manager.py` per `data-model.md` schema; add `_save_micro_checkpoint()` and `rewind_to_last_checkpoint()` methods to `EnhancedAgenticStepProcessor` in `promptchain/utils/enhanced_agentic_step_processor.py`; call save after each successful tool call per FR-013
-- [ ] T039 [US3] Add `send_global_override()` method and `"agent.global_override"` topic handling to `promptchain/cli/communication/message_bus.py`; wire `_handle_override()` subscription into `AgenticStepProcessor` per FR-014
-- [ ] T040 [US3] Add `handle_interrupt_command()` to `promptchain/cli/tui/app.py` TUI input handler: non-blocking `submit_interrupt()` call to global `InterruptQueue` per FR-012
+- [x] T037 [US3] Wire `InterruptQueue` + `InterruptHandler` into `promptchain/utils/enhanced_agentic_step_processor.py`: add `interrupt_queue: Optional[InterruptQueue] = None` to `__init__()`, call `check_and_handle_interrupt()` at start of each thought cycle, handle abort/steering/correction/clarification actions per FR-011
+- [x] T038 [US3] Add `MicroCheckpoint` dataclass to `promptchain/utils/checkpoint_manager.py` per `data-model.md` schema; add `_save_micro_checkpoint()` and `rewind_to_last_checkpoint()` methods to `EnhancedAgenticStepProcessor` in `promptchain/utils/enhanced_agentic_step_processor.py`; call save after each successful tool call per FR-013
+- [x] T039 [US3] Add `send_global_override()` method and `"agent.global_override"` topic handling to `promptchain/cli/communication/message_bus.py`; wire `_handle_override()` subscription into `AgenticStepProcessor` per FR-014
+- [x] T040 [US3] Add `handle_interrupt_command()` to `promptchain/cli/tui/app.py` TUI input handler: non-blocking `submit_interrupt()` call to global `InterruptQueue` per FR-012
 - [x] T041 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_send_receive_normal_priority` — send `InboxMessage(priority=1, topic="task", payload="x")`, receive, assert payload matches
 - [x] T042 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_priority_ordering` — send priority-2 then priority-0 messages, assert priority-0 received first
 - [x] T043 [P] [US4] Write test in `tests/unit/test_async_agent_inbox.py`: `test_try_receive_returns_none_when_empty` — call `try_receive()` on empty inbox, assert `None` returned without blocking
@@ -56,19 +56,19 @@
 - [x] T045 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_subscriber_exception_does_not_propagate` — subscriber raises exception, publish still returns without error
 - [x] T046 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_unsubscribe_removes_callback` — subscribe, unsubscribe, publish, assert callback NOT called
 - [x] T047 [P] [US4] Write test in `tests/unit/test_pubsub_bus.py`: `test_publish_sync_works_from_non_async_context` — call `publish_sync()` from plain function, assert subscriber received payload
-- [ ] T048 [US4] Create `promptchain/utils/async_agent_inbox.py`: implement `InboxMessage` dataclass and `AsyncAgentInbox` class using `asyncio.PriorityQueue` per `contracts/async-execution.md` and `data-model.md`
-- [ ] T049 [US4] Add `PubSubBus` class to `promptchain/cli/communication/message_bus.py`: `subscribe()`, `unsubscribe()`, `publish()` (async, `asyncio.gather` fan-out, per-subscriber error isolation), `publish_sync()` wrapper per FR-017 / `contracts/async-execution.md`
-- [ ] T050 [US4] Refactor LLM calls in `promptchain/utils/agentic_step_processor.py` and `promptchain/utils/enhanced_agentic_step_processor.py`: replace any `litellm.completion()` calls in async contexts with `await litellm.acompletion()` per FR-015
-- [ ] T051 [US4] Add optional `inbox: Optional[AsyncAgentInbox] = None` parameter to `EnhancedAgenticStepProcessor.__init__()` in `promptchain/utils/enhanced_agentic_step_processor.py`; integrate inbox message polling alongside interrupt queue check per FR-016
-- [ ] T052 [P] Run `pytest tests/integration/test_006_bug_fixes.py tests/integration/test_006_steering_flow.py tests/unit/ -v` and confirm all tests green; record results in `specs/006-promptchain-improvements/test-results.md`
-- [ ] T053 [P] Validate SC-001: exercise Gemini tools, TUI event loop, JSON parser with integration tests; confirm zero errors
-- [ ] T054 [P] Validate SC-004: run token consumption baseline (truncation-only) vs distillation path; confirm ≥30% reduction documented in `specs/006-promptchain-improvements/test-results.md`
-- [ ] T055 [P] Validate SC-005: time interrupt submission to LLM context inclusion; confirm ≤2 s acknowledgment in `tests/integration/test_006_steering_flow.py::test_interrupt_ack_latency`
-- [ ] T056 [P] Validate SC-006: two-agent parallel benchmark; confirm <5% I/O overhead; add `tests/integration/test_006_concurrency.py::test_two_agent_overhead`
-- [ ] T057 Update `CLAUDE.md` "Recent Changes" section to record 006-promptchain-improvements as complete
-- [ ] T058 [P] Update `promptchain/__init__.py` exports to expose `AsyncAgentInbox`, `PubSubBus`, `JanitorAgent`, `MemoStore`, `InterruptQueue` at top-level package per library-first principle
-- [ ] T059 [P] Run `black . && isort . && flake8 promptchain/` and fix any linting issues in new/modified files
-- [ ] T060 Run `mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py` and resolve all type errors
+- [x] T048 [US4] Create `promptchain/utils/async_agent_inbox.py`: implement `InboxMessage` dataclass and `AsyncAgentInbox` class using `asyncio.PriorityQueue` per `contracts/async-execution.md` and `data-model.md`
+- [x] T049 [US4] Add `PubSubBus` class to `promptchain/cli/communication/message_bus.py`: `subscribe()`, `unsubscribe()`, `publish()` (async, `asyncio.gather` fan-out, per-subscriber error isolation), `publish_sync()` wrapper per FR-017 / `contracts/async-execution.md`
+- [x] T050 [US4] Refactor LLM calls in `promptchain/utils/agentic_step_processor.py` and `promptchain/utils/enhanced_agentic_step_processor.py`: replace any `litellm.completion()` calls in async contexts with `await litellm.acompletion()` per FR-015
+- [x] T051 [US4] Add optional `inbox: Optional[AsyncAgentInbox] = None` parameter to `EnhancedAgenticStepProcessor.__init__()` in `promptchain/utils/enhanced_agentic_step_processor.py`; integrate inbox message polling alongside interrupt queue check per FR-016
+- [x] T052 [P] Run `pytest tests/integration/test_006_bug_fixes.py tests/integration/test_006_steering_flow.py tests/unit/ -v` and confirm all tests green; record results in `specs/006-promptchain-improvements/test-results.md`
+- [x] T053 [P] Validate SC-001: exercise Gemini tools, TUI event loop, JSON parser with integration tests; confirm zero errors
+- [x] T054 [P] Validate SC-004: run token consumption baseline (truncation-only) vs distillation path; confirm ≥30% reduction documented in `specs/006-promptchain-improvements/test-results.md`
+- [x] T055 [P] Validate SC-005: time interrupt submission to LLM context inclusion; confirm ≤2 s acknowledgment in `tests/integration/test_006_steering_flow.py::test_interrupt_ack_latency`
+- [x] T056 [P] Validate SC-006: two-agent parallel benchmark; confirm <5% I/O overhead; add `tests/integration/test_006_concurrency.py::test_two_agent_overhead`
+- [x] T057 Update `CLAUDE.md` "Recent Changes" section to record 006-promptchain-improvements as complete
+- [x] T058 [P] Update `promptchain/__init__.py` exports to expose `AsyncAgentInbox`, `PubSubBus`, `JanitorAgent`, `MemoStore`, `InterruptQueue` at top-level package per library-first principle
+- [x] T059 [P] Run `black . && isort . && flake8 promptchain/` and fix any linting issues in new/modified files
+- [x] T060 Run `mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py` and resolve all type errors
 - [P] tasks = different files or disjoint changes, no blocking inter-dependencies
 - [Story] label maps each task to its user story for traceability
 

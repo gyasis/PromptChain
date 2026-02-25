@@ -7,16 +7,15 @@ FR-018: System MUST support message types: request, response, broadcast, delegat
 FR-019: Activity logger MUST capture all communication for debugging
 """
 
-from dataclasses import dataclass, field
+import asyncio
+import json
+import logging
+import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
-from enum import Enum
-import uuid
-import asyncio
-import logging
-import json
 
-from .handlers import HandlerRegistry, MessageType, get_handler_registry
+from .handlers import MessageType, get_handler_registry
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class Message:
         sender: str,
         receiver: str,
         message_type: MessageType,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
     ) -> "Message":
         """Create a new message with auto-generated ID and timestamp."""
         return cls(
@@ -52,7 +51,7 @@ class Message:
             receiver=receiver,
             type=message_type,
             payload=payload,
-            timestamp=datetime.now().timestamp()
+            timestamp=datetime.now().timestamp(),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -64,7 +63,7 @@ class Message:
             "type": self.type.value,
             "payload": self.payload,
             "timestamp": self.timestamp,
-            "delivered": self.delivered
+            "delivered": self.delivered,
         }
 
     @classmethod
@@ -77,7 +76,7 @@ class Message:
             type=MessageType(data["type"]),
             payload=data.get("payload", {}),
             timestamp=data["timestamp"],
-            delivered=data.get("delivered", False)
+            delivered=data.get("delivered", False),
         )
 
 
@@ -91,7 +90,7 @@ class MessageBus:
     def __init__(
         self,
         session_id: str,
-        activity_logger: Optional[Callable[[Dict[str, Any]], None]] = None
+        activity_logger: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         """
         Initialize message bus.
@@ -112,7 +111,7 @@ class MessageBus:
             "event_type": event_type,
             "session_id": self.session_id,
             "timestamp": datetime.now().isoformat(),
-            **data
+            **data,
         }
 
         logger.debug(f"Activity: {event_type} - {json.dumps(data, default=str)}")
@@ -128,7 +127,7 @@ class MessageBus:
         sender: str,
         receiver: str,
         message_type: MessageType,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
     ) -> Message:
         """
         Send a message to a specific receiver.
@@ -144,27 +143,31 @@ class MessageBus:
         """
         message = Message.create(sender, receiver, message_type, payload)
 
-        self._log_activity("message_sent", {
-            "message_id": message.message_id,
-            "sender": sender,
-            "receiver": receiver,
-            "type": message_type.value,
-            "payload_keys": list(payload.keys())
-        })
+        self._log_activity(
+            "message_sent",
+            {
+                "message_id": message.message_id,
+                "sender": sender,
+                "receiver": receiver,
+                "type": message_type.value,
+                "payload_keys": list(payload.keys()),
+            },
+        )
 
         # Dispatch to handlers
-        results = await self._registry.dispatch(
-            message_type, sender, receiver, payload
-        )
+        results = await self._registry.dispatch(message_type, sender, receiver, payload)
 
         message.delivered = len(results) > 0
         self._message_history.append(message)
 
-        self._log_activity("message_delivered", {
-            "message_id": message.message_id,
-            "handlers_invoked": len(results),
-            "delivered": message.delivered
-        })
+        self._log_activity(
+            "message_delivered",
+            {
+                "message_id": message.message_id,
+                "handlers_invoked": len(results),
+                "delivered": message.delivered,
+            },
+        )
 
         return message
 
@@ -172,7 +175,7 @@ class MessageBus:
         self,
         sender: str,
         payload: Dict[str, Any],
-        message_type: MessageType = MessageType.BROADCAST
+        message_type: MessageType = MessageType.BROADCAST,
     ) -> Message:
         """
         Broadcast a message to all agents.
@@ -189,41 +192,29 @@ class MessageBus:
             sender=sender,
             receiver="*",  # Broadcast indicator
             message_type=message_type,
-            payload=payload
+            payload=payload,
         )
 
     async def request(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a request message."""
         return await self.send(sender, receiver, MessageType.REQUEST, payload)
 
     async def respond(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a response message."""
         return await self.send(sender, receiver, MessageType.RESPONSE, payload)
 
     async def delegate(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a delegation message."""
         return await self.send(sender, receiver, MessageType.DELEGATION, payload)
 
     async def status_update(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a status update message."""
         return await self.send(sender, receiver, MessageType.STATUS, payload)
@@ -233,7 +224,7 @@ class MessageBus:
         sender: Optional[str] = None,
         receiver: Optional[str] = None,
         message_type: Optional[MessageType] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Message]:
         """
         Get message history with optional filters.
@@ -294,14 +285,14 @@ class MessageBus:
         if not hasattr(self, "_pubsub"):
             self._pubsub = PubSubBus()
         await self._pubsub.publish(
-            "agent.global_override",
-            {"prompt": new_prompt, "sender_id": sender_id}
+            "agent.global_override", {"prompt": new_prompt, "sender_id": sender_id}
         )
 
 
 # ---------------------------------------------------------------------------
 # PubSubBus — async publish-subscribe bus for agent coordination (FR-017)
 # ---------------------------------------------------------------------------
+
 
 class PubSubBus:
     """

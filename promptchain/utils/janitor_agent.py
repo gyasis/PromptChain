@@ -117,8 +117,11 @@ class JanitorAgent:
             logger.debug("JanitorAgent.start() called but task is already running.")
             return
         self._task = asyncio.create_task(self._monitor_loop())
-        logger.debug("JanitorAgent started (check_interval=%.2fs, threshold=%.0f%%).",
-                     self.check_interval, self.compression_threshold * 100)
+        logger.debug(
+            "JanitorAgent started (check_interval=%.2fs, threshold=%.0f%%).",
+            self.check_interval,
+            self.compression_threshold * 100,
+        )
 
     async def stop(self) -> None:
         """Cancel and await the background monitoring task.
@@ -154,9 +157,7 @@ class JanitorAgent:
         if not max_tokens:  # None or 0 → no limit
             return False
 
-        current_tokens: int = getattr(
-            self.history_manager, "_current_token_count", 0
-        )
+        current_tokens: int = getattr(self.history_manager, "_current_token_count", 0)
         ratio = current_tokens / max_tokens
         return ratio >= self.compression_threshold
 

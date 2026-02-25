@@ -16,19 +16,19 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-
 # ---------------------------------------------------------------------------
 # Priority level constants (FR-016)
 # ---------------------------------------------------------------------------
 
-PRIORITY_INTERRUPT = 0    # Highest urgency — interrupt / abort signals
-PRIORITY_NORMAL = 1       # Regular agent messages
-PRIORITY_BACKGROUND = 2   # Background info / low-urgency notifications
+PRIORITY_INTERRUPT = 0  # Highest urgency — interrupt / abort signals
+PRIORITY_NORMAL = 1  # Regular agent messages
+PRIORITY_BACKGROUND = 2  # Background info / low-urgency notifications
 
 
 # ---------------------------------------------------------------------------
 # InboxMessage dataclass
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class InboxMessage:
@@ -66,6 +66,7 @@ class InboxMessage:
 # ---------------------------------------------------------------------------
 # AsyncAgentInbox
 # ---------------------------------------------------------------------------
+
 
 class AsyncAgentInbox:
     """
