@@ -170,19 +170,27 @@ class BackgroundLogger:
             return False
 
     def shutdown(self, timeout: float = 5.0) -> None:
-        """Gracefully shutdown background worker.
+        """Gracefully shutdown background worker, flushing pending items first.
+
+        Fixes FR-004: flush() is now called before worker.join() so that
+        queued items are drained before the worker thread is stopped.
+        Shutdown remains bounded: if the server is unresponsive the method
+        still returns within ``timeout`` seconds.
 
         Args:
-            timeout: Maximum seconds to wait for worker to finish
+            timeout: Maximum seconds to wait for both flush and worker join
         """
         if not self.enabled or self.worker is None:
             return
 
         logger.info("Shutting down background logger...")
 
-        # Signal shutdown and wait for worker
+        # Signal shutdown so the worker stops accepting new loop iterations,
+        # but drain the queue BEFORE joining so no queued items are lost.
         self.shutdown_flag.set()
-        self.worker.join(timeout=timeout)
+        self.flush(timeout=timeout)          # drain first
+        if self.worker.is_alive():
+            self.worker.join(timeout=timeout)  # then wait for thread to exit
 
         if self.worker.is_alive():
             logger.warning("Background worker did not shutdown within timeout")

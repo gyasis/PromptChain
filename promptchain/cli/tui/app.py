@@ -3765,3 +3765,40 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         except Exception as e:
             # Log error but don't prevent exit
             self.error_handler.logger.error(f"Error saving session on exit: {str(e)}")
+
+    def handle_interrupt_command(self, interrupt_type: str, message: str) -> None:
+        """Non-blocking interrupt submission from TUI input handler.
+
+        FR-012: enqueue without blocking the event loop.
+
+        Looks for an ``interrupt_queue`` attribute (public) or
+        ``_interrupt_queue`` attribute (private) on the app instance and
+        delegates to ``submit_interrupt``.
+
+        Args:
+            interrupt_type: String name of ``InterruptType`` enum member
+                            (e.g. ``"steering"``, ``"abort"``).
+            message: Human-readable interrupt message.
+        """
+        from promptchain.utils.interrupt_queue import InterruptQueue, InterruptType
+
+        # Resolve the queue from either public or private attribute
+        iq: Optional[InterruptQueue] = getattr(
+            self, "interrupt_queue",
+            getattr(self, "_interrupt_queue", None)
+        )
+        if iq is None:
+            logger.warning(
+                "handle_interrupt_command: no interrupt_queue attached to app; "
+                "interrupt dropped (type=%r, message=%r)",
+                interrupt_type,
+                message,
+            )
+            return
+
+        try:
+            itype = InterruptType[interrupt_type.upper()]
+        except KeyError:
+            itype = InterruptType.STEERING
+
+        iq.submit_interrupt(itype, message)

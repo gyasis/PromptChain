@@ -24,77 +24,104 @@ class JSONParseError(Exception):
     pass
 
 
+logger = logging.getLogger(__name__)
+
+# Sentinel used to distinguish "caller passed no default" from passing None.
+_SENTINEL = object()
+
+
 class JSONOutputParser:
     """
     Parse and extract values from MCP tool JSON outputs.
-    
+
     Supports:
-    - JSON path extraction: extract("results[0].id")
-    - Default values: extract("missing_key", default="fallback")
-    - Type conversion: extract("count", convert_type=int)
-    - Batch extraction: extract_multiple({"id": "results[0].id", "title": "results[0].metadata.title"})
+    - Simple JSON text parsing: extract(text) → parsed object or self.default
+    - JSON path extraction: extract(data, path="results[0].id")
+    - Default values: extract(data, path="missing_key", default="fallback")
+    - Type conversion: extract(data, path="count", convert_type=int)
+    - Batch extraction: extract_multiple({"id": "results[0].id", ...})
+
+    The ``default`` parameter supplied at construction time is used as the
+    fallback whenever ``extract()`` is called without an explicit per-call
+    default AND whenever an unexpected exception occurs.  ``extract()`` is
+    guaranteed never to propagate an exception to its caller.
     """
-    
-    def __init__(self, verbose: bool = False):
+
+    def __init__(self, default: Any = None, verbose: bool = False):
         """
         Initialize JSON output parser.
-        
+
         Args:
-            verbose: Enable debug logging
+            default: Value returned when extraction fails and no per-call
+                     default is provided.  Defaults to ``None``.
+            verbose: Enable debug logging.
         """
+        self.default = default
         self.verbose = verbose
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         if verbose:
             self.logger.setLevel(logging.DEBUG)
-    
-    def extract(self, data: Any, path: str, default: Any = None, 
-               convert_type: Optional[type] = None) -> Any:
+
+    def extract(self, data: Any, path: str = "", default: Any = _SENTINEL,
+                convert_type: Optional[type] = None) -> Any:
         """
         Extract value from JSON data using path notation.
-        
+
+        This method is guaranteed to **never** raise an exception.  When
+        anything goes wrong the per-call ``default`` is returned if supplied,
+        otherwise ``self.default`` (set at construction time) is returned and
+        a WARNING is emitted.
+
         Args:
-            data: JSON data (dict, list, or string to parse)
-            path: Path to extract (e.g., "results[0].metadata.title")
-            default: Default value if path not found
-            convert_type: Type to convert result to
-            
+            data: JSON data (dict, list, or raw string to parse).  When
+                  ``path`` is empty the parsed ``data`` itself is returned.
+            path: Dot/bracket path to extract
+                  (e.g. ``"results[0].metadata.title"``).  Pass an empty
+                  string (the default) to return the fully-parsed ``data``.
+            default: Override the instance-level default for this call only.
+            convert_type: Type to convert the result to (e.g. ``int``).
+
         Returns:
-            Extracted value
-            
-        Raises:
-            JSONParseError: If extraction fails and no default provided
+            Extracted value, or the applicable default on any failure.
         """
+        # Resolve which default applies for this call.
+        call_default = self.default if default is _SENTINEL else default
+
         try:
-            # Parse JSON string if needed
+            # Parse JSON string if needed.
             if isinstance(data, str):
                 try:
                     data = json.loads(data)
                 except json.JSONDecodeError:
-                    if default is not None:
-                        return default
-                    raise JSONParseError(f"Invalid JSON string: {data}")
-            
-            # Extract value using path
+                    if call_default is not None:
+                        return call_default
+                    raise JSONParseError(f"Invalid JSON string: {data!r}")
+
+            # When no path is requested, return the parsed data directly.
+            if not path:
+                return data
+
+            # Extract value using path.
             value = self._extract_nested_value(data, path)
-            
-            if value is None and default is not None:
-                value = default
-            
-            # Convert type if requested
+
+            if value is None and call_default is not None:
+                value = call_default
+
+            # Convert type if requested.
             if convert_type and value is not None:
                 value = self._convert_type(value, convert_type)
-            
+
             if self.verbose:
                 self.logger.debug(f"Extracted '{path}': {value}")
-            
+
             return value
-            
-        except Exception as e:
-            if default is not None:
-                if self.verbose:
-                    self.logger.debug(f"Extraction failed for '{path}', using default: {default}")
-                return default
-            raise JSONParseError(f"Failed to extract '{path}': {e}")
+
+        except Exception as e:  # catch ALL exceptions — never propagate
+            self.logger.warning(
+                f"JSONOutputParser.extract() failed on input: {data!r}. "
+                f"Error: {e}. Returning default: {call_default!r}"
+            )
+            return call_default
     
     def extract_multiple(self, data: Any, extractions: Dict[str, str], 
                         defaults: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -262,7 +289,7 @@ class CommonExtractions:
         if not isinstance(data, dict):
             return {prefix: data}
         
-        template_vars = {prefix: data}
+        template_vars: Dict[str, Any] = {prefix: data}
         
         # Add common shortcuts for DeepLake responses
         if "results" in data and isinstance(data["results"], list):

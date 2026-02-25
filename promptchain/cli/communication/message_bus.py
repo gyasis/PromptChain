@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 # Re-export MessageType for convenience
-__all__ = ["MessageBus", "MessageType", "Message"]
+__all__ = ["MessageBus", "MessageType", "Message", "PubSubBus"]
 
 
 @dataclass
@@ -264,3 +264,136 @@ class MessageBus:
         count = len(self._message_history)
         self._message_history.clear()
         return count
+
+    async def subscribe(self, topic: str, callback: "Callable") -> None:
+        """Subscribe a callback to a pub/sub topic (delegates to internal PubSubBus)."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.subscribe(topic, callback)
+
+    async def unsubscribe(self, topic: str, callback: "Callable") -> None:
+        """Unsubscribe a callback from a pub/sub topic."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.unsubscribe(topic, callback)
+
+    async def publish_topic(self, topic: str, payload: "Any") -> None:
+        """Publish a payload to a pub/sub topic."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.publish(topic, payload)
+
+    async def send_global_override(self, new_prompt: str, sender_id: str = "") -> None:
+        """
+        Publish a global override to replace the active prompt (FR-014).
+
+        Args:
+            new_prompt: The new prompt/objective to broadcast.
+            sender_id: Identifier of the sender (e.g. TUI session ID).
+        """
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.publish(
+            "agent.global_override",
+            {"prompt": new_prompt, "sender_id": sender_id}
+        )
+
+
+# ---------------------------------------------------------------------------
+# PubSubBus — async publish-subscribe bus for agent coordination (FR-017)
+# ---------------------------------------------------------------------------
+
+class PubSubBus:
+    """
+    Async publish-subscribe bus for agent coordination.
+
+    FR-017: subscribe/unsubscribe/publish with per-subscriber error isolation.
+
+    Attributes:
+        _subscribers: Mapping from topic name to list of async callbacks.
+    """
+
+    def __init__(self) -> None:
+        self._subscribers: Dict[str, List[Callable]] = {}
+
+    async def subscribe(self, topic: str, callback: Callable) -> None:
+        """Register an async callback for *topic*. Idempotent.
+
+        Args:
+            topic: Topic string to subscribe to.
+            callback: Async callable that receives the published payload.
+        """
+        if topic not in self._subscribers:
+            self._subscribers[topic] = []
+        if callback not in self._subscribers[topic]:
+            self._subscribers[topic].append(callback)
+
+    async def unsubscribe(self, topic: str, callback: Callable) -> None:
+        """Remove a callback from *topic*. No-op if not registered.
+
+        Args:
+            topic: Topic string to unsubscribe from.
+            callback: The callback to remove.
+        """
+        if topic in self._subscribers:
+            try:
+                self._subscribers[topic].remove(callback)
+            except ValueError:
+                pass  # No-op if not registered
+
+    async def publish(self, topic: str, payload: Any) -> None:
+        """Deliver *payload* to all subscribers of *topic* concurrently.
+
+        Per-subscriber exceptions are caught and logged; they do NOT
+        propagate to the caller (FR-017 error isolation guarantee).
+
+        Args:
+            topic: Topic string to publish to.
+            payload: Payload delivered to each subscriber callback.
+        """
+        callbacks = list(self._subscribers.get(topic, []))
+
+        async def safe_call(cb: Callable) -> None:
+            try:
+                await cb(payload)
+            except Exception as exc:
+                logger.warning(
+                    "PubSubBus subscriber error on topic %r: %s",
+                    topic,
+                    exc,
+                )
+
+        await asyncio.gather(
+            *(safe_call(cb) for cb in callbacks),
+            return_exceptions=False,
+        )
+
+    def publish_sync(self, topic: str, payload: Any) -> None:
+        """Synchronous wrapper around :meth:`publish`.
+
+        Safe to call from a non-async context only.  Uses
+        ``asyncio.run()`` internally.
+
+        Args:
+            topic: Topic string to publish to.
+            payload: Payload delivered to each subscriber callback.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(self.publish(topic, payload))
+            else:
+                loop.run_until_complete(self.publish(topic, payload))
+        except RuntimeError:
+            asyncio.run(self.publish(topic, payload))
+
+    def send_global_override(self, new_prompt: str) -> None:
+        """Publish a global override to replace the active prompt (FR-014).
+
+        Convenience sync wrapper that publishes to the
+        ``"agent.global_override"`` topic.
+
+        Args:
+            new_prompt: The new prompt/objective string to broadcast.
+        """
+        self.publish_sync("agent.global_override", {"prompt": new_prompt})
