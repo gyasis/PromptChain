@@ -30,10 +30,10 @@ async def execute_speculate(context: str, ...) -> dict:
 ```
 
 **Acceptance Criteria**:
-- [ ] All 6 execute_* functions created
-- [ ] Each returns standardized dict with {success, result, error, execution_time_ms}
-- [ ] Functions work standalone without Click dependency
-- [ ] Graceful error handling for missing hybridrag
+- [x] All 6 execute_* functions created
+- [x] Each returns standardized dict with {success, result, error, execution_time_ms}
+- [x] Functions work standalone without Click dependency
+- [x] Graceful error handling for missing hybridrag
 
 ---
 
@@ -61,9 +61,9 @@ def branch(problem, count, mode, ...):
 ```
 
 **Acceptance Criteria**:
-- [ ] All 6 Click commands refactored
-- [ ] CLI behavior unchanged (same output)
-- [ ] `promptchain patterns --help` still works
+- [x] All 6 Click commands refactored
+- [x] CLI behavior unchanged (same output)
+- [x] `promptchain patterns --help` still works
 
 ---
 
@@ -88,9 +88,9 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
 ```
 
 **Acceptance Criteria**:
-- [ ] All 6 pattern commands in registry
-- [ ] Tab autocomplete works for `/bra` -> `/branch`
-- [ ] Help text accurate
+- [x] All 6 pattern commands in registry
+- [x] Tab autocomplete works for `/bra` -> `/branch`
+- [x] Help text accurate
 
 ---
 
@@ -133,10 +133,10 @@ async def _handle_pattern_branch(self, command: str):
 ```
 
 **Acceptance Criteria**:
-- [ ] All 6 pattern handlers implemented
-- [ ] Pattern results display in chat
-- [ ] Results added to session history
-- [ ] Progress indicator while executing
+- [x] All 6 pattern handlers implemented
+- [x] Pattern results display in chat
+- [x] Results added to session history
+- [x] Progress indicator while executing
 
 ---
 
@@ -162,10 +162,10 @@ def _parse_pattern_command(self, command: str, pattern_name: str) -> tuple[str, 
 ```
 
 **Acceptance Criteria**:
-- [ ] Handles quoted queries: `/branch "multi word query"`
-- [ ] Parses options: `--count=3 --mode=hybrid`
-- [ ] Returns (query, opts_dict)
-- [ ] Error message for malformed commands
+- [x] Handles quoted queries: `/branch "multi word query"`
+- [x] Parses options: `--count=3 --mode=hybrid`
+- [x] Returns (query, opts_dict)
+- [x] Error message for malformed commands
 
 ---
 
@@ -198,10 +198,10 @@ def _format_branch_result(self, result: dict) -> str:
 ```
 
 **Acceptance Criteria**:
-- [ ] All 6 pattern formatters
-- [ ] Markdown renders correctly in ChatView
-- [ ] Error states handled gracefully
-- [ ] Consistent formatting style
+- [x] All 6 pattern formatters
+- [x] Markdown renders correctly in ChatView
+- [x] Error states handled gracefully
+- [x] Consistent formatting style
 
 ---
 
@@ -228,9 +228,9 @@ async def _handle_pattern_branch(self, command: str):
 ```
 
 **Acceptance Criteria**:
-- [ ] Pattern events emit to session MessageBus
-- [ ] Pattern results written to session Blackboard
-- [ ] Works gracefully when session has no bus/blackboard
+- [x] Pattern events emit to session MessageBus
+- [x] Pattern results written to session Blackboard
+- [x] Works gracefully when session has no bus/blackboard
 
 ---
 
@@ -267,9 +267,9 @@ elif command == "/patterns" or command == "/patterns help":
 ```
 
 **Acceptance Criteria**:
-- [ ] `/patterns` shows help
-- [ ] All 6 commands documented with options
-- [ ] Mentions hybridrag requirement
+- [x] `/patterns` shows help
+- [x] All 6 commands documented with options
+- [x] Mentions hybridrag requirement
 
 ---
 

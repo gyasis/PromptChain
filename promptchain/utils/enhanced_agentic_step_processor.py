@@ -20,6 +20,7 @@ from typing import List, Dict, Any, Optional, Callable, Awaitable
 from dataclasses import dataclass
 from enum import Enum
 import asyncio
+import copy
 import logging
 import json
 
@@ -29,6 +30,8 @@ from .agentic_step_processor import (
 )
 from .memo_store import MemoStore, inject_relevant_memos
 from .interrupt_queue import InterruptQueue, InterruptHandler, InterruptType
+from .async_agent_inbox import AsyncAgentInbox, InboxMessage
+from .context_distiller import ContextDistiller
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +190,7 @@ class LogicVerifier:
         cache_key = f"{tool_name}:{hash(objective)}"
         if cache_key in self.verification_cache:
             logger.debug(f"Using cached verification for {cache_key}")
-            return self.verification_cache[cache_key]
+            return copy.deepcopy(self.verification_cache[cache_key])
 
         try:
             # Build RAG query
@@ -837,6 +840,8 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         verification_threshold: float = 0.6,
         memo_store: Optional[MemoStore] = None,
         interrupt_queue: Optional[InterruptQueue] = None,
+        inbox: Optional[AsyncAgentInbox] = None,
+        context_distiller: Optional[ContextDistiller] = None,
         **kwargs
     ):
         """
@@ -852,6 +857,10 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             verification_threshold: Minimum confidence for approval (0.0-1.0)
             memo_store: Optional MemoStore instance (created if None)
             interrupt_queue: Optional InterruptQueue instance (created if None)
+            inbox: Optional AsyncAgentInbox for priority-based inter-agent messaging (FR-016)
+            context_distiller: Optional ContextDistiller for automatic history compression
+                               (T027/T029). When provided, distill() is called at the start
+                               of each run_async invocation if should_distill() returns True.
             **kwargs: Additional arguments for parent AgenticStepProcessor
         """
         super().__init__(objective, max_internal_steps, **kwargs)
@@ -881,9 +890,25 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             self.interrupt_handler = InterruptHandler(self.interrupt_queue)
             logger.info("Created InterruptHandler instance")
 
+        # FR-016: AsyncAgentInbox for priority-based inter-agent messaging
+        self.inbox: Optional[AsyncAgentInbox] = inbox
+
+        # T027/T029: ContextDistiller for automatic history compression
+        self.context_distiller: Optional[ContextDistiller] = context_distiller
+
         # Lazy-initialized components (require MCP helper)
         self.logic_verifier: Optional[LogicVerifier] = None
         self.gemini_augmentor: Optional[GeminiReasoningAugmentor] = None
+
+        # FR-013: Micro-checkpoints keyed by tool_call_index (int -> MicroCheckpoint)
+        self._micro_checkpoints: Dict[int, Any] = {}
+        self._tool_call_counter: int = 0  # increments after each successful tool call
+
+        # FR-011: Pending steering messages to inject into the next LLM call
+        self._pending_steering_messages: List[Dict[str, Any]] = []
+
+        # FR-014: Active prompt for global override support
+        self._active_prompt: str = objective
 
         # Tracking
         self.verification_count = 0
@@ -911,6 +936,122 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         if self.enable_gemini_augmentation and self.gemini_augmentor is None:
             self.gemini_augmentor = GeminiReasoningAugmentor(mcp_helper)
             logger.info("GeminiReasoningAugmentor initialized")
+
+    # -------------------------------------------------------------------------
+    # FR-013: Micro-checkpoint save / rewind
+    # -------------------------------------------------------------------------
+
+    def _save_micro_checkpoint(
+        self,
+        checkpoint_id: str,
+        step_number: int,
+        tool_call_index: int,
+        conversation_snapshot: List[Dict[str, Any]],
+    ) -> None:
+        """Save a fine-grained checkpoint after a successful tool call.
+
+        The snapshot is stored as a deep copy so that subsequent mutations of
+        the live conversation list do not corrupt the checkpoint data.
+
+        Args:
+            checkpoint_id:         Unique identifier for this checkpoint.
+            step_number:           Reasoning-loop iteration index when the
+                                   checkpoint was taken.
+            tool_call_index:       0-based index of the tool call that just
+                                   completed successfully.
+            conversation_snapshot: The message list to snapshot (deep-copied).
+        """
+        from .checkpoint_manager import MicroCheckpoint
+
+        cp = MicroCheckpoint(
+            checkpoint_id=checkpoint_id,
+            step_number=step_number,
+            tool_call_index=tool_call_index,
+            conversation_snapshot=copy.deepcopy(conversation_snapshot),
+        )
+        self._micro_checkpoints[tool_call_index] = cp
+        logger.debug(
+            f"[MicroCheckpoint] Saved checkpoint '{checkpoint_id}' "
+            f"at tool_call_index={tool_call_index}, step={step_number}"
+        )
+
+    def rewind_to_last_checkpoint(self) -> Optional[Any]:
+        """Restore ``self.conversation_history`` to the most recent micro-checkpoint.
+
+        Finds the checkpoint with the highest ``tool_call_index`` (i.e., the
+        most recently saved one), deep-copies its ``conversation_snapshot`` back
+        into ``self.conversation_history``, and returns the checkpoint object.
+
+        Returns:
+            The ``MicroCheckpoint`` that was restored, or ``None`` if no
+            checkpoints have been saved yet.
+        """
+        if not self._micro_checkpoints:
+            logger.warning(
+                "[MicroCheckpoint] rewind_to_last_checkpoint called but no checkpoints exist"
+            )
+            return None
+
+        last_index = max(self._micro_checkpoints.keys())
+        cp = self._micro_checkpoints[last_index]
+
+        self.conversation_history = copy.deepcopy(cp.conversation_snapshot)
+
+        logger.info(
+            f"[MicroCheckpoint] Rewound to checkpoint '{cp.checkpoint_id}' "
+            f"(tool_call_index={cp.tool_call_index}, step={cp.step_number}). "
+            f"conversation_history now has {len(self.conversation_history)} messages."
+        )
+        return cp
+
+    # -------------------------------------------------------------------------
+    # FR-014: Global override — subscribe/handle
+    # -------------------------------------------------------------------------
+
+    async def _handle_override(self, payload: Any) -> None:
+        """Handle a global override message published to 'agent.global_override'.
+
+        Updates ``_active_prompt`` (and ``objective``) so the next thought cycle
+        uses the new prompt.
+
+        Args:
+            payload: Dict with key ``"prompt"`` (the new objective string) and
+                     optionally ``"sender_id"``.
+        """
+        if isinstance(payload, dict):
+            new_prompt = payload.get("prompt", "")
+        else:
+            new_prompt = str(payload)
+
+        if new_prompt:
+            self._active_prompt = new_prompt
+            self.objective = new_prompt
+            logger.info(
+                "[GlobalOverride] Active prompt updated to: %r",
+                new_prompt[:80],
+            )
+
+    def subscribe_to_override(self, bus: Any) -> None:
+        """Wire this processor to receive global overrides from *bus*.
+
+        Calls ``bus.subscribe("agent.global_override", self._handle_override)``
+        using whatever event loop is available.
+
+        Args:
+            bus: A ``MessageBus`` (or ``PubSubBus``) instance that has a
+                 ``subscribe(topic, callback)`` coroutine.
+        """
+        import asyncio as _asyncio
+
+        coro = bus.subscribe("agent.global_override", self._handle_override)
+        try:
+            loop = _asyncio.get_event_loop()
+            if loop.is_running():
+                _asyncio.ensure_future(coro)
+            else:
+                loop.run_until_complete(coro)
+        except RuntimeError:
+            _asyncio.run(coro)
 
     def _assess_decision_complexity(
         self,
@@ -943,6 +1084,42 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
 
         # Simple decisions
         return DecisionComplexity.SIMPLE
+
+    async def run_async(
+        self,
+        initial_input: str,
+        available_tools: List[Dict[str, Any]],
+        llm_runner: Callable[..., Awaitable[Any]],
+        tool_executor: Callable[[Any], Awaitable[str]],
+        **kwargs,
+    ):
+        """Override run_async to inject ContextDistiller check at start of each run.
+
+        T027/T029: If a ContextDistiller is configured and reports that the
+        conversation history has exceeded its token threshold, distill() is
+        called before the thought cycle begins.  Distiller failures are caught
+        and logged; the processor continues with the original history.
+
+        All other arguments are forwarded unchanged to the parent implementation.
+        """
+        if self.context_distiller is not None:
+            try:
+                if self.context_distiller.should_distill(self):
+                    await self.context_distiller.distill(self)
+            except Exception as exc:
+                logger.warning(
+                    "EnhancedAgenticStepProcessor.run_async: distiller raised "
+                    "unexpectedly — history left unchanged. Error: %s",
+                    exc,
+                )
+
+        return await super().run_async(
+            initial_input=initial_input,
+            available_tools=available_tools,
+            llm_runner=llm_runner,
+            tool_executor=tool_executor,
+            **kwargs,
+        )
 
     async def run_async_with_verification(
         self,
@@ -1021,12 +1198,35 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                     elif action in ["steering", "correction", "clarification"]:
                         interrupt_context = self.interrupt_handler.format_interrupt_for_llm(interrupt_result)
                         logger.info(f"User {action} at step {current_step}: {interrupt_result['message'][:100]}...")
-                        # Note: The interrupt context would ideally be injected into the LLM's next call
-                        # For now, we log it and continue with execution
+                        # FR-011: Store steering message for injection into the next LLM call.
+                        # The wrapped llm_runner below will prepend this as a system message
+                        # so the agent can act on the user guidance.
+                        self._pending_steering_messages.append({
+                            "role": "system",
+                            "content": f"[STEERING] {interrupt_result['message']}"
+                        })
+
+            # Poll inbox for high-priority messages (FR-016)
+            if self.inbox:
+                inbox_msg = await self.inbox.try_receive()
+                if inbox_msg:
+                    logger.debug(
+                        f"Agent inbox message: topic={inbox_msg.topic}, "
+                        f"payload={inbox_msg.payload}"
+                    )
 
             if not (self.enable_rag_verification or self.enable_gemini_augmentation):
-                # No verification - use original executor
-                return await original_executor(tool_call)
+                # No verification - use original executor but still checkpoint
+                result = await original_executor(tool_call)
+                current_index = self._tool_call_counter
+                self._save_micro_checkpoint(
+                    checkpoint_id=f"tcp_{current_index}_{int(__import__('time').time())}",
+                    step_number=getattr(self, '_current_step', 0),
+                    tool_call_index=current_index,
+                    conversation_snapshot=list(getattr(self, 'conversation_history', [])),
+                )
+                self._tool_call_counter += 1
+                return result
 
             # Get tool details
             function_name = get_function_name_from_tool_call(tool_call)
@@ -1094,6 +1294,18 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             # Execute tool
             result = await original_executor(tool_call)
 
+            # FR-013: Save micro-checkpoint after each successful tool call.
+            # The snapshot captures conversation_history at this point so that
+            # rewind_to_last_checkpoint() can restore it if needed.
+            current_index = self._tool_call_counter
+            self._save_micro_checkpoint(
+                checkpoint_id=f"tcp_{current_index}_{int(__import__('time').time())}",
+                step_number=getattr(self, '_current_step', 0),
+                tool_call_index=current_index,
+                conversation_snapshot=list(getattr(self, 'conversation_history', [])),
+            )
+            self._tool_call_counter += 1
+
             # Post-execution verification
             if self.enable_gemini_augmentation and self.gemini_augmentor:
                 result_verification = await self.gemini_augmentor.verify_tool_result(
@@ -1107,11 +1319,74 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
 
             return result
 
+        # FR-011: Wrap llm_runner to inject pending steering messages before each call.
+        # When a STEERING interrupt is captured in verified_tool_executor, the message
+        # is stored in self._pending_steering_messages. This wrapper drains that list
+        # and prepends each message to the messages list so the LLM can act on the
+        # user's guidance in its very next thought cycle.
+        original_llm_runner = llm_runner
+
+        async def steering_aware_llm_runner(messages, tools=None, tool_choice=None):
+            if self._pending_steering_messages:
+                injected = list(self._pending_steering_messages)
+                self._pending_steering_messages.clear()
+                messages = list(injected) + list(messages)
+                logger.info(
+                    f"[Steering] Injected {len(injected)} steering message(s) into LLM context"
+                )
+            raw_response = await original_llm_runner(messages, tools=tools, tool_choice=tool_choice)
+
+            # Normalize non-dict responses into a plain dict so the parent's
+            # run_async can safely call json.dumps() during debug logging
+            # (e.g. when tests pass MagicMock objects as llm_runner responses).
+            if raw_response is not None and not isinstance(raw_response, dict):
+                tool_calls_raw = getattr(raw_response, "tool_calls", None)
+                content = getattr(raw_response, "content", None)
+
+                # Normalise each tool call object into the plain dict shape the
+                # parent expects: {id, type, function: {name, arguments}}.
+                # All values must be plain Python scalars (str/None) so that the
+                # parent's debug logging path (json.dumps(response_message)) does
+                # not raise TypeError when test doubles (MagicMock) are used.
+                if tool_calls_raw:
+                    normalised_tcs = []
+                    for tc in tool_calls_raw:
+                        if isinstance(tc, dict):
+                            normalised_tcs.append(tc)
+                        else:
+                            func_obj = getattr(tc, "function", None)
+                            # Safely extract str values; MagicMock attributes are
+                            # truthy non-strings, so we guard with isinstance.
+                            raw_name = getattr(func_obj, "name", None) if func_obj else None
+                            tc_name = raw_name if isinstance(raw_name, str) else ""
+                            raw_args = getattr(func_obj, "arguments", None) if func_obj else None
+                            tc_args = raw_args if isinstance(raw_args, str) else "{}"
+                            raw_id = getattr(tc, "id", None)
+                            tc_id = raw_id if isinstance(raw_id, str) else f"call_{tc_name}"
+                            normalised_tcs.append({
+                                "id": tc_id,
+                                "type": "function",
+                                "function": {"name": tc_name, "arguments": tc_args},
+                            })
+                    tool_calls_raw = normalised_tcs
+
+                # Safely extract content; guard against MagicMock values.
+                raw_content = content
+                safe_content = raw_content if isinstance(raw_content, (str, type(None))) else ""
+
+                raw_response = {
+                    "role": "assistant",
+                    "content": safe_content if safe_content is not None else "",
+                    "tool_calls": tool_calls_raw,
+                }
+
+            return raw_response
+
         # Call parent's run_async with wrapped executor
         result = await super().run_async(
             initial_input=enhanced_input,  # Use enhanced input with memos
             available_tools=available_tools,
-            llm_runner=llm_runner,
+            llm_runner=steering_aware_llm_runner,
             tool_executor=verified_tool_executor,
             **kwargs
         )

@@ -29,6 +29,8 @@ import logging
 import time
 from typing import Any, Dict, Optional, Union
 
+from promptchain.cli.utils.event_loop_manager import run_async_in_context
+
 from .models import ExecutionMetrics, ToolExecutionContext, ToolResult
 from .registry import ToolMetadata, ToolNotFoundError, ToolRegistry, ToolValidationError
 from .safety import SafetyValidator, SecurityError
@@ -129,8 +131,9 @@ class ToolExecutor:
             # Execute tool (handle sync/async)
             exec_start = time.perf_counter()
             if asyncio.iscoroutinefunction(tool.function):
-                # Run async function in new event loop
-                result = asyncio.run(tool.function(**validated_params))
+                # Use run_async_in_context to safely handle both TUI (loop
+                # already running) and CLI (no loop) contexts per FR-002
+                result = run_async_in_context(tool.function(**validated_params))
             else:
                 # Direct sync execution
                 result = tool.function(**validated_params)

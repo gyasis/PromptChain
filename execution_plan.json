@@ -1,0 +1,817 @@
+{
+  "metadata": {
+    "branch": "006-promptchain-improvements",
+    "phase": "PromptChain Comprehensive Improvements",
+    "generated_at": "2026-02-25T03:06:52-05:00",
+    "total_tasks": 61,
+    "total_waves": 7,
+    "notes": "Tasks marked [P] in tasks.md can run in parallel within their wave. File ownership must be assigned to prevent edit conflicts. TDD discipline is mandatory: tests MUST fail RED before implementation."
+  },
+  "execution_plan": {
+    "phase_id": "PromptChain Comprehensive Improvements",
+    "current_wave": 1,
+    "waves": [
+      {
+        "wave_id": 1,
+        "name": "Phase 1: Setup",
+        "strategy": "SEQUENTIAL_MERGE",
+        "description": "Branch creation then parallel test file stub creation. T001 must complete before T002/T003 can run.",
+        "tasks": [
+          {
+            "id": "T001",
+            "description": "Create feature branch 006-promptchain-improvements from main",
+            "files": [],
+            "agent": "general-purpose",
+            "parallelizable": false,
+            "story": null,
+            "notes": "Must run first — T002 and T003 require the branch to exist"
+          },
+          {
+            "id": "T002",
+            "description": "Create tests/unit/ subdirectory stubs: test_interrupt_queue_integration.py, test_memo_store_integration.py, test_context_distiller_wiring.py, test_pubsub_bus.py, test_async_agent_inbox.py, test_janitor_agent.py",
+            "files": [
+              "tests/unit/test_interrupt_queue_integration.py",
+              "tests/unit/test_memo_store_integration.py",
+              "tests/unit/test_context_distiller_wiring.py",
+              "tests/unit/test_pubsub_bus.py",
+              "tests/unit/test_async_agent_inbox.py",
+              "tests/unit/test_janitor_agent.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": null,
+            "notes": "Parallel with T003 after T001 — different files, no conflicts"
+          },
+          {
+            "id": "T003",
+            "description": "Create tests/integration/test_006_bug_fixes.py and tests/integration/test_006_steering_flow.py with empty test class skeletons",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py",
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": null,
+            "notes": "Parallel with T002 after T001 — different files, no conflicts"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "Branch 006-promptchain-improvements exists; all 8 test stub files created with empty class skeletons; pytest discovers but skips all",
+          "commit_message": "feat(006): Phase 1 Setup complete - branch and test stubs"
+        }
+      },
+      {
+        "wave_id": 2,
+        "name": "Phase 2: Foundational Fixes",
+        "strategy": "PARALLEL_SWARM",
+        "description": "Cross-cutting fixes across 4 different files — all tasks run in parallel. CRITICAL: blocks all user story work. No US work begins until this wave completes.",
+        "tasks": [
+          {
+            "id": "T004",
+            "description": "Audit promptchain/observability/config.py — confirm ALL public accessors (get_observability_config, etc.) route through _load_yaml_config() cache; add missing routes where found",
+            "files": [
+              "promptchain/observability/config.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "EXCLUSIVE owner of config.py this wave"
+          },
+          {
+            "id": "T005",
+            "description": "Fix promptchain/observability/queue.py shutdown() method (lines ~172-188): call self.flush(timeout=timeout) before self.worker.join(timeout=timeout) to guarantee bounded shutdown per FR-004",
+            "files": [
+              "promptchain/observability/queue.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "EXCLUSIVE owner of queue.py this wave"
+          },
+          {
+            "id": "T006",
+            "description": "Add copy.deepcopy() return in promptchain/utils/enhanced_agentic_step_processor.py line ~190 (verify_logic cache retrieval) to prevent cache corruption per FR-006 / BUG-009",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "EXCLUSIVE owner of enhanced_agentic_step_processor.py this wave; single targeted change at line ~190"
+          },
+          {
+            "id": "T007",
+            "description": "Harden promptchain/utils/json_output_parser.py extract() top-level except block (line ~92): catch all Exception, log warning with raw string, return configured default — never propagate per FR-003",
+            "files": [
+              "promptchain/utils/json_output_parser.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "EXCLUSIVE owner of json_output_parser.py this wave"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "All four P1/P0 non-Gemini bugs resolved; config cache routes correctly; queue shutdown is bounded; deepcopy applied; JSON parser never propagates exceptions",
+          "commit_message": "fix(006): Phase 2 Foundational fixes - config cache, queue shutdown, deepcopy, JSON parser"
+        }
+      },
+      {
+        "wave_id": 3,
+        "name": "Phase 3 (US1): Test Writing — Bug Fix Tests",
+        "strategy": "PARALLEL_SWARM",
+        "description": "8 US1 TDD tests written in parallel. All write to test_006_bug_fixes.py but target disjoint test functions. MUST confirm RED (FAIL) before Wave 4 implementation begins.",
+        "tasks": [
+          {
+            "id": "T008",
+            "description": "Write test test_gemini_debug_correct_params in tests/integration/test_006_bug_fixes.py — mock MCP call, assert error_message key present, error_context absent",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T009-T015 on same file via git merge"
+          },
+          {
+            "id": "T009",
+            "description": "Write test test_gemini_brainstorm_no_num_ideas in tests/integration/test_006_bug_fixes.py — mock MCP, assert num_ideas key absent from call args",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008, T010-T015 on same file"
+          },
+          {
+            "id": "T010",
+            "description": "Write test test_ask_gemini_prompt_param in tests/integration/test_006_bug_fixes.py — mock MCP, assert prompt key present, question absent",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T009, T011-T015 on same file"
+          },
+          {
+            "id": "T011",
+            "description": "Write test test_event_loop_no_crash_in_tui_context in tests/integration/test_006_bug_fixes.py — simulate Textual running loop, invoke pattern command handler, assert no RuntimeError",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T010, T012-T015 on same file"
+          },
+          {
+            "id": "T012",
+            "description": "Write test test_json_parser_malformed_returns_default in tests/integration/test_006_bug_fixes.py — feed invalid JSON to JSONOutputParser.extract(), assert default returned and no exception raised",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T011, T013-T015 on same file"
+          },
+          {
+            "id": "T013",
+            "description": "Write test test_mlflow_shutdown_bounded in tests/integration/test_006_bug_fixes.py — mock unresponsive queue, call shutdown(timeout=2.0), assert returns within 3 s",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T012, T014-T015 on same file"
+          },
+          {
+            "id": "T014",
+            "description": "Write test test_config_cache_no_disk_read_on_second_call in tests/integration/test_006_bug_fixes.py — call get_observability_config() twice, assert file open count == 1",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T013, T015 on same file"
+          },
+          {
+            "id": "T015",
+            "description": "Write test test_verification_result_deep_copy in tests/integration/test_006_bug_fixes.py — retrieve cached result, mutate it, re-retrieve, assert original cache entry unchanged",
+            "files": [
+              "tests/integration/test_006_bug_fixes.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Disjoint test function; coordinate with T008-T014 on same file"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "pytest tests/integration/test_006_bug_fixes.py shows all 8 tests FAIL (RED) — TDD discipline confirmed before implementation",
+          "commit_message": "test(006): Phase 3 US1 TDD tests written - 8 failing tests for bug fixes"
+        }
+      },
+      {
+        "wave_id": 4,
+        "name": "Phase 3 (US1): Implementation — Bug Fixes",
+        "strategy": "PARALLEL_SWARM",
+        "description": "Implement 4 US1 bug fixes. T016/T017/T018 touch enhanced_agentic_step_processor.py at different line ranges. T019 touches app.py. All run after Wave 3 RED confirmation.",
+        "tasks": [
+          {
+            "id": "T016",
+            "description": "Fix promptchain/utils/enhanced_agentic_step_processor.py line ~645: change error_context to error_message in gemini_debug tool call arguments per FR-001 / BUG-017",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Lines ~645; share file with T017 (~564) and T018 (~575) — disjoint line ranges, coordinate carefully"
+          },
+          {
+            "id": "T017",
+            "description": "Fix promptchain/utils/enhanced_agentic_step_processor.py line ~564: remove num_ideas parameter from gemini_brainstorm tool call arguments per FR-001 / BUG-018",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Lines ~564; share file with T016 (~645) and T018 (~575) — disjoint line ranges, coordinate carefully"
+          },
+          {
+            "id": "T018",
+            "description": "Fix promptchain/utils/enhanced_agentic_step_processor.py line ~575: change question to prompt in ask_gemini tool call arguments per FR-001 / BUG-019",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "Lines ~575; share file with T016 (~645) and T017 (~564) — disjoint line ranges, coordinate carefully"
+          },
+          {
+            "id": "T019",
+            "description": "Audit all TUI pattern command handlers in promptchain/cli/tui/app.py and any files under promptchain/cli/ that call asyncio.run(): replace with run_async_in_context() from promptchain/cli/utils/event_loop_manager.py per FR-002 / BUG-001",
+            "files": [
+              "promptchain/cli/tui/app.py",
+              "promptchain/cli/utils/event_loop_manager.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "EXCLUSIVE owner of app.py and event_loop_manager.py this wave; fully independent of T016-T018"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "pytest tests/integration/test_006_bug_fixes.py — all 8 tests GREEN. SC-001 satisfied.",
+          "commit_message": "fix(006): Phase 3 US1 implementation - Gemini params, TUI event loop, JSON parser, MLflow shutdown"
+        }
+      },
+      {
+        "wave_id": 5,
+        "name": "Phases 4+5+6: Test Writing — US2, US3, US4 in Parallel",
+        "strategy": "PARALLEL_SWARM",
+        "description": "Write all tests for US2 (Context & Memory), US3 (Steering/Interrupts), and US4 (Async) simultaneously. Tasks touch different test files per story. Confirm all RED before Wave 6.",
+        "tasks": [
+          {
+            "id": "T020",
+            "description": "Write test test_distiller_triggered_at_threshold in tests/unit/test_context_distiller_wiring.py — build ExecutionHistoryManager at 75% token usage, instantiate AgenticStepProcessor with context_distiller, call one step, assert ContextDistiller.distill() was called",
+            "files": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T021/T022; disjoint test functions"
+          },
+          {
+            "id": "T021",
+            "description": "Write test test_distiller_not_triggered_below_threshold in tests/unit/test_context_distiller_wiring.py — history at 50%, assert distill() NOT called",
+            "files": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T020/T022; disjoint test function"
+          },
+          {
+            "id": "T022",
+            "description": "Write test test_distiller_llm_failure_leaves_history_unchanged in tests/unit/test_context_distiller_wiring.py — mock LLM call raising exception, assert history unmodified after distill attempt",
+            "files": [
+              "tests/unit/test_context_distiller_wiring.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T020/T021; disjoint test function"
+          },
+          {
+            "id": "T023",
+            "description": "Write test test_memo_injected_into_context_before_llm_call in tests/unit/test_memo_store_integration.py — store one memo, instantiate AgenticStepProcessor with memo_store, run step, assert memo content appears in captured context string",
+            "files": [
+              "tests/unit/test_memo_store_integration.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T024; disjoint test function"
+          },
+          {
+            "id": "T024",
+            "description": "Write test test_successful_task_stored_as_memo in tests/unit/test_memo_store_integration.py — run step that completes successfully, assert MemoStore.store_memo() called with outcome=success",
+            "files": [
+              "tests/unit/test_memo_store_integration.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T023; disjoint test function"
+          },
+          {
+            "id": "T025",
+            "description": "Write test test_janitor_compresses_at_threshold in tests/unit/test_janitor_agent.py — set compression_threshold=0.5, fill history to 60%, start janitor, wait 2x check_interval, assert distill() called",
+            "files": [
+              "tests/unit/test_janitor_agent.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T026; disjoint test function"
+          },
+          {
+            "id": "T026",
+            "description": "Write test test_janitor_stop_cancels_task in tests/unit/test_janitor_agent.py — start janitor, await stop(), assert background task is cancelled within 5 s",
+            "files": [
+              "tests/unit/test_janitor_agent.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares file with T025; disjoint test function"
+          },
+          {
+            "id": "T030",
+            "description": "Write test test_interrupt_checked_each_thought_cycle in tests/unit/test_interrupt_queue_integration.py — submit steering interrupt, run 3-step agentic task, assert interrupt processed by step 2",
+            "files": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T031/T032; disjoint test function"
+          },
+          {
+            "id": "T031",
+            "description": "Write test test_abort_interrupt_halts_execution in tests/unit/test_interrupt_queue_integration.py — submit ABORT interrupt, assert AgenticStepResult.status == aborted returned without further LLM calls",
+            "files": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T030/T032; disjoint test function"
+          },
+          {
+            "id": "T032",
+            "description": "Write test test_steering_message_injected_into_context in tests/unit/test_interrupt_queue_integration.py — submit steering interrupt, assert interrupt text present in messages passed to LLM",
+            "files": [
+              "tests/unit/test_interrupt_queue_integration.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T030/T031; disjoint test function"
+          },
+          {
+            "id": "T033",
+            "description": "Write test test_micro_checkpoint_saved_after_tool_call in tests/integration/test_006_steering_flow.py — run step with one tool call, assert _micro_checkpoints dict has one entry with tool_call_index=0",
+            "files": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T034/T035/T036; disjoint test function"
+          },
+          {
+            "id": "T034",
+            "description": "Write test test_rewind_to_checkpoint_restores_state in tests/integration/test_006_steering_flow.py — save checkpoint, modify conversation, rewind, assert conversation matches checkpoint snapshot",
+            "files": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T033/T035/T036; disjoint test function"
+          },
+          {
+            "id": "T035",
+            "description": "Write test test_global_override_replaces_prompt in tests/integration/test_006_steering_flow.py — subscribe AgenticStepProcessor to agent.global_override topic, publish override, assert active prompt updated at next cycle",
+            "files": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T033/T034/T036; disjoint test function"
+          },
+          {
+            "id": "T036",
+            "description": "Write test test_tui_interrupt_command_enqueues_without_blocking in tests/integration/test_006_steering_flow.py — call handle_interrupt_command(steering, msg), assert enqueued, assert returns < 10 ms",
+            "files": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares file with T033/T034/T035; disjoint test function"
+          },
+          {
+            "id": "T041",
+            "description": "Write test test_send_receive_normal_priority in tests/unit/test_async_agent_inbox.py — send InboxMessage(priority=1, topic=task, payload=x), receive, assert payload matches",
+            "files": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T042/T043; disjoint test function"
+          },
+          {
+            "id": "T042",
+            "description": "Write test test_priority_ordering in tests/unit/test_async_agent_inbox.py — send priority-2 then priority-0 messages, assert priority-0 received first",
+            "files": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T041/T043; disjoint test function"
+          },
+          {
+            "id": "T043",
+            "description": "Write test test_try_receive_returns_none_when_empty in tests/unit/test_async_agent_inbox.py — call try_receive() on empty inbox, assert None returned without blocking",
+            "files": [
+              "tests/unit/test_async_agent_inbox.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T041/T042; disjoint test function"
+          },
+          {
+            "id": "T044",
+            "description": "Write test test_publish_triggers_all_subscribers_concurrently in tests/unit/test_pubsub_bus.py — subscribe 3 callbacks with asyncio.Event flags, publish, assert all 3 flags set",
+            "files": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T045/T046/T047; disjoint test function"
+          },
+          {
+            "id": "T045",
+            "description": "Write test test_subscriber_exception_does_not_propagate in tests/unit/test_pubsub_bus.py — subscriber raises exception, publish still returns without error",
+            "files": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T044/T046/T047; disjoint test function"
+          },
+          {
+            "id": "T046",
+            "description": "Write test test_unsubscribe_removes_callback in tests/unit/test_pubsub_bus.py — subscribe, unsubscribe, publish, assert callback NOT called",
+            "files": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T044/T045/T047; disjoint test function"
+          },
+          {
+            "id": "T047",
+            "description": "Write test test_publish_sync_works_from_non_async_context in tests/unit/test_pubsub_bus.py — call publish_sync() from plain function, assert subscriber received payload",
+            "files": [
+              "tests/unit/test_pubsub_bus.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares file with T044/T045/T046; disjoint test function"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "pytest tests/unit/ tests/integration/test_006_steering_flow.py shows all newly added US2/US3/US4 tests FAIL (RED) — TDD discipline confirmed",
+          "commit_message": "test(006): Phase 4+5+6 TDD tests written - US2/US3/US4 all RED before implementation"
+        }
+      },
+      {
+        "wave_id": 6,
+        "name": "Phases 4+5+6: Implementation — US2, US3, US4 in Parallel",
+        "strategy": "PARALLEL_SWARM",
+        "description": "Implement US2 (Context & Memory), US3 (Steering), and US4 (Async) simultaneously. Note: enhanced_agentic_step_processor.py is touched by T027, T028, T037, T038, T050, T051 — these must be carefully coordinated. T029, T048 are new files with no conflicts.",
+        "file_conflict_warnings": [
+          "enhanced_agentic_step_processor.py is modified by T027, T028, T037, T038, T050, T051 — sequence or very carefully merge",
+          "message_bus.py is modified by T039 (US3) and T049 (US4) — coordinate ownership",
+          "T038 (MicroCheckpoint dataclass) must complete before T037 (uses MicroCheckpoint)",
+          "T048 (AsyncAgentInbox class) must complete before T051 (uses AsyncAgentInbox)"
+        ],
+        "tasks": [
+          {
+            "id": "T027",
+            "description": "Wire ContextDistiller into promptchain/utils/enhanced_agentic_step_processor.py: add context_distiller: Optional[ContextDistiller] = None parameter to __init__(), call should_distill() / await distill() at start of each thought cycle per FR-007",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares enhanced_agentic_step_processor.py with T028/T037/T038/T050/T051; coordinate section ownership carefully"
+          },
+          {
+            "id": "T028",
+            "description": "Wire MemoStore into promptchain/utils/enhanced_agentic_step_processor.py: add memo_store: Optional[MemoStore] = None parameter to __init__(), call inject_relevant_memos() before LLM context build, call store_memo() on task completion per FR-008/FR-009",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "Shares enhanced_agentic_step_processor.py with T027; best merged or sequenced with T027"
+          },
+          {
+            "id": "T029",
+            "description": "Create promptchain/utils/janitor_agent.py: implement JanitorAgent class with start(), stop(), _monitor_loop() as specified in contracts/context-memory.md; uses asyncio.Task for non-blocking background monitoring per FR-010",
+            "files": [
+              "promptchain/utils/janitor_agent.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "NEW FILE — fully independent, no conflicts with any other task"
+          },
+          {
+            "id": "T037",
+            "description": "Wire InterruptQueue + InterruptHandler into promptchain/utils/enhanced_agentic_step_processor.py: add interrupt_queue: Optional[InterruptQueue] = None to __init__(), call check_and_handle_interrupt() at start of each thought cycle, handle abort/steering/correction/clarification actions per FR-011",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "DEPENDENCY: T038 must complete first (provides MicroCheckpoint dataclass). Shares file with T027/T028/T050/T051."
+          },
+          {
+            "id": "T038",
+            "description": "Add MicroCheckpoint dataclass to promptchain/utils/checkpoint_manager.py per data-model.md schema; add _save_micro_checkpoint() and rewind_to_last_checkpoint() methods to EnhancedAgenticStepProcessor in promptchain/utils/enhanced_agentic_step_processor.py; call save after each successful tool call per FR-013",
+            "files": [
+              "promptchain/utils/checkpoint_manager.py",
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "EXCLUSIVE owner of checkpoint_manager.py. Must complete before T037 (T037 needs MicroCheckpoint type)."
+          },
+          {
+            "id": "T039",
+            "description": "Add send_global_override() method and agent.global_override topic handling to promptchain/cli/communication/message_bus.py; wire _handle_override() subscription into AgenticStepProcessor per FR-014",
+            "files": [
+              "promptchain/cli/communication/message_bus.py",
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "Shares message_bus.py with T049 (US4 PubSubBus); T039 adds send_global_override method, T049 adds PubSubBus class — coordinate to avoid conflicts"
+          },
+          {
+            "id": "T040",
+            "description": "Add handle_interrupt_command() to promptchain/cli/tui/app.py TUI input handler: non-blocking submit_interrupt() call to global InterruptQueue per FR-012",
+            "files": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "EXCLUSIVE owner of app.py this wave (T019 completed in Wave 4)"
+          },
+          {
+            "id": "T048",
+            "description": "Create promptchain/utils/async_agent_inbox.py: implement InboxMessage dataclass and AsyncAgentInbox class using asyncio.PriorityQueue per contracts/async-execution.md and data-model.md",
+            "files": [
+              "promptchain/utils/async_agent_inbox.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "NEW FILE — fully independent. Must complete before T051 (T051 depends on AsyncAgentInbox class)."
+          },
+          {
+            "id": "T049",
+            "description": "Add PubSubBus class to promptchain/cli/communication/message_bus.py: subscribe(), unsubscribe(), publish() (async, asyncio.gather fan-out, per-subscriber error isolation), publish_sync() wrapper per FR-017 / contracts/async-execution.md",
+            "files": [
+              "promptchain/cli/communication/message_bus.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "Shares message_bus.py with T039; T039 adds send_global_override, T049 adds PubSubBus — carefully coordinate or sequence"
+          },
+          {
+            "id": "T050",
+            "description": "Refactor LLM calls in promptchain/utils/agentic_step_processor.py and promptchain/utils/enhanced_agentic_step_processor.py: replace any litellm.completion() calls in async contexts with await litellm.acompletion() per FR-015",
+            "files": [
+              "promptchain/utils/agentic_step_processor.py",
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "EXCLUSIVE owner of agentic_step_processor.py. Shares enhanced_agentic_step_processor.py with T027/T028/T037/T038 — coordinate sections."
+          },
+          {
+            "id": "T051",
+            "description": "Add optional inbox: Optional[AsyncAgentInbox] = None parameter to EnhancedAgenticStepProcessor.__init__() in promptchain/utils/enhanced_agentic_step_processor.py; integrate inbox message polling alongside interrupt queue check per FR-016",
+            "files": [
+              "promptchain/utils/enhanced_agentic_step_processor.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "DEPENDENCY: T048 must complete first (provides AsyncAgentInbox class). Shares enhanced_agentic_step_processor.py with multiple other tasks."
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "pytest tests/unit/test_context_distiller_wiring.py tests/unit/test_memo_store_integration.py tests/unit/test_janitor_agent.py tests/unit/test_interrupt_queue_integration.py tests/integration/test_006_steering_flow.py tests/unit/test_async_agent_inbox.py tests/unit/test_pubsub_bus.py — all GREEN. SC-002 through SC-008 satisfied.",
+          "commit_message": "feat(006): Phase 4+5+6 implementation - US2 context/memory, US3 steering/interrupts, US4 async agents"
+        }
+      },
+      {
+        "wave_id": 7,
+        "name": "Phase 7: Polish and Cross-Cutting Concerns",
+        "strategy": "PARALLEL_SWARM",
+        "description": "Validation of all success criteria, documentation, exports, linting, and type checking. Most tasks are fully parallel. T057 (CLAUDE.md update) should follow T052-T056 validation results.",
+        "tasks": [
+          {
+            "id": "T052",
+            "description": "Run pytest tests/integration/test_006_bug_fixes.py tests/integration/test_006_steering_flow.py tests/unit/ -v and confirm all tests green; record results in specs/006-promptchain-improvements/test-results.md",
+            "files": [
+              "specs/006-promptchain-improvements/test-results.md"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": null,
+            "notes": "Validation task; creates/updates test-results.md"
+          },
+          {
+            "id": "T053",
+            "description": "Validate SC-001: exercise Gemini tools, TUI event loop, JSON parser with integration tests; confirm zero errors",
+            "files": [
+              "specs/006-promptchain-improvements/test-results.md"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US1",
+            "notes": "SC-001 validation; appends results to test-results.md"
+          },
+          {
+            "id": "T054",
+            "description": "Validate SC-004: run token consumption baseline (truncation-only) vs distillation path; confirm >= 30% reduction documented in specs/006-promptchain-improvements/test-results.md",
+            "files": [
+              "specs/006-promptchain-improvements/test-results.md"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US2",
+            "notes": "SC-004 benchmark; appends benchmark results to test-results.md"
+          },
+          {
+            "id": "T055",
+            "description": "Validate SC-005: time interrupt submission to LLM context inclusion; confirm <= 2 s acknowledgment in tests/integration/test_006_steering_flow.py::test_interrupt_ack_latency",
+            "files": [
+              "tests/integration/test_006_steering_flow.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US3",
+            "notes": "SC-005 latency validation; adds test_interrupt_ack_latency to steering flow test file"
+          },
+          {
+            "id": "T056",
+            "description": "Validate SC-006: two-agent parallel benchmark; confirm < 5% I/O overhead; add tests/integration/test_006_concurrency.py::test_two_agent_overhead",
+            "files": [
+              "tests/integration/test_006_concurrency.py"
+            ],
+            "agent": "test-automator",
+            "parallelizable": true,
+            "story": "US4",
+            "notes": "SC-006 benchmark; creates new concurrency test file"
+          },
+          {
+            "id": "T057",
+            "description": "Update CLAUDE.md Recent Changes section to record 006-promptchain-improvements as complete",
+            "files": [
+              "CLAUDE.md"
+            ],
+            "agent": "general-purpose",
+            "parallelizable": false,
+            "story": null,
+            "notes": "Should run after T052-T056 validations have results to report"
+          },
+          {
+            "id": "T058",
+            "description": "Update promptchain/__init__.py exports to expose AsyncAgentInbox, PubSubBus, JanitorAgent, MemoStore, InterruptQueue at top-level package per library-first principle",
+            "files": [
+              "promptchain/__init__.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "EXCLUSIVE owner of __init__.py this wave"
+          },
+          {
+            "id": "T059",
+            "description": "Run black . && isort . && flake8 promptchain/ and fix any linting issues in new/modified files",
+            "files": [
+              "promptchain/utils/async_agent_inbox.py",
+              "promptchain/utils/janitor_agent.py",
+              "promptchain/utils/enhanced_agentic_step_processor.py",
+              "promptchain/utils/checkpoint_manager.py",
+              "promptchain/cli/communication/message_bus.py",
+              "promptchain/cli/tui/app.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": true,
+            "story": null,
+            "notes": "Linting pass over all modified files"
+          },
+          {
+            "id": "T060",
+            "description": "Run mypy promptchain/utils/async_agent_inbox.py promptchain/utils/janitor_agent.py promptchain/cli/communication/message_bus.py and resolve all type errors",
+            "files": [
+              "promptchain/utils/async_agent_inbox.py",
+              "promptchain/utils/janitor_agent.py",
+              "promptchain/cli/communication/message_bus.py"
+            ],
+            "agent": "python-pro",
+            "parallelizable": false,
+            "story": null,
+            "notes": "Type checking gate; must pass before final commit"
+          }
+        ],
+        "checkpoint_after": {
+          "validate": "All tests green; SC-001 through SC-006 validated and documented; CLAUDE.md updated; exports correct; black/isort/flake8 clean; mypy passes on all new files",
+          "commit_message": "feat(006): Phase 7 Polish complete - all SCs validated, exports added, linting and types clean"
+        }
+      }
+    ]
+  },
+  "dependency_graph": {
+    "wave_1_blocks": ["wave_2"],
+    "wave_2_blocks": ["wave_3", "wave_5"],
+    "wave_3_blocks": ["wave_4"],
+    "wave_4_blocks": ["wave_7"],
+    "wave_5_blocks": ["wave_6"],
+    "wave_6_blocks": ["wave_7"],
+    "intra_wave_dependencies": [
+      {"from": "T001", "to": ["T002", "T003"], "reason": "Branch must exist before creating files"},
+      {"from": "T038", "to": ["T037"], "reason": "MicroCheckpoint dataclass required by T037"},
+      {"from": "T048", "to": ["T051"], "reason": "AsyncAgentInbox class required by T051"}
+    ],
+    "shared_file_conflicts": [
+      {
+        "file": "promptchain/utils/enhanced_agentic_step_processor.py",
+        "wave_6_writers": ["T027", "T028", "T037", "T038", "T050", "T051"],
+        "mitigation": "Assign non-overlapping sections; use feature branches per task and merge at checkpoint"
+      },
+      {
+        "file": "promptchain/cli/communication/message_bus.py",
+        "wave_6_writers": ["T039", "T049"],
+        "mitigation": "T039 adds send_global_override method, T049 adds PubSubBus class — sequence or merge carefully"
+      }
+    ]
+  },
+  "task_count_per_wave": {
+    "wave_1": 3,
+    "wave_2": 4,
+    "wave_3": 8,
+    "wave_4": 4,
+    "wave_5": 21,
+    "wave_6": 11,
+    "wave_7": 9,
+    "total": 60,
+    "note": "T001 counted in wave_1. tasks.md lists T001-T060 (60 tasks) plus T061 implied by total_tasks=61. Cross-check: T001-T003(3) + T004-T007(4) + T008-T019(12) + T020-T029(10) + T030-T040(11) + T041-T051(11) + T052-T060(9) = 60 tasks. tasks.md header states 61; off-by-one may be from counting Phase 7 as T052-T061."
+  }
+}

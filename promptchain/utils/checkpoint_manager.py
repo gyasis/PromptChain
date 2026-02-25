@@ -40,9 +40,34 @@ Research Basis:
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from collections import Counter
+import copy
 import logging
+import time
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MicroCheckpoint:
+    """
+    Fine-grained checkpoint captured after each successful tool call.
+
+    Stores a deep copy of the conversation messages at the moment of the
+    checkpoint so that ``rewind_to_last_checkpoint`` can restore the
+    processor's ``conversation_history`` to a known-good state.
+
+    Attributes:
+        checkpoint_id:        Unique string identifier (e.g., ``"snap_1234567890"``).
+        step_number:          Reasoning-loop iteration when the checkpoint was taken.
+        tool_call_index:      0-based index of the tool call that just completed.
+        conversation_snapshot: Deep copy of the message list at checkpoint time.
+        timestamp:            UNIX timestamp when the checkpoint was created.
+    """
+    checkpoint_id: str
+    step_number: int
+    tool_call_index: int
+    conversation_snapshot: List[Dict[str, Any]] = field(default_factory=list)
+    timestamp: float = field(default_factory=time.time)
 
 
 @dataclass

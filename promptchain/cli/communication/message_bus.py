@@ -7,22 +7,21 @@ FR-018: System MUST support message types: request, response, broadcast, delegat
 FR-019: Activity logger MUST capture all communication for debugging
 """
 
-from dataclasses import dataclass, field
+import asyncio
+import json
+import logging
+import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
-from enum import Enum
-import uuid
-import asyncio
-import logging
-import json
 
-from .handlers import HandlerRegistry, MessageType, get_handler_registry
+from .handlers import MessageType, get_handler_registry
 
 logger = logging.getLogger(__name__)
 
 
 # Re-export MessageType for convenience
-__all__ = ["MessageBus", "MessageType", "Message"]
+__all__ = ["MessageBus", "MessageType", "Message", "PubSubBus"]
 
 
 @dataclass
@@ -43,7 +42,7 @@ class Message:
         sender: str,
         receiver: str,
         message_type: MessageType,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
     ) -> "Message":
         """Create a new message with auto-generated ID and timestamp."""
         return cls(
@@ -52,7 +51,7 @@ class Message:
             receiver=receiver,
             type=message_type,
             payload=payload,
-            timestamp=datetime.now().timestamp()
+            timestamp=datetime.now().timestamp(),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -64,7 +63,7 @@ class Message:
             "type": self.type.value,
             "payload": self.payload,
             "timestamp": self.timestamp,
-            "delivered": self.delivered
+            "delivered": self.delivered,
         }
 
     @classmethod
@@ -77,7 +76,7 @@ class Message:
             type=MessageType(data["type"]),
             payload=data.get("payload", {}),
             timestamp=data["timestamp"],
-            delivered=data.get("delivered", False)
+            delivered=data.get("delivered", False),
         )
 
 
@@ -91,7 +90,7 @@ class MessageBus:
     def __init__(
         self,
         session_id: str,
-        activity_logger: Optional[Callable[[Dict[str, Any]], None]] = None
+        activity_logger: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         """
         Initialize message bus.
@@ -112,7 +111,7 @@ class MessageBus:
             "event_type": event_type,
             "session_id": self.session_id,
             "timestamp": datetime.now().isoformat(),
-            **data
+            **data,
         }
 
         logger.debug(f"Activity: {event_type} - {json.dumps(data, default=str)}")
@@ -128,7 +127,7 @@ class MessageBus:
         sender: str,
         receiver: str,
         message_type: MessageType,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
     ) -> Message:
         """
         Send a message to a specific receiver.
@@ -144,27 +143,31 @@ class MessageBus:
         """
         message = Message.create(sender, receiver, message_type, payload)
 
-        self._log_activity("message_sent", {
-            "message_id": message.message_id,
-            "sender": sender,
-            "receiver": receiver,
-            "type": message_type.value,
-            "payload_keys": list(payload.keys())
-        })
+        self._log_activity(
+            "message_sent",
+            {
+                "message_id": message.message_id,
+                "sender": sender,
+                "receiver": receiver,
+                "type": message_type.value,
+                "payload_keys": list(payload.keys()),
+            },
+        )
 
         # Dispatch to handlers
-        results = await self._registry.dispatch(
-            message_type, sender, receiver, payload
-        )
+        results = await self._registry.dispatch(message_type, sender, receiver, payload)
 
         message.delivered = len(results) > 0
         self._message_history.append(message)
 
-        self._log_activity("message_delivered", {
-            "message_id": message.message_id,
-            "handlers_invoked": len(results),
-            "delivered": message.delivered
-        })
+        self._log_activity(
+            "message_delivered",
+            {
+                "message_id": message.message_id,
+                "handlers_invoked": len(results),
+                "delivered": message.delivered,
+            },
+        )
 
         return message
 
@@ -172,7 +175,7 @@ class MessageBus:
         self,
         sender: str,
         payload: Dict[str, Any],
-        message_type: MessageType = MessageType.BROADCAST
+        message_type: MessageType = MessageType.BROADCAST,
     ) -> Message:
         """
         Broadcast a message to all agents.
@@ -189,41 +192,29 @@ class MessageBus:
             sender=sender,
             receiver="*",  # Broadcast indicator
             message_type=message_type,
-            payload=payload
+            payload=payload,
         )
 
     async def request(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a request message."""
         return await self.send(sender, receiver, MessageType.REQUEST, payload)
 
     async def respond(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a response message."""
         return await self.send(sender, receiver, MessageType.RESPONSE, payload)
 
     async def delegate(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a delegation message."""
         return await self.send(sender, receiver, MessageType.DELEGATION, payload)
 
     async def status_update(
-        self,
-        sender: str,
-        receiver: str,
-        payload: Dict[str, Any]
+        self, sender: str, receiver: str, payload: Dict[str, Any]
     ) -> Message:
         """Send a status update message."""
         return await self.send(sender, receiver, MessageType.STATUS, payload)
@@ -233,7 +224,7 @@ class MessageBus:
         sender: Optional[str] = None,
         receiver: Optional[str] = None,
         message_type: Optional[MessageType] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Message]:
         """
         Get message history with optional filters.
@@ -264,3 +255,136 @@ class MessageBus:
         count = len(self._message_history)
         self._message_history.clear()
         return count
+
+    async def subscribe(self, topic: str, callback: "Callable") -> None:
+        """Subscribe a callback to a pub/sub topic (delegates to internal PubSubBus)."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.subscribe(topic, callback)
+
+    async def unsubscribe(self, topic: str, callback: "Callable") -> None:
+        """Unsubscribe a callback from a pub/sub topic."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.unsubscribe(topic, callback)
+
+    async def publish_topic(self, topic: str, payload: "Any") -> None:
+        """Publish a payload to a pub/sub topic."""
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.publish(topic, payload)
+
+    async def send_global_override(self, new_prompt: str, sender_id: str = "") -> None:
+        """
+        Publish a global override to replace the active prompt (FR-014).
+
+        Args:
+            new_prompt: The new prompt/objective to broadcast.
+            sender_id: Identifier of the sender (e.g. TUI session ID).
+        """
+        if not hasattr(self, "_pubsub"):
+            self._pubsub = PubSubBus()
+        await self._pubsub.publish(
+            "agent.global_override", {"prompt": new_prompt, "sender_id": sender_id}
+        )
+
+
+# ---------------------------------------------------------------------------
+# PubSubBus — async publish-subscribe bus for agent coordination (FR-017)
+# ---------------------------------------------------------------------------
+
+
+class PubSubBus:
+    """
+    Async publish-subscribe bus for agent coordination.
+
+    FR-017: subscribe/unsubscribe/publish with per-subscriber error isolation.
+
+    Attributes:
+        _subscribers: Mapping from topic name to list of async callbacks.
+    """
+
+    def __init__(self) -> None:
+        self._subscribers: Dict[str, List[Callable]] = {}
+
+    async def subscribe(self, topic: str, callback: Callable) -> None:
+        """Register an async callback for *topic*. Idempotent.
+
+        Args:
+            topic: Topic string to subscribe to.
+            callback: Async callable that receives the published payload.
+        """
+        if topic not in self._subscribers:
+            self._subscribers[topic] = []
+        if callback not in self._subscribers[topic]:
+            self._subscribers[topic].append(callback)
+
+    async def unsubscribe(self, topic: str, callback: Callable) -> None:
+        """Remove a callback from *topic*. No-op if not registered.
+
+        Args:
+            topic: Topic string to unsubscribe from.
+            callback: The callback to remove.
+        """
+        if topic in self._subscribers:
+            try:
+                self._subscribers[topic].remove(callback)
+            except ValueError:
+                pass  # No-op if not registered
+
+    async def publish(self, topic: str, payload: Any) -> None:
+        """Deliver *payload* to all subscribers of *topic* concurrently.
+
+        Per-subscriber exceptions are caught and logged; they do NOT
+        propagate to the caller (FR-017 error isolation guarantee).
+
+        Args:
+            topic: Topic string to publish to.
+            payload: Payload delivered to each subscriber callback.
+        """
+        callbacks = list(self._subscribers.get(topic, []))
+
+        async def safe_call(cb: Callable) -> None:
+            try:
+                await cb(payload)
+            except Exception as exc:
+                logger.warning(
+                    "PubSubBus subscriber error on topic %r: %s",
+                    topic,
+                    exc,
+                )
+
+        await asyncio.gather(
+            *(safe_call(cb) for cb in callbacks),
+            return_exceptions=False,
+        )
+
+    def publish_sync(self, topic: str, payload: Any) -> None:
+        """Synchronous wrapper around :meth:`publish`.
+
+        Safe to call from a non-async context only.  Uses
+        ``asyncio.run()`` internally.
+
+        Args:
+            topic: Topic string to publish to.
+            payload: Payload delivered to each subscriber callback.
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(self.publish(topic, payload))
+            else:
+                loop.run_until_complete(self.publish(topic, payload))
+        except RuntimeError:
+            asyncio.run(self.publish(topic, payload))
+
+    def send_global_override(self, new_prompt: str) -> None:
+        """Publish a global override to replace the active prompt (FR-014).
+
+        Convenience sync wrapper that publishes to the
+        ``"agent.global_override"`` topic.
+
+        Args:
+            new_prompt: The new prompt/objective string to broadcast.
+        """
+        self.publish_sync("agent.global_override", {"prompt": new_prompt})
