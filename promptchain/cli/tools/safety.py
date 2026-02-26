@@ -26,7 +26,7 @@ import os
 import re
 import shlex
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 
 class SecurityError(Exception):
@@ -126,22 +126,56 @@ class SafetyValidator:
 
     # Whitelisted safe commands (allowed without additional validation)
     SAFE_COMMANDS = {
-        "ls", "cat", "grep", "find", "echo", "pwd", "whoami",
-        "git", "python", "python3", "pip", "pip3", "node", "npm",
-        "pytest", "black", "isort", "flake8", "mypy",
+        "ls",
+        "cat",
+        "grep",
+        "find",
+        "echo",
+        "pwd",
+        "whoami",
+        "git",
+        "python",
+        "python3",
+        "pip",
+        "pip3",
+        "node",
+        "npm",
+        "pytest",
+        "black",
+        "isort",
+        "flake8",
+        "mypy",
     }
 
     # Dangerous file extensions (require extra validation)
     DANGEROUS_EXTENSIONS = {
-        ".sh", ".bash", ".exe", ".bat", ".cmd", ".ps1",
-        ".dll", ".so", ".dylib",
+        ".sh",
+        ".bash",
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".dll",
+        ".so",
+        ".dylib",
     }
 
     # System directories (never allow write access)
     SYSTEM_DIRECTORIES = {
-        "/bin", "/sbin", "/boot", "/dev", "/etc", "/lib",
-        "/lib64", "/proc", "/root", "/sys", "/usr/bin",
-        "/usr/sbin", "/usr/lib", "/var/log",
+        "/bin",
+        "/sbin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/lib",
+        "/lib64",
+        "/proc",
+        "/root",
+        "/sys",
+        "/usr/bin",
+        "/usr/sbin",
+        "/usr/lib",
+        "/var/log",
     }
 
     def __init__(
@@ -395,7 +429,7 @@ class SafetyValidator:
         command: Optional[List[str]] = None,
         timeout: Optional[int] = None,
         **params,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Comprehensive validation for tool operations.
 
         This is the main entry point for validating operations before execution.
@@ -421,7 +455,7 @@ class SafetyValidator:
             ... )
             {'path': PosixPath('/home/user/project/data/input.txt')}
         """
-        validated = {"operation": operation}
+        validated: Dict[str, Any] = {"operation": operation}
 
         # Path validation for file operations
         if path is not None:
@@ -479,9 +513,7 @@ class SafetyValidator:
 
         return validated
 
-    def _validate_delete_operation(
-        self, path: Optional[Path], params: Dict
-    ) -> None:
+    def _validate_delete_operation(self, path: Optional[Path], params: Dict) -> None:
         """Validate file deletion operation (extra safety).
 
         Args:
@@ -545,9 +577,7 @@ class SafetyValidator:
                 severity="critical",
             )
 
-    def _validate_write_operation(
-        self, path: Optional[Path], params: Dict
-    ) -> None:
+    def _validate_write_operation(self, path: Optional[Path], params: Dict) -> None:
         """Validate file write operation.
 
         Args:
@@ -580,7 +610,7 @@ def validate_safe_operation(
     operation: str,
     project_root: Union[str, Path],
     **params,
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Convenience function for one-off operation validation.
 
     Args:

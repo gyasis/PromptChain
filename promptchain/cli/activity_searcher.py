@@ -7,12 +7,12 @@ specific interactions without loading full conversation history.
 """
 
 import json
+import logging
 import sqlite3
 import subprocess
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class ActivitySearcher:
         activity_type: Optional[str] = None,
         since: Optional[datetime] = None,
         max_results: int = 100,
-        context_lines: int = 0
+        context_lines: int = 0,
     ) -> List[Dict[str, Any]]:
         """Grep through activity logs with filters.
 
@@ -76,20 +76,13 @@ class ActivitySearcher:
             use_ripgrep = self._check_ripgrep_available()
 
             if use_ripgrep:
-                results = self._grep_with_ripgrep(
-                    pattern, context_lines, max_results
-                )
+                results = self._grep_with_ripgrep(pattern, context_lines, max_results)
             else:
-                results = self._grep_with_python(
-                    pattern, max_results
-                )
+                results = self._grep_with_python(pattern, max_results)
 
             # Apply filters
             results = self._apply_filters(
-                results,
-                agent_name=agent_name,
-                activity_type=activity_type,
-                since=since
+                results, agent_name=agent_name, activity_type=activity_type, since=since
             )
 
             logger.debug(
@@ -104,20 +97,13 @@ class ActivitySearcher:
     def _check_ripgrep_available(self) -> bool:
         """Check if ripgrep (rg) is available on system."""
         try:
-            result = subprocess.run(
-                ["rg", "--version"],
-                capture_output=True,
-                timeout=1
-            )
+            result = subprocess.run(["rg", "--version"], capture_output=True, timeout=1)
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
     def _grep_with_ripgrep(
-        self,
-        pattern: str,
-        context_lines: int,
-        max_results: int
+        self, pattern: str, context_lines: int, max_results: int
     ) -> List[Dict[str, Any]]:
         """Use ripgrep for fast text search."""
         if not self.activity_log_path.exists():
@@ -134,12 +120,7 @@ class ActivitySearcher:
             if context_lines > 0:
                 cmd.extend(["-C", str(context_lines)])
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode not in [0, 1]:  # 1 means no matches
                 logger.warning(f"Ripgrep returned code {result.returncode}")
@@ -147,7 +128,7 @@ class ActivitySearcher:
 
             # Parse ripgrep JSON output
             matches = []
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if not line.strip():
                     continue
                 try:
@@ -172,11 +153,7 @@ class ActivitySearcher:
             logger.error(f"Ripgrep search failed: {e}")
             return []
 
-    def _grep_with_python(
-        self,
-        pattern: str,
-        max_results: int
-    ) -> List[Dict[str, Any]]:
+    def _grep_with_python(self, pattern: str, max_results: int) -> List[Dict[str, Any]]:
         """Fallback Python-based text search."""
         if not self.activity_log_path.exists():
             return []
@@ -185,9 +162,10 @@ class ActivitySearcher:
 
         try:
             import re
+
             regex = re.compile(pattern, re.IGNORECASE)
 
-            with open(self.activity_log_path, 'r', encoding='utf-8') as f:
+            with open(self.activity_log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
@@ -213,36 +191,25 @@ class ActivitySearcher:
         activities: List[Dict[str, Any]],
         agent_name: Optional[str] = None,
         activity_type: Optional[str] = None,
-        since: Optional[datetime] = None
+        since: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         """Apply filters to activity list."""
         filtered = activities
 
         if agent_name:
-            filtered = [
-                a for a in filtered
-                if a.get("agent_name") == agent_name
-            ]
+            filtered = [a for a in filtered if a.get("agent_name") == agent_name]
 
         if activity_type:
-            filtered = [
-                a for a in filtered
-                if a.get("activity_type") == activity_type
-            ]
+            filtered = [a for a in filtered if a.get("activity_type") == activity_type]
 
         if since:
             since_iso = since.isoformat()
-            filtered = [
-                a for a in filtered
-                if a.get("timestamp", "") >= since_iso
-            ]
+            filtered = [a for a in filtered if a.get("timestamp", "") >= since_iso]
 
         return filtered
 
     def sql_query(
-        self,
-        query: str,
-        params: Optional[Tuple] = None
+        self, query: str, params: Optional[Tuple] = None
     ) -> List[Dict[str, Any]]:
         """Execute custom SQL query on activity database.
 
@@ -274,10 +241,7 @@ class ActivitySearcher:
             return []
 
     def get_interaction_chain(
-        self,
-        chain_id: str,
-        include_nested: bool = True,
-        include_content: bool = True
+        self, chain_id: str, include_nested: bool = True, include_content: bool = True
     ) -> Dict[str, Any]:
         """Get complete interaction chain with nested structure.
 
@@ -295,11 +259,14 @@ class ActivitySearcher:
             cursor = conn.cursor()
 
             # Get chain metadata
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT *
                 FROM interaction_chains
                 WHERE chain_id = ?
-            """, (chain_id,))
+            """,
+                (chain_id,),
+            )
 
             chain_row = cursor.fetchone()
             if not chain_row:
@@ -309,12 +276,15 @@ class ActivitySearcher:
             chain_info = dict(chain_row)
 
             # Get all activities in chain
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT *
                 FROM agent_activities
                 WHERE interaction_chain_id = ?
                 ORDER BY timestamp ASC
-            """, (chain_id,))
+            """,
+                (chain_id,),
+            )
 
             activities = [dict(row) for row in cursor.fetchall()]
             conn.close()
@@ -336,14 +306,13 @@ class ActivitySearcher:
             return {}
 
     def _enrich_with_full_content(
-        self,
-        activities: List[Dict[str, Any]]
+        self, activities: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Load full content from JSONL for activities."""
         activity_map = {}
 
         try:
-            with open(self.activity_log_path, 'r', encoding='utf-8') as f:
+            with open(self.activity_log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
@@ -367,8 +336,7 @@ class ActivitySearcher:
         return enriched
 
     def _build_nested_structure(
-        self,
-        activities: List[Dict[str, Any]]
+        self, activities: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Build nested parent-child activity structure."""
         # Create lookup map
@@ -390,10 +358,7 @@ class ActivitySearcher:
         return root_activities
 
     def find_reasoning_chains(
-        self,
-        agent_name: Optional[str] = None,
-        min_depth: int = 2,
-        limit: int = 10
+        self, agent_name: Optional[str] = None, min_depth: int = 2, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find complex reasoning chains (multi-hop) by agent.
 
@@ -464,55 +429,73 @@ class ActivitySearcher:
             cursor = conn.cursor()
 
             # Total activities
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*)
                 FROM agent_activities
                 WHERE session_name = ?
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             total_activities = cursor.fetchone()[0]
 
             # Total chains
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)
                 FROM interaction_chains
                 WHERE session_name = ?
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             total_chains, active_chains = cursor.fetchone()
 
             # Activities by type
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT activity_type, COUNT(*)
                 FROM agent_activities
                 WHERE session_name = ?
                 GROUP BY activity_type
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             activities_by_type = {row[0]: row[1] for row in cursor.fetchall()}
 
             # Activities by agent
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT agent_name, COUNT(*)
                 FROM agent_activities
                 WHERE session_name = ?
                   AND agent_name IS NOT NULL
                 GROUP BY agent_name
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             activities_by_agent = {row[0]: row[1] for row in cursor.fetchall()}
 
             # Average chain depth
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT AVG(max_depth_level)
                 FROM interaction_chains
                 WHERE session_name = ?
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             avg_chain_depth = cursor.fetchone()[0] or 0
 
             # Total errors
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*)
                 FROM agent_activities
                 WHERE session_name = ?
                   AND activity_type = 'error'
-            """, (self.session_name,))
+            """,
+                (self.session_name,),
+            )
             total_errors = cursor.fetchone()[0]
 
             conn.close()
@@ -524,7 +507,7 @@ class ActivitySearcher:
                 "activities_by_type": activities_by_type,
                 "activities_by_agent": activities_by_agent,
                 "avg_chain_depth": round(avg_chain_depth, 2),
-                "total_errors": total_errors
+                "total_errors": total_errors,
             }
 
         except Exception as e:
@@ -537,7 +520,7 @@ class ActivitySearcher:
         end_time: Optional[datetime] = None,
         agent_name: Optional[str] = None,
         activity_type: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Search activities by time range.
 
@@ -577,7 +560,7 @@ class ActivitySearcher:
                 params.append(activity_type)
 
             query += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
+            params.append(limit)  # type: ignore[arg-type]
 
             cursor.execute(query, tuple(params))
 

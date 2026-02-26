@@ -9,18 +9,19 @@ FR-017: Handlers MUST support filtering by sender, receiver, and message type
 FR-020: Communication MUST be backward compatible - existing code works without handlers
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
-from enum import Enum
 import asyncio
 import logging
 import threading
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class MessageType(str, Enum):
     """Message types for agent communication (FR-018)."""
+
     REQUEST = "request"
     RESPONSE = "response"
     BROADCAST = "broadcast"
@@ -39,12 +40,7 @@ class CommunicationHandler:
     receivers: Set[str] = field(default_factory=set)
     priority: int = 0
 
-    def matches(
-        self,
-        message_type: MessageType,
-        sender: str,
-        receiver: str
-    ) -> bool:
+    def matches(self, message_type: MessageType, sender: str, receiver: str) -> bool:
         """Check if handler matches the given message criteria."""
         # Empty set means "match all"
         type_match = not self.message_types or message_type in self.message_types
@@ -66,8 +62,13 @@ class HandlerRegistry:
                 # Double-check inside lock to prevent race condition
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._handlers: List[CommunicationHandler] = []
         return cls._instance
+
+    def __init__(self) -> None:
+        # Only initialize once — __init__ is called every time __new__ returns,
+        # but _handlers already exists on subsequent calls so we guard here.
+        if not hasattr(self, "_handlers"):
+            self._handlers: List[CommunicationHandler] = []
 
     @classmethod
     def reset(cls) -> None:
@@ -88,16 +89,10 @@ class HandlerRegistry:
         return len(self._handlers) < before
 
     def get_matching_handlers(
-        self,
-        message_type: MessageType,
-        sender: str,
-        receiver: str
+        self, message_type: MessageType, sender: str, receiver: str
     ) -> List[CommunicationHandler]:
         """Get all handlers matching the criteria."""
-        return [
-            h for h in self._handlers
-            if h.matches(message_type, sender, receiver)
-        ]
+        return [h for h in self._handlers if h.matches(message_type, sender, receiver)]
 
     async def dispatch(
         self,
@@ -105,7 +100,7 @@ class HandlerRegistry:
         sender: str,
         receiver: str,
         payload: Dict[str, Any],
-        stop_on_error: bool = False
+        stop_on_error: bool = False,
     ) -> List[Any]:
         """Dispatch message to all matching handlers.
 
@@ -160,7 +155,7 @@ def cli_communication_handler(
     receiver: Optional[str] = None,
     receivers: Optional[List[str]] = None,
     priority: int = 0,
-    name: Optional[str] = None
+    name: Optional[str] = None,
 ) -> Callable:
     """
     Decorator to register a function as a communication handler.
@@ -180,6 +175,7 @@ def cli_communication_handler(
         async def handle_requests(payload, sender, receiver):
             return {"status": "processed"}
     """
+
     def decorator(func: Callable) -> Callable:
         handler_types: Set[MessageType] = set()
         if type:
@@ -205,7 +201,7 @@ def cli_communication_handler(
             message_types=handler_types,
             senders=handler_senders,
             receivers=handler_receivers,
-            priority=priority
+            priority=priority,
         )
 
         HandlerRegistry().register(handler)

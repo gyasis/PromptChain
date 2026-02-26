@@ -74,7 +74,7 @@ class AutocompletePopup(Widget):
     # Reactive properties
     suggestions: reactive[List[dict]] = reactive(list, init=False)
     selected_index: reactive[int] = reactive(0)
-    visible: reactive[bool] = reactive(False)
+    visible: reactive[bool] = reactive(False)  # type: ignore[override]
 
     class CommandSelected(TextualMessage):
         """Emitted when a command is selected."""
@@ -85,6 +85,7 @@ class AutocompletePopup(Widget):
 
     class PopupDismissed(TextualMessage):
         """Emitted when popup is dismissed."""
+
         pass
 
     def __init__(self, **kwargs):

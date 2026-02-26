@@ -11,9 +11,14 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+if TYPE_CHECKING:
+    from .models.mcp_config import MCPServerConfig
+    from .models.workflow import WorkflowState, WorkflowStep, MultiAgentWorkflow
+    from .models.task import Task
+    from .models.blackboard import BlackboardEntry
+
 from promptchain.observability import track_task
 
 from .models import Agent, Message, Session
@@ -47,7 +52,7 @@ class SessionManager:
         # Initialize database schema (will be implemented in T016)
         self._init_database()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Initialize database schema.
 
         Creates tables if they don't exist and ensures schema version is tracked.
@@ -94,7 +99,7 @@ class SessionManager:
         finally:
             conn.close()
 
-    def _check_and_migrate_v2(self):
+    def _check_and_migrate_v2(self) -> None:
         """Check if V2 migration is needed and execute if necessary (T014).
 
         Detects V1 schema by checking for missing orchestration_config column
@@ -125,7 +130,7 @@ class SessionManager:
         finally:
             conn.close()
 
-    def _check_and_migrate_v3(self):
+    def _check_and_migrate_v3(self) -> None:
         """Check if V3 migration is needed and execute if necessary (003-T008).
 
         Detects V2 schema by checking for missing task_queue table.
@@ -145,7 +150,9 @@ class SessionManager:
             )
 
             if not cursor.fetchone():
-                print("\n🔄 Detecting V2 schema, auto-migrating to V3 (multi-agent communication)...")
+                print(
+                    "\n🔄 Detecting V2 schema, auto-migrating to V3 (multi-agent communication)..."
+                )
 
                 # Create V3 tables
                 v3_migration_sql = """
@@ -227,7 +234,7 @@ class SessionManager:
                 # Record V3 migration
                 conn.execute(
                     "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
-                    (3, time.time(), "Multi-agent communication tables")
+                    (3, time.time(), "Multi-agent communication tables"),
                 )
                 conn.commit()
 
@@ -236,7 +243,7 @@ class SessionManager:
         finally:
             conn.close()
 
-    def apply_migration(self, version: int, description: str, sql: str):
+    def apply_migration(self, version: int, description: str, sql: str) -> None:
         """Apply a database migration.
 
         Args:
@@ -278,7 +285,7 @@ class SessionManager:
         name: str,
         working_directory: Optional[Path] = None,
         default_model: Optional[str] = None,
-        mcp_servers: Optional[List] = None,
+        mcp_servers: Optional[List["MCPServerConfig"]] = None,
     ) -> Session:
         """Create a new session (T023, T062).
 
@@ -339,17 +346,32 @@ class SessionManager:
                 "COMPLETE the user's request by EXECUTING it with tools. DO NOT explain how to do it."
             ],
             tools=[  # All 19 registered tools available
-                "create_sandbox", "list_sandboxes", "delete_sandbox", "execute_in_sandbox", "get_sandbox_status",
-                "code_reader", "code_writer", "code_editor", "code_analyzer", "code_search",
-                "code_refactor", "code_test_generator", "code_doc_generator", "code_complexity",
-                "code_security_scan", "code_formatter", "dependency_analyzer", "ast_analyzer", "linter"
+                "create_sandbox",
+                "list_sandboxes",
+                "delete_sandbox",
+                "execute_in_sandbox",
+                "get_sandbox_status",
+                "code_reader",
+                "code_writer",
+                "code_editor",
+                "code_analyzer",
+                "code_search",
+                "code_refactor",
+                "code_test_generator",
+                "code_doc_generator",
+                "code_complexity",
+                "code_security_scan",
+                "code_formatter",
+                "dependency_analyzer",
+                "ast_analyzer",
+                "linter",
             ],
             history_config=HistoryConfig(
                 enabled=True,
                 max_tokens=8000,  # Generous limit for agentic reasoning
                 max_entries=50,
-                truncation_strategy="oldest_first"
-            )
+                truncation_strategy="oldest_first",
+            ),
         )
 
         # Create session object (will validate inputs)
@@ -371,9 +393,11 @@ class SessionManager:
 
         # T062: Auto-connect MCP servers with auto_connect=True
         if mcp_servers:
-            from promptchain.cli.utils.mcp_manager import MCPManager
             import asyncio
+
             import nest_asyncio
+
+            from promptchain.cli.utils.mcp_manager import MCPManager
 
             # Allow nested event loops (needed for async contexts)
             nest_asyncio.apply()
@@ -458,14 +482,18 @@ class SessionManager:
                 error_logger.log_error(
                     error=e,
                     context="creating session",
-                    metadata={"session_name": name, "working_directory": str(working_directory)},
+                    metadata={
+                        "session_name": name,
+                        "working_directory": str(working_directory),
+                    },
                 )
             except Exception as log_error:
                 # BUG-012 fix: Log the logging failure to stderr as last resort
                 import sys
+
                 print(
                     f"WARNING: Failed to log session creation error to file: {log_error}",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
                 print(f"Original error was: {e}", file=sys.stderr)
 
@@ -485,7 +513,7 @@ class SessionManager:
                 session_name=session.name,
                 log_dir=activity_log_dir,
                 db_path=session_dir / "activities.db",
-                enable_console=False  # CLI will handle console output
+                enable_console=False,  # CLI will handle console output
             )
         except Exception as e:
             # Log error but don't fail session creation
@@ -548,6 +576,7 @@ class SessionManager:
                 history_config = None
                 if history_config_json:
                     from .models.agent_config import HistoryConfig
+
                     history_config_dict = json.loads(history_config_json)
                     history_config = HistoryConfig(**history_config_dict)
 
@@ -608,7 +637,7 @@ class SessionManager:
                     session_name=session.name,
                     log_dir=activity_log_dir,
                     db_path=activity_db_path,
-                    enable_console=False  # CLI will handle console output
+                    enable_console=False,  # CLI will handle console output
                 )
             except Exception as e:
                 # Log error but don't fail session load
@@ -617,16 +646,21 @@ class SessionManager:
                     error_logger.log_error(
                         error=e,
                         context="initializing activity logger on load",
-                        metadata={"session_id": session.id, "session_name": session.name},
+                        metadata={
+                            "session_id": session.id,
+                            "session_name": session.name,
+                        },
                     )
                 except Exception:
                     pass
 
             # T062: Auto-connect MCP servers with auto_connect=True
             if session.mcp_servers:
-                from promptchain.cli.utils.mcp_manager import MCPManager
                 import asyncio
+
                 import nest_asyncio
+
+                from promptchain.cli.utils.mcp_manager import MCPManager
 
                 # Allow nested event loops (needed for async contexts)
                 nest_asyncio.apply()
@@ -657,7 +691,7 @@ class SessionManager:
         finally:
             conn.close()
 
-    def save_session(self, session: Session):
+    def save_session(self, session: Session) -> None:
         """Save session state (T026, T062).
 
         Args:
@@ -702,14 +736,16 @@ class SessionManager:
                 tools_json = json.dumps(agent.tools)
                 history_config_json = None
                 if agent.history_config:
-                    history_config_json = json.dumps({
-                        "enabled": agent.history_config.enabled,
-                        "max_tokens": agent.history_config.max_tokens,
-                        "max_entries": agent.history_config.max_entries,
-                        "truncation_strategy": agent.history_config.truncation_strategy,
-                        "include_types": agent.history_config.include_types,
-                        "exclude_sources": agent.history_config.exclude_sources,
-                    })
+                    history_config_json = json.dumps(
+                        {
+                            "enabled": agent.history_config.enabled,
+                            "max_tokens": agent.history_config.max_tokens,
+                            "max_entries": agent.history_config.max_entries,
+                            "truncation_strategy": agent.history_config.truncation_strategy,
+                            "include_types": agent.history_config.include_types,
+                            "exclude_sources": agent.history_config.exclude_sources,
+                        }
+                    )
 
                 conn.execute(
                     """
@@ -776,7 +812,10 @@ class SessionManager:
                 error_logger.log_error(
                     error=e,
                     context="saving messages to JSONL",
-                    metadata={"session_id": session.id, "messages_file": str(messages_file)},
+                    metadata={
+                        "session_id": session.id,
+                        "messages_file": str(messages_file),
+                    },
                 )
             except Exception:
                 pass
@@ -850,14 +889,16 @@ class SessionManager:
                 # Serialize history_config to JSON
                 history_config_json = None
                 if agent.history_config:
-                    history_config_json = json.dumps({
-                        "enabled": agent.history_config.enabled,
-                        "max_tokens": agent.history_config.max_tokens,
-                        "max_entries": agent.history_config.max_entries,
-                        "truncation_strategy": agent.history_config.truncation_strategy,
-                        "include_types": agent.history_config.include_types,
-                        "exclude_sources": agent.history_config.exclude_sources,
-                    })
+                    history_config_json = json.dumps(
+                        {
+                            "enabled": agent.history_config.enabled,
+                            "max_tokens": agent.history_config.max_tokens,
+                            "max_entries": agent.history_config.max_entries,
+                            "truncation_strategy": agent.history_config.truncation_strategy,
+                            "include_types": agent.history_config.include_types,
+                            "exclude_sources": agent.history_config.exclude_sources,
+                        }
+                    )
 
                 conn.execute(
                     """
@@ -930,7 +971,9 @@ class SessionManager:
                         enabled=history_data.get("enabled", True),
                         max_tokens=history_data.get("max_tokens", 4000),
                         max_entries=history_data.get("max_entries", 20),
-                        truncation_strategy=history_data.get("truncation_strategy", "oldest_first"),
+                        truncation_strategy=history_data.get(
+                            "truncation_strategy", "oldest_first"
+                        ),
                         include_types=history_data.get("include_types"),
                         exclude_sources=history_data.get("exclude_sources"),
                     )
@@ -955,7 +998,9 @@ class SessionManager:
             conn.close()
 
     # T029: MCP Server Configuration Persistence
-    def save_mcp_servers(self, session_id: str, servers: List["MCPServerConfig"]) -> None:
+    def save_mcp_servers(
+        self, session_id: str, servers: List["MCPServerConfig"]
+    ) -> None:
         """Save MCP server configurations to database (T029).
 
         Args:
@@ -1066,19 +1111,21 @@ class SessionManager:
         conn = sqlite3.connect(self.db_path)
         try:
             # Serialize workflow steps to JSON
-            steps_json = json.dumps([
-                {
-                    "description": step.description,
-                    "status": step.status,
-                    "agent_name": step.agent_name,
-                    "started_at": step.started_at,
-                    "completed_at": step.completed_at,
-                    "result": step.result,
-                    "error_message": step.error_message,
-                    "retry_count": step.retry_count,
-                }
-                for step in workflow.steps
-            ])
+            steps_json = json.dumps(
+                [
+                    {
+                        "description": step.description,
+                        "status": step.status,
+                        "agent_name": step.agent_name,
+                        "started_at": step.started_at,
+                        "completed_at": step.completed_at,
+                        "result": step.result,
+                        "error_message": step.error_message,
+                        "retry_count": step.retry_count,
+                    }
+                    for step in workflow.steps
+                ]
+            )
 
             # Check if workflow already exists
             cursor = conn.execute(
@@ -1229,6 +1276,7 @@ class SessionManager:
 
         # Update workflow timestamp
         from datetime import datetime
+
         workflow.updated_at = datetime.now().timestamp()
 
         return workflow
@@ -1351,7 +1399,7 @@ class SessionManager:
         objective: str,
         max_steps: int,
         steps_completed: int,
-        partial_result: Optional[str] = None
+        partial_result: Optional[str] = None,
     ) -> None:
         """Log AgenticStepProcessor max steps exhaustion event (T055).
 
@@ -1374,7 +1422,7 @@ class SessionManager:
             "max_steps": max_steps,
             "steps_completed": steps_completed,
             "partial_result_length": len(partial_result) if partial_result else 0,
-            "completion_detected": False  # Exhausted before completion
+            "completion_detected": False,  # Exhausted before completion
         }
 
         # Get session log path
@@ -1392,15 +1440,14 @@ class SessionManager:
         except Exception as log_error:
             # If logging fails, write to stderr but don't crash
             import sys
+
             print(
                 f"ERROR: Failed to log agentic exhaustion to {log_file}: {log_error}",
                 file=sys.stderr,
             )
 
     def get_exhaustion_history(
-        self,
-        session_id: str,
-        limit: Optional[int] = None
+        self, session_id: str, limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Get agentic exhaustion events from session history (T055).
 
@@ -1438,7 +1485,7 @@ class SessionManager:
 
     def get_router_decision_history(
         self, session_id: str, limit: Optional[int] = None
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         """Get router decision history from JSONL log (T043).
 
         Args:
@@ -1474,7 +1521,9 @@ class SessionManager:
         return decisions
 
     # T090: Step Tracking Detection Logic
-    def detect_step_transition(self, session: "Session", agent_output: str) -> Optional["WorkflowStep"]:
+    def detect_step_transition(
+        self, session: "Session", agent_output: str
+    ) -> Optional["WorkflowStep"]:
         """Detect if agent output signals step completion.
 
         Args:
@@ -1512,7 +1561,9 @@ class SessionManager:
         # Check if any completion signal present
         if any(keyword in agent_lower for keyword in completion_keywords):
             # Mark step completed
-            current_step.mark_completed(result=agent_output[:200])  # First 200 chars as result
+            current_step.mark_completed(
+                result=agent_output[:200]
+            )  # First 200 chars as result
 
             # Advance workflow to next step
             workflow.advance_step()
@@ -1525,7 +1576,9 @@ class SessionManager:
         return None
 
     # T087: Auto-Update Workflow on Message
-    def update_workflow_on_message(self, session: "Session", message: "Message") -> Optional[Dict[str, Any]]:
+    def update_workflow_on_message(
+        self, session: "Session", message: "Message"
+    ) -> Optional[Dict[str, Any]]:
         """Update workflow state after agent message.
 
         Called from TUI after each agent response to check for step transitions.
@@ -1562,7 +1615,9 @@ class SessionManager:
             workflow = self.load_workflow(session.id)
             if workflow:
                 # Show progress update
-                completed_count = len([s for s in workflow.steps if s.status == "completed"])
+                completed_count = len(
+                    [s for s in workflow.steps if s.status == "completed"]
+                )
                 logger.info(
                     f"Workflow progress: {workflow.progress_percentage:.0f}% "
                     f"({completed_count}/{len(workflow.steps)} steps)"
@@ -1573,7 +1628,7 @@ class SessionManager:
                     "step_description": completed_step.description,
                     "progress_percentage": workflow.progress_percentage,
                     "completed_count": completed_count,
-                    "total_steps": len(workflow.steps)
+                    "total_steps": len(workflow.steps),
                 }
 
         return None
@@ -1631,15 +1686,17 @@ class SessionManager:
                 else:
                     status = "active"
 
-                workflows.append({
-                    "session_name": session_name,
-                    "objective": objective,
-                    "progress": progress,
-                    "status": status,
-                    "created_at": created_at,
-                    "step_count": total_steps,
-                    "completed_count": completed_count
-                })
+                workflows.append(
+                    {
+                        "session_name": session_name,
+                        "objective": objective,
+                        "progress": progress,
+                        "status": status,
+                        "created_at": created_at,
+                        "step_count": total_steps,
+                        "completed_count": completed_count,
+                    }
+                )
 
             return workflows
 
@@ -1660,7 +1717,7 @@ class SessionManager:
         source_agent: str,
         target_agent: str,
         priority: str = "medium",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> "Task":
         """Create a new task in the queue (003-T009).
 
@@ -1685,7 +1742,7 @@ class SessionManager:
             source_agent=source_agent,
             target_agent=target_agent,
             priority=TaskPriority(priority),
-            context=context
+            context=context,
         )
 
         conn = sqlite3.connect(self.db_path)
@@ -1752,7 +1809,7 @@ class SessionManager:
         session_id: str,
         status: Optional[str] = None,
         target_agent: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List["Task"]:
         """List tasks with optional filters (003-T009).
 
@@ -1770,7 +1827,7 @@ class SessionManager:
         conn = sqlite3.connect(self.db_path)
         try:
             query = "SELECT * FROM task_queue WHERE session_id = ?"
-            params = [session_id]
+            params: List[Any] = [session_id]
 
             if status:
                 query += " AND status = ?"
@@ -1794,7 +1851,7 @@ class SessionManager:
         task_id: str,
         status: str,
         result: Optional[Dict[str, Any]] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> bool:
         """Update task status (003-T009).
 
@@ -1821,7 +1878,13 @@ class SessionManager:
                     """UPDATE task_queue
                        SET status = ?, completed_at = ?, result_json = ?, error_message = ?
                        WHERE task_id = ?""",
-                    (status, now, json.dumps(result) if result else None, error_message, task_id),
+                    (
+                        status,
+                        now,
+                        json.dumps(result) if result else None,
+                        error_message,
+                        task_id,
+                    ),
                 )
             else:
                 conn.execute(
@@ -1837,11 +1900,7 @@ class SessionManager:
     # --- Blackboard CRUD (FR-011 to FR-015) ---
 
     def write_blackboard(
-        self,
-        session_id: str,
-        key: str,
-        value: Any,
-        written_by: str
+        self, session_id: str, key: str, value: Any, written_by: str
     ) -> "BlackboardEntry":
         """Write to blackboard (003-T010).
 
@@ -1883,7 +1942,7 @@ class SessionManager:
                     value=value,
                     written_by=written_by,
                     written_at=now,
-                    version=new_version
+                    version=new_version,
                 )
             else:
                 # Insert new entry
@@ -1897,7 +1956,7 @@ class SessionManager:
                     value=value,
                     written_by=written_by,
                     written_at=now,
-                    version=1
+                    version=1,
                 )
 
             conn.commit()
@@ -1980,7 +2039,7 @@ class SessionManager:
         self,
         session_id: str,
         agents: List[str],
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> "MultiAgentWorkflow":
         """Create a new multi-agent workflow (003-T011).
 
@@ -2024,7 +2083,9 @@ class SessionManager:
 
         return workflow
 
-    def get_multi_agent_workflow(self, session_id: str) -> Optional["MultiAgentWorkflow"]:
+    def get_multi_agent_workflow(
+        self, session_id: str
+    ) -> Optional["MultiAgentWorkflow"]:
         """Get multi-agent workflow for session (003-T011).
 
         Args:
@@ -2056,7 +2117,7 @@ class SessionManager:
         stage: Optional[str] = None,
         current_task: Optional[str] = None,
         completed_task_id: Optional[str] = None,
-        new_agent: Optional[str] = None
+        new_agent: Optional[str] = None,
     ) -> bool:
         """Update multi-agent workflow (003-T011).
 
@@ -2076,6 +2137,7 @@ class SessionManager:
 
         if stage:
             from .models.workflow import WorkflowStage
+
             workflow.set_stage(WorkflowStage(stage))
 
         if current_task is not None:
@@ -2116,7 +2178,7 @@ class SessionManager:
         sender: str,
         receiver: str,
         message_type: str,
-        payload: Dict[str, Any]
+        payload: Dict[str, Any],
     ) -> str:
         """Log an agent message (003-T012).
 
@@ -2142,7 +2204,15 @@ class SessionManager:
                     message_id, session_id, sender, receiver, message_type,
                     payload_json, timestamp, delivered
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)""",
-                (message_id, session_id, sender, receiver, message_type, json.dumps(payload), now),
+                (
+                    message_id,
+                    session_id,
+                    sender,
+                    receiver,
+                    message_type,
+                    json.dumps(payload),
+                    now,
+                ),
             )
             conn.commit()
         finally:
@@ -2156,7 +2226,7 @@ class SessionManager:
         sender: Optional[str] = None,
         receiver: Optional[str] = None,
         message_type: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get messages with optional filters (003-T012).
 
@@ -2173,7 +2243,7 @@ class SessionManager:
         conn = sqlite3.connect(self.db_path)
         try:
             query = "SELECT * FROM message_log WHERE session_id = ?"
-            params = [session_id]
+            params: List[Any] = [session_id]
 
             if sender:
                 query += " AND sender = ?"

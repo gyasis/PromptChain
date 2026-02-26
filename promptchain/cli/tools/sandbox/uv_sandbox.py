@@ -25,15 +25,9 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 
-from .base import (
-    BaseSandbox,
-    EnvironmentConfig,
-    EnvironmentType,
-    SandboxResult,
-    ProvisionError,
-    ExecutionError,
-    CleanupError,
-)
+from .base import (BaseSandbox, CleanupError, EnvironmentConfig,
+                   EnvironmentType, ExecutionError, ProvisionError,
+                   SandboxResult)
 
 
 class UVSandbox(BaseSandbox):
@@ -124,10 +118,7 @@ class UVSandbox(BaseSandbox):
             raise ProvisionError(f"Failed to provision UV environment: {e}") from e
 
     def execute(
-        self,
-        code: str,
-        timeout: Optional[int] = None,
-        capture_output: bool = True
+        self, code: str, timeout: Optional[int] = None, capture_output: bool = True
     ) -> SandboxResult:
         """Execute Python code in UV environment.
 
@@ -158,10 +149,7 @@ class UVSandbox(BaseSandbox):
 
             # Write code to temporary file
             with tempfile.NamedTemporaryFile(
-                mode='w',
-                suffix='.py',
-                delete=False,
-                dir=self.config.working_dir
+                mode="w", suffix=".py", delete=False, dir=self.config.working_dir
             ) as code_file:
                 code_file.write(code)
                 code_file_path = code_file.name
@@ -174,7 +162,7 @@ class UVSandbox(BaseSandbox):
                     text=True,
                     timeout=timeout,
                     cwd=self.config.working_dir,
-                    env=self._get_execution_env()
+                    env=self._get_execution_env(),
                 )
 
                 execution_time = time.time() - start_time
@@ -192,8 +180,8 @@ class UVSandbox(BaseSandbox):
                     metadata={
                         "env_id": self.env_id,
                         "env_type": "uv",
-                        "python_version": self.config.python_version
-                    }
+                        "python_version": self.config.python_version,
+                    },
                 )
 
             finally:
@@ -210,7 +198,7 @@ class UVSandbox(BaseSandbox):
                 error=f"Execution exceeded timeout of {timeout}s",
                 execution_time=execution_time,
                 timeout=True,
-                metadata={"env_id": self.env_id}
+                metadata={"env_id": self.env_id},
             )
 
         except Exception as e:
@@ -229,6 +217,7 @@ class UVSandbox(BaseSandbox):
             if self.env_path and self.env_path.exists():
                 # Remove entire environment directory
                 import shutil
+
                 shutil.rmtree(self.env_path)
 
             self._is_provisioned = False
@@ -256,9 +245,7 @@ class UVSandbox(BaseSandbox):
         # Verify Python executable works
         try:
             result = subprocess.run(
-                [str(self.python_path), "--version"],
-                capture_output=True,
-                timeout=5
+                [str(self.python_path), "--version"], capture_output=True, timeout=5
             )
             return result.returncode == 0
         except Exception:
@@ -273,19 +260,13 @@ class UVSandbox(BaseSandbox):
             ProvisionError: If UV is not available
         """
         try:
-            result = subprocess.run(
-                ["uv", "--version"],
-                capture_output=True,
-                timeout=5
-            )
+            result = subprocess.run(["uv", "--version"], capture_output=True, timeout=5)
             if result.returncode != 0:
                 raise ProvisionError(
                     "UV is not installed. Install with: pip install uv"
                 )
         except FileNotFoundError:
-            raise ProvisionError(
-                "UV is not installed. Install with: pip install uv"
-            )
+            raise ProvisionError("UV is not installed. Install with: pip install uv")
 
     def _create_venv(self) -> None:
         """Create UV virtual environment.
@@ -296,22 +277,17 @@ class UVSandbox(BaseSandbox):
         try:
             # UV venv command with Python version
             cmd = [
-                "uv", "venv",
-                "--python", self.config.python_version,
-                str(self.env_path)
+                "uv",
+                "venv",
+                "--python",
+                self.config.python_version,
+                str(self.env_path),
             ]
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
-                raise ProvisionError(
-                    f"UV venv creation failed: {result.stderr}"
-                )
+                raise ProvisionError(f"UV venv creation failed: {result.stderr}")
 
         except subprocess.TimeoutExpired:
             raise ProvisionError("UV venv creation exceeded 30s timeout")
@@ -330,26 +306,22 @@ class UVSandbox(BaseSandbox):
 
         try:
             # Get pip path in UV environment
+            if not self.env_path:
+                raise ProvisionError("UV environment path is not set")
             pip_path = self.env_path / "bin" / "pip"
 
             # Use UV pip for ultra-fast installation
-            cmd = [
-                "uv", "pip", "install",
-                "--python", str(self.python_path),
-                *packages
-            ]
+            cmd = ["uv", "pip", "install", "--python", str(self.python_path), *packages]
 
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minutes for package installation
+                timeout=300,  # 5 minutes for package installation
             )
 
             if result.returncode != 0:
-                raise ProvisionError(
-                    f"Package installation failed: {result.stderr}"
-                )
+                raise ProvisionError(f"Package installation failed: {result.stderr}")
 
         except subprocess.TimeoutExpired:
             raise ProvisionError(
@@ -371,8 +343,10 @@ class UVSandbox(BaseSandbox):
         try:
             # Try to use existing SafetyValidator
             from promptchain.cli.tools.safety import SafetyValidator
-            validator = SafetyValidator()
-            validator.validate_code(code)
+
+            project_root = self.config.working_dir or Path(".")
+            validator = SafetyValidator(project_root=project_root)
+            validator.validate_command(["python", "-c", code])
         except ImportError:
             # Fallback to basic validation if SafetyValidator not available
             self._basic_security_validation(code)
@@ -401,9 +375,7 @@ class UVSandbox(BaseSandbox):
 
         for pattern in forbidden_patterns:
             if pattern in code:
-                raise SecurityError(
-                    f"Forbidden pattern detected: {pattern}"
-                )
+                raise SecurityError(f"Forbidden pattern detected: {pattern}")
 
     def _get_execution_env(self) -> dict:
         """Get environment variables for code execution.

@@ -39,10 +39,14 @@ class HistoryConfig:
         # Allow max_tokens=0 and max_entries=0 when history is disabled (terminal mode)
         if self.enabled:
             if self.max_tokens < 100 or self.max_tokens > 16000:
-                raise ValueError(f"max_tokens must be between 100-16000, got: {self.max_tokens}")
+                raise ValueError(
+                    f"max_tokens must be between 100-16000, got: {self.max_tokens}"
+                )
 
             if self.max_entries < 1 or self.max_entries > 200:
-                raise ValueError(f"max_entries must be between 1-200, got: {self.max_entries}")
+                raise ValueError(
+                    f"max_entries must be between 1-200, got: {self.max_entries}"
+                )
         else:
             # When disabled, max_tokens and max_entries must be 0
             if self.max_tokens != 0 or self.max_entries != 0:
@@ -124,7 +128,9 @@ class HistoryConfig:
         }
 
         # Get config for type, fallback to coder defaults
-        config_dict = type_configs.get(agent_type.lower(), type_configs["coder"])
+        config_dict: Dict[str, Any] = type_configs.get(
+            agent_type.lower(), type_configs["coder"]
+        )
         return cls.from_dict(config_dict)
 
 
@@ -155,7 +161,9 @@ class Agent:
     last_used: Optional[float] = None
     usage_count: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
-    max_completion_tokens: int = 16000  # Maximum tokens for agent output (LiteLLM parameter)
+    max_completion_tokens: int = (
+        16000  # Maximum tokens for agent output (LiteLLM parameter)
+    )
 
     # NEW: Orchestration fields (v2 schema for AgentChain integration)
     instruction_chain: List[Union[str, Dict[str, Any]]] = field(default_factory=list)
@@ -166,10 +174,14 @@ class Agent:
         """Validate agent attributes after initialization."""
         # Validate name format
         if not self.name or len(self.name) > 32:
-            raise ValueError(f"Agent name must be 1-32 characters, got: {len(self.name)}")
+            raise ValueError(
+                f"Agent name must be 1-32 characters, got: {len(self.name)}"
+            )
 
         if not self.name.replace("-", "").replace("_", "").isalnum():
-            raise ValueError(f"Agent name must be alphanumeric+dashes/underscores: {self.name}")
+            raise ValueError(
+                f"Agent name must be alphanumeric+dashes/underscores: {self.name}"
+            )
 
         # Validate model_name format (provider/model-name)
         if not self.model_name or "/" not in self.model_name:
@@ -180,7 +192,9 @@ class Agent:
 
         # Validate description length
         if len(self.description) > 256:
-            raise ValueError(f"Description must be ≤256 characters, got: {len(self.description)}")
+            raise ValueError(
+                f"Description must be ≤256 characters, got: {len(self.description)}"
+            )
 
     def update_usage(self):
         """Update usage statistics when agent is used."""
@@ -215,7 +229,9 @@ class Agent:
             "max_completion_tokens": self.max_completion_tokens,
             "instruction_chain": self.instruction_chain,
             "tools": self.tools,
-            "history_config": self.history_config.to_dict() if self.history_config else None,
+            "history_config": (
+                self.history_config.to_dict() if self.history_config else None
+            ),
         }
 
     @classmethod
@@ -229,7 +245,11 @@ class Agent:
             Agent: Reconstructed agent object
         """
         history_config_data = data.get("history_config")
-        history_config = HistoryConfig.from_dict(history_config_data) if history_config_data else None
+        history_config = (
+            HistoryConfig.from_dict(history_config_data)
+            if history_config_data
+            else None
+        )
 
         return cls(
             name=data["name"],
@@ -252,7 +272,9 @@ class Agent:
             str: Formatted agent string
         """
         status = "[ACTIVE]" if self.last_used is not None else ""
-        usage_info = f"used {self.usage_count} times" if self.usage_count > 0 else "not yet used"
+        usage_info = (
+            f"used {self.usage_count} times" if self.usage_count > 0 else "not yet used"
+        )
 
         if self.description:
             return f"{self.name} ({self.model_name}) - {self.description} ({usage_info}) {status}"

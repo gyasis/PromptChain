@@ -16,42 +16,37 @@ Directory Structure:
 └── chains_temp/          # Ephemeral chains (auto-cleanup)
 """
 
-import os
 import json
-import uuid
-import shutil
-from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
-from datetime import datetime
 import logging
+import os
+import shutil
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
-from .chain_models import (
-    ChainDefinition,
-    ChainStepDefinition,
-    ChainManifest,
-    ChainRegistry,
-    ChainMode,
-    StepType,
-    Guardrails,
-    ValidationResult,
-    ValidationIssue
-)
+from .chain_models import (ChainDefinition, ChainManifest, ChainMode,
+                           ChainRegistry, ChainStepDefinition, Guardrails,
+                           StepType, ValidationIssue, ValidationResult)
 
 logger = logging.getLogger(__name__)
 
 
 class ChainFactoryError(Exception):
     """Base exception for ChainFactory errors."""
+
     pass
 
 
 class ChainNotFoundError(ChainFactoryError):
     """Chain not found in registry."""
+
     pass
 
 
 class ChainValidationError(ChainFactoryError):
     """Chain failed validation."""
+
     pass
 
 
@@ -82,7 +77,7 @@ class ChainFactory:
         self,
         base_path: Optional[str] = None,
         auto_setup: bool = True,
-        default_model: str = "openai/gpt-4.1-mini-2025-04-14"
+        default_model: str = "openai/gpt-4.1-mini-2025-04-14",
     ):
         """Initialize ChainFactory.
 
@@ -124,7 +119,7 @@ class ChainFactory:
         if not self.registry_path.exists():
             return ChainRegistry()
         try:
-            with open(self.registry_path, 'r') as f:
+            with open(self.registry_path, "r") as f:
                 data = json.load(f)
             return ChainRegistry.model_validate(data)
         except Exception as e:
@@ -134,19 +129,15 @@ class ChainFactory:
     def _save_registry(self, registry: Optional[ChainRegistry] = None):
         """Save registry to disk."""
         registry = registry or self.registry
-        with open(self.registry_path, 'w') as f:
-            json.dump(registry.model_dump(mode='json'), f, indent=2, default=str)
+        with open(self.registry_path, "w") as f:
+            json.dump(registry.model_dump(mode="json"), f, indent=2, default=str)
         self._registry = registry
 
     # =========================================================================
     # Core Methods
     # =========================================================================
 
-    def create(
-        self,
-        model: str,
-        version: str = "latest"
-    ) -> ChainDefinition:
+    def create(self, model: str, version: str = "latest") -> ChainDefinition:
         """Create a chain from a saved model.
 
         Args:
@@ -161,9 +152,10 @@ class ChainFactory:
         """
         # Resolve "latest" to actual version
         if version == "latest":
-            version = self.registry.get_latest_version(model)
-            if not version:
+            resolved = self.registry.get_latest_version(model)
+            if not resolved:
                 raise ChainNotFoundError(f"No versions found for model: {model}")
+            version = resolved
 
         # Load from file
         chain_path = self.chains_path / model / f"{version}.json"
@@ -171,7 +163,7 @@ class ChainFactory:
             raise ChainNotFoundError(f"Chain not found: {model}:{version}")
 
         try:
-            with open(chain_path, 'r') as f:
+            with open(chain_path, "r") as f:
                 data = json.load(f)
             chain = ChainDefinition.model_validate(data)
             logger.debug(f"Loaded chain: {chain.vin}")
@@ -186,7 +178,7 @@ class ChainFactory:
         description: Optional[str] = None,
         guardrails: Optional[Guardrails] = None,
         llm_model: Optional[str] = None,
-        mode: ChainMode = ChainMode.STRICT
+        mode: ChainMode = ChainMode.STRICT,
     ) -> ChainDefinition:
         """Create an ephemeral chain (not saved to disk).
 
@@ -205,18 +197,18 @@ class ChainFactory:
         parsed_steps = []
         for i, step in enumerate(steps):
             step_copy = step.copy()
-            if 'id' not in step_copy:
-                step_copy['id'] = f"step_{i + 1}"
-            if 'type' not in step_copy:
+            if "id" not in step_copy:
+                step_copy["id"] = f"step_{i + 1}"
+            if "type" not in step_copy:
                 # Infer type from content
-                if 'chain_id' in step_copy:
-                    step_copy['type'] = StepType.CHAIN
-                elif 'function_name' in step_copy:
-                    step_copy['type'] = StepType.FUNCTION
-                elif 'objective' in step_copy:
-                    step_copy['type'] = StepType.AGENTIC
+                if "chain_id" in step_copy:
+                    step_copy["type"] = StepType.CHAIN
+                elif "function_name" in step_copy:
+                    step_copy["type"] = StepType.FUNCTION
+                elif "objective" in step_copy:
+                    step_copy["type"] = StepType.AGENTIC
                 else:
-                    step_copy['type'] = StepType.PROMPT
+                    step_copy["type"] = StepType.PROMPT
             parsed_steps.append(ChainStepDefinition.model_validate(step_copy))
 
         # Generate temp VIN
@@ -232,13 +224,13 @@ class ChainFactory:
             llm_model=llm_model or self.default_model,
             guardrails=guardrails or Guardrails(),
             steps=parsed_steps,
-            is_temp=True
+            is_temp=True,
         )
 
         # Optionally save to temp directory for debugging
         temp_file = self.temp_path / f"{vin}.json"
-        with open(temp_file, 'w') as f:
-            json.dump(chain.model_dump(mode='json'), f, indent=2, default=str)
+        with open(temp_file, "w") as f:
+            json.dump(chain.model_dump(mode="json"), f, indent=2, default=str)
 
         logger.debug(f"Created temp chain: {vin}")
         return chain
@@ -248,7 +240,7 @@ class ChainFactory:
         chain: ChainDefinition,
         model: Optional[str] = None,
         version: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> str:
         """Save a chain to permanent storage.
 
@@ -263,20 +255,22 @@ class ChainFactory:
         """
         model = model or chain.model
         if model == "temp":
-            raise ChainFactoryError("Cannot save with model name 'temp'. Provide a model name.")
+            raise ChainFactoryError(
+                "Cannot save with model name 'temp'. Provide a model name."
+            )
 
         # Determine version
         if version:
-            if not version.startswith('v'):
+            if not version.startswith("v"):
                 version = f"v{version}"
         else:
             # Auto-increment version
             existing = self.list_versions(model)
             if existing:
                 latest = existing[-1]
-                parts = latest.lstrip('v').split('.')
+                parts = latest.lstrip("v").split(".")
                 parts[-1] = str(int(parts[-1]) + 1)
-                version = 'v' + '.'.join(parts)
+                version = "v" + ".".join(parts)
             else:
                 version = "v1.0"
 
@@ -288,25 +282,29 @@ class ChainFactory:
         model_dir.mkdir(parents=True, exist_ok=True)
 
         # Update chain with new identity
-        saved_chain = chain.model_copy(update={
-            'vin': vin,
-            'model': model,
-            'version': version,
-            'description': description or chain.description,
-            'is_temp': False,
-            'created_at': datetime.utcnow()
-        })
+        saved_chain = chain.model_copy(
+            update={
+                "vin": vin,
+                "model": model,
+                "version": version,
+                "description": description or chain.description,
+                "is_temp": False,
+                "created_at": datetime.utcnow(),
+            }
+        )
 
         # Save chain file
         chain_file = model_dir / f"{version}.json"
-        with open(chain_file, 'w') as f:
-            json.dump(saved_chain.model_dump(mode='json'), f, indent=2, default=str)
+        with open(chain_file, "w") as f:
+            json.dump(saved_chain.model_dump(mode="json"), f, indent=2, default=str)
 
         # Update/create manifest
         self._update_manifest(model, saved_chain)
 
         # Update registry
-        self.registry.register_chain(saved_chain, str(chain_file.relative_to(self.chains_path)))
+        self.registry.register_chain(
+            saved_chain, str(chain_file.relative_to(self.chains_path))
+        )
         self._save_registry()
 
         # Clean up temp file if exists
@@ -319,10 +317,7 @@ class ChainFactory:
         return vin
 
     def save_from_dict(
-        self,
-        chain_def: Dict[str, Any],
-        model: str,
-        version: Optional[str] = None
+        self, chain_def: Dict[str, Any], model: str, version: Optional[str] = None
     ) -> str:
         """Save a chain from a dictionary definition.
 
@@ -344,7 +339,7 @@ class ChainFactory:
         manifest_path = model_dir / "manifest.json"
 
         if manifest_path.exists():
-            with open(manifest_path, 'r') as f:
+            with open(manifest_path, "r") as f:
                 manifest = ChainManifest.model_validate(json.load(f))
         else:
             manifest = ChainManifest(
@@ -352,13 +347,13 @@ class ChainFactory:
                 description=chain.description,
                 tags=chain.tags,
                 latest=chain.version,
-                versions=[chain.version]
+                versions=[chain.version],
             )
 
         manifest.add_version(chain.version)
 
-        with open(manifest_path, 'w') as f:
-            json.dump(manifest.model_dump(mode='json'), f, indent=2, default=str)
+        with open(manifest_path, "w") as f:
+            json.dump(manifest.model_dump(mode="json"), f, indent=2, default=str)
 
     # =========================================================================
     # Registry Methods
@@ -380,7 +375,7 @@ class ChainFactory:
                 "latest": entry.latest,
                 "versions": entry.versions,
                 "tags": entry.tags,
-                "path": entry.path
+                "path": entry.path,
             }
         return result
 
@@ -410,7 +405,7 @@ class ChainFactory:
         if not chain_path.exists():
             raise ChainNotFoundError(f"Chain file missing for VIN: {vin}")
 
-        with open(chain_path, 'r') as f:
+        with open(chain_path, "r") as f:
             data = json.load(f)
         return ChainDefinition.model_validate(data)
 
@@ -433,8 +428,8 @@ class ChainFactory:
             return self.get_by_vin(reference)
 
         # Check model:version
-        if ':' in reference:
-            model, version = reference.split(':', 1)
+        if ":" in reference:
+            model, version = reference.split(":", 1)
             return self.create(model, version)
 
         # Must be model name (use latest)
@@ -462,7 +457,9 @@ class ChainFactory:
     # Management Methods
     # =========================================================================
 
-    def delete(self, model: str, version: Optional[str] = None, force: bool = False) -> bool:
+    def delete(
+        self, model: str, version: Optional[str] = None, force: bool = False
+    ) -> bool:
         """Delete a chain or all versions of a model.
 
         Args:
@@ -489,7 +486,8 @@ class ChainFactory:
 
             # Remove VINs for this version
             vins_to_remove = [
-                vin for vin, path in self.registry.by_vin.items()
+                vin
+                for vin, path in self.registry.by_vin.items()
                 if f"{model}/{version}" in path
             ]
             for vin in vins_to_remove:
@@ -513,7 +511,8 @@ class ChainFactory:
             # Clean registry
             del self.registry.models[model]
             self.registry.by_vin = {
-                vin: path for vin, path in self.registry.by_vin.items()
+                vin: path
+                for vin, path in self.registry.by_vin.items()
                 if not path.startswith(f"{model}/")
             }
             self._save_registry()
@@ -526,7 +525,7 @@ class ChainFactory:
         model: str,
         version: str,
         new_version: str,
-        new_model: Optional[str] = None
+        new_model: Optional[str] = None,
     ) -> str:
         """Fork a chain to create a new version.
 
@@ -546,7 +545,7 @@ class ChainFactory:
             source,
             model=target_model,
             version=new_version,
-            description=f"Forked from {model}:{version}"
+            description=f"Forked from {model}:{version}",
         )
 
     def cleanup_temp(self, max_age_hours: int = 24) -> int:
@@ -601,7 +600,7 @@ class ChainFactory:
         if len(chain.steps) > chain.guardrails.max_steps:
             result.add_error(
                 f"Chain has {len(chain.steps)} steps, max allowed is {chain.guardrails.max_steps}",
-                suggestion="Reduce steps or increase guardrails.max_steps"
+                suggestion="Reduce steps or increase guardrails.max_steps",
             )
 
         # Check each step
@@ -611,23 +610,19 @@ class ChainFactory:
                 if not step.prompt_id and not step.content:
                     result.add_error(
                         "Prompt step missing both prompt_id and content",
-                        step_id=step.id
+                        step_id=step.id,
                     )
 
             elif step.type == StepType.CHAIN:
                 if not step.chain_id:
-                    result.add_error(
-                        "Chain step missing chain_id",
-                        step_id=step.id
-                    )
+                    result.add_error("Chain step missing chain_id", step_id=step.id)
                 else:
                     # Check if nested chain exists
                     try:
                         self.resolve(step.chain_id)
                     except ChainNotFoundError:
                         result.add_warning(
-                            f"Nested chain not found: {step.chain_id}",
-                            step_id=step.id
+                            f"Nested chain not found: {step.chain_id}", step_id=step.id
                         )
 
             elif step.type == StepType.AGENTIC:
@@ -635,7 +630,7 @@ class ChainFactory:
                     result.add_error(
                         "Agentic steps not allowed in strict mode",
                         step_id=step.id,
-                        suggestion="Change mode to 'hybrid' or use chain/prompt steps"
+                        suggestion="Change mode to 'hybrid' or use chain/prompt steps",
                     )
 
             # Check for forbidden patterns
@@ -643,8 +638,7 @@ class ChainFactory:
             for pattern in chain.guardrails.forbidden_patterns:
                 if pattern.lower() in content_to_check.lower():
                     result.add_error(
-                        f"Forbidden pattern detected: '{pattern}'",
-                        step_id=step.id
+                        f"Forbidden pattern detected: '{pattern}'", step_id=step.id
                     )
 
         return result
@@ -679,13 +673,11 @@ class ChainFactory:
             "guardrails": chain.guardrails.model_dump(),
             "created_at": chain.created_at.isoformat(),
             "created_by": chain.created_by,
-            "tags": chain.tags
+            "tags": chain.tags,
         }
 
     def search(
-        self,
-        query: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        self, query: Optional[str] = None, tags: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """Search for chains by name or tags.
 
@@ -707,11 +699,13 @@ class ChainFactory:
             if tags and not any(tag in entry.tags for tag in tags):
                 continue
 
-            results.append({
-                "model": model_name,
-                "latest": entry.latest,
-                "versions": entry.versions,
-                "tags": entry.tags
-            })
+            results.append(
+                {
+                    "model": model_name,
+                    "latest": entry.latest,
+                    "versions": entry.versions,
+                    "tags": entry.tags,
+                }
+            )
 
         return results

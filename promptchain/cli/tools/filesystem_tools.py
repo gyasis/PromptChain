@@ -11,20 +11,21 @@ Security modes:
 - DEFAULT: Warn once per unique outside-path, then allow
 """
 
-import os
 import glob as glob_module
+import os
 from pathlib import Path
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
-from .registry import ToolRegistry, ToolCategory
 from ..security_context import get_security_context
-
+from .registry import ToolCategory, ToolRegistry
 
 # Store the working directory at import time for boundary checks
 _initial_working_dir = os.path.abspath(os.getcwd())
 
 
-def is_within_working_dir(path: str, working_dir: Optional[str] = None) -> Tuple[bool, str]:
+def is_within_working_dir(
+    path: str, working_dir: Optional[str] = None
+) -> Tuple[bool, str]:
     """Check if a path is within the working directory.
 
     Args:
@@ -52,7 +53,10 @@ def is_within_working_dir(path: str, working_dir: Optional[str] = None) -> Tuple
     if is_within:
         return True, f"Path is within working directory: {base_dir}"
     else:
-        return False, f"WARNING: Path '{abs_path}' is OUTSIDE working directory '{base_dir}'"
+        return (
+            False,
+            f"WARNING: Path '{abs_path}' is OUTSIDE working directory '{base_dir}'",
+        )
 
 
 def check_path_with_security(path: str) -> Tuple[bool, Optional[str], bool]:
@@ -108,30 +112,28 @@ def get_filesystem_tools_registry() -> ToolRegistry:
             "path": {
                 "type": "string",
                 "required": True,
-                "description": "The path to resolve (can be relative, contain ~, .., etc.)"
+                "description": "The path to resolve (can be relative, contain ~, .., etc.)",
             },
             "base_dir": {
                 "type": "string",
                 "required": False,
-                "description": "Base directory for relative paths (defaults to current working directory)"
+                "description": "Base directory for relative paths (defaults to current working directory)",
             },
             "check_boundary": {
                 "type": "boolean",
                 "required": False,
-                "description": "Check if path is within working directory (default: True)"
-            }
+                "description": "Check if path is within working directory (default: True)",
+            },
         },
         tags=["path", "filesystem", "resolve", "absolute"],
         examples=[
             "resolve_path('../hybridrag') -> {'path': '/home/user/Documents/code/hybridrag', 'outside_working_dir': True, 'warning': '...'}",
             "resolve_path('~/Documents') -> {'path': '/home/user/Documents', 'outside_working_dir': True}",
-            "resolve_path('./src') -> {'path': '/home/user/project/src', 'outside_working_dir': False}"
-        ]
+            "resolve_path('./src') -> {'path': '/home/user/project/src', 'outside_working_dir': False}",
+        ],
     )
     def resolve_path(
-        path: str,
-        base_dir: Optional[str] = None,
-        check_boundary: bool = True
+        path: str, base_dir: Optional[str] = None, check_boundary: bool = True
     ) -> dict:
         """Resolve a path to its full absolute path with boundary checking.
 
@@ -176,7 +178,9 @@ def get_filesystem_tools_registry() -> ToolRegistry:
 
         # Check working directory boundary using security context
         if check_boundary:
-            should_proceed, warning_msg, requires_confirmation = check_path_with_security(absolute)
+            should_proceed, warning_msg, requires_confirmation = (
+                check_path_with_security(absolute)
+            )
             is_within, _ = is_within_working_dir(absolute)
             result["outside_working_dir"] = not is_within
 
@@ -217,44 +221,44 @@ def get_filesystem_tools_registry() -> ToolRegistry:
             "pattern": {
                 "type": "string",
                 "required": True,
-                "description": "Glob pattern to match (e.g., '*.py', '**/test_*.py', 'hybridrag*'). Use * for wildcards."
+                "description": "Glob pattern to match (e.g., '*.py', '**/test_*.py', 'hybridrag*'). Use * for wildcards.",
             },
             "search_dir": {
                 "type": "string",
                 "required": False,
-                "description": "Directory to search in (defaults to current working directory)"
+                "description": "Directory to search in (defaults to current working directory)",
             },
             "recursive": {
                 "type": "boolean",
                 "required": False,
-                "description": "Search recursively in subdirectories (default: True)"
+                "description": "Search recursively in subdirectories (default: True)",
             },
             "include_parent": {
                 "type": "boolean",
                 "required": False,
-                "description": "Also search parent directories (default: False). When True, only searches shallow (1 level) in parent to avoid hanging."
+                "description": "Also search parent directories (default: False). When True, only searches shallow (1 level) in parent to avoid hanging.",
             },
             "case_insensitive": {
                 "type": "boolean",
                 "required": False,
-                "description": "Case-insensitive matching (default: True). Finds 'HybridRag' when searching 'hybridrag*'."
+                "description": "Case-insensitive matching (default: True). Finds 'HybridRag' when searching 'hybridrag*'.",
             },
             "max_results": {
                 "type": "integer",
                 "required": False,
-                "description": "Maximum number of results to return (default: 100). Prevents hanging on large directories."
+                "description": "Maximum number of results to return (default: 100). Prevents hanging on large directories.",
             },
             "max_depth": {
                 "type": "integer",
                 "required": False,
-                "description": "Maximum directory depth to search (default: 5). Set to 1 for shallow search."
-            }
+                "description": "Maximum directory depth to search (default: 5). Set to 1 for shallow search.",
+            },
         },
         tags=["find", "glob", "search", "filesystem", "absolute"],
         examples=[
             "find_paths('hybridrag*', '/home/user/Documents') -> {'paths': [...], 'outside_working_dir': True}",
-            "find_paths('*.py', recursive=False) -> {'paths': [...], 'count': 5}"
-        ]
+            "find_paths('*.py', recursive=False) -> {'paths': [...], 'count': 5}",
+        ],
     )
     def find_paths(
         pattern: str,
@@ -263,7 +267,7 @@ def get_filesystem_tools_registry() -> ToolRegistry:
         include_parent: bool = False,
         case_insensitive: bool = True,
         max_results: int = 100,
-        max_depth: int = 5
+        max_depth: int = 5,
     ) -> dict:
         """Find files/directories matching pattern and return absolute paths.
 
@@ -282,7 +286,7 @@ def get_filesystem_tools_registry() -> ToolRegistry:
         import fnmatch
         import re
 
-        all_paths = []
+        all_paths: List[str] = []
         truncated = False
 
         # Convert glob pattern to regex for case-insensitive matching
@@ -310,9 +314,11 @@ def get_filesystem_tools_registry() -> ToolRegistry:
                 # Only search 1 level deep in parent to avoid massive traversal
                 search_dirs.append((parent, False, 1))  # Non-recursive, depth 1
 
-        def depth_limited_search(base_path: str, pat: str, do_recursive: bool, depth: int) -> List[str]:
+        def depth_limited_search(
+            base_path: str, pat: str, do_recursive: bool, depth: int
+        ) -> List[str]:
             """Search with depth limiting and case-insensitive matching."""
-            results = []
+            results: List[str] = []
 
             if depth <= 0:
                 return results
@@ -335,8 +341,10 @@ def get_filesystem_tools_registry() -> ToolRegistry:
 
                 # Recurse into subdirectories if enabled
                 if do_recursive and depth > 1 and os.path.isdir(full_path):
-                    if not entry.startswith('.'):  # Skip hidden dirs
-                        sub_results = depth_limited_search(full_path, pat, True, depth - 1)
+                    if not entry.startswith("."):  # Skip hidden dirs
+                        sub_results = depth_limited_search(
+                            full_path, pat, True, depth - 1
+                        )
                         results.extend(sub_results)
 
             return results[:max_results]
@@ -378,7 +386,9 @@ def get_filesystem_tools_registry() -> ToolRegistry:
                 inside_paths.append(p)
             else:
                 # Check with security context
-                should_proceed, warning_msg, requires_confirmation = check_path_with_security(p)
+                should_proceed, warning_msg, requires_confirmation = (
+                    check_path_with_security(p)
+                )
                 if not should_proceed:
                     blocked_paths.append(p)
                 else:
@@ -393,7 +403,9 @@ def get_filesystem_tools_registry() -> ToolRegistry:
         }
 
         if truncated:
-            result["note"] = f"Results limited to {max_results}. Increase max_results for more."
+            result["note"] = (
+                f"Results limited to {max_results}. Increase max_results for more."
+            )
 
         if blocked_paths:
             result["blocked_paths"] = blocked_paths
@@ -434,7 +446,7 @@ def get_filesystem_tools_registry() -> ToolRegistry:
             "This is the reference point for boundary checking."
         ),
         parameters={},
-        tags=["cwd", "pwd", "current", "directory", "absolute"]
+        tags=["cwd", "pwd", "current", "directory", "absolute"],
     )
     def get_cwd() -> str:
         """Get current working directory as absolute path.
@@ -461,13 +473,9 @@ def get_filesystem_tools_registry() -> ToolRegistry:
             "Safe to use for path validation."
         ),
         parameters={
-            "path": {
-                "type": "string",
-                "required": True,
-                "description": "Path to check"
-            }
+            "path": {"type": "string", "required": True, "description": "Path to check"}
         },
-        tags=["exists", "check", "info", "filesystem", "absolute"]
+        tags=["exists", "check", "info", "filesystem", "absolute"],
     )
     def path_info(path: str) -> dict:
         """Get information about a path including its absolute form.
@@ -512,10 +520,20 @@ def get_filesystem_tools_registry() -> ToolRegistry:
 filesystem_registry = get_filesystem_tools_registry()
 
 # Export individual tool functions for direct use
-resolve_path = filesystem_registry.get("resolve_path").function
-find_paths = filesystem_registry.get("find_paths").function
-get_cwd = filesystem_registry.get("get_cwd").function
-path_info = filesystem_registry.get("path_info").function
+_resolve_path_meta = filesystem_registry.get("resolve_path")
+_find_paths_meta = filesystem_registry.get("find_paths")
+_get_cwd_meta = filesystem_registry.get("get_cwd")
+_path_info_meta = filesystem_registry.get("path_info")
+
+assert _resolve_path_meta is not None, "resolve_path tool not registered"
+assert _find_paths_meta is not None, "find_paths tool not registered"
+assert _get_cwd_meta is not None, "get_cwd tool not registered"
+assert _path_info_meta is not None, "path_info tool not registered"
+
+resolve_path = _resolve_path_meta.function
+find_paths = _find_paths_meta.function
+get_cwd = _get_cwd_meta.function
+path_info = _path_info_meta.function
 
 __all__ = [
     "filesystem_registry",
@@ -523,5 +541,5 @@ __all__ = [
     "resolve_path",
     "find_paths",
     "get_cwd",
-    "path_info"
+    "path_info",
 ]

@@ -51,6 +51,7 @@ class Interrupt:
         timestamp: When interrupt was created
         processed: Whether interrupt has been processed
     """
+
     interrupt_id: str
     interrupt_type: InterruptType
     message: str
@@ -96,7 +97,7 @@ class InterruptQueue:
         self,
         interrupt_type: InterruptType,
         message: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Submit a user interrupt to the queue.
 
@@ -121,7 +122,7 @@ class InterruptQueue:
             interrupt_id=interrupt_id,
             interrupt_type=interrupt_type,
             message=message,
-            metadata=metadata
+            metadata=metadata,
         )
 
         # Add to queue with priority handling
@@ -197,7 +198,10 @@ class InterruptQueue:
 
             # Check for resume interrupt
             resume_interrupt = self.check_for_interrupt(timeout=0.0)
-            if resume_interrupt and resume_interrupt.interrupt_type == InterruptType.RESUME:
+            if (
+                resume_interrupt
+                and resume_interrupt.interrupt_type == InterruptType.RESUME
+            ):
                 break
 
     def has_pending_interrupts(self) -> bool:
@@ -272,7 +276,7 @@ class InterruptQueue:
         total_interrupts = len(self._interrupt_history)
         processed_count = sum(1 for i in self._interrupt_history if i.processed)
 
-        type_counts = {}
+        type_counts: Dict[str, int] = {}
         for interrupt in self._interrupt_history:
             type_name = interrupt.interrupt_type.value
             type_counts[type_name] = type_counts.get(type_name, 0) + 1
@@ -283,13 +287,14 @@ class InterruptQueue:
             "pending_count": self.get_pending_count(),
             "is_paused": self.is_paused(),
             "interrupt_types": type_counts,
-            "queue_maxsize": self._queue.maxsize
+            "queue_maxsize": self._queue.maxsize,
         }
 
 
 # ============================================================================
 # Integration with AgenticStepProcessor
 # ============================================================================
+
 
 class InterruptHandler:
     """Handles interrupt processing for agentic execution.
@@ -307,9 +312,7 @@ class InterruptHandler:
         logger.info("InterruptHandler initialized")
 
     def check_and_handle_interrupt(
-        self,
-        current_step: int,
-        current_context: str
+        self, current_step: int, current_context: str
     ) -> Optional[Dict[str, Any]]:
         """Check for interrupts and handle appropriately.
 
@@ -340,7 +343,7 @@ class InterruptHandler:
                 "action": "abort",
                 "interrupt_id": interrupt.interrupt_id,
                 "message": interrupt.message,
-                "step": current_step
+                "step": current_step,
             }
 
         elif interrupt.interrupt_type == InterruptType.STEERING:
@@ -350,7 +353,7 @@ class InterruptHandler:
                 "interrupt_id": interrupt.interrupt_id,
                 "message": interrupt.message,
                 "guidance": interrupt.message,
-                "step": current_step
+                "step": current_step,
             }
 
         elif interrupt.interrupt_type == InterruptType.CORRECTION:
@@ -360,7 +363,7 @@ class InterruptHandler:
                 "interrupt_id": interrupt.interrupt_id,
                 "message": interrupt.message,
                 "correction": interrupt.message,
-                "step": current_step
+                "step": current_step,
             }
 
         elif interrupt.interrupt_type == InterruptType.CLARIFICATION:
@@ -370,7 +373,7 @@ class InterruptHandler:
                 "interrupt_id": interrupt.interrupt_id,
                 "message": interrupt.message,
                 "clarification": interrupt.message,
-                "step": current_step
+                "step": current_step,
             }
 
         elif interrupt.interrupt_type == InterruptType.PAUSE:
@@ -380,7 +383,7 @@ class InterruptHandler:
                 "action": "pause",
                 "interrupt_id": interrupt.interrupt_id,
                 "message": "Execution paused",
-                "step": current_step
+                "step": current_step,
             }
 
         elif interrupt.interrupt_type == InterruptType.RESUME:
@@ -390,7 +393,7 @@ class InterruptHandler:
                 "action": "resume",
                 "interrupt_id": interrupt.interrupt_id,
                 "message": "Execution resumed",
-                "step": current_step
+                "step": current_step,
             }
 
         return None
@@ -444,7 +447,7 @@ def get_global_interrupt_queue() -> InterruptQueue:
 def submit_user_interrupt(
     interrupt_type: InterruptType,
     message: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Submit interrupt to global queue (convenience function).
 

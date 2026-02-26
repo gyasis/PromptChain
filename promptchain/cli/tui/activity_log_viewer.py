@@ -32,15 +32,15 @@ class ActivityLogItem(ListItem):
     def __init__(self, activity: dict, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.activity = activity
-        self.expanded = reactive(False)
+        self.expanded: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the activity item."""
         # Extract activity data
-        timestamp = self.activity.get('timestamp', 'unknown')
-        agent_name = self.activity.get('agent_name', 'system')
-        activity_type = self.activity.get('activity_type', 'unknown')
-        content = self.activity.get('content', {})
+        timestamp = self.activity.get("timestamp", "unknown")
+        agent_name = self.activity.get("agent_name", "system")
+        activity_type = self.activity.get("activity_type", "unknown")
+        content = self.activity.get("content", {})
 
         # Format timestamp (HH:MM:SS)
         try:
@@ -176,12 +176,7 @@ class ActivityLogViewer(Container):
     """
 
     def __init__(
-        self,
-        session_name: str,
-        log_dir: Path,
-        db_path: Path,
-        *args,
-        **kwargs
+        self, session_name: str, log_dir: Path, db_path: Path, *args, **kwargs
     ):
         """Initialize activity log viewer.
 
@@ -197,9 +192,7 @@ class ActivityLogViewer(Container):
 
         # Create ActivitySearcher
         self.searcher = ActivitySearcher(
-            session_name=session_name,
-            log_dir=log_dir,
-            db_path=db_path
+            session_name=session_name, log_dir=log_dir, db_path=db_path
         )
 
         # Current search state
@@ -222,33 +215,29 @@ class ActivityLogViewer(Container):
             Horizontal(
                 Label("Activity Logs", id="log-title"),
                 Label("", id="log-stats"),
-                id="log-header"
+                id="log-header",
             ),
-
             # Search input
             Horizontal(
                 Input(placeholder="Search pattern (regex)...", id="search-input"),
                 Button("Search", id="search-btn", classes="search-btn"),
                 Button("Clear", id="clear-btn", classes="clear-btn"),
-                id="search-container"
+                id="search-container",
             ),
-
             # Filter inputs
             Horizontal(
                 Input(placeholder="Agent filter...", id="agent-filter"),
                 Input(placeholder="Type filter...", id="type-filter"),
                 Button("Stats", id="stats-btn", classes="search-btn"),
-                id="filter-container"
+                id="filter-container",
             ),
-
             # Activity list
             ListView(id="log-list"),
-
             # Footer with help
             Label(
                 "Enter: Search | Escape: Clear | Ctrl+R: Refresh | Ctrl+L: Toggle Log View",
-                id="log-footer"
-            )
+                id="log-footer",
+            ),
         )
 
     def on_mount(self) -> None:
@@ -273,12 +262,12 @@ class ActivityLogViewer(Container):
                 pattern=pattern,
                 agent_name=self.current_agent_filter or None,
                 activity_type=self.current_type_filter or None,
-                max_results=limit
+                max_results=limit,
             )
 
             # Get total count
             stats = self.searcher.get_statistics()
-            self.total_activities = stats['total_activities']
+            self.total_activities = stats["total_activities"]
 
             # Update stats display
             self.update_stats_display()
@@ -370,24 +359,32 @@ class ActivityLogViewer(Container):
             # Format stats message
             stats_text = Text()
             stats_text.append("Activity Statistics\n\n", style="bold cyan")
-            stats_text.append(f"Total Activities: {stats['total_activities']}\n", style="white")
+            stats_text.append(
+                f"Total Activities: {stats['total_activities']}\n", style="white"
+            )
             stats_text.append(f"Total Chains: {stats['total_chains']}\n", style="white")
-            stats_text.append(f"Active Chains: {stats['active_chains']}\n", style="white")
+            stats_text.append(
+                f"Active Chains: {stats['active_chains']}\n", style="white"
+            )
             stats_text.append(f"Total Errors: {stats['total_errors']}\n", style="white")
-            stats_text.append(f"Avg Chain Depth: {stats['avg_chain_depth']:.1f}\n\n", style="white")
+            stats_text.append(
+                f"Avg Chain Depth: {stats['avg_chain_depth']:.1f}\n\n", style="white"
+            )
 
             stats_text.append("Activities by Type:\n", style="bold yellow")
-            for activity_type, count in stats['activities_by_type'].items():
+            for activity_type, count in stats["activities_by_type"].items():
                 stats_text.append(f"  - {activity_type}: {count}\n", style="dim white")
 
             stats_text.append("\nActivities by Agent:\n", style="bold green")
-            for agent_name, count in stats['activities_by_agent'].items():
+            for agent_name, count in stats["activities_by_agent"].items():
                 agent_display = agent_name or "system"
                 stats_text.append(f"  - {agent_display}: {count}\n", style="dim white")
 
             # Show in stats label (temporary display)
             stats_label = self.query_one("#log-stats", Label)
-            stats_label.update(f"Stats: {stats['total_activities']} total, {stats['total_errors']} errors")
+            stats_label.update(
+                f"Stats: {stats['total_activities']} total, {stats['total_errors']} errors"
+            )
 
         except Exception as e:
             stats_label = self.query_one("#log-stats", Label)

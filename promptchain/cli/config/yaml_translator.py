@@ -14,9 +14,9 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union, cast
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from promptchain import PromptChain
 from promptchain.utils.agent_chain import AgentChain
@@ -25,8 +25,8 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from ..models.agent_config import Agent, HistoryConfig
 from ..models.mcp_config import MCPServerConfig
 from ..models.orchestration_config import OrchestrationConfig, RouterConfig
-from ..security.yaml_validator import YAMLValidator, ValidationError
 from ..security.input_sanitizer import InputSanitizer
+from ..security.yaml_validator import ValidationError, YAMLValidator
 
 
 @dataclass
@@ -176,14 +176,20 @@ class YAMLConfigTranslator:
         agents = {}
         for agent_name, agent_data in data.get("agents", {}).items():
             # T109: Validate agent name
-            validated_name = self.input_sanitizer.validate_name(agent_name, context="agent name")
+            validated_name = self.input_sanitizer.validate_name(
+                agent_name, context="agent name"
+            )
 
             # T109: Validate model name
-            validated_model = self.input_sanitizer.validate_model_name(agent_data["model"])
+            validated_model = self.input_sanitizer.validate_model_name(
+                agent_data["model"]
+            )
 
             # T109: Validate instruction chain
             instruction_chain = agent_data.get("instruction_chain", ["{input}"])
-            validated_instructions = self.input_sanitizer.validate_instruction_chain(instruction_chain)
+            validated_instructions = self.input_sanitizer.validate_instruction_chain(
+                instruction_chain
+            )
 
             agents[agent_name] = YAMLAgentConfig(
                 model=validated_model,
@@ -227,9 +233,7 @@ class YAMLConfigTranslator:
         )
 
     def _create_agentic_step_processor(
-        self,
-        config: Dict[str, Any],
-        default_model: Optional[str] = None
+        self, config: Dict[str, Any], default_model: Optional[str] = None
     ) -> AgenticStepProcessor:
         """Create AgenticStepProcessor from YAML agentic_step config (T050).
 
@@ -274,8 +278,11 @@ class YAMLConfigTranslator:
         # Extract optional fields with defaults using AgenticConfig defaults
         # Default: 15 internal steps, progressive history mode
         from ..models.config import AgenticConfig
+
         agentic_defaults = AgenticConfig()
-        max_internal_steps = config.get("max_internal_steps", agentic_defaults.default_max_internal_steps)
+        max_internal_steps = config.get(
+            "max_internal_steps", agentic_defaults.default_max_internal_steps
+        )
         history_mode = config.get("history_mode", agentic_defaults.history_mode)
         model_name = config.get("model_name", default_model)  # Optional override
         model_params = config.get("model_params", None)  # Optional model parameters
@@ -308,22 +315,18 @@ class YAMLConfigTranslator:
         processor = AgenticStepProcessor(
             objective=objective,
             max_internal_steps=max_internal_steps,
-            model_name=model_name,
-            model_params=model_params,
+            model_name=model_name,  # type: ignore[arg-type]
+            model_params=model_params,  # type: ignore[arg-type]
             history_mode=history_mode,
-
             # Phase 1: Two-Tier Routing
             enable_two_tier_routing=enable_two_tier_routing,
             fallback_model=fallback_model,
-
             # Phase 2: Blackboard Architecture
             enable_blackboard=enable_blackboard,
-
             # Phase 3: Safety & Reliability
             enable_cove=enable_cove,
             cove_confidence_threshold=cove_confidence_threshold,
             enable_checkpointing=enable_checkpointing,
-
             # Phase 4: TAO Loop + Transparent Reasoning
             enable_tao_loop=enable_tao_loop,
             enable_dry_run=enable_dry_run,
@@ -332,9 +335,8 @@ class YAMLConfigTranslator:
         return processor
 
     def _build_instruction_chain(
-        self,
-        agent_config: YAMLAgentConfig
-    ) -> List[Union[str, AgenticStepProcessor]]:
+        self, agent_config: YAMLAgentConfig
+    ) -> List[Union[str, AgenticStepProcessor, Dict[str, Any]]]:
         """Build instruction chain with support for strings and AgenticStepProcessor (T049).
 
         Processes instruction chain entries and converts agentic_step configs
@@ -344,12 +346,12 @@ class YAMLConfigTranslator:
             agent_config: YAML agent configuration containing instruction_chain
 
         Returns:
-            List[Union[str, AgenticStepProcessor]]: Processed instruction chain
+            List[Union[str, AgenticStepProcessor, Dict[str, Any]]]: Processed instruction chain
 
         Raises:
             ValueError: If instruction format is invalid
         """
-        instructions = []
+        instructions: List[Union[str, AgenticStepProcessor, Dict[str, Any]]] = []
 
         for instruction in agent_config.instruction_chain:
             if isinstance(instruction, str):
@@ -360,8 +362,7 @@ class YAMLConfigTranslator:
                 if instruction.get("type") == "agentic_step":
                     # Create AgenticStepProcessor from config
                     processor = self._create_agentic_step_processor(
-                        config=instruction,
-                        default_model=agent_config.model
+                        config=instruction, default_model=agent_config.model
                     )
                     instructions.append(processor)
                 else:
@@ -377,9 +378,7 @@ class YAMLConfigTranslator:
 
         return instructions
 
-    def build_agents(
-        self, yaml_config: YAMLConfig
-    ) -> Dict[str, PromptChain]:
+    def build_agents(self, yaml_config: YAMLConfig) -> Dict[str, PromptChain]:
         """Convert YAML agent configurations to PromptChain instances (T017).
 
         Args:
@@ -395,9 +394,14 @@ class YAMLConfigTranslator:
             instructions = self._build_instruction_chain(agent_config)
 
             # Create PromptChain instance
+            # Cast away dict entries — PromptChain only processes str/Callable/AgenticStepProcessor;
+            # any residual dict items are preserved for future extension but never executed as LLM steps.
             chain = PromptChain(
                 models=[agent_config.model],
-                instructions=instructions,
+                instructions=cast(
+                    List[Union[str, Callable[..., Any], AgenticStepProcessor]],
+                    instructions,
+                ),
                 verbose=False,  # Controlled by preferences
             )
 
@@ -423,7 +427,7 @@ class YAMLConfigTranslator:
         }
 
         # Build router configuration
-        router_config = None
+        router_config: Optional[Dict[str, Any]] = None
         if yaml_config.orchestration.execution_mode == "router":
             router_data = yaml_config.orchestration.router or {}
             router_config = {
@@ -448,9 +452,7 @@ class YAMLConfigTranslator:
 
         return agent_chain
 
-    def build_mcp_servers(
-        self, yaml_config: YAMLConfig
-    ) -> List[MCPServerConfig]:
+    def build_mcp_servers(self, yaml_config: YAMLConfig) -> List[MCPServerConfig]:
         """Parse MCP server configurations from YAML (T019).
 
         Args:
@@ -500,15 +502,16 @@ class YAMLConfigTranslator:
 
         # Build orchestration config
         return OrchestrationConfig(
-            execution_mode=yaml_config.orchestration.execution_mode,
+            execution_mode=cast(
+                Literal["router", "pipeline", "round-robin", "broadcast"],
+                yaml_config.orchestration.execution_mode,
+            ),
             default_agent=yaml_config.orchestration.default_agent,
             router_config=router_config,
             auto_include_history=True,  # Default to enabled
         )
 
-    def translate_to_agent_configs(
-        self, yaml_config: YAMLConfig
-    ) -> Dict[str, Agent]:
+    def translate_to_agent_configs(self, yaml_config: YAMLConfig) -> Dict[str, Agent]:
         """Translate YAML agent configs to Agent dataclass instances.
 
         Args:
