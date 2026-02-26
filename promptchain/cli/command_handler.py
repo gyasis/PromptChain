@@ -57,81 +57,179 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
     "/exit": {"description": "Exit the CLI", "usage": "/exit"},
     "/help": {"description": "Show help information", "usage": "/help"},
     "/clear": {"description": "Clear the chat display", "usage": "/clear"},
-
     # Session commands
     "/session": {"description": "Show current session info", "usage": "/session"},
-    "/session list": {"description": "List all saved sessions", "usage": "/session list"},
-    "/session save": {"description": "Save current session", "usage": "/session save [name]"},
-    "/session delete": {"description": "Delete a saved session", "usage": "/session delete <name>"},
-
+    "/session list": {
+        "description": "List all saved sessions",
+        "usage": "/session list",
+    },
+    "/session save": {
+        "description": "Save current session",
+        "usage": "/session save [name]",
+    },
+    "/session delete": {
+        "description": "Delete a saved session",
+        "usage": "/session delete <name>",
+    },
     # Agent commands
     "/agent": {"description": "Show current agent info", "usage": "/agent"},
-    "/agent list": {"description": "List all agents in session", "usage": "/agent list"},
-    "/agent create": {"description": "Create a new agent", "usage": "/agent create <name> --model=<model>"},
-    "/agent delete": {"description": "Delete an agent", "usage": "/agent delete <name>"},
+    "/agent list": {
+        "description": "List all agents in session",
+        "usage": "/agent list",
+    },
+    "/agent create": {
+        "description": "Create a new agent",
+        "usage": "/agent create <name> --model=<model>",
+    },
+    "/agent delete": {
+        "description": "Delete an agent",
+        "usage": "/agent delete <name>",
+    },
     "/agent use": {"description": "Switch to an agent", "usage": "/agent use <name>"},
-    "/agent update": {"description": "Update agent settings", "usage": "/agent update <name> --model=<model>"},
-    "/agent templates": {"description": "List agent templates", "usage": "/agent templates"},
-    "/agent from-template": {"description": "Create agent from template", "usage": "/agent from-template <template>"},
-
+    "/agent update": {
+        "description": "Update agent settings",
+        "usage": "/agent update <name> --model=<model>",
+    },
+    "/agent templates": {
+        "description": "List agent templates",
+        "usage": "/agent templates",
+    },
+    "/agent from-template": {
+        "description": "Create agent from template",
+        "usage": "/agent from-template <template>",
+    },
     # Tools commands
     "/tools": {"description": "List available tools", "usage": "/tools"},
     "/tools list": {"description": "List all registered tools", "usage": "/tools list"},
-    "/tools add": {"description": "Add MCP server tools", "usage": "/tools add <server_id>"},
-    "/tools remove": {"description": "Remove MCP server tools", "usage": "/tools remove <server_id>"},
-    "/capabilities": {"description": "List tool capabilities", "usage": "/capabilities [agent_name]"},
-
+    "/tools add": {
+        "description": "Add MCP server tools",
+        "usage": "/tools add <server_id>",
+    },
+    "/tools remove": {
+        "description": "Remove MCP server tools",
+        "usage": "/tools remove <server_id>",
+    },
+    "/capabilities": {
+        "description": "List tool capabilities",
+        "usage": "/capabilities [agent_name]",
+    },
     # Log commands
     "/log": {"description": "Search activity logs", "usage": "/log <query>"},
-    "/log search": {"description": "Search logs by keyword", "usage": "/log search <query>"},
-    "/log agent": {"description": "Show agent activity log", "usage": "/log agent <name>"},
-    "/log errors": {"description": "Show recent errors", "usage": "/log errors [limit]"},
+    "/log search": {
+        "description": "Search logs by keyword",
+        "usage": "/log search <query>",
+    },
+    "/log agent": {
+        "description": "Show agent activity log",
+        "usage": "/log agent <name>",
+    },
+    "/log errors": {
+        "description": "Show recent errors",
+        "usage": "/log errors [limit]",
+    },
     "/log stats": {"description": "Show session statistics", "usage": "/log stats"},
-    "/log chain": {"description": "Show chain execution log", "usage": "/log chain <chain_id>"},
-
+    "/log chain": {
+        "description": "Show chain execution log",
+        "usage": "/log chain <chain_id>",
+    },
     # Workflow commands (T067)
-    "/workflow": {"description": "Show workflow status", "usage": "/workflow [show|stage|tasks]"},
-    "/workflow show": {"description": "Display current workflow status", "usage": "/workflow show"},
-    "/workflow stage": {"description": "Show current stage", "usage": "/workflow stage"},
-    "/workflow tasks": {"description": "Show completed task count", "usage": "/workflow tasks"},
-
+    "/workflow": {
+        "description": "Show workflow status",
+        "usage": "/workflow [show|stage|tasks]",
+    },
+    "/workflow show": {
+        "description": "Display current workflow status",
+        "usage": "/workflow show",
+    },
+    "/workflow stage": {
+        "description": "Show current stage",
+        "usage": "/workflow stage",
+    },
+    "/workflow tasks": {
+        "description": "Show completed task count",
+        "usage": "/workflow tasks",
+    },
     # Config commands
     "/config": {"description": "Show session config", "usage": "/config"},
     "/config show": {"description": "Display all settings", "usage": "/config show"},
-    "/config export": {"description": "Export config to file", "usage": "/config export <filename>"},
-    "/config import": {"description": "Import config from file", "usage": "/config import <filename>"},
-
+    "/config export": {
+        "description": "Export config to file",
+        "usage": "/config export <filename>",
+    },
+    "/config import": {
+        "description": "Import config from file",
+        "usage": "/config import <filename>",
+    },
     # History commands
     "/history": {"description": "Show conversation history", "usage": "/history"},
-    "/history stats": {"description": "Show history statistics", "usage": "/history stats"},
-
+    "/history stats": {
+        "description": "Show history statistics",
+        "usage": "/history stats",
+    },
     # Security commands
-    "/security": {"description": "Show/set security mode", "usage": "/security [strict|trusted|default]"},
-
+    "/security": {
+        "description": "Show/set security mode",
+        "usage": "/security [strict|trusted|default]",
+    },
     # Task commands
-    "/tasks": {"description": "List pending/in-progress tasks", "usage": "/tasks [agent_name]"},
-
+    "/tasks": {
+        "description": "List pending/in-progress tasks",
+        "usage": "/tasks [agent_name]",
+    },
     # Blackboard commands
-    "/blackboard": {"description": "List or show blackboard entries", "usage": "/blackboard [key]"},
-
+    "/blackboard": {
+        "description": "List or show blackboard entries",
+        "usage": "/blackboard [key]",
+    },
     # Mental Model commands
-    "/mentalmodel": {"description": "Show agent's mental model", "usage": "/mentalmodel"},
-
+    "/mentalmodel": {
+        "description": "Show agent's mental model",
+        "usage": "/mentalmodel",
+    },
     # MCP server commands
     "/mcp": {"description": "List MCP server status", "usage": "/mcp"},
     "/mcp list": {"description": "List all MCP servers", "usage": "/mcp list"},
-    "/mcp add": {"description": "Add new MCP server", "usage": "/mcp add <id> --type=stdio --command=<cmd>"},
-    "/mcp connect": {"description": "Connect to MCP server", "usage": "/mcp connect <server_id>"},
-    "/mcp disconnect": {"description": "Disconnect MCP server", "usage": "/mcp disconnect <server_id>"},
-    "/mcp remove": {"description": "Remove MCP server", "usage": "/mcp remove <server_id>"},
-
+    "/mcp add": {
+        "description": "Add new MCP server",
+        "usage": "/mcp add <id> --type=stdio --command=<cmd>",
+    },
+    "/mcp connect": {
+        "description": "Connect to MCP server",
+        "usage": "/mcp connect <server_id>",
+    },
+    "/mcp disconnect": {
+        "description": "Disconnect MCP server",
+        "usage": "/mcp disconnect <server_id>",
+    },
+    "/mcp remove": {
+        "description": "Remove MCP server",
+        "usage": "/mcp remove <server_id>",
+    },
     # Pattern commands (004a - TUI Pattern Integration)
-    "/branch": {"description": "Generate branching hypotheses", "usage": '/branch "query" [--count=N] [--mode=local|global|hybrid]'},
-    "/expand": {"description": "Expand query variations", "usage": '/expand "query" [--strategies=semantic,synonym] [--max=N]'},
-    "/multihop": {"description": "Multi-hop retrieval", "usage": '/multihop "query" [--max-hops=N] [--mode=hybrid]'},
-    "/hybrid": {"description": "Hybrid search fusion", "usage": '/hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]'},
-    "/sharded": {"description": "Sharded retrieval", "usage": '/sharded "query" --shards=shard1,shard2 [--aggregation=rrf]'},
-    "/speculate": {"description": "Speculative execution", "usage": '/speculate "context" [--min-confidence=0.7] [--prefetch=N]'},
+    "/branch": {
+        "description": "Generate branching hypotheses",
+        "usage": '/branch "query" [--count=N] [--mode=local|global|hybrid]',
+    },
+    "/expand": {
+        "description": "Expand query variations",
+        "usage": '/expand "query" [--strategies=semantic,synonym] [--max=N]',
+    },
+    "/multihop": {
+        "description": "Multi-hop retrieval",
+        "usage": '/multihop "query" [--max-hops=N] [--mode=hybrid]',
+    },
+    "/hybrid": {
+        "description": "Hybrid search fusion",
+        "usage": '/hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]',
+    },
+    "/sharded": {
+        "description": "Sharded retrieval",
+        "usage": '/sharded "query" --shards=shard1,shard2 [--aggregation=rrf]',
+    },
+    "/speculate": {
+        "description": "Speculative execution",
+        "usage": '/speculate "context" [--min-confidence=0.7] [--prefetch=N]',
+    },
     "/patterns": {"description": "Show pattern commands help", "usage": "/patterns"},
 }
 
@@ -150,11 +248,13 @@ def get_command_suggestions(prefix: str) -> List[Dict[str, str]]:
 
     for cmd, info in COMMAND_REGISTRY.items():
         if cmd.lower().startswith(prefix):
-            matches.append({
-                "command": cmd,
-                "description": info["description"],
-                "usage": info["usage"]
-            })
+            matches.append(
+                {
+                    "command": cmd,
+                    "description": info["description"],
+                    "usage": info["usage"],
+                }
+            )
 
     # Sort by command name
     return sorted(matches, key=lambda x: x["command"])
@@ -255,9 +355,12 @@ class CommandHandler:
     # === Agent Management Commands (T051-T056, T099-T100) ===
 
     def handle_agent_create_from_template(
-        self, session, template_name: str, agent_name: str,
+        self,
+        session,
+        template_name: str,
+        agent_name: str,
         model_override: Optional[str] = None,
-        description_override: Optional[str] = None
+        description_override: Optional[str] = None,
     ) -> CommandResult:
         """Handle /agent create-from-template command - create agent from template (T099).
 
@@ -271,7 +374,8 @@ class CommandHandler:
         Returns:
             CommandResult indicating success or error
         """
-        from .utils.agent_templates import create_from_template, AGENT_TEMPLATES
+        from .utils.agent_templates import (AGENT_TEMPLATES,
+                                            create_from_template)
 
         try:
             # Validate template_name
@@ -280,7 +384,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Template '{template_name}' not found. Available templates: {available}",
-                    error=f"Invalid template: {template_name}"
+                    error=f"Invalid template: {template_name}",
                 )
 
             # Check if agent name already exists
@@ -288,7 +392,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Agent '{agent_name}' already exists in this session",
-                    error=f"Duplicate agent name: {agent_name}"
+                    error=f"Duplicate agent name: {agent_name}",
                 )
 
             # Create agent from template
@@ -296,7 +400,7 @@ class CommandHandler:
                 template_name=template_name,
                 agent_name=agent_name,
                 model_override=model_override,
-                description_override=description_override
+                description_override=description_override,
             )
 
             # Add to session
@@ -308,27 +412,32 @@ class CommandHandler:
             # Get template info for response
             template = AGENT_TEMPLATES[template_name]
 
+            history_enabled = (
+                agent.history_config.enabled
+                if agent.history_config is not None
+                else False
+            )
             return CommandResult(
                 success=True,
                 message=f"Created '{agent_name}' from '{template.display_name}' template\n"
-                        f"Model: {agent.model_name}\n"
-                        f"Description: {agent.description}\n"
-                        f"Tools: {', '.join(agent.tools) if agent.tools else 'none'}\n"
-                        f"History: {'enabled' if agent.history_config.enabled else 'disabled'}",
+                f"Model: {agent.model_name}\n"
+                f"Description: {agent.description}\n"
+                f"Tools: {', '.join(agent.tools) if agent.tools else 'none'}\n"
+                f"History: {'enabled' if history_enabled else 'disabled'}",
                 data={
                     "agent_name": agent_name,
                     "template": template_name,
                     "model": agent.model_name,
                     "tools_count": len(agent.tools),
-                    "history_enabled": agent.history_config.enabled
-                }
+                    "history_enabled": history_enabled,
+                },
             )
 
         except (ValueError, AssertionError) as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to create agent from template: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_agent_list_templates(self) -> CommandResult:
@@ -350,7 +459,9 @@ class CommandHandler:
                 token_usage = template.metadata.get("token_usage", "moderate")
 
                 # Get history configuration details
-                history_status = "enabled" if template.history_config.enabled else "disabled"
+                history_status = (
+                    "enabled" if template.history_config.enabled else "disabled"
+                )
                 if template.history_config.enabled:
                     history_details = f"{template.history_config.max_tokens} tokens"
                 else:
@@ -363,14 +474,18 @@ class CommandHandler:
                 lines.append(f"    Category: {category}")
                 lines.append(f"    Complexity: {complexity}")
                 lines.append(f"    Token Usage: {token_usage}")
-                lines.append(f"    Tools: {', '.join(template.tools) if template.tools else 'none'}")
+                lines.append(
+                    f"    Tools: {', '.join(template.tools) if template.tools else 'none'}"
+                )
                 lines.append(f"    History: {history_status} ({history_details})")
                 lines.append("")
 
             # Add usage instructions
             lines.append("Usage:")
             lines.append("  /agent create-from-template <template_name> <agent_name>")
-            lines.append("  /agent create-from-template <template_name> <agent_name> --model <custom_model>")
+            lines.append(
+                "  /agent create-from-template <template_name> <agent_name> --model <custom_model>"
+            )
             lines.append("")
             lines.append("Example:")
             lines.append("  /agent create-from-template researcher my-researcher")
@@ -382,15 +497,15 @@ class CommandHandler:
                 message=message,
                 data={
                     "templates": list(AGENT_TEMPLATES.keys()),
-                    "count": len(AGENT_TEMPLATES)
-                }
+                    "count": len(AGENT_TEMPLATES),
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to list templates: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_agent_create(
@@ -468,9 +583,15 @@ class CommandHandler:
             marker = " (active)" if name == session.active_agent else ""
 
             # Format usage stats
-            usage = f"used {agent.usage_count} times" if agent.usage_count > 0 else "never used"
+            usage = (
+                f"used {agent.usage_count} times"
+                if agent.usage_count > 0
+                else "never used"
+            )
 
-            lines.append(f"  - {name}{marker}: {agent.model_name} - {agent.description} ({usage})")
+            lines.append(
+                f"  - {name}{marker}: {agent.model_name} - {agent.description} ({usage})"
+            )
 
         message = "\n".join(lines)
 
@@ -534,7 +655,7 @@ class CommandHandler:
         model: Optional[str] = None,
         description: Optional[str] = None,
         add_tools: Optional[List[str]] = None,
-        remove_tools: Optional[List[str]] = None
+        remove_tools: Optional[List[str]] = None,
     ) -> CommandResult:
         """Handle /agent update command - modify agent properties (T102).
 
@@ -560,7 +681,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Agent '{name}' not found. Use /agent list to see available agents.",
-                    error=f"Agent not found: {name}"
+                    error=f"Agent not found: {name}",
                 )
 
             agent = session.agents[name]
@@ -601,14 +722,16 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"No updates specified for agent '{name}'. Use --model, --description, --add-tools, or --remove-tools.",
-                    error="No updates provided"
+                    error="No updates provided",
                 )
 
             # Persist changes
             self.session_manager.save_session(session)
 
             # Format response
-            message = f"Updated agent '{name}':\n" + "\n".join(f"  • {change}" for change in changes)
+            message = f"Updated agent '{name}':\n" + "\n".join(
+                f"  • {change}" for change in changes
+            )
 
             return CommandResult(
                 success=True,
@@ -617,15 +740,13 @@ class CommandHandler:
                     "agent_name": name,
                     "changes": changes,
                     "model": agent.model_name,
-                    "tools": agent.tools
-                }
+                    "tools": agent.tools,
+                },
             )
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to update agent: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to update agent: {str(e)}", error=str(e)
             )
 
     def handle_agent_use(self, session, name: str) -> CommandResult:
@@ -671,7 +792,9 @@ class CommandHandler:
                 success=False, message=f"Failed to switch agent: {str(e)}", error=str(e)
             )
 
-    def handle_session_list(self, current_session_id: Optional[str] = None) -> CommandResult:
+    def handle_session_list(
+        self, current_session_id: Optional[str] = None
+    ) -> CommandResult:
         """Handle /session list command - list all saved sessions (T074).
 
         Args:
@@ -712,7 +835,9 @@ class CommandHandler:
                 agent_count = agent_cursor.fetchone()[0]
 
                 # Count messages (from JSONL file)
-                messages_file = self.session_manager.sessions_dir / session_id / "messages.jsonl"
+                messages_file = (
+                    self.session_manager.sessions_dir / session_id / "messages.jsonl"
+                )
                 message_count = 0
                 if messages_file.exists():
                     with open(messages_file, "r") as f:
@@ -728,7 +853,9 @@ class CommandHandler:
                     "id": session_id,
                     "name": name,
                     "last_accessed": last_accessed,
-                    "last_accessed_formatted": last_accessed_dt.strftime("%Y-%m-%d %H:%M"),
+                    "last_accessed_formatted": last_accessed_dt.strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                     "time_ago": time_ago,
                     "agent_count": agent_count,
                     "message_count": message_count,
@@ -829,7 +956,9 @@ class CommandHandler:
                 # Enable foreign keys for cascade delete
                 conn.execute("PRAGMA foreign_keys = ON")
 
-                cursor = conn.execute("SELECT name FROM sessions WHERE id = ?", (session_id,))
+                cursor = conn.execute(
+                    "SELECT name FROM sessions WHERE id = ?", (session_id,)
+                )
                 row = cursor.fetchone()
 
                 if not row:
@@ -869,7 +998,12 @@ class CommandHandler:
     # === Activity Log Commands (Phase 4) ===
 
     def handle_log_search(
-        self, session, pattern: str, agent: Optional[str] = None, type: Optional[str] = None, limit: int = 10
+        self,
+        session,
+        pattern: str,
+        agent: Optional[str] = None,
+        type: Optional[str] = None,
+        limit: int = 10,
     ) -> CommandResult:
         """Handle /log search command - search activity logs (Phase 4).
 
@@ -901,39 +1035,42 @@ class CommandHandler:
 
             # Create searcher
             searcher = ActivitySearcher(
-                session_name=session.name,
-                log_dir=log_dir,
-                db_path=db_path
+                session_name=session.name, log_dir=log_dir, db_path=db_path
             )
 
             # Search activities
             results = searcher.grep_logs(
-                pattern=pattern,
-                agent_name=agent,
-                activity_type=type,
-                max_results=limit
+                pattern=pattern, agent_name=agent, activity_type=type, max_results=limit
             )
 
             if not results:
                 return CommandResult(
                     success=True,
                     message=f"No activities found matching pattern '{pattern}'",
-                    data={"results": [], "count": 0}
+                    data={"results": [], "count": 0},
                 )
 
             # Format results
             lines = [f"Found {len(results)} activities matching '{pattern}':"]
             for i, activity in enumerate(results, 1):
-                timestamp = activity.get('timestamp', 'unknown')
-                agent_name = activity.get('agent_name', 'system')
-                activity_type = activity.get('activity_type', 'unknown')
+                timestamp = activity.get("timestamp", "unknown")
+                agent_name = activity.get("agent_name", "system")
+                activity_type = activity.get("activity_type", "unknown")
 
                 # Get preview of content
-                content = activity.get('content', {})
+                content = activity.get("content", {})
                 if isinstance(content, dict):
-                    preview = str(content)[:100] + "..." if len(str(content)) > 100 else str(content)
+                    preview = (
+                        str(content)[:100] + "..."
+                        if len(str(content)) > 100
+                        else str(content)
+                    )
                 else:
-                    preview = str(content)[:100] + "..." if len(str(content)) > 100 else str(content)
+                    preview = (
+                        str(content)[:100] + "..."
+                        if len(str(content)) > 100
+                        else str(content)
+                    )
 
                 lines.append(f"  {i}. [{timestamp}] {activity_type} - {agent_name}")
                 lines.append(f"     {preview}")
@@ -943,17 +1080,19 @@ class CommandHandler:
             return CommandResult(
                 success=True,
                 message=message,
-                data={"results": results, "count": len(results)}
+                data={"results": results, "count": len(results)},
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to search activity logs: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
-    def handle_log_agent(self, session, agent_name: str, limit: int = 20) -> CommandResult:
+    def handle_log_agent(
+        self, session, agent_name: str, limit: int = 20
+    ) -> CommandResult:
         """Handle /log agent command - get agent-specific activities (Phase 4).
 
         Args:
@@ -978,34 +1117,40 @@ class CommandHandler:
             searcher = ActivitySearcher(
                 session_name=session.name,
                 log_dir=session_dir / "activity_logs",
-                db_path=session_dir / "activities.db"
+                db_path=session_dir / "activities.db",
             )
 
             # Get agent activities
             results = searcher.grep_logs(
-                pattern=".*",
-                agent_name=agent_name,
-                max_results=limit
+                pattern=".*", agent_name=agent_name, max_results=limit
             )
 
             if not results:
                 return CommandResult(
                     success=True,
                     message=f"No activities found for agent '{agent_name}'",
-                    data={"results": [], "count": 0, "agent": agent_name}
+                    data={"results": [], "count": 0, "agent": agent_name},
                 )
 
             # Format results
             lines = [f"Activities for agent '{agent_name}' ({len(results)} total):"]
             for i, activity in enumerate(results, 1):
-                timestamp = activity.get('timestamp', 'unknown')
-                activity_type = activity.get('activity_type', 'unknown')
+                timestamp = activity.get("timestamp", "unknown")
+                activity_type = activity.get("activity_type", "unknown")
 
-                content = activity.get('content', {})
+                content = activity.get("content", {})
                 if isinstance(content, dict):
-                    preview = str(content)[:80] + "..." if len(str(content)) > 80 else str(content)
+                    preview = (
+                        str(content)[:80] + "..."
+                        if len(str(content)) > 80
+                        else str(content)
+                    )
                 else:
-                    preview = str(content)[:80] + "..." if len(str(content)) > 80 else str(content)
+                    preview = (
+                        str(content)[:80] + "..."
+                        if len(str(content)) > 80
+                        else str(content)
+                    )
 
                 lines.append(f"  {i}. [{timestamp}] {activity_type}: {preview}")
 
@@ -1014,14 +1159,14 @@ class CommandHandler:
             return CommandResult(
                 success=True,
                 message=message,
-                data={"results": results, "count": len(results), "agent": agent_name}
+                data={"results": results, "count": len(results), "agent": agent_name},
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get agent activities: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_log_errors(self, session, limit: int = 10) -> CommandResult:
@@ -1048,32 +1193,38 @@ class CommandHandler:
             searcher = ActivitySearcher(
                 session_name=session.name,
                 log_dir=session_dir / "activity_logs",
-                db_path=session_dir / "activities.db"
+                db_path=session_dir / "activities.db",
             )
 
             # Get error activities
             results = searcher.grep_logs(
-                pattern="error",
-                activity_type="error",
-                max_results=limit
+                pattern="error", activity_type="error", max_results=limit
             )
 
             if not results:
                 return CommandResult(
                     success=True,
                     message="No errors found in activity logs 🎉",
-                    data={"results": [], "count": 0}
+                    data={"results": [], "count": 0},
                 )
 
             # Format results
             lines = [f"Found {len(results)} errors:"]
             for i, activity in enumerate(results, 1):
-                timestamp = activity.get('timestamp', 'unknown')
-                agent_name = activity.get('agent_name', 'unknown')
-                content = activity.get('content', {})
+                timestamp = activity.get("timestamp", "unknown")
+                agent_name = activity.get("agent_name", "unknown")
+                content = activity.get("content", {})
 
-                error_msg = content.get('error', 'Unknown error') if isinstance(content, dict) else str(content)
-                error_type = content.get('error_type', 'Exception') if isinstance(content, dict) else 'Exception'
+                error_msg = (
+                    content.get("error", "Unknown error")
+                    if isinstance(content, dict)
+                    else str(content)
+                )
+                error_type = (
+                    content.get("error_type", "Exception")
+                    if isinstance(content, dict)
+                    else "Exception"
+                )
 
                 lines.append(f"  {i}. [{timestamp}] {agent_name}")
                 lines.append(f"     {error_type}: {error_msg}")
@@ -1083,14 +1234,14 @@ class CommandHandler:
             return CommandResult(
                 success=True,
                 message=message,
-                data={"results": results, "count": len(results)}
+                data={"results": results, "count": len(results)},
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get error logs: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_log_stats(self, session) -> CommandResult:
@@ -1116,7 +1267,7 @@ class CommandHandler:
             searcher = ActivitySearcher(
                 session_name=session.name,
                 log_dir=session_dir / "activity_logs",
-                db_path=session_dir / "activities.db"
+                db_path=session_dir / "activities.db",
             )
 
             # Get statistics
@@ -1135,28 +1286,24 @@ class CommandHandler:
                 f"Activities by Type:",
             ]
 
-            for activity_type, count in stats['activities_by_type'].items():
+            for activity_type, count in stats["activities_by_type"].items():
                 lines.append(f"  - {activity_type}: {count}")
 
             lines.append(f"")
             lines.append(f"Activities by Agent:")
 
-            for agent_name, count in stats['activities_by_agent'].items():
+            for agent_name, count in stats["activities_by_agent"].items():
                 lines.append(f"  - {agent_name or 'system'}: {count}")
 
             message = "\n".join(lines)
 
-            return CommandResult(
-                success=True,
-                message=message,
-                data=stats
-            )
+            return CommandResult(success=True, message=message, data=stats)
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get statistics: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_log_chain(self, session, chain_id: str) -> CommandResult:
@@ -1183,21 +1330,19 @@ class CommandHandler:
             searcher = ActivitySearcher(
                 session_name=session.name,
                 log_dir=session_dir / "activity_logs",
-                db_path=session_dir / "activities.db"
+                db_path=session_dir / "activities.db",
             )
 
             # Get chain
             chain = searcher.get_interaction_chain(
-                chain_id=chain_id,
-                include_content=True,
-                include_nested=True
+                chain_id=chain_id, include_content=True, include_nested=True
             )
 
             if not chain:
                 return CommandResult(
                     success=False,
                     message=f"Chain '{chain_id}' not found",
-                    error="Chain not found"
+                    error="Chain not found",
                 )
 
             # Format chain
@@ -1212,33 +1357,35 @@ class CommandHandler:
                 f"Activities:",
             ]
 
-            for i, activity in enumerate(chain['activities'], 1):
-                activity_type = activity.get('activity_type', 'unknown')
-                agent_name = activity.get('agent_name', 'system')
-                depth = activity.get('depth_level', 0)
+            for i, activity in enumerate(chain["activities"], 1):
+                activity_type = activity.get("activity_type", "unknown")
+                agent_name = activity.get("agent_name", "system")
+                depth = activity.get("depth_level", 0)
                 indent = "  " * (depth + 1)
 
-                content = activity.get('content', {})
+                content = activity.get("content", {})
                 if isinstance(content, dict):
-                    preview = str(content)[:60] + "..." if len(str(content)) > 60 else str(content)
+                    preview = (
+                        str(content)[:60] + "..."
+                        if len(str(content)) > 60
+                        else str(content)
+                    )
                 else:
-                    preview = str(content)[:60] + "..." if len(str(content)) > 60 else str(content)
+                    preview = (
+                        str(content)[:60] + "..."
+                        if len(str(content)) > 60
+                        else str(content)
+                    )
 
                 lines.append(f"{indent}{i}. {activity_type} - {agent_name}: {preview}")
 
             message = "\n".join(lines)
 
-            return CommandResult(
-                success=True,
-                message=message,
-                data=chain
-            )
+            return CommandResult(success=True, message=message, data=chain)
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to get chain: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to get chain: {str(e)}", error=str(e)
             )
 
     # === MCP Tool Management Commands (T065-T067) ===
@@ -1255,15 +1402,14 @@ class CommandHandler:
         try:
             # Get connected servers
             connected_servers = [
-                server for server in session.mcp_servers
-                if server.state == "connected"
+                server for server in session.mcp_servers if server.state == "connected"
             ]
 
             if not connected_servers:
                 return CommandResult(
                     success=True,
                     message="No MCP servers connected. Use /mcp connect <server_id> to connect a server.",
-                    data={"tools": [], "server_count": 0}
+                    data={"tools": [], "server_count": 0},
                 )
 
             # Collect all tools from connected servers
@@ -1272,14 +1418,15 @@ class CommandHandler:
                 for tool_name in server.discovered_tools:
                     # Find which agents have this tool registered
                     registered_agents = [
-                        agent_name for agent_name, agent in session.agents.items()
+                        agent_name
+                        for agent_name, agent in session.agents.items()
                         if tool_name in agent.tools
                     ]
 
                     tool_info = {
                         "name": tool_name,
                         "server_id": server.id,
-                        "registered_agents": registered_agents
+                        "registered_agents": registered_agents,
                     }
                     all_tools.append(tool_info)
 
@@ -1288,15 +1435,17 @@ class CommandHandler:
                 return CommandResult(
                     success=True,
                     message=f"Connected servers have no tools available ({len(connected_servers)} servers connected).",
-                    data={"tools": [], "server_count": len(connected_servers)}
+                    data={"tools": [], "server_count": len(connected_servers)},
                 )
 
             # Build formatted output
-            lines = [f"Available MCP Tools ({len(all_tools)} total from {len(connected_servers)} servers):"]
+            lines = [
+                f"Available MCP Tools ({len(all_tools)} total from {len(connected_servers)} servers):"
+            ]
             lines.append("")
 
             # Group tools by server
-            tools_by_server = {}
+            tools_by_server: dict[str, list[dict[str, Any]]] = {}
             for tool in all_tools:
                 server_id = tool["server_id"]
                 if server_id not in tools_by_server:
@@ -1310,7 +1459,9 @@ class CommandHandler:
                     # Show registration status
                     if tool["registered_agents"]:
                         agents_str = ", ".join(tool["registered_agents"])
-                        lines.append(f"  - {tool['name']} (registered with: {agents_str})")
+                        lines.append(
+                            f"  - {tool['name']} (registered with: {agents_str})"
+                        )
                     else:
                         lines.append(f"  - {tool['name']} (not registered)")
                 lines.append("")
@@ -1320,17 +1471,12 @@ class CommandHandler:
             return CommandResult(
                 success=True,
                 message=message,
-                data={
-                    "tools": all_tools,
-                    "server_count": len(connected_servers)
-                }
+                data={"tools": all_tools, "server_count": len(connected_servers)},
             )
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to list tools: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to list tools: {str(e)}", error=str(e)
             )
 
     async def handle_tools_add(self, session, server_id: str) -> CommandResult:
@@ -1345,11 +1491,11 @@ class CommandHandler:
         """
         try:
             # Check current agent exists
-            if not hasattr(session, 'current_agent') or not session.current_agent:
+            if not hasattr(session, "current_agent") or not session.current_agent:
                 return CommandResult(
                     success=False,
                     message="No current agent set. Use /agent use <name> to select an agent first.",
-                    error="No current agent"
+                    error="No current agent",
                 )
 
             # Check agent exists in session
@@ -1357,7 +1503,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Current agent '{session.current_agent}' not found in session.",
-                    error="Agent not found"
+                    error="Agent not found",
                 )
 
             # Find server by ID
@@ -1371,7 +1517,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"MCP server '{server_id}' not found in session.",
-                    error="Server not found"
+                    error="Server not found",
                 )
 
             # Check server is connected
@@ -1379,23 +1525,23 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Server '{server_id}' is not connected. Use /mcp connect {server_id} first.",
-                    error="Server not connected"
+                    error="Server not connected",
                 )
 
             # Register tools using MCPManager
             from promptchain.cli.utils.mcp_manager import MCPManager
+
             mcp_manager = MCPManager(session)
 
             success = await mcp_manager.register_tools_with_agent(
-                server_id=server_id,
-                agent_name=session.current_agent
+                server_id=server_id, agent_name=session.current_agent
             )
 
             if not success:
                 return CommandResult(
                     success=False,
                     message=f"Failed to register tools from '{server_id}' with agent '{session.current_agent}'.",
-                    error="Registration failed"
+                    error="Registration failed",
                 )
 
             # Get tool count
@@ -1408,15 +1554,13 @@ class CommandHandler:
                     "server_id": server_id,
                     "agent_name": session.current_agent,
                     "tool_count": tool_count,
-                    "tools": server.discovered_tools
-                }
+                    "tools": server.discovered_tools,
+                },
             )
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to add tools: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to add tools: {str(e)}", error=str(e)
             )
 
     async def handle_tools_remove(self, session, server_id: str) -> CommandResult:
@@ -1431,11 +1575,11 @@ class CommandHandler:
         """
         try:
             # Check current agent exists
-            if not hasattr(session, 'current_agent') or not session.current_agent:
+            if not hasattr(session, "current_agent") or not session.current_agent:
                 return CommandResult(
                     success=False,
                     message="No current agent set. Use /agent use <name> to select an agent first.",
-                    error="No current agent"
+                    error="No current agent",
                 )
 
             # Check agent exists in session
@@ -1443,7 +1587,7 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"Current agent '{session.current_agent}' not found in session.",
-                    error="Agent not found"
+                    error="Agent not found",
                 )
 
             # Find server by ID
@@ -1457,23 +1601,23 @@ class CommandHandler:
                 return CommandResult(
                     success=False,
                     message=f"MCP server '{server_id}' not found in session.",
-                    error="Server not found"
+                    error="Server not found",
                 )
 
             # Unregister tools using MCPManager
             from promptchain.cli.utils.mcp_manager import MCPManager
+
             mcp_manager = MCPManager(session)
 
             success = await mcp_manager.unregister_tools_from_agent(
-                server_id=server_id,
-                agent_name=session.current_agent
+                server_id=server_id, agent_name=session.current_agent
             )
 
             if not success:
                 return CommandResult(
                     success=False,
                     message=f"Failed to unregister tools from '{server_id}' with agent '{session.current_agent}'.",
-                    error="Unregistration failed"
+                    error="Unregistration failed",
                 )
 
             # Get tool count (number of tools that were in the server's discovered tools)
@@ -1486,15 +1630,13 @@ class CommandHandler:
                     "server_id": server_id,
                     "agent_name": session.current_agent,
                     "tool_count": tool_count,
-                    "tools": server.discovered_tools
-                }
+                    "tools": server.discovered_tools,
+                },
             )
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to remove tools: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to remove tools: {str(e)}", error=str(e)
             )
 
     # === History Management Commands (T081) ===
@@ -1510,11 +1652,11 @@ class CommandHandler:
         """
         try:
             # Check if AgentChain has history managers
-            if not hasattr(agent_chain, '_history_managers'):
+            if not hasattr(agent_chain, "_history_managers"):
                 return CommandResult(
                     success=False,
                     message="History management not enabled for this session",
-                    error="No history managers found"
+                    error="No history managers found",
                 )
 
             history_managers = agent_chain._history_managers
@@ -1523,13 +1665,13 @@ class CommandHandler:
                 return CommandResult(
                     success=True,
                     message="No agents with history tracking in this session",
-                    data={"agents": {}}
+                    data={"agents": {}},
                 )
 
             # Collect statistics from all agents
             total_tokens = 0
             total_entries = 0
-            agent_stats = {}
+            agent_stats: dict[str, dict[str, Any]] = {}
 
             for agent_name, history_manager in history_managers.items():
                 if history_manager is None:
@@ -1542,7 +1684,7 @@ class CommandHandler:
                         "max_entries": 0,
                         "utilization_pct": 0.0,
                         "entry_types": {},
-                        "truncation_strategy": "N/A"
+                        "truncation_strategy": "N/A",
                     }
                 else:
                     # Get statistics from ExecutionHistoryManager
@@ -1555,14 +1697,18 @@ class CommandHandler:
                         "max_entries": stats["max_entries"],
                         "utilization_pct": stats["utilization_pct"],
                         "entry_types": stats["entry_types"],
-                        "truncation_strategy": stats["truncation_strategy"]
+                        "truncation_strategy": stats["truncation_strategy"],
                     }
                     total_tokens += stats["total_tokens"]
                     total_entries += stats["total_entries"]
 
             # Calculate token savings
-            enabled_agents = [name for name, stats in agent_stats.items() if stats["enabled"]]
-            disabled_agents = [name for name, stats in agent_stats.items() if not stats["enabled"]]
+            enabled_agents = [
+                name for name, stats in agent_stats.items() if stats["enabled"]
+            ]
+            disabled_agents = [
+                name for name, stats in agent_stats.items() if not stats["enabled"]
+            ]
 
             # Estimate baseline (if all agents had max token limit)
             baseline_tokens = 0
@@ -1598,9 +1744,15 @@ class CommandHandler:
                 lines.append(f"  {agent_name}:")
                 if stats["enabled"]:
                     lines.append(f"    Status: Enabled")
-                    lines.append(f"    Tokens: {stats['tokens']:,} / {stats['max_tokens']:,} ({stats['utilization_pct']:.1f}%)")
-                    lines.append(f"    Entries: {stats['entries']} / {stats['max_entries']}")
-                    lines.append(f"    Truncation Strategy: {stats['truncation_strategy']}")
+                    lines.append(
+                        f"    Tokens: {stats['tokens']:,} / {stats['max_tokens']:,} ({stats['utilization_pct']:.1f}%)"
+                    )
+                    lines.append(
+                        f"    Entries: {stats['entries']} / {stats['max_entries']}"
+                    )
+                    lines.append(
+                        f"    Truncation Strategy: {stats['truncation_strategy']}"
+                    )
 
                     # Show entry type breakdown
                     if stats["entry_types"]:
@@ -1614,8 +1766,12 @@ class CommandHandler:
             # Add token savings explanation
             if disabled_agents:
                 lines.append("Token Savings:")
-                lines.append(f"  Agents with disabled history: {', '.join(disabled_agents)}")
-                lines.append(f"  These agents use no tokens for history (100% savings per agent)")
+                lines.append(
+                    f"  Agents with disabled history: {', '.join(disabled_agents)}"
+                )
+                lines.append(
+                    f"  These agents use no tokens for history (100% savings per agent)"
+                )
 
             message = "\n".join(lines)
 
@@ -1629,15 +1785,15 @@ class CommandHandler:
                     "savings_pct": savings_pct,
                     "agent_stats": agent_stats,
                     "enabled_agents": enabled_agents,
-                    "disabled_agents": disabled_agents
-                }
+                    "disabled_agents": disabled_agents,
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get history statistics: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Workflow Management Commands (T086-T090) ===
@@ -1659,7 +1815,9 @@ class CommandHandler:
             4. Return success message with workflow ID
         """
         from datetime import datetime
+
         from litellm import completion
+
         from .models.workflow import WorkflowState, WorkflowStep
 
         try:
@@ -1679,27 +1837,36 @@ Each step should be:
 
             # Get active agent's model
             active_agent = session.agents.get(session.active_agent)
-            model_name = active_agent.model_name if active_agent else session.default_model
+            model_name = (
+                active_agent.model_name if active_agent else session.default_model
+            )
 
             # Call LLM to generate steps
             messages = [{"role": "user", "content": generation_prompt}]
             response = completion(model=model_name, messages=messages, temperature=0.3)
 
-            # Extract response content
-            llm_response = response.choices[0].message.content.strip()
+            # Extract response content — completion() without stream=True returns
+            # ModelResponse; guard against the CustomStreamWrapper union variant
+            # and against content being None before calling .strip().
+            if not hasattr(response, "choices"):
+                raise ValueError("Unexpected streaming response from LLM")
+            raw_content = response.choices[0].message.content  # type: ignore[union-attr]
+            if raw_content is None:
+                raise ValueError("LLM returned empty content")
+            llm_response = raw_content.strip()
 
             # Parse JSON response
             import json
             import re
 
             # Clean markdown code blocks if present
-            cleaned_response = re.sub(r'```json\s*|\s*```', '', llm_response).strip()
+            cleaned_response = re.sub(r"```json\s*|\s*```", "", llm_response).strip()
 
             try:
                 step_descriptions = json.loads(cleaned_response)
             except json.JSONDecodeError:
                 # Fallback: Try to extract array from text
-                array_match = re.search(r'\[.*\]', cleaned_response, re.DOTALL)
+                array_match = re.search(r"\[.*\]", cleaned_response, re.DOTALL)
                 if array_match:
                     step_descriptions = json.loads(array_match.group(0))
                 else:
@@ -1713,14 +1880,17 @@ Each step should be:
                 step_descriptions = step_descriptions[:10]  # Cap at 10 steps
 
             # 2. Create WorkflowStep objects (all status="pending")
-            steps = [WorkflowStep(description=desc, status="pending") for desc in step_descriptions]
+            steps = [
+                WorkflowStep(description=desc, status="pending")
+                for desc in step_descriptions
+            ]
 
             # 3. Create WorkflowState
             workflow = WorkflowState(
                 objective=objective,
                 steps=steps,
                 current_step_index=0,
-                created_at=datetime.now().timestamp()
+                created_at=datetime.now().timestamp(),
             )
 
             # 4. Persist to database
@@ -1730,7 +1900,7 @@ Each step should be:
             status_lines = [
                 f"Workflow: {workflow.objective}",
                 f"Progress: {workflow.progress_percentage:.0f}% ({sum(1 for s in workflow.steps if s.status == 'completed')}/{len(workflow.steps)} steps completed)",
-                ""
+                "",
             ]
 
             for i, step in enumerate(workflow.steps, 1):
@@ -1739,10 +1909,12 @@ Each step should be:
                     "pending": "⬜",
                     "in_progress": "🔄",
                     "completed": "✅",
-                    "failed": "❌"
+                    "failed": "❌",
                 }.get(step.status, "⬜")
 
-                status_lines.append(f"{status_icon} Step {i}: {step.description} ({step.status})")
+                status_lines.append(
+                    f"{status_icon} Step {i}: {step.description} ({step.status})"
+                )
 
             status_message = "\n".join(status_lines)
 
@@ -1753,15 +1925,15 @@ Each step should be:
                 data={
                     "objective": objective,
                     "step_count": len(steps),
-                    "steps": [s.description for s in steps]
-                }
+                    "steps": [s.description for s in steps],
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to create workflow: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     async def handle_workflow_resume(self, session) -> CommandResult:
@@ -1786,19 +1958,21 @@ Each step should be:
                 return CommandResult(
                     success=False,
                     message="No workflow to resume. Use /workflow create <objective> to start one.",
-                    error="No workflow found"
+                    error="No workflow found",
                 )
 
             if workflow.is_completed:
                 return CommandResult(
                     success=True,
                     message=f"Workflow already complete! All {len(workflow.steps)} steps finished.",
-                    data={"workflow": workflow.to_dict()}
+                    data={"workflow": workflow.to_dict()},
                 )
 
             # Build resume message
             current_step = workflow.current_step
-            completed_steps = [s.description for s in workflow.steps if s.status == "completed"]
+            completed_steps = [
+                s.description for s in workflow.steps if s.status == "completed"
+            ]
 
             resume_message = f"""Resuming workflow: {workflow.objective}
 
@@ -1822,15 +1996,15 @@ Completed steps:
                 data={
                     "workflow": workflow.to_dict(),
                     "current_step": current_step.to_dict(),
-                    "completed_count": len(completed_steps)
-                }
+                    "completed_count": len(completed_steps),
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to resume workflow: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     async def handle_workflow_status(self, session) -> CommandResult:
@@ -1863,7 +2037,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message="No active workflow. Use /workflow create <objective> to start one.",
-                    data={"workflow_exists": False}
+                    data={"workflow_exists": False},
                 )
 
             # Format status message
@@ -1872,7 +2046,7 @@ Completed steps:
                 f"Progress: {workflow.progress_percentage:.0f}%",
                 f"Current Step: {workflow.current_step_index + 1}/{len(workflow.steps)}",
                 "",
-                "Steps:"
+                "Steps:",
             ]
 
             # Add each step with status indicator
@@ -1882,8 +2056,10 @@ Completed steps:
                     "completed": "✅",
                     "in_progress": "🔄",
                     "pending": "⏳",
-                    "failed": "❌"
-                }.get(step.status, "⏳")  # Default to pending if unknown status
+                    "failed": "❌",
+                }.get(
+                    step.status, "⏳"
+                )  # Default to pending if unknown status
 
                 # Format step line
                 status_lines.append(f"  {i}. {indicator} {step.description}")
@@ -1899,18 +2075,26 @@ Completed steps:
                     "progress_percentage": workflow.progress_percentage,
                     "current_step_index": workflow.current_step_index,
                     "total_steps": len(workflow.steps),
-                    "completed_steps": sum(1 for s in workflow.steps if s.status == "completed"),
-                    "in_progress_steps": sum(1 for s in workflow.steps if s.status == "in_progress"),
-                    "pending_steps": sum(1 for s in workflow.steps if s.status == "pending"),
-                    "failed_steps": sum(1 for s in workflow.steps if s.status == "failed")
-                }
+                    "completed_steps": sum(
+                        1 for s in workflow.steps if s.status == "completed"
+                    ),
+                    "in_progress_steps": sum(
+                        1 for s in workflow.steps if s.status == "in_progress"
+                    ),
+                    "pending_steps": sum(
+                        1 for s in workflow.steps if s.status == "pending"
+                    ),
+                    "failed_steps": sum(
+                        1 for s in workflow.steps if s.status == "failed"
+                    ),
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get workflow status: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     async def handle_workflow_list(self) -> CommandResult:
@@ -1936,7 +2120,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message="No workflows found. Use /workflow create <objective> to start one.",
-                    data={"workflows": [], "count": 0}
+                    data={"workflows": [], "count": 0},
                 )
 
             # Format list
@@ -1959,17 +2143,14 @@ Completed steps:
             return CommandResult(
                 success=True,
                 message="\n".join(list_lines),
-                data={
-                    "workflows": workflows,
-                    "count": len(workflows)
-                }
+                data={"workflows": workflows, "count": len(workflows)},
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to list workflows: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Configuration Management Commands (T110-T111) ===
@@ -1997,8 +2178,9 @@ Completed steps:
             - Uses safe YAML/JSON serialization
         """
         import json
-        import yaml
         from pathlib import Path
+
+        import yaml  # type: ignore[import-untyped]
 
         try:
             # Validate filename (no path traversal)
@@ -2010,7 +2192,7 @@ Completed steps:
                     return CommandResult(
                         success=False,
                         message=f"Invalid filename: path traversal detected in '{filename}'",
-                        error="Path traversal attempt"
+                        error="Path traversal attempt",
                     )
 
             # Determine format from extension
@@ -2019,13 +2201,13 @@ Completed steps:
                 return CommandResult(
                     success=False,
                     message=f"Invalid file extension '{suffix}'. Use .yml, .yaml, or .json",
-                    error="Invalid file extension"
+                    error="Invalid file extension",
                 )
 
             format_type = "yaml" if suffix in [".yml", ".yaml"] else "json"
 
             # Build configuration dictionary
-            config_data = {
+            config_data: dict[str, Any] = {
                 "version": "1.0",
                 "session": {
                     "name": session.name,
@@ -2037,7 +2219,7 @@ Completed steps:
                 "agents": {},
                 "mcp_servers": [],
                 "history_configuration": {},
-                "orchestration": {}
+                "orchestration": {},
             }
 
             # Export agents
@@ -2092,7 +2274,9 @@ Completed steps:
                     router_data = {}
                     if hasattr(orc.router_config, "model"):
                         router_data["model"] = orc.router_config.model
-                        router_data["timeout_seconds"] = orc.router_config.timeout_seconds
+                        router_data["timeout_seconds"] = (
+                            orc.router_config.timeout_seconds
+                        )
                     elif isinstance(orc.router_config, dict):
                         router_data = orc.router_config
 
@@ -2119,7 +2303,9 @@ Completed steps:
                     }
 
             if agent_history_overrides:
-                config_data["history_configuration"]["per_agent"] = agent_history_overrides
+                config_data["history_configuration"][
+                    "per_agent"
+                ] = agent_history_overrides
 
             # Create parent directories if needed
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2127,29 +2313,31 @@ Completed steps:
             # Write to file
             with open(file_path, "w") as f:
                 if format_type == "yaml":
-                    yaml.safe_dump(config_data, f, default_flow_style=False, sort_keys=False)
+                    yaml.safe_dump(
+                        config_data, f, default_flow_style=False, sort_keys=False
+                    )
                 else:
                     json.dump(config_data, f, indent=2)
 
             return CommandResult(
                 success=True,
                 message=f"Configuration exported to {file_path.absolute()}\n"
-                        f"Format: {format_type.upper()}\n"
-                        f"Agents: {len(config_data['agents'])}\n"
-                        f"MCP Servers: {len(config_data['mcp_servers'])}",
+                f"Format: {format_type.upper()}\n"
+                f"Agents: {len(config_data['agents'])}\n"
+                f"MCP Servers: {len(config_data['mcp_servers'])}",
                 data={
                     "file_path": str(file_path.absolute()),
                     "format": format_type,
                     "agent_count": len(config_data["agents"]),
                     "mcp_server_count": len(config_data["mcp_servers"]),
-                }
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to export configuration: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_config_import(self, session, filename: str) -> CommandResult:
@@ -2174,8 +2362,9 @@ Completed steps:
             - Sanitizes all imported values
         """
         import json
-        import yaml
         from pathlib import Path
+
+        import yaml  # type: ignore[import-untyped]
 
         try:
             # Validate file path
@@ -2187,14 +2376,14 @@ Completed steps:
                 return CommandResult(
                     success=False,
                     message=f"Invalid file extension '{suffix}'. Use .yml, .yaml, or .json",
-                    error="Invalid file extension"
+                    error="Invalid file extension",
                 )
 
             if not file_path.exists():
                 return CommandResult(
                     success=False,
                     message=f"Configuration file not found: {filename}",
-                    error="File not found"
+                    error="File not found",
                 )
 
             format_type = "yaml" if suffix in [".yml", ".yaml"] else "json"
@@ -2211,22 +2400,24 @@ Completed steps:
                 return CommandResult(
                     success=False,
                     message="Invalid configuration format: expected dictionary",
-                    error="Invalid format"
+                    error="Invalid format",
                 )
 
             if "version" not in config_data:
                 return CommandResult(
                     success=False,
                     message="Invalid configuration: missing 'version' field",
-                    error="Missing version"
+                    error="Missing version",
                 )
 
             changes = []
 
             # Import agents
             if "agents" in config_data and isinstance(config_data["agents"], dict):
-                from promptchain.cli.models.agent_config import Agent, HistoryConfig
                 import time
+
+                from promptchain.cli.models.agent_config import (Agent,
+                                                                 HistoryConfig)
 
                 for agent_name, agent_config in config_data["agents"].items():
                     # Skip if agent exists (don't overwrite)
@@ -2242,14 +2433,20 @@ Completed steps:
                             enabled=hc.get("enabled", True),
                             max_tokens=hc.get("max_tokens", 4000),
                             max_entries=hc.get("max_entries", 20),
-                            truncation_strategy=hc.get("truncation_strategy", "oldest_first"),
+                            truncation_strategy=hc.get(
+                                "truncation_strategy", "oldest_first"
+                            ),
                         )
 
                     # Create agent
                     agent = Agent(
                         name=agent_name,
-                        model_name=agent_config.get("model", "openai/gpt-4.1-mini-2025-04-14"),
-                        description=agent_config.get("description", f"Imported agent: {agent_name}"),
+                        model_name=agent_config.get(
+                            "model", "openai/gpt-4.1-mini-2025-04-14"
+                        ),
+                        description=agent_config.get(
+                            "description", f"Imported agent: {agent_name}"
+                        ),
                         tools=agent_config.get("tools", []),
                         history_config=history_config,
                         created_at=time.time(),
@@ -2263,13 +2460,17 @@ Completed steps:
                     changes.append(f"Imported agent: {agent_name} ({agent.model_name})")
 
             # Import MCP servers
-            if "mcp_servers" in config_data and isinstance(config_data["mcp_servers"], list):
+            if "mcp_servers" in config_data and isinstance(
+                config_data["mcp_servers"], list
+            ):
                 from promptchain.cli.models.mcp_config import MCPServerConfig
 
                 for server_config in config_data["mcp_servers"]:
                     # Skip if server with same ID exists
                     if any(s.id == server_config["id"] for s in session.mcp_servers):
-                        changes.append(f"Skipped existing MCP server: {server_config['id']}")
+                        changes.append(
+                            f"Skipped existing MCP server: {server_config['id']}"
+                        )
                         continue
 
                     # Create server
@@ -2287,19 +2488,28 @@ Completed steps:
 
             # Import orchestration settings (optional)
             if "orchestration" in config_data:
-                from promptchain.cli.models.orchestration_config import OrchestrationConfig
+                from promptchain.cli.models.orchestration_config import \
+                    OrchestrationConfig
 
                 orc_data = config_data["orchestration"]
                 if session.orchestration_config is None:
                     session.orchestration_config = OrchestrationConfig()
 
                 if "execution_mode" in orc_data:
-                    session.orchestration_config.execution_mode = orc_data["execution_mode"]
-                    changes.append(f"Updated execution mode: {orc_data['execution_mode']}")
+                    session.orchestration_config.execution_mode = orc_data[
+                        "execution_mode"
+                    ]
+                    changes.append(
+                        f"Updated execution mode: {orc_data['execution_mode']}"
+                    )
 
                 if "auto_include_history" in orc_data:
-                    session.orchestration_config.auto_include_history = orc_data["auto_include_history"]
-                    changes.append(f"Updated auto-include history: {orc_data['auto_include_history']}")
+                    session.orchestration_config.auto_include_history = orc_data[
+                        "auto_include_history"
+                    ]
+                    changes.append(
+                        f"Updated auto-include history: {orc_data['auto_include_history']}"
+                    )
 
             # Persist changes
             self.session_manager.save_session(session)
@@ -2308,7 +2518,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message=f"No changes imported from {filename}\n(All items already exist or config is empty)",
-                    data={"changes": []}
+                    data={"changes": []},
                 )
 
             # Format success message
@@ -2323,26 +2533,26 @@ Completed steps:
                     "format": format_type,
                     "changes": changes,
                     "change_count": len(changes),
-                }
+                },
             )
 
         except yaml.YAMLError as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to parse YAML configuration: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
         except json.JSONDecodeError as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to parse JSON configuration: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to import configuration: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     def handle_config_show(self, session) -> CommandResult:
@@ -2390,10 +2600,16 @@ Completed steps:
             lines.append(f"Default Model: {session.default_model}")
             lines.append(f"Working Directory: {session.working_directory}")
             lines.append(f"Total Agents: {len(session.agents)}")
-            lines.append(f"Auto-Save: {'enabled' if session.auto_save_enabled else 'disabled'}")
+            lines.append(
+                f"Auto-Save: {'enabled' if session.auto_save_enabled else 'disabled'}"
+            )
             if session.auto_save_enabled:
-                lines.append(f"  - Message Interval: {getattr(session, 'autosave_message_interval', 5)} messages")
-                lines.append(f"  - Time Interval: {getattr(session, 'autosave_time_interval', 120)} seconds")
+                lines.append(
+                    f"  - Message Interval: {getattr(session, 'autosave_message_interval', 5)} messages"
+                )
+                lines.append(
+                    f"  - Time Interval: {getattr(session, 'autosave_time_interval', 120)} seconds"
+                )
             lines.append("")
 
             # === Section 2: MCP Servers ===
@@ -2404,13 +2620,19 @@ Completed steps:
                 lines.append("No MCP servers configured")
             else:
                 lines.append(f"Total Servers: {len(session.mcp_servers)}")
-                connected_count = sum(1 for s in session.mcp_servers if s.state == "connected")
+                connected_count = sum(
+                    1 for s in session.mcp_servers if s.state == "connected"
+                )
                 lines.append(f"Connected: {connected_count}/{len(session.mcp_servers)}")
                 lines.append("")
 
                 # Server details
                 for server in session.mcp_servers:
-                    status_icon = {"connected": "✓", "disconnected": "○", "error": "✗"}.get(server.state, "?")
+                    status_icon = {
+                        "connected": "✓",
+                        "disconnected": "○",
+                        "error": "✗",
+                    }.get(server.state, "?")
                     lines.append(f"{status_icon} {server.id}")
                     lines.append(f"  Type: {server.type}")
                     lines.append(f"  Status: {server.state}")
@@ -2444,8 +2666,16 @@ Completed steps:
 
             for template_name, template in AGENT_TEMPLATES.items():
                 # Template metadata
-                category = template.metadata.get("category", "general") if template.metadata else "general"
-                complexity = template.metadata.get("complexity", "medium") if template.metadata else "medium"
+                category = (
+                    template.metadata.get("category", "general")
+                    if template.metadata
+                    else "general"
+                )
+                complexity = (
+                    template.metadata.get("complexity", "medium")
+                    if template.metadata
+                    else "medium"
+                )
 
                 lines.append(f"{template.display_name} ({template_name})")
                 lines.append(f"  Description: {template.description[:80]}...")
@@ -2453,11 +2683,19 @@ Completed steps:
                 lines.append(f"  Category: {category}")
                 lines.append(f"  Complexity: {complexity}")
                 lines.append(f"  Tools: {len(template.tools)} configured")
-                lines.append(f"  History: {'enabled' if template.history_config.enabled else 'disabled'}")
+                lines.append(
+                    f"  History: {'enabled' if template.history_config.enabled else 'disabled'}"
+                )
                 if template.history_config.enabled:
-                    lines.append(f"    - Max Tokens: {template.history_config.max_tokens}")
-                    lines.append(f"    - Max Entries: {template.history_config.max_entries}")
-                    lines.append(f"    - Strategy: {template.history_config.truncation_strategy}")
+                    lines.append(
+                        f"    - Max Tokens: {template.history_config.max_tokens}"
+                    )
+                    lines.append(
+                        f"    - Max Entries: {template.history_config.max_entries}"
+                    )
+                    lines.append(
+                        f"    - Strategy: {template.history_config.truncation_strategy}"
+                    )
                 lines.append("")
 
             # === Section 4: History Settings ===
@@ -2465,7 +2703,10 @@ Completed steps:
             lines.append("")
 
             # Global settings (from session's history_manager if initialized)
-            if hasattr(session, '_history_manager') and session._history_manager is not None:
+            if (
+                hasattr(session, "_history_manager")
+                and session._history_manager is not None
+            ):
                 hm = session._history_manager
                 lines.append("Global History Manager:")
                 lines.append(f"  Status: Initialized")
@@ -2477,14 +2718,16 @@ Completed steps:
                 lines.append(f"  Current Tokens: {stats['total_tokens']}")
                 lines.append("")
             else:
-                lines.append("Global History Manager: Not initialized (lazy init on first use)")
+                lines.append(
+                    "Global History Manager: Not initialized (lazy init on first use)"
+                )
                 lines.append("")
 
             # Per-agent history configuration
             lines.append("Per-Agent History Overrides:")
             if session.agents:
                 for agent_name, agent in session.agents.items():
-                    if hasattr(agent, 'history_config') and agent.history_config:
+                    if hasattr(agent, "history_config") and agent.history_config:
                         hc = agent.history_config
                         lines.append(f"  {agent_name}:")
                         lines.append(f"    Enabled: {hc.enabled}")
@@ -2512,7 +2755,9 @@ Completed steps:
                 lines.append("")
 
                 for agent_name, agent in session.agents.items():
-                    active_marker = " (active)" if agent_name == session.active_agent else ""
+                    active_marker = (
+                        " (active)" if agent_name == session.active_agent else ""
+                    )
                     lines.append(f"{agent_name}{active_marker}")
                     lines.append(f"  Model: {agent.model_name}")
                     lines.append(f"  Description: {agent.description}")
@@ -2526,7 +2771,10 @@ Completed steps:
                     lines.append("")
 
             # === Section 6: Orchestration Config (if present) ===
-            if hasattr(session, 'orchestration_config') and session.orchestration_config:
+            if (
+                hasattr(session, "orchestration_config")
+                and session.orchestration_config
+            ):
                 lines.append("=== Orchestration Configuration ===")
                 lines.append("")
                 orc = session.orchestration_config
@@ -2534,10 +2782,10 @@ Completed steps:
                 lines.append(f"Auto-Include History: {orc.auto_include_history}")
                 if orc.router_config:
                     # Check if router_config is a RouterConfig object or dict
-                    if hasattr(orc.router_config, 'model'):
+                    if hasattr(orc.router_config, "model"):
                         lines.append(f"Router Model: {orc.router_config.model}")
                     elif isinstance(orc.router_config, dict):
-                        models = orc.router_config.get('models', ['not configured'])
+                        models = orc.router_config.get("models", ["not configured"])
                         model = models[0] if isinstance(models, list) else models
                         lines.append(f"Router Model: {model}")
                 lines.append("")
@@ -2559,7 +2807,9 @@ Completed steps:
                     },
                     "mcp_servers": {
                         "total": len(session.mcp_servers),
-                        "connected": sum(1 for s in session.mcp_servers if s.state == "connected"),
+                        "connected": sum(
+                            1 for s in session.mcp_servers if s.state == "connected"
+                        ),
                         "servers": [s.to_dict() for s in session.mcp_servers],
                     },
                     "templates": {
@@ -2570,14 +2820,14 @@ Completed steps:
                         "count": len(session.agents),
                         "names": list(session.agents.keys()),
                     },
-                }
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to display configuration: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Tool Capabilities Commands ===
@@ -2617,7 +2867,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message="No capabilities registered yet. Register tools with capabilities to see them here.",
-                    data={"capabilities": [], "count": 0}
+                    data={"capabilities": [], "count": 0},
                 )
 
             # If agent_name provided, filter by agent access
@@ -2629,15 +2879,15 @@ Completed steps:
                     return CommandResult(
                         success=True,
                         message=f"No tools available to agent '{agent_name}'.\n"
-                                f"Use /agent update {agent_name} --add-tools <tool_name> to add tools.",
-                        data={"agent_name": agent_name, "tools": [], "count": 0}
+                        f"Use /agent update {agent_name} --add-tools <tool_name> to add tools.",
+                        data={"agent_name": agent_name, "tools": [], "count": 0},
                     )
 
                 # Format agent-specific tool list
                 lines = [f"Tools available to agent '{agent_name}':", ""]
 
                 # Group by capability
-                capability_groups = {}
+                capability_groups: dict[str, list[Any]] = {}
                 for tool in agent_tools:
                     for cap in tool.capabilities:
                         if cap not in capability_groups:
@@ -2669,8 +2919,8 @@ Completed steps:
                         "agent_name": agent_name,
                         "tools": [t.name for t in agent_tools],
                         "count": len(agent_tools),
-                        "capabilities": list(capability_groups.keys())
-                    }
+                        "capabilities": list(capability_groups.keys()),
+                    },
                 )
 
             # No agent specified - show all capabilities
@@ -2685,13 +2935,18 @@ Completed steps:
                 if len(tool_names) <= 3:
                     tool_list = ", ".join(tool_names)
                 else:
-                    tool_list = ", ".join(tool_names[:3]) + f", ... ({len(tool_names) - 3} more)"
+                    tool_list = (
+                        ", ".join(tool_names[:3])
+                        + f", ... ({len(tool_names) - 3} more)"
+                    )
 
                 lines.append(f"  {capability} ({len(tools)} tools): {tool_list}")
 
             lines.append("")
             lines.append("Usage:")
-            lines.append("  /capabilities <agent_name>  - Show capabilities for specific agent")
+            lines.append(
+                "  /capabilities <agent_name>  - Show capabilities for specific agent"
+            )
             lines.append("  /tools list                 - Show all tools")
 
             message = "\n".join(lines)
@@ -2699,23 +2954,20 @@ Completed steps:
             return CommandResult(
                 success=True,
                 message=message,
-                data={
-                    "capabilities": all_capabilities,
-                    "count": len(all_capabilities)
-                }
+                data={"capabilities": all_capabilities, "count": len(all_capabilities)},
             )
 
         except ImportError:
             return CommandResult(
                 success=False,
                 message="Tool registry not available. Ensure promptchain.cli.tools.registry is properly configured.",
-                error="Registry import failed"
+                error="Registry import failed",
             )
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to list capabilities: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Security Mode Commands ===
@@ -2736,12 +2988,9 @@ Completed steps:
             /security trusted  - Enable trusted mode (no warnings)
             /security default  - Enable default mode (warn once per path)
         """
-        from .security_context import (
-            SecurityMode,
-            get_security_context,
-            set_security_context,
-            SecurityContext
-        )
+        from .security_context import (SecurityContext, SecurityMode,
+                                       get_security_context,
+                                       set_security_context)
 
         try:
             # Get or create security context
@@ -2758,7 +3007,7 @@ Completed steps:
                         "working_directory": security_ctx.working_directory,
                         "approved_paths": list(security_ctx.approved_paths),
                         "denied_paths": list(security_ctx.denied_paths),
-                    }
+                    },
                 )
 
             # Validate and set mode
@@ -2774,14 +3023,14 @@ Completed steps:
                 return CommandResult(
                     success=False,
                     message=f"Invalid security mode: '{mode}'\n\nValid modes:\n  strict  - Require confirmation for outside paths\n  trusted - Allow all paths without warnings\n  default - Warn once per path",
-                    error=f"Invalid security mode: {mode}"
+                    error=f"Invalid security mode: {mode}",
                 )
 
             # Set the new mode
             confirmation_message = security_ctx.set_mode(new_mode)
 
             # Update session with security context (for persistence)
-            if hasattr(session, 'security_context_data'):
+            if hasattr(session, "security_context_data"):
                 session.security_context_data = security_ctx.to_dict()
 
             return CommandResult(
@@ -2789,16 +3038,20 @@ Completed steps:
                 message=confirmation_message,
                 data={
                     "mode": new_mode.value,
-                    "previous_mode": security_ctx.mode.value if security_ctx.mode != new_mode else None,
+                    "previous_mode": (
+                        security_ctx.mode.value
+                        if security_ctx.mode != new_mode
+                        else None
+                    ),
                     "working_directory": security_ctx.working_directory,
-                }
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to manage security mode: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Task Management Commands ===
@@ -2826,33 +3079,36 @@ Completed steps:
                 session_id=session.session_id,
                 status=None,  # Get all statuses
                 target_agent=target_agent,
-                limit=100
+                limit=100,
             )
 
             if not tasks:
                 return CommandResult(
                     success=True,
                     message=f"No tasks found for agent '{target_agent}'",
-                    data={"tasks": [], "count": 0}
+                    data={"tasks": [], "count": 0},
                 )
 
             # Filter for pending and in_progress tasks
             active_tasks = [
-                task for task in tasks
-                if task.status in ["pending", "in_progress"]
+                task for task in tasks if task.status in ["pending", "in_progress"]
             ]
 
             if not active_tasks:
                 return CommandResult(
                     success=True,
                     message=f"No pending or in-progress tasks for agent '{target_agent}'",
-                    data={"tasks": [], "count": 0}
+                    data={"tasks": [], "count": 0},
                 )
 
             # Format task list
             task_lines = [f"Tasks for agent '{target_agent}':\n"]
             for i, task in enumerate(active_tasks, 1):
-                priority_symbol = "🔴" if task.priority == "high" else "🟡" if task.priority == "medium" else "🟢"
+                priority_symbol = (
+                    "🔴"
+                    if task.priority == "high"
+                    else "🟡" if task.priority == "medium" else "🟢"
+                )
                 status_symbol = "▶️" if task.status == "in_progress" else "⏸️"
                 task_lines.append(
                     f"{i}. {priority_symbol} {status_symbol} [{task.task_id[:8]}] {task.description}"
@@ -2874,20 +3130,18 @@ Completed steps:
                             "status": task.status,
                             "source_agent": task.source_agent,
                             "target_agent": task.target_agent,
-                            "context": task.context
+                            "context": task.context,
                         }
                         for task in active_tasks
                     ],
                     "count": len(active_tasks),
-                    "agent": target_agent
-                }
+                    "agent": target_agent,
+                },
             )
 
         except Exception as e:
             return CommandResult(
-                success=False,
-                message=f"Failed to list tasks: {str(e)}",
-                error=str(e)
+                success=False, message=f"Failed to list tasks: {str(e)}", error=str(e)
             )
 
     # === Blackboard Commands ===
@@ -2910,20 +3164,22 @@ Completed steps:
             # If key specified, show specific entry
             if key:
                 entry = self.session_manager.read_blackboard(
-                    session_id=session.session_id,
-                    key=key
+                    session_id=session.session_id, key=key
                 )
 
                 if not entry:
                     return CommandResult(
                         success=False,
                         message=f"Blackboard entry not found: '{key}'",
-                        error="Entry not found"
+                        error="Entry not found",
                     )
 
                 # Format entry details
                 from datetime import datetime
-                written_at = datetime.fromtimestamp(entry.written_at).strftime("%Y-%m-%d %H:%M:%S")
+
+                written_at = datetime.fromtimestamp(entry.written_at).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
 
                 message = f"Blackboard Entry: {key}\n\n"
                 message += f"Written by: {entry.written_by}\n"
@@ -2939,8 +3195,8 @@ Completed steps:
                         "value": entry.value,
                         "written_by": entry.written_by,
                         "written_at": written_at,
-                        "version": entry.version
-                    }
+                        "version": entry.version,
+                    },
                 )
 
             # Otherwise, list all keys
@@ -2952,7 +3208,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message="No blackboard entries found",
-                    data={"keys": [], "count": 0}
+                    data={"keys": [], "count": 0},
                 )
 
             # Format key list
@@ -2963,19 +3219,14 @@ Completed steps:
             message += "\nUse '/blackboard <key>' to view entry details"
 
             return CommandResult(
-                success=True,
-                message=message,
-                data={
-                    "keys": keys,
-                    "count": len(keys)
-                }
+                success=True, message=message, data={"keys": keys, "count": len(keys)}
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to access blackboard: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Mental Model Commands ===
@@ -2993,13 +3244,14 @@ Completed steps:
             /mentalmodel  - Display current agent's mental model
         """
         try:
-            from .models import MentalModelManager, create_default_model, SpecializationType
+            from .models import (MentalModelManager, SpecializationType,
+                                 create_default_model)
 
             # Get current agent name
             agent_name = session.active_agent or "default"
 
             # Get or create mental model manager
-            if not hasattr(self.session_manager, '_mental_model_manager'):
+            if not hasattr(self.session_manager, "_mental_model_manager"):
                 self.session_manager._mental_model_manager = MentalModelManager()
 
             model = self.session_manager._mental_model_manager.get_or_create(agent_name)
@@ -3016,7 +3268,9 @@ Completed steps:
             if model.specializations:
                 message_lines.append("Specializations:")
                 for spec in model.specializations:
-                    message_lines.append(f"  - {spec.specialization.value} (proficiency: {spec.proficiency:.2f})")
+                    message_lines.append(
+                        f"  - {spec.specialization.value} (proficiency: {spec.proficiency:.2f})"
+                    )
                     if spec.related_capabilities:
                         caps_str = ", ".join(spec.related_capabilities)
                         message_lines.append(f"    Capabilities: {caps_str}")
@@ -3060,20 +3314,22 @@ Completed steps:
                             "type": s.specialization.value,
                             "proficiency": s.proficiency,
                             "capabilities": s.related_capabilities,
-                            "experience": s.experience_count
+                            "experience": s.experience_count,
                         }
                         for s in model.specializations
                     ],
                     "known_agents": model.known_agents,
-                    "recent_tasks": model.task_history[-5:] if model.task_history else []
-                }
+                    "recent_tasks": (
+                        model.task_history[-5:] if model.task_history else []
+                    ),
+                },
             )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to display mental model: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
 
     # === Workflow Commands (T067) ===
@@ -3104,7 +3360,7 @@ Completed steps:
                 return CommandResult(
                     success=True,
                     message="No active workflow in this session",
-                    data={"workflow": None}
+                    data={"workflow": None},
                 )
 
             # Normalize subcommand (default to "show")
@@ -3125,13 +3381,17 @@ Completed steps:
                     "planning": 10,
                     "execution": 50,
                     "review": 75,
-                    "complete": 100
+                    "complete": 100,
                 }
                 progress = stage_progress.get(workflow.stage.value, 0)
 
                 # Format timestamps
-                started = datetime.fromtimestamp(workflow.started_at).strftime("%Y-%m-%d %H:%M:%S")
-                updated = datetime.fromtimestamp(workflow.updated_at).strftime("%Y-%m-%d %H:%M:%S")
+                started = datetime.fromtimestamp(workflow.started_at).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                updated = datetime.fromtimestamp(workflow.updated_at).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
 
                 # Build status message
                 message_lines = [
@@ -3142,7 +3402,7 @@ Completed steps:
                     f"Current Task: {workflow.current_task or 'None'}",
                     f"Progress: {progress}% complete",
                     f"Started: {started}",
-                    f"Updated: {updated}"
+                    f"Updated: {updated}",
                 ]
 
                 message = "\n".join(message_lines)
@@ -3158,8 +3418,8 @@ Completed steps:
                         "current_task": workflow.current_task,
                         "progress": progress,
                         "started_at": workflow.started_at,
-                        "updated_at": workflow.updated_at
-                    }
+                        "updated_at": workflow.updated_at,
+                    },
                 )
 
             elif subcommand == "stage":
@@ -3169,8 +3429,8 @@ Completed steps:
                     message=f"Current Stage: {workflow.stage.value}",
                     data={
                         "workflow_id": workflow.workflow_id,
-                        "stage": workflow.stage.value
-                    }
+                        "stage": workflow.stage.value,
+                    },
                 )
 
             elif subcommand == "tasks":
@@ -3187,8 +3447,8 @@ Completed steps:
                         "workflow_id": workflow.workflow_id,
                         "completed_tasks": completed,
                         "current_task": current,
-                        "task_ids": workflow.completed_tasks
-                    }
+                        "task_ids": workflow.completed_tasks,
+                    },
                 )
 
             else:
@@ -3196,13 +3456,12 @@ Completed steps:
                 return CommandResult(
                     success=False,
                     message=f"Invalid subcommand: '{subcommand}'. Use: show, stage, or tasks",
-                    error=f"Invalid subcommand: {subcommand}"
+                    error=f"Invalid subcommand: {subcommand}",
                 )
 
         except Exception as e:
             return CommandResult(
                 success=False,
                 message=f"Failed to get workflow status: {str(e)}",
-                error=str(e)
+                error=str(e),
             )
-

@@ -5,10 +5,10 @@ This module defines events that are emitted at key points during PromptChain
 execution, enabling comprehensive observability and monitoring.
 """
 
-from enum import Enum, auto
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
 from datetime import datetime
+from enum import Enum, auto
+from typing import Any, Dict, Optional
 
 
 class ExecutionEventType(Enum):
@@ -104,7 +104,7 @@ class ExecutionEvent:
             "step_number": self.step_number,
             "step_instruction": self.step_instruction,
             "model_name": self.model_name,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     def to_summary_dict(self) -> Dict[str, Any]:
@@ -115,11 +115,11 @@ class ExecutionEvent:
         """
         summary = {
             "event": self.event_type.name,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
         }
 
         if self.step_number is not None:
-            summary["step"] = self.step_number
+            summary["step"] = self.step_number  # type: ignore[assignment]
 
         if self.model_name:
             summary["model"] = self.model_name

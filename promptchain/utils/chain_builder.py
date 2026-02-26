@@ -27,18 +27,12 @@ Usage by Agents:
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
-from .chain_models import (
-    ChainDefinition,
-    ChainStepDefinition,
-    StepType,
-    ChainMode,
-    Guardrails,
-    ValidationResult
-)
 from .chain_factory import ChainFactory, ChainNotFoundError
+from .chain_models import (ChainDefinition, ChainMode, ChainStepDefinition,
+                           Guardrails, StepType, ValidationResult)
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +58,7 @@ class ChainBuilder:
     """
 
     def __init__(
-        self,
-        name: str,
-        version: str = "v1.0",
-        mode: ChainMode = ChainMode.STRICT
+        self, name: str, version: str = "v1.0", mode: ChainMode = ChainMode.STRICT
     ):
         """Initialize builder.
 
@@ -90,22 +81,22 @@ class ChainBuilder:
     # Fluent Builder Methods
     # =========================================================================
 
-    def description(self, desc: str) -> 'ChainBuilder':
+    def description(self, desc: str) -> "ChainBuilder":
         """Set chain description."""
         self._description = desc
         return self
 
-    def llm_model(self, model: str) -> 'ChainBuilder':
+    def llm_model(self, model: str) -> "ChainBuilder":
         """Set LLM model for prompt steps."""
         self._llm_model = model
         return self
 
-    def tags(self, *tags: str) -> 'ChainBuilder':
+    def tags(self, *tags: str) -> "ChainBuilder":
         """Add tags to chain."""
         self._tags.extend(tags)
         return self
 
-    def created_by(self, creator: str) -> 'ChainBuilder':
+    def created_by(self, creator: str) -> "ChainBuilder":
         """Set creator (e.g., 'agent:gpt-4')."""
         self._created_by = creator
         return self
@@ -115,8 +106,8 @@ class ChainBuilder:
         max_steps: Optional[int] = None,
         timeout_seconds: Optional[int] = None,
         max_nested_depth: Optional[int] = None,
-        forbidden_patterns: Optional[List[str]] = None
-    ) -> 'ChainBuilder':
+        forbidden_patterns: Optional[List[str]] = None,
+    ) -> "ChainBuilder":
         """Configure guardrails."""
         if max_steps is not None:
             self._guardrails.max_steps = max_steps
@@ -132,7 +123,7 @@ class ChainBuilder:
     # Step Adding Methods
     # =========================================================================
 
-    def add_step(self, step: ChainStepDefinition) -> 'ChainBuilder':
+    def add_step(self, step: ChainStepDefinition) -> "ChainBuilder":
         """Add a pre-built step."""
         self._steps.append(step)
         return self
@@ -142,8 +133,8 @@ class ChainBuilder:
         content: str,
         step_id: Optional[str] = None,
         prompt_id: Optional[str] = None,
-        strategy: Optional[str] = None
-    ) -> 'ChainBuilder':
+        strategy: Optional[str] = None,
+    ) -> "ChainBuilder":
         """Add a prompt step.
 
         Args:
@@ -158,16 +149,14 @@ class ChainBuilder:
             type=StepType.PROMPT,
             content=content if not prompt_id else None,
             prompt_id=prompt_id,
-            strategy=strategy
+            strategy=strategy,
         )
         self._steps.append(step)
         return self
 
     def add_chain(
-        self,
-        chain_ref: str,
-        step_id: Optional[str] = None
-    ) -> 'ChainBuilder':
+        self, chain_ref: str, step_id: Optional[str] = None
+    ) -> "ChainBuilder":
         """Add a nested chain step.
 
         Args:
@@ -175,19 +164,13 @@ class ChainBuilder:
             step_id: Optional step ID
         """
         step_id = step_id or f"chain_{len(self._steps) + 1}"
-        step = ChainStepDefinition(
-            id=step_id,
-            type=StepType.CHAIN,
-            chain_id=chain_ref
-        )
+        step = ChainStepDefinition(id=step_id, type=StepType.CHAIN, chain_id=chain_ref)
         self._steps.append(step)
         return self
 
     def add_function(
-        self,
-        function_name: str,
-        step_id: Optional[str] = None
-    ) -> 'ChainBuilder':
+        self, function_name: str, step_id: Optional[str] = None
+    ) -> "ChainBuilder":
         """Add a function step.
 
         Args:
@@ -196,9 +179,7 @@ class ChainBuilder:
         """
         step_id = step_id or f"func_{len(self._steps) + 1}"
         step = ChainStepDefinition(
-            id=step_id,
-            type=StepType.FUNCTION,
-            function_name=function_name
+            id=step_id, type=StepType.FUNCTION, function_name=function_name
         )
         self._steps.append(step)
         return self
@@ -208,8 +189,8 @@ class ChainBuilder:
         objective: str,
         step_id: Optional[str] = None,
         max_steps: int = 5,
-        tools: Optional[List[str]] = None
-    ) -> 'ChainBuilder':
+        tools: Optional[List[str]] = None,
+    ) -> "ChainBuilder":
         """Add an agentic step (hybrid mode only).
 
         Args:
@@ -228,7 +209,7 @@ class ChainBuilder:
             type=StepType.AGENTIC,
             objective=objective,
             max_steps=max_steps,
-            tools=tools
+            tools=tools,
         )
         self._steps.append(step)
         return self
@@ -256,7 +237,7 @@ class ChainBuilder:
             llm_model=self._llm_model,
             guardrails=self._guardrails,
             steps=self._steps,
-            created_by=self._created_by
+            created_by=self._created_by,
         )
 
     def save(self, factory: Optional[ChainFactory] = None) -> str:
@@ -285,7 +266,7 @@ class ChainBuilder:
         mode: str = "strict",
         llm_model: str = "openai/gpt-4.1-mini-2025-04-14",
         tags: Optional[List[str]] = None,
-        created_by: str = "agent"
+        created_by: str = "agent",
     ) -> Dict[str, Any]:
         """Create a new chain (tool function for agents).
 
@@ -324,24 +305,24 @@ class ChainBuilder:
                         content=step_data.get("content", ""),
                         step_id=step_data.get("id"),
                         prompt_id=step_data.get("prompt_id"),
-                        strategy=step_data.get("strategy")
+                        strategy=step_data.get("strategy"),
                     )
                 elif step_type == "chain":
                     builder.add_chain(
                         chain_ref=step_data.get("chain_id", ""),
-                        step_id=step_data.get("id")
+                        step_id=step_data.get("id"),
                     )
                 elif step_type == "function":
                     builder.add_function(
                         function_name=step_data.get("function_name", ""),
-                        step_id=step_data.get("id")
+                        step_id=step_data.get("id"),
                     )
                 elif step_type == "agentic":
                     builder.add_agentic(
                         objective=step_data.get("objective", ""),
                         step_id=step_data.get("id"),
                         max_steps=step_data.get("max_steps", 5),
-                        tools=step_data.get("tools")
+                        tools=step_data.get("tools"),
                     )
 
             # Build and save
@@ -354,7 +335,7 @@ class ChainBuilder:
                 errors = [i.message for i in validation.issues if i.severity == "error"]
                 return {
                     "success": False,
-                    "error": f"Validation failed: {'; '.join(errors)}"
+                    "error": f"Validation failed: {'; '.join(errors)}",
                 }
 
             path = factory.save(chain_def)
@@ -365,20 +346,14 @@ class ChainBuilder:
                 "model": chain_def.model,
                 "version": chain_def.version,
                 "path": path,
-                "steps_count": len(chain_def.steps)
+                "steps_count": len(chain_def.steps),
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     @staticmethod
-    def modify_chain(
-        chain_ref: str,
-        modifications: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def modify_chain(chain_ref: str, modifications: Dict[str, Any]) -> Dict[str, Any]:
         """Modify an existing chain (tool function for agents).
 
         Args:
@@ -409,7 +384,7 @@ class ChainBuilder:
                         content=step_data.get("content"),
                         chain_id=step_data.get("chain_id"),
                         function_name=step_data.get("function_name"),
-                        objective=step_data.get("objective")
+                        objective=step_data.get("objective"),
                     )
                     chain_def.steps.append(step)
 
@@ -432,10 +407,10 @@ class ChainBuilder:
                         setattr(chain_def.guardrails, key, value)
 
             # Increment version
-            current_version = chain_def.version.lstrip('v')
-            parts = current_version.split('.')
+            current_version = chain_def.version.lstrip("v")
+            parts = current_version.split(".")
             parts[-1] = str(int(parts[-1]) + 1)
-            chain_def.version = 'v' + '.'.join(parts)
+            chain_def.version = "v" + ".".join(parts)
 
             # Generate new VIN
             chain_def.vin = ""  # Will be auto-generated
@@ -446,7 +421,7 @@ class ChainBuilder:
                 errors = [i.message for i in validation.issues if i.severity == "error"]
                 return {
                     "success": False,
-                    "error": f"Validation failed: {'; '.join(errors)}"
+                    "error": f"Validation failed: {'; '.join(errors)}",
                 }
 
             # Save new version
@@ -457,20 +432,15 @@ class ChainBuilder:
                 "vin": chain_def.vin,
                 "model": chain_def.model,
                 "version": chain_def.version,
-                "path": path
+                "path": path,
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     def clone_chain(
-        source_ref: str,
-        new_name: str,
-        modifications: Optional[Dict[str, Any]] = None
+        source_ref: str, new_name: str, modifications: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Clone an existing chain with optional modifications.
 
@@ -497,7 +467,7 @@ class ChainBuilder:
                 llm_model=source.llm_model,
                 guardrails=Guardrails(**source.guardrails.model_dump()),
                 steps=[ChainStepDefinition(**s.model_dump()) for s in source.steps],
-                created_by="agent:clone"
+                created_by="agent:clone",
             )
 
             # Apply modifications
@@ -516,19 +486,17 @@ class ChainBuilder:
                 "model": clone.model,
                 "version": clone.version,
                 "path": path,
-                "cloned_from": source_ref
+                "cloned_from": source_ref,
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # =========================================================================
 # Tool Definitions for Agent Registration
 # =========================================================================
+
 
 def get_chain_builder_tools() -> List[Dict[str, Any]]:
     """Get tool definitions for ChainBuilder methods.
@@ -547,7 +515,7 @@ def get_chain_builder_tools() -> List[Dict[str, Any]]:
                     "properties": {
                         "name": {
                             "type": "string",
-                            "description": "Chain model name (e.g., 'my-workflow')"
+                            "description": "Chain model name (e.g., 'my-workflow')",
                         },
                         "steps": {
                             "type": "array",
@@ -556,47 +524,52 @@ def get_chain_builder_tools() -> List[Dict[str, Any]]:
                                 "properties": {
                                     "type": {
                                         "type": "string",
-                                        "enum": ["prompt", "chain", "function", "agentic"],
-                                        "description": "Step type"
+                                        "enum": [
+                                            "prompt",
+                                            "chain",
+                                            "function",
+                                            "agentic",
+                                        ],
+                                        "description": "Step type",
                                     },
                                     "content": {
                                         "type": "string",
-                                        "description": "Prompt content (for prompt steps)"
+                                        "description": "Prompt content (for prompt steps)",
                                     },
                                     "chain_id": {
                                         "type": "string",
-                                        "description": "Chain reference (for chain steps)"
+                                        "description": "Chain reference (for chain steps)",
                                     },
                                     "function_name": {
                                         "type": "string",
-                                        "description": "Function name (for function steps)"
+                                        "description": "Function name (for function steps)",
                                     },
                                     "objective": {
                                         "type": "string",
-                                        "description": "Objective (for agentic steps)"
-                                    }
+                                        "description": "Objective (for agentic steps)",
+                                    },
                                 },
-                                "required": ["type"]
+                                "required": ["type"],
                             },
-                            "description": "List of steps in the chain"
+                            "description": "List of steps in the chain",
                         },
                         "description": {
                             "type": "string",
-                            "description": "Chain description"
+                            "description": "Chain description",
                         },
                         "version": {
                             "type": "string",
-                            "description": "Version string (e.g., 'v1.0')"
+                            "description": "Version string (e.g., 'v1.0')",
                         },
                         "mode": {
                             "type": "string",
                             "enum": ["strict", "hybrid"],
-                            "description": "Execution mode"
-                        }
+                            "description": "Execution mode",
+                        },
                     },
-                    "required": ["name", "steps"]
-                }
-            }
+                    "required": ["name", "steps"],
+                },
+            },
         },
         {
             "type": "function",
@@ -608,32 +581,32 @@ def get_chain_builder_tools() -> List[Dict[str, Any]]:
                     "properties": {
                         "chain_ref": {
                             "type": "string",
-                            "description": "Chain reference (model:version or model)"
+                            "description": "Chain reference (model:version or model)",
                         },
                         "modifications": {
                             "type": "object",
                             "properties": {
                                 "description": {
                                     "type": "string",
-                                    "description": "New description"
+                                    "description": "New description",
                                 },
                                 "add_steps": {
                                     "type": "array",
                                     "items": {"type": "object"},
-                                    "description": "Steps to add"
+                                    "description": "Steps to add",
                                 },
                                 "remove_steps": {
                                     "type": "array",
                                     "items": {"type": "string"},
-                                    "description": "Step IDs to remove"
-                                }
+                                    "description": "Step IDs to remove",
+                                },
                             },
-                            "description": "Modifications to apply"
-                        }
+                            "description": "Modifications to apply",
+                        },
                     },
-                    "required": ["chain_ref", "modifications"]
-                }
-            }
+                    "required": ["chain_ref", "modifications"],
+                },
+            },
         },
         {
             "type": "function",
@@ -645,25 +618,25 @@ def get_chain_builder_tools() -> List[Dict[str, Any]]:
                     "properties": {
                         "source_ref": {
                             "type": "string",
-                            "description": "Source chain reference"
+                            "description": "Source chain reference",
                         },
                         "new_name": {
                             "type": "string",
-                            "description": "Name for the cloned chain"
+                            "description": "Name for the cloned chain",
                         },
                         "modifications": {
                             "type": "object",
-                            "description": "Optional modifications to apply to clone"
-                        }
+                            "description": "Optional modifications to apply to clone",
+                        },
                     },
-                    "required": ["source_ref", "new_name"]
-                }
-            }
-        }
+                    "required": ["source_ref", "new_name"],
+                },
+            },
+        },
     ]
 
 
-def get_chain_builder_functions() -> Dict[str, callable]:
+def get_chain_builder_functions() -> Dict[str, Any]:
     """Get function mappings for tool execution.
 
     Returns dict mapping tool names to their implementations.
@@ -671,5 +644,5 @@ def get_chain_builder_functions() -> Dict[str, callable]:
     return {
         "create_chain": ChainBuilder.create_chain,
         "modify_chain": ChainBuilder.modify_chain,
-        "clone_chain": ChainBuilder.clone_chain
+        "clone_chain": ChainBuilder.clone_chain,
     }

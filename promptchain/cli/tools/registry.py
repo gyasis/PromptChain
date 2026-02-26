@@ -17,14 +17,14 @@ import json
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Union
-
+from typing import Any, Callable, Dict, List, Optional, Set, Union, cast
 
 logger = logging.getLogger(__name__)
 
 
 class ToolCategory(Enum):
     """Standard tool categories for organization."""
+
     FILESYSTEM = "filesystem"
     SHELL = "shell"
     SESSION = "session"
@@ -38,16 +38,19 @@ class ToolCategory(Enum):
 
 class ToolRegistrationError(Exception):
     """Raised when tool registration fails."""
+
     pass
 
 
 class ToolValidationError(Exception):
     """Raised when tool parameter validation fails."""
+
     pass
 
 
 class ToolNotFoundError(Exception):
     """Raised when requested tool is not found."""
+
     pass
 
 
@@ -66,6 +69,7 @@ class ParameterSchema:
         properties: Nested schema for object types
         items: Item schema for array types
     """
+
     name: str
     type: str  # "string", "number", "integer", "boolean", "object", "array"
     description: str
@@ -82,10 +86,7 @@ class ParameterSchema:
         Returns:
             Dictionary compatible with OpenAI function calling format
         """
-        schema = {
-            "type": self.type,
-            "description": self.description
-        }
+        schema: Dict[str, Any] = {"type": self.type, "description": self.description}
 
         if self.enum is not None:
             schema["enum"] = self.enum
@@ -120,7 +121,7 @@ class ParameterSchema:
             "integer": lambda v: isinstance(v, int),
             "boolean": lambda v: isinstance(v, bool),
             "object": lambda v: isinstance(v, dict),
-            "array": lambda v: isinstance(v, list)
+            "array": lambda v: isinstance(v, list),
         }
 
         validator = type_validators.get(self.type)
@@ -175,6 +176,7 @@ class ToolMetadata:
         allowed_agents: List of agent names that can use this tool (None = all agents)
         capabilities: List of capability tags for agent routing (FR-001 to FR-005)
     """
+
     name: str
     category: Union[ToolCategory, str]
     description: str
@@ -184,7 +186,9 @@ class ToolMetadata:
     examples: List[str] = field(default_factory=list)
     # Multi-agent communication extensions (003-multi-agent-communication)
     allowed_agents: Optional[List[str]] = None  # None means all agents can use
-    capabilities: List[str] = field(default_factory=list)  # e.g., ["file_read", "code_search"]
+    capabilities: List[str] = field(
+        default_factory=list
+    )  # e.g., ["file_read", "code_search"]
 
     def __post_init__(self):
         """Normalize category to ToolCategory enum."""
@@ -220,8 +224,7 @@ class ToolMetadata:
             Dictionary compatible with OpenAI function calling format
         """
         properties = {
-            name: param.to_openai_schema()
-            for name, param in self.parameters.items()
+            name: param.to_openai_schema() for name, param in self.parameters.items()
         }
 
         required = self.get_required_parameters()
@@ -234,9 +237,9 @@ class ToolMetadata:
                 "parameters": {
                     "type": "object",
                     "properties": properties,
-                    "required": required if required else []
-                }
-            }
+                    "required": required if required else [],
+                },
+            },
         }
 
     def validate_parameters(self, params: Dict[str, Any]) -> None:
@@ -340,7 +343,9 @@ class ToolRegistry:
             properties = {}
             for prop_name, prop_spec in spec["properties"].items():
                 if isinstance(prop_spec, dict):
-                    properties[prop_name] = self._dict_to_param_schema(prop_name, prop_spec)
+                    properties[prop_name] = self._dict_to_param_schema(
+                        prop_name, prop_spec
+                    )
                 elif isinstance(prop_spec, ParameterSchema):
                     properties[prop_name] = prop_spec
 
@@ -361,7 +366,7 @@ class ToolRegistry:
             default=spec.get("default"),
             enum=spec.get("enum"),
             properties=properties,
-            items=items
+            items=items,
         )
 
     def register(
@@ -373,7 +378,7 @@ class ToolRegistry:
         examples: Optional[List[str]] = None,
         name: Optional[str] = None,
         allowed_agents: Optional[List[str]] = None,
-        capabilities: Optional[List[str]] = None
+        capabilities: Optional[List[str]] = None,
     ) -> Callable:
         """
         Decorator for registering tools.
@@ -407,15 +412,14 @@ class ToolRegistry:
             def fs_read(path: str, encoding: str = "utf-8") -> str:
                 ...
         """
+
         def decorator(func: Callable) -> Callable:
             # Determine tool name
             tool_name = name or func.__name__
 
             # Check for duplicate registration
             if tool_name in self._tools:
-                raise ToolRegistrationError(
-                    f"Tool '{tool_name}' is already registered"
-                )
+                raise ToolRegistrationError(f"Tool '{tool_name}' is already registered")
 
             # Process parameter schemas
             param_schemas = {}
@@ -443,14 +447,16 @@ class ToolRegistry:
                 tags=set(tags or []),
                 examples=examples or [],
                 allowed_agents=allowed_agents,
-                capabilities=capabilities or []
+                capabilities=capabilities or [],
             )
 
             # Register tool
             self._tools[tool_name] = metadata
 
             # Update category index
-            self._category_index[metadata.category].add(tool_name)
+            # __post_init__ guarantees category is ToolCategory after construction
+            category_key = cast(ToolCategory, metadata.category)
+            self._category_index[category_key].add(tool_name)
 
             # Update tag index
             for tag in metadata.tags:
@@ -464,14 +470,21 @@ class ToolRegistry:
                     self._capability_index[cap] = set()
                 self._capability_index[cap].add(tool_name)
 
-            logger.debug(f"Registered tool: {tool_name} (category: {metadata.category.value})")
+            if isinstance(metadata.category, ToolCategory):
+                logger.debug(
+                    f"Registered tool: {tool_name} (category: {metadata.category.value})"
+                )
+            else:
+                logger.debug(
+                    f"Registered tool: {tool_name} (category: {metadata.category})"
+                )
 
             # Return wrapped function with metadata attached
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
 
-            wrapper._tool_metadata = metadata
+            wrapper._tool_metadata = metadata  # type: ignore[attr-defined]
             return wrapper
 
         return decorator
@@ -508,7 +521,9 @@ class ToolRegistry:
         tool_names = self._category_index.get(category, set())
         return [self._tools[name] for name in tool_names]
 
-    def get_by_tags(self, tags: List[str], match_all: bool = False) -> List[ToolMetadata]:
+    def get_by_tags(
+        self, tags: List[str], match_all: bool = False
+    ) -> List[ToolMetadata]:
         """
         Get tools by tags.
 
@@ -522,7 +537,7 @@ class ToolRegistry:
         if not tags:
             return []
 
-        matching_tools = set()
+        matching_tools: set[str] = set()
 
         if match_all:
             # Tool must have all tags
@@ -556,9 +571,7 @@ class ToolRegistry:
         Returns:
             List of category names
         """
-        return [
-            cat.value for cat, tools in self._category_index.items() if tools
-        ]
+        return [cat.value for cat, tools in self._category_index.items() if tools]
 
     def list_tags(self) -> List[str]:
         """
@@ -581,7 +594,7 @@ class ToolRegistry:
     def discover_capabilities(
         self,
         agent_name: Optional[str] = None,
-        capability_filter: Optional[List[str]] = None
+        capability_filter: Optional[List[str]] = None,
     ) -> List[ToolMetadata]:
         """
         Discover tools available to an agent, optionally filtered by capabilities.
@@ -649,11 +662,14 @@ class ToolRegistry:
             List of ToolMetadata accessible to the agent
         """
         return [
-            tool for tool in self._tools.values()
+            tool
+            for tool in self._tools.values()
             if tool.allowed_agents is None or agent_name in tool.allowed_agents
         ]
 
-    def get_openai_schemas(self, category: Optional[Union[ToolCategory, str]] = None) -> List[Dict[str, Any]]:
+    def get_openai_schemas(
+        self, category: Optional[Union[ToolCategory, str]] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get OpenAI function calling schemas for all tools or a specific category.
 
@@ -710,7 +726,8 @@ class ToolRegistry:
         del self._tools[tool_name]
 
         # Remove from category index
-        self._category_index[tool.category].discard(tool_name)
+        # __post_init__ guarantees category is ToolCategory after construction
+        self._category_index[cast(ToolCategory, tool.category)].discard(tool_name)
 
         # Remove from tag index
         for tag in tool.tags:
@@ -748,7 +765,7 @@ class ToolRegistry:
         return {
             "tools": {
                 name: {
-                    "category": tool.category.value,
+                    "category": cast(ToolCategory, tool.category).value,
                     "description": tool.description,
                     "parameters": {
                         pname: {
@@ -756,14 +773,14 @@ class ToolRegistry:
                             "description": param.description,
                             "required": param.required,
                             "default": param.default,
-                            "enum": param.enum
+                            "enum": param.enum,
                         }
                         for pname, param in tool.parameters.items()
                     },
                     "tags": list(tool.tags),
                     "examples": tool.examples,
                     "allowed_agents": tool.allowed_agents,
-                    "capabilities": tool.capabilities
+                    "capabilities": tool.capabilities,
                 }
                 for name, tool in self._tools.items()
             },
@@ -771,9 +788,10 @@ class ToolRegistry:
                 "total_tools": len(self._tools),
                 "categories": {
                     cat.value: len(tools)
-                    for cat, tools in self._category_index.items() if tools
+                    for cat, tools in self._category_index.items()
+                    if tools
                 },
                 "total_tags": len(self._tag_index),
-                "total_capabilities": len(self._capability_index)
-            }
+                "total_capabilities": len(self._capability_index),
+            },
         }

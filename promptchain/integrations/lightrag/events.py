@@ -5,15 +5,16 @@ pattern implementations. Ensures consistency in event naming and
 structure across the pattern ecosystem.
 """
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import uuid
 
 
 class EventSeverity(Enum):
     """Severity levels for pattern events."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -22,6 +23,7 @@ class EventSeverity(Enum):
 
 class EventLifecycle(Enum):
     """Standard lifecycle phases for pattern events."""
+
     STARTED = "started"
     PROGRESS = "progress"
     COMPLETED = "completed"
@@ -37,6 +39,7 @@ class PatternEvent:
     All pattern events should be created using this structure to ensure
     consistency across the ecosystem.
     """
+
     event_type: str
     pattern_id: str
     pattern_name: str
@@ -86,7 +89,7 @@ PATTERN_EVENTS = {
             "pattern.branching.completed",
             "pattern.branching.failed",
         ],
-        "description": "Branching Thoughts pattern for hypothesis generation and selection"
+        "description": "Branching Thoughts pattern for hypothesis generation and selection",
     },
     "query_expansion": {
         "lifecycle": [
@@ -98,7 +101,7 @@ PATTERN_EVENTS = {
             "pattern.query_expansion.completed",
             "pattern.query_expansion.failed",
         ],
-        "description": "Query Expansion pattern for search diversification"
+        "description": "Query Expansion pattern for search diversification",
     },
     "sharded": {
         "lifecycle": [
@@ -109,7 +112,7 @@ PATTERN_EVENTS = {
             "pattern.sharded.completed",
             "pattern.sharded.failed",
         ],
-        "description": "Sharded Retrieval pattern for multi-source queries"
+        "description": "Sharded Retrieval pattern for multi-source queries",
     },
     "multi_hop": {
         "lifecycle": [
@@ -121,7 +124,7 @@ PATTERN_EVENTS = {
             "pattern.multi_hop.completed",
             "pattern.multi_hop.failed",
         ],
-        "description": "Multi-Hop Retrieval pattern for question decomposition"
+        "description": "Multi-Hop Retrieval pattern for question decomposition",
     },
     "hybrid_search": {
         "lifecycle": [
@@ -132,7 +135,7 @@ PATTERN_EVENTS = {
             "pattern.hybrid_search.completed",
             "pattern.hybrid_search.failed",
         ],
-        "description": "Hybrid Search Fusion pattern for multi-technique combination"
+        "description": "Hybrid Search Fusion pattern for multi-technique combination",
     },
     "speculative": {
         "lifecycle": [
@@ -144,15 +147,20 @@ PATTERN_EVENTS = {
             "pattern.speculative.completed",
             "pattern.speculative.failed",
         ],
-        "description": "Speculative Execution pattern for predictive tool calling"
+        "description": "Speculative Execution pattern for predictive tool calling",
     },
 }
 
 
 # Event factory functions
 
-def create_started_event(pattern_name: str, pattern_id: str, input_data: Dict[str, Any],
-                         correlation_id: Optional[str] = None) -> PatternEvent:
+
+def create_started_event(
+    pattern_name: str,
+    pattern_id: str,
+    input_data: Dict[str, Any],
+    correlation_id: Optional[str] = None,
+) -> PatternEvent:
     """Create a pattern started event."""
     return PatternEvent(
         event_type=f"pattern.{pattern_name}.started",
@@ -163,26 +171,32 @@ def create_started_event(pattern_name: str, pattern_id: str, input_data: Dict[st
     )
 
 
-def create_progress_event(pattern_name: str, pattern_id: str, step: str,
-                          progress: float, details: Dict[str, Any] = None,
-                          correlation_id: Optional[str] = None) -> PatternEvent:
+def create_progress_event(
+    pattern_name: str,
+    pattern_id: str,
+    step: str,
+    progress: float,
+    details: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> PatternEvent:
     """Create a pattern progress event."""
     return PatternEvent(
         event_type=f"pattern.{pattern_name}.progress",
         pattern_id=pattern_id,
         pattern_name=pattern_name,
-        data={
-            "step": step,
-            "progress": progress,
-            "details": details or {}
-        },
+        data={"step": step, "progress": progress, "details": details or {}},
         correlation_id=correlation_id,
     )
 
 
-def create_completed_event(pattern_name: str, pattern_id: str, result: Any,
-                           execution_time_ms: float, metadata: Dict[str, Any] = None,
-                           correlation_id: Optional[str] = None) -> PatternEvent:
+def create_completed_event(
+    pattern_name: str,
+    pattern_id: str,
+    result: Any,
+    execution_time_ms: float,
+    metadata: Optional[Dict[str, Any]] = None,
+    correlation_id: Optional[str] = None,
+) -> PatternEvent:
     """Create a pattern completed event."""
     return PatternEvent(
         event_type=f"pattern.{pattern_name}.completed",
@@ -192,15 +206,20 @@ def create_completed_event(pattern_name: str, pattern_id: str, result: Any,
             "success": True,
             "result_summary": str(result)[:500] if result else None,
             "execution_time_ms": execution_time_ms,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         },
         correlation_id=correlation_id,
     )
 
 
-def create_failed_event(pattern_name: str, pattern_id: str, error: str,
-                        execution_time_ms: float, stack_trace: Optional[str] = None,
-                        correlation_id: Optional[str] = None) -> PatternEvent:
+def create_failed_event(
+    pattern_name: str,
+    pattern_id: str,
+    error: str,
+    execution_time_ms: float,
+    stack_trace: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+) -> PatternEvent:
     """Create a pattern failed event."""
     return PatternEvent(
         event_type=f"pattern.{pattern_name}.failed",
@@ -217,9 +236,13 @@ def create_failed_event(pattern_name: str, pattern_id: str, error: str,
     )
 
 
-def create_timeout_event(pattern_name: str, pattern_id: str,
-                         timeout_seconds: float, elapsed_ms: float,
-                         correlation_id: Optional[str] = None) -> PatternEvent:
+def create_timeout_event(
+    pattern_name: str,
+    pattern_id: str,
+    timeout_seconds: float,
+    elapsed_ms: float,
+    correlation_id: Optional[str] = None,
+) -> PatternEvent:
     """Create a pattern timeout event."""
     return PatternEvent(
         event_type=f"pattern.{pattern_name}.timeout",
@@ -235,6 +258,7 @@ def create_timeout_event(pattern_name: str, pattern_id: str,
 
 
 # Event validation
+
 
 def validate_event_type(event_type: str) -> bool:
     """Check if an event type is a valid registered pattern event."""
@@ -255,19 +279,20 @@ def validate_event_type(event_type: str) -> bool:
 def get_pattern_events(pattern_name: str) -> List[str]:
     """Get all registered event types for a pattern."""
     if pattern_name in PATTERN_EVENTS:
-        return PATTERN_EVENTS[pattern_name]["lifecycle"]
+        return list(PATTERN_EVENTS[pattern_name]["lifecycle"])
     return []
 
 
 def get_all_event_types() -> List[str]:
     """Get all registered event types across all patterns."""
-    all_events = []
+    all_events: List[str] = []
     for pattern_info in PATTERN_EVENTS.values():
         all_events.extend(pattern_info["lifecycle"])
     return all_events
 
 
 # Event subscription helpers
+
 
 def subscribe_to_pattern(pattern_name: str) -> str:
     """Generate wildcard subscription pattern for a pattern's events.

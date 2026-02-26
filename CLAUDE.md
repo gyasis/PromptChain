@@ -353,6 +353,8 @@ Track orchestration efficiency:
 - **Conflict Rate**: File conflicts per phase (target: 0)
 
 ## Recent Changes
+- 007-type-safety-debt: In progress (16/18 tasks). Fixed type errors across 20+ files. Reduced mypy errors 557→421 (24% reduction). Zero regressions. Large files (state_agent.py, app.py, promptchaining.py) tracked for 008 sprint.
+
 - 006-promptchain-improvements: Complete (60/61 tasks). Added AsyncAgentInbox, JanitorAgent, ContextDistiller, PubSubBus, MicroCheckpoints, steering injection, global override, TUI interrupt command. Fixed Gemini MCP param bugs, TUI event loop, JSON parser robustness, MLflow shutdown, config cache. All 44 unit+integration tests green.
 
 - 005-mlflow-observability: Complete (24 tasks)

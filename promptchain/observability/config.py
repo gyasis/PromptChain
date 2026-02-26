@@ -14,6 +14,7 @@ FR-005: Thread-safe cache via module-level lock.  All public accessors
 route through _load_yaml_config() so disk I/O only happens when the
 underlying file's mtime changes.
 """
+
 import logging
 import os
 import threading
@@ -50,7 +51,7 @@ def _get_config_file_path() -> Optional[Path]:
     """
     config_locations = [
         Path.cwd() / ".promptchain.yml",
-        Path.home() / ".promptchain.yml"
+        Path.home() / ".promptchain.yml",
     ]
 
     for config_path in config_locations:
@@ -117,10 +118,11 @@ def _load_yaml_config() -> Dict[str, Any]:
 
         # File changed or no cache - reload
         try:
-            import yaml
-            with open(config_path, 'r') as f:
+            import yaml  # type: ignore[import-untyped]
+
+            with open(config_path, "r") as f:
                 config = yaml.safe_load(f) or {}
-                mlflow_config = config.get('mlflow', {})
+                mlflow_config = config.get("mlflow", {})
 
             # Update cache
             _config_cache = mlflow_config
@@ -167,7 +169,7 @@ def _get_bool_env(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value is None:
         return default
-    return value.lower() in ('true', '1', 'yes', 'on')
+    return value.lower() in ("true", "1", "yes", "on")
 
 
 def clear_config_cache() -> None:
@@ -191,7 +193,7 @@ def is_enabled() -> bool:
         True if PROMPTCHAIN_MLFLOW_ENABLED is set to true, False otherwise
     """
     yaml_config = _load_yaml_config()
-    yaml_enabled = yaml_config.get('enabled', DEFAULT_MLFLOW_ENABLED)
+    yaml_enabled = yaml_config.get("enabled", DEFAULT_MLFLOW_ENABLED)
     return _get_bool_env(ENV_MLFLOW_ENABLED, yaml_enabled)
 
 
@@ -202,7 +204,7 @@ def get_tracking_uri() -> str:
         Tracking URI from environment or default
     """
     yaml_config = _load_yaml_config()
-    yaml_uri = yaml_config.get('tracking_uri', DEFAULT_TRACKING_URI)
+    yaml_uri = yaml_config.get("tracking_uri", DEFAULT_TRACKING_URI)
     return os.getenv(ENV_TRACKING_URI, yaml_uri)
 
 
@@ -213,7 +215,7 @@ def get_experiment_name() -> str:
         Experiment name from environment or default
     """
     yaml_config = _load_yaml_config()
-    yaml_name = yaml_config.get('experiment_name', DEFAULT_EXPERIMENT_NAME)
+    yaml_name = yaml_config.get("experiment_name", DEFAULT_EXPERIMENT_NAME)
     return os.getenv(ENV_EXPERIMENT_NAME, yaml_name)
 
 
@@ -224,7 +226,7 @@ def use_background_logging() -> bool:
         True if background logging enabled, False for synchronous logging
     """
     yaml_config = _load_yaml_config()
-    yaml_background = yaml_config.get('background_logging', DEFAULT_BACKGROUND_LOGGING)
+    yaml_background = yaml_config.get("background_logging", DEFAULT_BACKGROUND_LOGGING)
     return _get_bool_env(ENV_BACKGROUND_LOGGING, yaml_background)
 
 
@@ -262,19 +264,19 @@ def get_observability_config() -> Dict[str, Any]:
 
     enabled = _get_bool_env(
         ENV_MLFLOW_ENABLED,
-        yaml_config.get('enabled', DEFAULT_MLFLOW_ENABLED),
+        yaml_config.get("enabled", DEFAULT_MLFLOW_ENABLED),
     )
     tracking_uri = os.getenv(
         ENV_TRACKING_URI,
-        yaml_config.get('tracking_uri', DEFAULT_TRACKING_URI),
+        yaml_config.get("tracking_uri", DEFAULT_TRACKING_URI),
     )
     experiment_name = os.getenv(
         ENV_EXPERIMENT_NAME,
-        yaml_config.get('experiment_name', DEFAULT_EXPERIMENT_NAME),
+        yaml_config.get("experiment_name", DEFAULT_EXPERIMENT_NAME),
     )
     background_logging = _get_bool_env(
         ENV_BACKGROUND_LOGGING,
-        yaml_config.get('background_logging', DEFAULT_BACKGROUND_LOGGING),
+        yaml_config.get("background_logging", DEFAULT_BACKGROUND_LOGGING),
     )
 
     return {

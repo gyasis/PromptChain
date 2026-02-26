@@ -37,10 +37,10 @@ Research Basis:
 - Particularly useful for debugging complex agentic workflows
 """
 
-from dataclasses import dataclass
-from typing import Dict, Any, Callable, Awaitable
 import json
 import logging
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class DryRunPrediction:
         confidence: Confidence level in prediction (0.0 to 1.0)
         reasoning: Explanation of why this output is expected
     """
+
     tool_name: str
     predicted_output: str
     confidence: float
@@ -73,11 +74,7 @@ class DryRunPredictor:
     - Debugging insights (understand agent's tool selection logic)
     """
 
-    def __init__(
-        self,
-        llm_runner: Callable[..., Awaitable[Any]],
-        model_name: str
-    ):
+    def __init__(self, llm_runner: Callable[..., Awaitable[Any]], model_name: str):
         """
         Initialize dry run predictor.
 
@@ -88,14 +85,11 @@ class DryRunPredictor:
         self.llm_runner = llm_runner
         self.model_name = model_name
         self.prediction_count = 0
-        self.accuracy_history = []
+        self.accuracy_history: List[float] = []
         logger.info(f"[DryRun] Initialized with model: {model_name}")
 
     async def predict_outcome(
-        self,
-        tool_name: str,
-        tool_args: Dict[str, Any],
-        context: str
+        self, tool_name: str, tool_args: Dict[str, Any], context: str
     ) -> DryRunPrediction:
         """
         Predict what a tool will return before execution.
@@ -118,16 +112,14 @@ class DryRunPredictor:
 
         # Build prediction prompt
         prediction_prompt = self._build_prediction_prompt(
-            tool_name=tool_name,
-            tool_args=tool_args,
-            context=context
+            tool_name=tool_name, tool_args=tool_args, context=context
         )
 
         try:
             # Call LLM for prediction
             response = await self.llm_runner(
                 messages=[{"role": "user", "content": prediction_prompt}],
-                model=self.model_name
+                model=self.model_name,
             )
 
             # Extract response content
@@ -150,14 +142,11 @@ class DryRunPredictor:
                 tool_name=tool_name,
                 predicted_output="Could not predict outcome",
                 confidence=0.0,
-                reasoning=f"Prediction error: {str(e)}"
+                reasoning=f"Prediction error: {str(e)}",
             )
 
     def _build_prediction_prompt(
-        self,
-        tool_name: str,
-        tool_args: Dict[str, Any],
-        context: str
+        self, tool_name: str, tool_args: Dict[str, Any], context: str
     ) -> str:
         """
         Build prediction prompt for LLM.
@@ -219,9 +208,7 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
             return getattr(response, "content", str(response))
 
     def _parse_prediction_response(
-        self,
-        response_content: str,
-        tool_name: str
+        self, response_content: str, tool_name: str
     ) -> DryRunPrediction:
         """
         Parse prediction response from LLM.
@@ -262,7 +249,7 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
                 tool_name=tool_name,
                 predicted_output=predicted_output,
                 confidence=confidence,
-                reasoning=reasoning
+                reasoning=reasoning,
             )
 
         except json.JSONDecodeError as e:
@@ -274,24 +261,24 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
                 tool_name=tool_name,
                 predicted_output=response_content[:500],
                 confidence=0.3,
-                reasoning="Parsing failed, used raw response as prediction"
+                reasoning="Parsing failed, used raw response as prediction",
             )
 
         except Exception as e:
-            logger.error(f"[DryRun] Unexpected error parsing prediction: {e}", exc_info=True)
+            logger.error(
+                f"[DryRun] Unexpected error parsing prediction: {e}", exc_info=True
+            )
 
             # Fallback: return minimal prediction
             return DryRunPrediction(
                 tool_name=tool_name,
                 predicted_output="Could not predict",
                 confidence=0.0,
-                reasoning=f"Parsing error: {str(e)}"
+                reasoning=f"Parsing error: {str(e)}",
             )
 
     def compare_prediction_to_actual(
-        self,
-        prediction: DryRunPrediction,
-        actual_output: str
+        self, prediction: DryRunPrediction, actual_output: str
     ) -> float:
         """
         Compare prediction to actual result.
@@ -321,7 +308,9 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
         # Exact substring match (high confidence)
         if pred_lower in actual_lower or actual_lower in pred_lower:
             similarity = 0.9
-            logger.debug(f"[DryRun] High similarity (substring match): {similarity:.2f}")
+            logger.debug(
+                f"[DryRun] High similarity (substring match): {similarity:.2f}"
+            )
             # Track this comparison too
             self.accuracy_history.append(similarity)
             if len(self.accuracy_history) > 100:
@@ -333,7 +322,19 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
         actual_words = set(actual_lower.split())
 
         # Remove common words that don't add meaning
-        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for"}
+        stop_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+        }
         pred_words -= stop_words
         actual_words -= stop_words
 
@@ -372,7 +373,7 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
                 "prediction_count": self.prediction_count,
                 "comparisons_made": 0,
                 "average_accuracy": 0.0,
-                "model": self.model_name
+                "model": self.model_name,
             }
 
         avg_accuracy = sum(self.accuracy_history) / len(self.accuracy_history)
@@ -383,7 +384,7 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
             "average_accuracy": round(avg_accuracy, 3),
             "min_accuracy": round(min(self.accuracy_history), 3),
             "max_accuracy": round(max(self.accuracy_history), 3),
-            "model": self.model_name
+            "model": self.model_name,
         }
 
     def reset_stats(self):
