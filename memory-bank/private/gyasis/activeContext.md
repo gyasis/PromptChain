@@ -1,53 +1,54 @@
 # Active Context
 
-**Last Updated**: 2026-02-25 10:29:13
+**Last Updated**: 2026-02-26 02:07:13
 
 ## Current Focus
-feat: Merge 006-promptchain-improvements into main
+feat(007): Fix type errors across 20+ files — 557→421 mypy errors (-24%)
 
-Branch summary (60/60 tasks complete):
+T003-T014: Type annotation fixes across all targeted files:
+- cli/session_manager.py: Remove unused import, fix bare Optional, add -> None
+- cli/command_handler.py: Guard streaming response .choices access, yaml ignore
+- cli/config/yaml_translator.py: cast() for Literal, annotate router_config
+- cli/tools/sandbox/uv_sandbox.py: Fix SafetyValidator call + validate_command
+- cli/communication/handlers.py: Move _handlers to __init__ (singleton fix)
+- cli/tools/filesystem_tools.py: Annotate all_paths/results, guard metadata
+- cli/tools/registry.py: cast() for ToolCategory index, annotate matching_tools
+- utils/mcp_schema_validator.py: type:ignore for isinstance, annotate suggestions
+- tools/terminal/terminal_tool.py: Optional guards, type:ignore on VisualFormatter
+- tools/terminal/session_manager.py: master_fd None guards, fix List[str] type
+- tools/terminal/simple_persistent_session.py: Optional params in create_session
+- tools/terminal/path_resolver.py: annotate cache/failed_cache, any→Any
+- integrations/lightrag/events.py: Optional[Dict] defaults, list() cast
+- 13 additional 1-2 error files: prompt_loader, agent_config, execution_events,
+  activity_searcher, observability/config, dry_run, interrupt_queue,
+  step_chaining_manager, autocomplete_popup, activity_log_viewer, chain_factory,
+  preprompt, chain_builder
 
-US1 - Critical Bug Fixes:
-- Fixed Gemini MCP tool params (error_message, prompt, removed num_ideas)
-- Fixed TUI asyncio.run() → run_async_in_context() for event loop safety
-- Hardened JSONOutputParser to never propagate exceptions
-- Fixed MLflow queue shutdown (flush before join)
-- Added config cache thread safety and deepcopy on cache retrieval
+T015-T018: Validation complete
+- mypy: 557 baseline → 421 after (136 errors eliminated)
+- linting: black+isort on all modified files
+- regression: 57 tests pass, 67 pre-existing pattern failures unchanged
+- CLAUDE.md: Updated with 007 progress
 
-US2 - Context & Memory:
-- Added ContextDistiller wiring into EnhancedAgenticStepProcessor
-- Added JanitorAgent for background history compression monitoring
-- MemoStore fully wired (inject before LLM, store on completion)
-
-US3 - Real-Time Steering:
-- InterruptQueue/InterruptHandler fully integrated (abort, steering, override)
-- MicroCheckpoints saved after each tool call with rewind support
-- Steering messages injected into LLM context
-- Global override via PubSubBus (agent.global_override topic)
-- TUI handle_interrupt_command() added
-
-US4 - Async Execution:
-- AsyncAgentInbox (PriorityQueue-based inter-agent messaging)
-- PubSubBus (async fan-out pub/sub with error isolation)
-- All new classes exported at promptchain package level
-
-Tests: 44/44 unit+integration tests green
-Pre-existing failures: 67 in tests/unit/patterns/ (unrelated, tracked in 007-type-safety-debt)
+Remaining errors in large files (state_agent.py:82, app.py:63, etc.)
+tracked for 008-type-safety-debt-pt2 sprint.
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 
 ## Recent Changes
 ```
- execution_plan.json                         | 911 +++++-----------------------
- memory-bank/private/gyasis/activeContext.md |  61 +-
- tasks.md                                    | 286 +--------
- 3 files changed, 199 insertions(+), 1059 deletions(-)
+ memory-bank/private/gyasis/activeContext.md     |  72 ++++++-----
+ memory-bank/private/gyasis/progress.md          |  90 ++++---------
+ promptchain/cli/tools/executor.py               |  29 +++--
+ promptchain/cli/tools/sandbox/docker_sandbox.py | 161 ++++++++++++------------
+ 4 files changed, 162 insertions(+), 190 deletions(-)
 ```
 
 ## Modified Files
-execution_plan.json
 memory-bank/private/gyasis/activeContext.md
-tasks.md
+memory-bank/private/gyasis/progress.md
+promptchain/cli/tools/executor.py
+promptchain/cli/tools/sandbox/docker_sandbox.py
 
 ## Next Actions
 - Continue implementation

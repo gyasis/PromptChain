@@ -32,9 +32,9 @@ from typing import Any, Dict, Optional, Union
 from promptchain.cli.utils.event_loop_manager import run_async_in_context
 
 from .models import ExecutionMetrics, ToolExecutionContext, ToolResult
-from .registry import ToolMetadata, ToolNotFoundError, ToolRegistry, ToolValidationError
+from .registry import (ToolMetadata, ToolNotFoundError, ToolRegistry,
+                       ToolValidationError)
 from .safety import SafetyValidator, SecurityError
-
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,9 @@ class ToolExecutor:
             # Expected errors (validation, not found, security)
             metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.warning(f"Tool execution failed: {tool_name} - {type(e).__name__}: {e}")
+            logger.warning(
+                f"Tool execution failed: {tool_name} - {type(e).__name__}: {e}"
+            )
 
             return ToolResult(
                 success=False,
@@ -178,7 +180,9 @@ class ToolExecutor:
             # Unexpected errors during execution
             metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.error(f"Unexpected error executing tool {tool_name}: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error executing tool {tool_name}: {e}", exc_info=True
+            )
 
             return ToolResult(
                 success=False,
@@ -239,7 +243,9 @@ class ToolExecutor:
             else:
                 # Run sync function in thread pool to avoid blocking
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, lambda: tool.function(**validated_params))
+                result = await loop.run_in_executor(
+                    None, lambda: tool.function(**validated_params)
+                )
 
             metrics.execution_time_ms = (time.perf_counter() - exec_start) * 1000
             metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
@@ -266,7 +272,9 @@ class ToolExecutor:
             # Expected errors (validation, not found, security)
             metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.warning(f"Tool execution failed (async): {tool_name} - {type(e).__name__}: {e}")
+            logger.warning(
+                f"Tool execution failed (async): {tool_name} - {type(e).__name__}: {e}"
+            )
 
             return ToolResult(
                 success=False,
@@ -281,7 +289,10 @@ class ToolExecutor:
             # Unexpected errors during execution
             metrics.total_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.error(f"Unexpected error executing tool (async) {tool_name}: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error executing tool (async) {tool_name}: {e}",
+                exc_info=True,
+            )
 
             return ToolResult(
                 success=False,
@@ -480,11 +491,11 @@ class ToolExecutor:
             SecurityError: If safety validation fails
         """
         # Path validation for filesystem tools
-        if "path" in params:
+        if "path" in params and self.safety_validator is not None:
             self.safety_validator.validate_path(params["path"])
 
         # Command validation for shell tools
-        if "command" in params:
+        if "command" in params and self.safety_validator is not None:
             cmd = params["command"]
             if isinstance(cmd, str):
                 # Parse string command

@@ -26,15 +26,9 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .base import (
-    BaseSandbox,
-    EnvironmentConfig,
-    EnvironmentType,
-    SandboxResult,
-    ProvisionError,
-    ExecutionError,
-    CleanupError,
-)
+from .base import (BaseSandbox, CleanupError, EnvironmentConfig,
+                   EnvironmentType, ExecutionError, ProvisionError,
+                   SandboxResult)
 
 
 class DockerSandbox(BaseSandbox):
@@ -105,7 +99,9 @@ class DockerSandbox(BaseSandbox):
 
             # Build custom image if packages specified
             if self.config.packages:
-                self.image_name = self._build_custom_image(base_image, self.config.packages)
+                self.image_name = self._build_custom_image(
+                    base_image, self.config.packages
+                )
             else:
                 self.image_name = base_image
 
@@ -134,10 +130,7 @@ class DockerSandbox(BaseSandbox):
             raise ProvisionError(f"Failed to provision Docker environment: {e}") from e
 
     def execute(
-        self,
-        code: str,
-        timeout: Optional[int] = None,
-        capture_output: bool = True
+        self, code: str, timeout: Optional[int] = None, capture_output: bool = True
     ) -> SandboxResult:
         """Execute Python code in Docker container.
 
@@ -177,17 +170,20 @@ class DockerSandbox(BaseSandbox):
                 self._copy_to_container(code_file_path, container_code_path)
 
                 # Execute code in container
-                exec_cmd = [
-                    "docker", "exec",
-                    self.container_name,
-                    "python", container_code_path
+                exec_cmd: List[str] = [
+                    x
+                    for x in [
+                        "docker",
+                        "exec",
+                        self.container_name,
+                        "python",
+                        container_code_path,
+                    ]
+                    if x is not None
                 ]
 
                 result = subprocess.run(
-                    exec_cmd,
-                    capture_output=capture_output,
-                    text=True,
-                    timeout=timeout
+                    exec_cmd, capture_output=capture_output, text=True, timeout=timeout
                 )
 
                 execution_time = time.time() - start_time
@@ -207,8 +203,8 @@ class DockerSandbox(BaseSandbox):
                         "env_type": "docker",
                         "container_name": self.container_name,
                         "image": self.image_name,
-                        "gpu": self.config.gpu
-                    }
+                        "gpu": self.config.gpu,
+                    },
                 )
 
             finally:
@@ -225,7 +221,7 @@ class DockerSandbox(BaseSandbox):
                 error=f"Execution exceeded timeout of {timeout}s",
                 execution_time=execution_time,
                 timeout=True,
-                metadata={"env_id": self.env_id}
+                metadata={"env_id": self.env_id},
             )
 
         except Exception as e:
@@ -273,10 +269,16 @@ class DockerSandbox(BaseSandbox):
         try:
             # Check container status
             result = subprocess.run(
-                ["docker", "inspect", "--format", "{{.State.Running}}", self.container_name],
+                [
+                    "docker",
+                    "inspect",
+                    "--format",
+                    "{{.State.Running}}",
+                    self.container_name,
+                ],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode != 0:
@@ -298,18 +300,14 @@ class DockerSandbox(BaseSandbox):
         """
         try:
             result = subprocess.run(
-                ["docker", "version"],
-                capture_output=True,
-                timeout=5
+                ["docker", "version"], capture_output=True, timeout=5
             )
             if result.returncode != 0:
                 raise ProvisionError(
                     "Docker is not running. Please start Docker daemon."
                 )
         except FileNotFoundError:
-            raise ProvisionError(
-                "Docker is not installed. Please install Docker."
-            )
+            raise ProvisionError("Docker is not installed. Please install Docker.")
 
     def _auto_select_base_image(self) -> str:
         """Auto-select appropriate base image based on configuration.
@@ -358,30 +356,29 @@ WORKDIR /workspace
 
                 # Build image
                 build_cmd = [
-                    "docker", "build",
-                    "-t", image_name,
-                    "-f", str(dockerfile_path),
-                    build_dir
+                    "docker",
+                    "build",
+                    "-t",
+                    image_name,
+                    "-f",
+                    str(dockerfile_path),
+                    build_dir,
                 ]
 
                 result = subprocess.run(
                     build_cmd,
                     capture_output=True,
                     text=True,
-                    timeout=600  # 10 minutes for image build
+                    timeout=600,  # 10 minutes for image build
                 )
 
                 if result.returncode != 0:
-                    raise ProvisionError(
-                        f"Docker image build failed: {result.stderr}"
-                    )
+                    raise ProvisionError(f"Docker image build failed: {result.stderr}")
 
             return image_name
 
         except subprocess.TimeoutExpired:
-            raise ProvisionError(
-                "Docker image build exceeded 10 minute timeout"
-            )
+            raise ProvisionError("Docker image build exceeded 10 minute timeout")
 
     def _create_container(self) -> None:
         """Create Docker container (not started yet).
@@ -391,13 +388,22 @@ WORKDIR /workspace
         """
         try:
             # Build create command
-            create_cmd = [
-                "docker", "create",
-                "--name", self.container_name,
-                "--memory", self.config.memory_limit,
-                "--cpus", "2.0",  # Limit to 2 CPUs
-                "--read-only",  # Read-only root filesystem for security
-                "--tmpfs", "/tmp:rw,size=100m",  # Writable tmp directory
+            create_cmd: List[str] = [
+                x
+                for x in [
+                    "docker",
+                    "create",
+                    "--name",
+                    self.container_name,
+                    "--memory",
+                    self.config.memory_limit,
+                    "--cpus",
+                    "2.0",  # Limit to 2 CPUs
+                    "--read-only",  # Read-only root filesystem for security
+                    "--tmpfs",
+                    "/tmp:rw,size=100m",  # Writable tmp directory
+                ]
+                if x is not None
             ]
 
             # Add network configuration
@@ -419,14 +425,14 @@ WORKDIR /workspace
                 create_cmd.extend(["-e", f"{key}={value}"])
 
             # Add image name and command (keep container running)
-            create_cmd.extend([self.image_name, "tail", "-f", "/dev/null"])
+            create_cmd.extend(
+                [x for x in [self.image_name] if x is not None]
+                + ["tail", "-f", "/dev/null"]
+            )
 
             # Create container
             result = subprocess.run(
-                create_cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
+                create_cmd, capture_output=True, text=True, timeout=30
             )
 
             if result.returncode != 0:
@@ -444,50 +450,53 @@ WORKDIR /workspace
             ProvisionError: If container start fails
         """
         try:
+            container_name: str = self.container_name or ""
             result = subprocess.run(
-                ["docker", "start", self.container_name],
+                ["docker", "start", container_name],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0:
-                raise ProvisionError(
-                    f"Docker container start failed: {result.stderr}"
-                )
+                raise ProvisionError(f"Docker container start failed: {result.stderr}")
 
         except subprocess.TimeoutExpired:
             raise ProvisionError("Docker container start exceeded 10s timeout")
 
     def _stop_container(self) -> None:
         """Stop the Docker container."""
+        if not self.container_name:
+            return
         try:
             subprocess.run(
-                ["docker", "stop", self.container_name],
-                capture_output=True,
-                timeout=30
+                ["docker", "stop", self.container_name], capture_output=True, timeout=30
             )
         except Exception:
             pass  # Ignore errors during stop
 
     def _remove_container(self) -> None:
         """Remove the Docker container."""
+        if not self.container_name:
+            return
         try:
             subprocess.run(
                 ["docker", "rm", "-f", self.container_name],
                 capture_output=True,
-                timeout=10
+                timeout=10,
             )
         except Exception:
             pass  # Ignore errors during removal
 
     def _remove_custom_image(self) -> None:
         """Remove custom Docker image."""
+        if not self.image_name:
+            return
         try:
             subprocess.run(
                 ["docker", "rmi", "-f", self.image_name],
                 capture_output=True,
-                timeout=30
+                timeout=30,
             )
         except Exception:
             pass  # Ignore errors during image removal
@@ -508,10 +517,7 @@ WORKDIR /workspace
             str: Path to temporary file
         """
         with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.py',
-            delete=False,
-            dir=self.config.working_dir
+            mode="w", suffix=".py", delete=False, dir=self.config.working_dir
         ) as code_file:
             code_file.write(code)
             return code_file.name
@@ -527,11 +533,12 @@ WORKDIR /workspace
             ExecutionError: If copy fails
         """
         try:
+            container_name: str = self.container_name or ""
             result = subprocess.run(
-                ["docker", "cp", host_path, f"{self.container_name}:{container_path}"],
+                ["docker", "cp", host_path, f"{container_name}:{container_path}"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0:
@@ -557,8 +564,10 @@ WORKDIR /workspace
         try:
             # Try to use existing SafetyValidator
             from promptchain.cli.tools.safety import SafetyValidator
-            validator = SafetyValidator()
-            validator.validate_code(code)
+
+            project_root = self.config.working_dir or Path(".")
+            validator = SafetyValidator(project_root=project_root)
+            validator.validate_command(["python", "-c", code])
         except ImportError:
             # Fallback to basic validation if SafetyValidator not available
             self._basic_security_validation(code)
@@ -583,6 +592,4 @@ WORKDIR /workspace
 
         for pattern in forbidden_patterns:
             if pattern in code:
-                raise SecurityError(
-                    f"Forbidden pattern detected: {pattern}"
-                )
+                raise SecurityError(f"Forbidden pattern detected: {pattern}")
