@@ -1,196 +1,346 @@
 {
   "execution_plan": {
-    "phase_id": "007 Type Safety Debt",
+    "phase_id": "008 Type Safety Debt Part 2",
     "waves": [
       {
         "wave_id": 1,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 1: 17 independent task(s) with no file conflicts",
+        "rationale": "Wave 1: 27 independent task(s) with no file conflicts",
         "tasks": [
-          {
-            "task_id": "T001",
-            "agent_role": "Developer",
-            "instruction": "T001 Create feature branch `007-type-safety-debt` from `main`",
-            "file_locks": [],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Create feature branch `007-type-safety-debt` from `main`' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T002",
-            "agent_role": "Developer",
-            "instruction": "T002 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt` and commit the output as `specs/007-type-safety-debt/mypy-baseline.txt` for regression tracking",
-            "file_locks": [
-              "specs/007-type-safety-debt/mypy-baseline.txt",
-              "tmp/mypy-baseline.txt",
-              "python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt` and commit the output as `specs/007-type-safety-debt/mypy-baseline.txt` for regression tracking' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T003",
-            "agent_role": "Developer",
-            "instruction": "T003 Fix `promptchain/cli/session_manager.py` (15 errors) \u2014 add `TYPE_CHECKING` guard to import `MCPServerConfig`, `WorkflowState`, `WorkflowStep`, `Task`, `BlackboardEntry`, `MultiAgentWorkflow` from their respective modules; fix `append` `arg-type` (int appended to `list[str]`) at lines 1784 and 2189",
-            "file_locks": [
-              "promptchain/cli/session_manager.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T003 Fix `promptchain/cli/session_manager.py` (15 errors) \u2014 add `TYPE_CHECKING` guard to import `MCPServerConfig`, `WorkflowState`, `WorkflowStep`, `Task`, `BlackboardEntry`, `MultiAgentWorkflow` from their respective modules; fix `append` `arg-type` (int appended to `list[str]`) at lines 1784 and 2189' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T004",
-            "agent_role": "Developer",
-            "instruction": "T004 Fix `promptchain/cli/command_handler.py` (13 errors) \u2014 change bare `{}` / `[]` vars to typed annotations (`dict[str, list[Any]]`, `dict[str, Any]`); replace `Collection[str]` mutable usage with `list[str]` where items are appended/indexed; add `if self.agent_config.history is not None:` guards at lines 317 and 323; add `# type: ignore[import-untyped]` comment on yaml import",
-            "file_locks": [
-              "promptchain/cli/command_handler.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T004 Fix `promptchain/cli/command_handler.py` (13 errors) \u2014 change bare `{}` / `[]` vars to typed annotations (`dict[str, list[Any]]`, `dict[str, Any]`); replace `Collection[str]` mutable usage with `list[str]` where items are appended/indexed; add `if self.agent_config.history is not None:` guards at lines 317 and 323; add `# type: ignore[import-untyped]` comment on yaml import' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T005",
-            "agent_role": "Developer",
-            "instruction": "T005 [P] Fix `promptchain/cli/config/yaml_translator.py` (9 errors) \u2014 add `types-PyYAML` stub note or `# type: ignore[import-untyped]`; fix list type declarations (`list[str | AgenticStepProcessor]`); change `OrchestrationConfig(execution_mode=...)` call to cast/validate the string to `Literal['router', 'pipeline', 'round-robin', 'broadcast']`; fix `list[Any]` vs `dict[str, Any]` assignment at line 436",
-            "file_locks": [
-              "promptchain/cli/config/yaml_translator.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T005 [P] Fix `promptchain/cli/config/yaml_translator.py` (9 errors) \u2014 add `types-PyYAML` stub note or `# type: ignore[import-untyped]`; fix list type declarations (`list[str | AgenticStepProcessor]`); change `OrchestrationConfig(execution_mode=...)` call to cast/validate the string to `Literal['router', 'pipeline', 'round-robin', 'broadcast']`; fix `list[Any]` vs `dict[str, Any]` assignment at line 436' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T006",
-            "agent_role": "Developer",
-            "instruction": "T006 [P] Fix `promptchain/cli/tools/sandbox/docker_sandbox.py` (8 errors) \u2014 filter `None` from command lists before passing to `subprocess.run` (e.g., `[x for x in cmd if x is not None]`); fix missing `project_root` positional argument to `SafetyValidator` constructor at line 560; rename `validate_code` \u2192 `validate_command` at line 561 (matches actual `SafetyValidator` API)",
-            "file_locks": [
-              "subprocess.run",
-              "promptchain/cli/tools/sandbox/docker_sandbox.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T006 [P] Fix `promptchain/cli/tools/sandbox/docker_sandbox.py` (8 errors) \u2014 filter `None` from command lists before passing to `subprocess.run` (e.g., `[x for x in cmd if x is not None]`); fix missing `project_root` positional argument to `SafetyValidator` constructor at line 560; rename `validate_code` \u2192 `validate_command` at line 561 (matches actual `SafetyValidator` API)' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T007",
-            "agent_role": "Developer",
-            "instruction": "T007 [P] Fix `promptchain/cli/tools/safety.py` (8 errors) \u2014 replace `any` (builtin function used as type) with `Any` from `typing` at lines 398 and 583; change `result: str` declarations at lines 452, 457, 466, 468 to `result: Path | list[str] | int | str` or use separate typed variables; add `Path | None` cast before passing to `_validate_delete_operation` / `_validate_write_operation`",
-            "file_locks": [
-              "promptchain/cli/tools/safety.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T007 [P] Fix `promptchain/cli/tools/safety.py` (8 errors) \u2014 replace `any` (builtin function used as type) with `Any` from `typing` at lines 398 and 583; change `result: str` declarations at lines 452, 457, 466, 468 to `result: Path | list[str] | int | str` or use separate typed variables; add `Path | None` cast before passing to `_validate_delete_operation` / `_validate_write_operation`' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T008",
-            "agent_role": "Developer",
-            "instruction": "T008 [P] Fix `promptchain/tools/terminal/terminal_tool.py` (7 errors) \u2014 add `Optional[str]` and `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameter annotations (implicit Optional fix); add `assert result is not None` / early-return guards before accessing `.return_code` at lines 642, 684, 710; guard `session.name` with `if session is not None:` at line 823",
-            "file_locks": [
-              "promptchain/tools/terminal/terminal_tool.py",
-              "session.name"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [P] Fix `promptchain/tools/terminal/terminal_tool.py` (7 errors) \u2014 add `Optional[str]` and `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameter annotations (implicit Optional fix); add `assert result is not None` / early-return guards before accessing `.return_code` at lines 642, 684, 710; guard `session.name` with `if session is not None:` at line 823' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T009",
-            "agent_role": "Developer",
-            "instruction": "T009 [P] Fix `promptchain/cli/communication/handlers.py` (7 errors) \u2014 move `_handlers: dict[str, list[Callable[..., Any]]]` declaration to the class body (not inside a method), initialised as a proper class variable or instance variable in `__init__` to resolve `has-type` and non-self attribute errors",
-            "file_locks": [
-              "promptchain/cli/communication/handlers.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] Fix `promptchain/cli/communication/handlers.py` (7 errors) \u2014 move `_handlers: dict[str, list[Callable[..., Any]]]` declaration to the class body (not inside a method), initialised as a proper class variable or instance variable in `__init__` to resolve `has-type` and non-self attribute errors' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T010",
-            "agent_role": "Developer",
-            "instruction": "T010 [P] Fix `promptchain/tools/terminal/session_manager.py` (5 errors) \u2014 add `Optional[str]` / `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameters at lines 51\u201352 and 464\u2013465; annotate `command_history: list[dict[str, Any]] = []` at line 57",
-            "file_locks": [
-              "promptchain/tools/terminal/session_manager.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] Fix `promptchain/tools/terminal/session_manager.py` (5 errors) \u2014 add `Optional[str]` / `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameters at lines 51\u201352 and 464\u2013465; annotate `command_history: list[dict[str, Any]] = []` at line 57' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T011",
-            "agent_role": "Developer",
-            "instruction": "T011 [P] Fix `promptchain/integrations/lightrag/events.py` (4 errors) \u2014 change `details: dict[str, Any] = None` to `details: Optional[dict[str, Any]] = None` at line 167 and similarly for `metadata` at line 184; change return type of the `Sequence[str]` method to `list[str]` and add `list(...)` cast; annotate `all_events: list[...]` at line 264",
-            "file_locks": [
-              "promptchain/integrations/lightrag/events.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] Fix `promptchain/integrations/lightrag/events.py` (4 errors) \u2014 change `details: dict[str, Any] = None` to `details: Optional[dict[str, Any]] = None` at line 167 and similarly for `metadata` at line 184; change return type of the `Sequence[str]` method to `list[str]` and add `list(...)` cast; annotate `all_events: list[...]` at line 264' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T012",
-            "agent_role": "Developer",
-            "instruction": "T012 [P] Fix `promptchain/cli/tools/filesystem_tools.py` (4 errors) \u2014 annotate `all_paths: list[Path] = []` and `results: list[Any] = []`; add `if metadata is not None:` guards before accessing `metadata.function` at lines 515\u2013516",
-            "file_locks": [
-              "metadata.function",
-              "promptchain/cli/tools/filesystem_tools.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] Fix `promptchain/cli/tools/filesystem_tools.py` (4 errors) \u2014 annotate `all_paths: list[Path] = []` and `results: list[Any] = []`; add `if metadata is not None:` guards before accessing `metadata.function` at lines 515\u2013516' to [x]",
-            "dependencies": []
-          },
           {
             "task_id": "T013",
             "agent_role": "Developer",
-            "instruction": "T013 [P] Fix `promptchain/cli/tools/executor.py` (3 errors) \u2014 add `if self.safety_validator is not None:` guards before `.validate_path()` and `.validate_command()` calls at lines 484, 494, 496",
-            "file_locks": [
-              "promptchain/cli/tools/executor.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] Fix `promptchain/cli/tools/executor.py` (3 errors) \u2014 add `if self.safety_validator is not None:` guards before `.validate_path()` and `.validate_command()` calls at lines 484, 494, 496' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T014",
-            "agent_role": "Developer",
-            "instruction": "T014 [P] Fix remaining 1\u20132 error files in a single pass:",
+            "instruction": "T014 [P] [W2] [test-automator] [tests/cli/] Create test directory structure: tests/cli/communication/, tests/cli/e2e/",
             "file_locks": [],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] Fix remaining 1\u20132 error files in a single pass:' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] [W2] [test-automator] [tests/cli/] Create test directory structure: tests/cli/communication/, tests/cli/e2e/' to [x]",
             "dependencies": []
           },
           {
             "task_id": "T015",
             "agent_role": "Developer",
-            "instruction": "T015 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u | wc -l` \u2014 confirm count < 10; record result in `specs/007-type-safety-debt/test-results.md`",
+            "instruction": "T015 [P] [W1] [US1] [test-automator] [test_registry.py:metadata] Unit test for ToolMetadata extensions in tests/cli/tools/test_registry.py",
             "file_locks": [
-              "specs/007-type-safety-debt/test-results.md"
+              "test_registry.py",
+              "tests/cli/tools/test_registry.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u | wc -l` \u2014 confirm count < 10; record result in `specs/007-type-safety-debt/test-results.md`' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] [W1] [US1] [test-automator] [test_registry.py:metadata] Unit test for ToolMetadata extensions in tests/cli/tools/test_registry.py' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T016",
+            "task_id": "T017",
             "agent_role": "Developer",
-            "instruction": "T016 [P] Run `black . && isort . && flake8 promptchain/` \u2014 fix any linting issues introduced by annotation changes in modified files",
+            "instruction": "T017 [P] [W1] [US1] [test-automator] [test_capability_discovery.py] Integration test for capability discovery in tests/cli/integration/test_capability_discovery.py",
+            "file_locks": [
+              "tests/cli/integration/test_capability_discovery.py",
+              "test_capability_discovery.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] [W1] [US1] [test-automator] [test_capability_discovery.py] Integration test for capability discovery in tests/cli/integration/test_capability_discovery.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T027",
+            "agent_role": "Developer",
+            "instruction": "T027 [P] [W1] [US2] [test-automator] [test_delegation.py:model] Unit test for Task model in tests/cli/tools/test_delegation.py",
+            "file_locks": [
+              "tests/cli/tools/test_delegation.py",
+              "test_delegation.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T027 [P] [W1] [US2] [test-automator] [test_delegation.py:model] Unit test for Task model in tests/cli/tools/test_delegation.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T029",
+            "agent_role": "Developer",
+            "instruction": "T029 [P] [W1] [US2] [test-automator] [test_task_delegation.py] Integration test for task status transitions in tests/cli/integration/test_task_delegation.py",
+            "file_locks": [
+              "test_task_delegation.py",
+              "tests/cli/integration/test_task_delegation.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T029 [P] [W1] [US2] [test-automator] [test_task_delegation.py] Integration test for task status transitions in tests/cli/integration/test_task_delegation.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T036",
+            "agent_role": "Developer",
+            "instruction": "T036 [W3] [US2] [python-pro] [delegation_tools.py] Add activity logger integration for task events in delegation_tools.py",
+            "file_locks": [
+              "delegation_tools.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T036 [W3] [US2] [python-pro] [delegation_tools.py] Add activity logger integration for task events in delegation_tools.py' to [x]",
+            "dependencies": [
+              "T032",
+              "T030",
+              "T031",
+              "T035"
+            ]
+          },
+          {
+            "task_id": "T037",
+            "agent_role": "Developer",
+            "instruction": "T037 [P] [W1] [US3] [test-automator] [test_blackboard.py:model] Unit test for BlackboardEntry model in tests/cli/tools/test_blackboard.py",
+            "file_locks": [
+              "tests/cli/tools/test_blackboard.py",
+              "test_blackboard.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T037 [P] [W1] [US3] [test-automator] [test_blackboard.py:model] Unit test for BlackboardEntry model in tests/cli/tools/test_blackboard.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T047",
+            "agent_role": "Developer",
+            "instruction": "T047 [W3] [US3] [python-pro] [blackboard_tools.py] Add activity logger integration for blackboard events",
+            "file_locks": [
+              "blackboard_tools.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T047 [W3] [US3] [python-pro] [blackboard_tools.py] Add activity logger integration for blackboard events' to [x]",
+            "dependencies": [
+              "T041",
+              "T044",
+              "T043",
+              "T042"
+            ]
+          },
+          {
+            "task_id": "T048",
+            "agent_role": "Developer",
+            "instruction": "T048 [P] [W1] [US4] [test-automator] [test_handlers.py:message] Unit test for Message dataclass in tests/cli/communication/test_handlers.py",
+            "file_locks": [
+              "tests/cli/communication/test_handlers.py",
+              "test_handlers.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T048 [P] [W1] [US4] [test-automator] [test_handlers.py:message] Unit test for Message dataclass in tests/cli/communication/test_handlers.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T050",
+            "agent_role": "Developer",
+            "instruction": "T050 [P] [W1] [US4] [test-automator] [test_message_bus.py] Unit test for message_bus send/broadcast in tests/cli/communication/test_message_bus.py",
+            "file_locks": [
+              "tests/cli/communication/test_message_bus.py",
+              "test_message_bus.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T050 [P] [W1] [US4] [test-automator] [test_message_bus.py] Unit test for message_bus send/broadcast in tests/cli/communication/test_message_bus.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T060",
+            "agent_role": "Developer",
+            "instruction": "T060 [P] [W1] [US5] [test-automator] [test_workflow.py:model] Unit test for WorkflowState model in tests/cli/integration/test_workflow.py",
+            "file_locks": [
+              "test_workflow.py",
+              "tests/cli/integration/test_workflow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T060 [P] [W1] [US5] [test-automator] [test_workflow.py:model] Unit test for WorkflowState model in tests/cli/integration/test_workflow.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T063",
+            "agent_role": "Developer",
+            "instruction": "T063 [W2] [US5] [python-pro] [session_manager.py] Implement create_workflow() in promptchain/cli/session_manager.py",
+            "file_locks": [
+              "session_manager.py",
+              "promptchain/cli/session_manager.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T063 [W2] [US5] [python-pro] [session_manager.py] Implement create_workflow() in promptchain/cli/session_manager.py' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T008",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T071",
+            "agent_role": "Developer",
+            "instruction": "T071 [P] [W1] [US6] [test-automator] [test_help_request.py] Integration test for help routing in tests/cli/integration/test_help_request.py",
+            "file_locks": [
+              "test_help_request.py",
+              "tests/cli/integration/test_help_request.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T071 [P] [W1] [US6] [test-automator] [test_help_request.py] Integration test for help routing in tests/cli/integration/test_help_request.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T076",
+            "agent_role": "Developer",
+            "instruction": "T076 [P] [W1] [US7] [test-automator] [test_mental_models.py:model] Unit test for MentalModel dataclass in tests/cli/tools/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models.py",
+              "tests/cli/tools/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T076 [P] [W1] [US7] [test-automator] [test_mental_models.py:model] Unit test for MentalModel dataclass in tests/cli/tools/test_mental_models.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T080",
+            "agent_role": "Developer",
+            "instruction": "T080 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:select] Integration test for mental model selection in tests/cli/integration/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models_int.py",
+              "tests/cli/integration/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T080 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:select] Integration test for mental model selection in tests/cli/integration/test_mental_models.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T082",
+            "agent_role": "Developer",
+            "instruction": "T082 [W2] [US7] [python-pro] [mental_models.py:dataclass] Create MentalModel dataclass in promptchain/utils/mental_models.py",
+            "file_locks": [
+              "mental_models.py",
+              "promptchain/utils/mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T082 [W2] [US7] [python-pro] [mental_models.py:dataclass] Create MentalModel dataclass in promptchain/utils/mental_models.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T109",
+            "agent_role": "Developer",
+            "instruction": "T109 [W6] [US7] [python-pro] [agent_chain.py:param] Add enable_mental_models parameter to AgentChain in promptchain/utils/agent_chain.py",
+            "file_locks": [
+              "promptchain/utils/agent_chain.py",
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T109 [W6] [US7] [python-pro] [agent_chain.py:param] Add enable_mental_models parameter to AgentChain in promptchain/utils/agent_chain.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T119",
+            "agent_role": "Developer",
+            "instruction": "T119 [P] [W8] [US7] [python-pro] [command_handler.py] Add /mentalmodels CLI command in promptchain/cli/command_handler.py",
+            "file_locks": [
+              "command_handler.py",
+              "promptchain/cli/command_handler.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T119 [P] [W8] [US7] [python-pro] [command_handler.py] Add /mentalmodels CLI command in promptchain/cli/command_handler.py' to [x]",
+            "dependencies": [
+              "T046",
+              "T067",
+              "T034",
+              "T026"
+            ]
+          },
+          {
+            "task_id": "T120",
+            "agent_role": "Developer",
+            "instruction": "T120 [P] [W8] [US7] [python-pro] [registration.py] Add mental model tools to CLI tool registry in promptchain/cli/tools/library/registration.py",
+            "file_locks": [
+              "promptchain/cli/tools/library/registration.py",
+              "registration.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T120 [P] [W8] [US7] [python-pro] [registration.py] Add mental model tools to CLI tool registry in promptchain/cli/tools/library/registration.py' to [x]",
+            "dependencies": [
+              "T022",
+              "T023",
+              "T024",
+              "T025"
+            ]
+          },
+          {
+            "task_id": "T121",
+            "agent_role": "Developer",
+            "instruction": "T121 [P] [W1] [test-automator] [test_multi_agent.py] E2E test for complete multi-agent workflow in tests/cli/e2e/test_multi_agent.py",
+            "file_locks": [
+              "tests/cli/e2e/test_multi_agent.py",
+              "test_multi_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T121 [P] [W1] [test-automator] [test_multi_agent.py] E2E test for complete multi-agent workflow in tests/cli/e2e/test_multi_agent.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T122",
+            "agent_role": "Developer",
+            "instruction": "T122 [P] [W1] [test-automator] [test_communication.py] Performance test for communication < 10ms in tests/cli/performance/test_communication.py",
+            "file_locks": [
+              "test_communication.py",
+              "tests/cli/performance/test_communication.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T122 [P] [W1] [test-automator] [test_communication.py] Performance test for communication < 10ms in tests/cli/performance/test_communication.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T124",
+            "agent_role": "Developer",
+            "instruction": "T124 [W1] [test-automator] [tests/cli/] Backward compatibility test - existing CLI tests pass in tests/cli/",
             "file_locks": [],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] Run `black . && isort . && flake8 promptchain/` \u2014 fix any linting issues introduced by annotation changes in modified files' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T124 [W1] [test-automator] [tests/cli/] Backward compatibility test - existing CLI tests pass in tests/cli/' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T018",
+            "task_id": "T125",
             "agent_role": "Developer",
-            "instruction": "T018 Update `CLAUDE.md` \"Recent Changes\" section to record 007-type-safety-debt as complete",
+            "instruction": "T125 [P] [W1] [python-pro] [cli/__init__.py] Update promptchain/cli/__init__.py exports for new modules",
             "file_locks": [
-              "CLAUDE.md"
+              "cli/__init__.py",
+              "promptchain/cli/__init__.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T018 Update `CLAUDE.md` \"Recent Changes\" section to record 007-type-safety-debt as complete' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T125 [P] [W1] [python-pro] [cli/__init__.py] Update promptchain/cli/__init__.py exports for new modules' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T126",
+            "agent_role": "Developer",
+            "instruction": "T129 [P] [W1] [test-automator] [test_mental_models_e2e.py] E2E test for mental models integration with multi-agent workflow in tests/cli/e2e/test_mental_models_e2e.py",
+            "file_locks": [
+              "tests/cli/e2e/test_mental_models_e2e.py",
+              "test_mental_models_e2e.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T129 [P] [W1] [test-automator] [test_mental_models_e2e.py] E2E test for mental models integration with multi-agent workflow in tests/cli/e2e/test_mental_models_e2e.py' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T128",
+            "agent_role": "Developer",
+            "instruction": "T126 [W2] [general-purpose] Run quickstart.md validation scenarios manually",
+            "file_locks": [
+              "quickstart.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T126 [W2] [general-purpose] Run quickstart.md validation scenarios manually' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T129",
+            "agent_role": "Developer",
+            "instruction": "T127 [W2] [general-purpose] [checklists/requirements.md] Update checklists/requirements.md with completion status",
+            "file_locks": [
+              "checklists/requirements.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T127 [W2] [general-purpose] [checklists/requirements.md] Update checklists/requirements.md with completion status' to [x]",
+            "dependencies": []
+          },
+          {
+            "task_id": "T130",
+            "agent_role": "Developer",
+            "instruction": "T128 [W2] [general-purpose] Validate all 15 success criteria (SC-001 to SC-015)",
+            "file_locks": [],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T128 [W2] [general-purpose] Validate all 15 success criteria (SC-001 to SC-015)' to [x]",
             "dependencies": []
           }
         ],
@@ -203,26 +353,1482 @@
       },
       {
         "wave_id": 2,
-        "strategy": "SEQUENTIAL_MERGE",
-        "rationale": "Wave 2: 1 independent task(s) with no file conflicts",
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 2: 11 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T017",
+            "task_id": "T016",
             "agent_role": "Developer",
-            "instruction": "T017 [P] Run `pytest` \u2014 confirm no regressions vs baseline; annotate any pre-existing failures as pre-existing in `specs/007-type-safety-debt/test-results.md`",
+            "instruction": "T016 [P] [W1] [US1] [test-automator] [test_registry.py:discover] Unit test for discover_capabilities() in tests/cli/tools/test_registry.py",
             "file_locks": [
-              "specs/007-type-safety-debt/test-results.md"
+              "test_registry.py",
+              "tests/cli/tools/test_registry.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] Run `pytest` \u2014 confirm no regressions vs baseline; annotate any pre-existing failures as pre-existing in `specs/007-type-safety-debt/test-results.md`' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] [W1] [US1] [test-automator] [test_registry.py:discover] Unit test for discover_capabilities() in tests/cli/tools/test_registry.py' to [x]",
             "dependencies": [
               "T015"
+            ]
+          },
+          {
+            "task_id": "T028",
+            "agent_role": "Developer",
+            "instruction": "T028 [P] [W1] [US2] [test-automator] [test_delegation.py:tool] Unit test for delegate_task tool in tests/cli/tools/test_delegation.py",
+            "file_locks": [
+              "tests/cli/tools/test_delegation.py",
+              "test_delegation.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T028 [P] [W1] [US2] [test-automator] [test_delegation.py:tool] Unit test for delegate_task tool in tests/cli/tools/test_delegation.py' to [x]",
+            "dependencies": [
+              "T027"
+            ]
+          },
+          {
+            "task_id": "T038",
+            "agent_role": "Developer",
+            "instruction": "T038 [P] [W1] [US3] [test-automator] [test_blackboard.py:write] Unit test for write_to_blackboard tool in tests/cli/tools/test_blackboard.py",
+            "file_locks": [
+              "tests/cli/tools/test_blackboard.py",
+              "test_blackboard.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T038 [P] [W1] [US3] [test-automator] [test_blackboard.py:write] Unit test for write_to_blackboard tool in tests/cli/tools/test_blackboard.py' to [x]",
+            "dependencies": [
+              "T037"
+            ]
+          },
+          {
+            "task_id": "T049",
+            "agent_role": "Developer",
+            "instruction": "T049 [P] [W1] [US4] [test-automator] [test_handlers.py:decorator] Unit test for @cli_communication_handler decorator in tests/cli/communication/test_handlers.py",
+            "file_locks": [
+              "tests/cli/communication/test_handlers.py",
+              "test_handlers.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T049 [P] [W1] [US4] [test-automator] [test_handlers.py:decorator] Unit test for @cli_communication_handler decorator in tests/cli/communication/test_handlers.py' to [x]",
+            "dependencies": [
+              "T048"
+            ]
+          },
+          {
+            "task_id": "T061",
+            "agent_role": "Developer",
+            "instruction": "T061 [P] [W1] [US5] [test-automator] [test_workflow.py:transitions] Unit test for workflow stage transitions in tests/cli/integration/test_workflow.py",
+            "file_locks": [
+              "test_workflow.py",
+              "tests/cli/integration/test_workflow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T061 [P] [W1] [US5] [test-automator] [test_workflow.py:transitions] Unit test for workflow stage transitions in tests/cli/integration/test_workflow.py' to [x]",
+            "dependencies": [
+              "T060"
+            ]
+          },
+          {
+            "task_id": "T064",
+            "agent_role": "Developer",
+            "instruction": "T064 [W2] [US5] [python-pro] [session_manager.py] Implement update_workflow_stage() in session_manager.py",
+            "file_locks": [
+              "session_manager.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T064 [W2] [US5] [python-pro] [session_manager.py] Implement update_workflow_stage() in session_manager.py' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T063",
+              "T008",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T068",
+            "agent_role": "Developer",
+            "instruction": "T068 [P] [W3] [US5] [python-pro] [delegation_tools.py] Integrate workflow updates with task completion callbacks",
+            "file_locks": [
+              "delegation_tools.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T068 [P] [W3] [US5] [python-pro] [delegation_tools.py] Integrate workflow updates with task completion callbacks' to [x]",
+            "dependencies": [
+              "T031",
+              "T030",
+              "T032",
+              "T036",
+              "T035"
+            ]
+          },
+          {
+            "task_id": "T077",
+            "agent_role": "Developer",
+            "instruction": "T077 [P] [W1] [US7] [test-automator] [test_mental_models.py:registry] Unit test for MentalModelRegistry in tests/cli/tools/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models.py",
+              "tests/cli/tools/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T077 [P] [W1] [US7] [test-automator] [test_mental_models.py:registry] Unit test for MentalModelRegistry in tests/cli/tools/test_mental_models.py' to [x]",
+            "dependencies": [
+              "T076"
+            ]
+          },
+          {
+            "task_id": "T081",
+            "agent_role": "Developer",
+            "instruction": "T081 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:apply] Integration test for model application in tests/cli/integration/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models_int.py",
+              "tests/cli/integration/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T081 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:apply] Integration test for model application in tests/cli/integration/test_mental_models.py' to [x]",
+            "dependencies": [
+              "T080"
+            ]
+          },
+          {
+            "task_id": "T083",
+            "agent_role": "Developer",
+            "instruction": "T083 [W2] [US7] [python-pro] [mental_models.py:tag] Create Tag dataclass in promptchain/utils/mental_models.py",
+            "file_locks": [
+              "mental_models.py",
+              "promptchain/utils/mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T083 [W2] [US7] [python-pro] [mental_models.py:tag] Create Tag dataclass in promptchain/utils/mental_models.py' to [x]",
+            "dependencies": [
+              "T082"
+            ]
+          },
+          {
+            "task_id": "T110",
+            "agent_role": "Developer",
+            "instruction": "T110 [W6] [US7] [python-pro] [agent_chain.py:register] Add _register_mental_model_tools() method to AgentChain",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T110 [W6] [US7] [python-pro] [agent_chain.py:register] Add _register_mental_model_tools() method to AgentChain' to [x]",
+            "dependencies": [
+              "T109"
             ]
           }
         ],
         "checkpoint_after": {
           "enabled": true,
           "verification_criteria": "Verify all Wave 2 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 3,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 3: 9 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T021",
+            "agent_role": "Developer",
+            "instruction": "T021 [W3] [US1] [test-automator] [test_registry.py] Add backward compatibility test - tools without allowed_agents work for all agents",
+            "file_locks": [
+              "test_registry.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T021 [W3] [US1] [test-automator] [test_registry.py] Add backward compatibility test - tools without allowed_agents work for all agents' to [x]",
+            "dependencies": [
+              "T016",
+              "T015"
+            ]
+          },
+          {
+            "task_id": "T039",
+            "agent_role": "Developer",
+            "instruction": "T039 [P] [W1] [US3] [test-automator] [test_blackboard.py:read] Unit test for read_from_blackboard tool in tests/cli/tools/test_blackboard.py",
+            "file_locks": [
+              "tests/cli/tools/test_blackboard.py",
+              "test_blackboard.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T039 [P] [W1] [US3] [test-automator] [test_blackboard.py:read] Unit test for read_from_blackboard tool in tests/cli/tools/test_blackboard.py' to [x]",
+            "dependencies": [
+              "T038",
+              "T037"
+            ]
+          },
+          {
+            "task_id": "T051",
+            "agent_role": "Developer",
+            "instruction": "T051 [P] [W1] [US4] [test-automator] [test_handlers.py:filter] Integration test for handler filtering in tests/cli/communication/test_handlers.py",
+            "file_locks": [
+              "tests/cli/communication/test_handlers.py",
+              "test_handlers.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T051 [P] [W1] [US4] [test-automator] [test_handlers.py:filter] Integration test for handler filtering in tests/cli/communication/test_handlers.py' to [x]",
+            "dependencies": [
+              "T048",
+              "T049"
+            ]
+          },
+          {
+            "task_id": "T062",
+            "agent_role": "Developer",
+            "instruction": "T062 [P] [W1] [US5] [test-automator] [test_workflow.py:persistence] Integration test for workflow persistence in tests/cli/integration/test_workflow.py",
+            "file_locks": [
+              "test_workflow.py",
+              "tests/cli/integration/test_workflow.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T062 [P] [W1] [US5] [test-automator] [test_workflow.py:persistence] Integration test for workflow persistence in tests/cli/integration/test_workflow.py' to [x]",
+            "dependencies": [
+              "T061",
+              "T060"
+            ]
+          },
+          {
+            "task_id": "T065",
+            "agent_role": "Developer",
+            "instruction": "T065 [W2] [US5] [python-pro] [session_manager.py] Implement add_completed_task() in session_manager.py",
+            "file_locks": [
+              "session_manager.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T065 [W2] [US5] [python-pro] [session_manager.py] Implement add_completed_task() in session_manager.py' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T064",
+              "T063",
+              "T008",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T070",
+            "agent_role": "Developer",
+            "instruction": "T070 [P] [W1] [US6] [test-automator] [test_delegation.py:help] Unit test for request_help tool in tests/cli/tools/test_delegation.py",
+            "file_locks": [
+              "tests/cli/tools/test_delegation.py",
+              "test_delegation.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T070 [P] [W1] [US6] [test-automator] [test_delegation.py:help] Unit test for request_help tool in tests/cli/tools/test_delegation.py' to [x]",
+            "dependencies": [
+              "T027",
+              "T028"
+            ]
+          },
+          {
+            "task_id": "T078",
+            "agent_role": "Developer",
+            "instruction": "T078 [P] [W1] [US7] [test-automator] [test_mental_models.py:selector] Unit test for MentalModelSelector in tests/cli/tools/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models.py",
+              "tests/cli/tools/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T078 [P] [W1] [US7] [test-automator] [test_mental_models.py:selector] Unit test for MentalModelSelector in tests/cli/tools/test_mental_models.py' to [x]",
+            "dependencies": [
+              "T077",
+              "T076"
+            ]
+          },
+          {
+            "task_id": "T084",
+            "agent_role": "Developer",
+            "instruction": "T084 [W2] [US7] [python-pro] [mental_models.py:registry] Implement MentalModelRegistry class in promptchain/utils/mental_models.py",
+            "file_locks": [
+              "mental_models.py",
+              "promptchain/utils/mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T084 [W2] [US7] [python-pro] [mental_models.py:registry] Implement MentalModelRegistry class in promptchain/utils/mental_models.py' to [x]",
+            "dependencies": [
+              "T083",
+              "T082"
+            ]
+          },
+          {
+            "task_id": "T111",
+            "agent_role": "Developer",
+            "instruction": "T111 [W6] [US7] [python-pro] [agent_chain.py:create] Add _create_mental_model_tools() method to AgentChain",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T111 [W6] [US7] [python-pro] [agent_chain.py:create] Add _create_mental_model_tools() method to AgentChain' to [x]",
+            "dependencies": [
+              "T110",
+              "T109"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 3 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 4,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 4: 5 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T040",
+            "agent_role": "Developer",
+            "instruction": "T040 [P] [W1] [US3] [test-automator] [test_blackboard.py:integration] Integration test for blackboard operations in tests/cli/integration/test_blackboard.py",
+            "file_locks": [
+              "tests/cli/integration/test_blackboard.py",
+              "test_blackboard.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T040 [P] [W1] [US3] [test-automator] [test_blackboard.py:integration] Integration test for blackboard operations in tests/cli/integration/test_blackboard.py' to [x]",
+            "dependencies": [
+              "T038",
+              "T037",
+              "T039"
+            ]
+          },
+          {
+            "task_id": "T066",
+            "agent_role": "Developer",
+            "instruction": "T066 [W2] [US5] [python-pro] [session_manager.py] Implement get_workflow_state() in session_manager.py",
+            "file_locks": [
+              "session_manager.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T066 [W2] [US5] [python-pro] [session_manager.py] Implement get_workflow_state() in session_manager.py' to [x]",
+            "dependencies": [
+              "T009",
+              "T065",
+              "T011",
+              "T064",
+              "T063",
+              "T008",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T079",
+            "agent_role": "Developer",
+            "instruction": "T079 [P] [W1] [US7] [test-automator] [test_mental_models.py:find] Unit test for find_models_for_task() in tests/cli/tools/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models.py",
+              "tests/cli/tools/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T079 [P] [W1] [US7] [test-automator] [test_mental_models.py:find] Unit test for find_models_for_task() in tests/cli/tools/test_mental_models.py' to [x]",
+            "dependencies": [
+              "T078",
+              "T077",
+              "T076"
+            ]
+          },
+          {
+            "task_id": "T085",
+            "agent_role": "Developer",
+            "instruction": "T085 [W2] [US7] [python-pro] [mental_models.py:get] Implement get_model() method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T085 [W2] [US7] [python-pro] [mental_models.py:get] Implement get_model() method in mental_models.py' to [x]",
+            "dependencies": [
+              "T083",
+              "T084",
+              "T082"
+            ]
+          },
+          {
+            "task_id": "T112",
+            "agent_role": "Developer",
+            "instruction": "T112 [W6] [US7] [python-pro] [agent_chain.py:select_schema] Implement select_mental_model tool schema in agent_chain.py",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T112 [W6] [US7] [python-pro] [agent_chain.py:select_schema] Implement select_mental_model tool schema in agent_chain.py' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 4 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 5,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 5: 4 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T086",
+            "agent_role": "Developer",
+            "instruction": "T086 [W2] [US7] [python-pro] [mental_models.py:list] Implement list_models() method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T086 [W2] [US7] [python-pro] [mental_models.py:list] Implement list_models() method in mental_models.py' to [x]",
+            "dependencies": [
+              "T083",
+              "T084",
+              "T082",
+              "T085"
+            ]
+          },
+          {
+            "task_id": "T113",
+            "agent_role": "Developer",
+            "instruction": "T113 [W6] [US7] [python-pro] [agent_chain.py:get_schema] Implement get_mental_model tool schema in agent_chain.py",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T113 [W6] [US7] [python-pro] [agent_chain.py:get_schema] Implement get_mental_model tool schema in agent_chain.py' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T112"
+            ]
+          },
+          {
+            "task_id": "T123",
+            "agent_role": "Developer",
+            "instruction": "T123 [P] [W1] [test-automator] [test_blackboard.py] Performance test for blackboard < 5ms in tests/cli/performance/test_blackboard.py",
+            "file_locks": [
+              "tests/cli/performance/test_blackboard.py",
+              "test_blackboard.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T123 [P] [W1] [test-automator] [test_blackboard.py] Performance test for blackboard < 5ms in tests/cli/performance/test_blackboard.py' to [x]",
+            "dependencies": [
+              "T040",
+              "T038",
+              "T037",
+              "T039"
+            ]
+          },
+          {
+            "task_id": "T127",
+            "agent_role": "Developer",
+            "instruction": "T130 [P] [W1] [test-automator] [test_mental_models.py] Performance test for mental model selection < 100ms in tests/cli/performance/test_mental_models.py",
+            "file_locks": [
+              "test_mental_models.py",
+              "tests/cli/performance/test_mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T130 [P] [W1] [test-automator] [test_mental_models.py] Performance test for mental model selection < 100ms in tests/cli/performance/test_mental_models.py' to [x]",
+            "dependencies": [
+              "T079",
+              "T078",
+              "T077",
+              "T076"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 5 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 6,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 6: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T087",
+            "agent_role": "Developer",
+            "instruction": "T087 [W2] [US7] [python-pro] [mental_models.py:tags] Implement list_tags() method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T087 [W2] [US7] [python-pro] [mental_models.py:tags] Implement list_tags() method in mental_models.py' to [x]",
+            "dependencies": [
+              "T085",
+              "T083",
+              "T084",
+              "T082",
+              "T086"
+            ]
+          },
+          {
+            "task_id": "T114",
+            "agent_role": "Developer",
+            "instruction": "T114 [W6] [US7] [python-pro] [agent_chain.py:list_schema] Implement list_mental_models tool schema in agent_chain.py",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T114 [W6] [US7] [python-pro] [agent_chain.py:list_schema] Implement list_mental_models tool schema in agent_chain.py' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T113",
+              "T112"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 6 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 7,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 7: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T088",
+            "agent_role": "Developer",
+            "instruction": "T088 [W2] [US7] [python-pro] [mental_models.py:find] Implement find_models_for_task() method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T088 [W2] [US7] [python-pro] [mental_models.py:find] Implement find_models_for_task() method in mental_models.py' to [x]",
+            "dependencies": [
+              "T087",
+              "T085",
+              "T083",
+              "T084",
+              "T082",
+              "T086"
+            ]
+          },
+          {
+            "task_id": "T115",
+            "agent_role": "Developer",
+            "instruction": "T115 [W6] [US7] [python-pro] [agent_chain.py:handle] Implement _handle_mental_model_tool() async method in agent_chain.py",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T115 [W6] [US7] [python-pro] [agent_chain.py:handle] Implement _handle_mental_model_tool() async method in agent_chain.py' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T113",
+              "T114",
+              "T112"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 7 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 8,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 8: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T089",
+            "agent_role": "Developer",
+            "instruction": "T089 [P] [W3] [US7] [python-pro] [mental_models.py:rubber-duck] Implement rubber-duck process prompt (debugging, communication)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T089 [P] [W3] [US7] [python-pro] [mental_models.py:rubber-duck] Implement rubber-duck process prompt (debugging, communication)' to [x]",
+            "dependencies": [
+              "T088",
+              "T087",
+              "T085",
+              "T083",
+              "T084",
+              "T082",
+              "T086"
+            ]
+          },
+          {
+            "task_id": "T116",
+            "agent_role": "Developer",
+            "instruction": "T116 [W7] [US7] [python-pro] [agent_chain.py:auto] Add auto-select mental model logic in process_input() in agent_chain.py",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T116 [W7] [US7] [python-pro] [agent_chain.py:auto] Add auto-select mental model logic in process_input() in agent_chain.py' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T113",
+              "T114",
+              "T115",
+              "T112"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 8 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 9,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 9: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T090",
+            "agent_role": "Developer",
+            "instruction": "T090 [P] [W3] [US7] [python-pro] [mental_models.py:five-whys] Implement five-whys process prompt (debugging, validation)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T090 [P] [W3] [US7] [python-pro] [mental_models.py:five-whys] Implement five-whys process prompt (debugging, validation)' to [x]",
+            "dependencies": [
+              "T088",
+              "T087",
+              "T085",
+              "T083",
+              "T084",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          },
+          {
+            "task_id": "T117",
+            "agent_role": "Developer",
+            "instruction": "T117 [W7] [US7] [python-pro] [agent_chain.py:enhance] Enhance user input with mental model guidance when model selected",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T117 [W7] [US7] [python-pro] [agent_chain.py:enhance] Enhance user input with mental model guidance when model selected' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T113",
+              "T114",
+              "T116",
+              "T115",
+              "T112"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 9 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 10,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 10: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T091",
+            "agent_role": "Developer",
+            "instruction": "T091 [P] [W3] [US7] [python-pro] [mental_models.py:pre-mortem] Implement pre-mortem process prompt (risk-analysis, planning)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T091 [P] [W3] [US7] [python-pro] [mental_models.py:pre-mortem] Implement pre-mortem process prompt (risk-analysis, planning)' to [x]",
+            "dependencies": [
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T083",
+              "T084",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          },
+          {
+            "task_id": "T118",
+            "agent_role": "Developer",
+            "instruction": "T118 [W7] [US7] [python-pro] [agent_chain.py:context] Add mental model context to conversation history",
+            "file_locks": [
+              "agent_chain.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T118 [W7] [US7] [python-pro] [agent_chain.py:context] Add mental model context to conversation history' to [x]",
+            "dependencies": [
+              "T110",
+              "T109",
+              "T111",
+              "T113",
+              "T114",
+              "T116",
+              "T117",
+              "T115",
+              "T112"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 10 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 11,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 11: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T092",
+            "agent_role": "Developer",
+            "instruction": "T092 [P] [W3] [US7] [python-pro] [mental_models.py:assumption] Implement assumption-surfacing process prompt (validation, planning)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T092 [P] [W3] [US7] [python-pro] [mental_models.py:assumption] Implement assumption-surfacing process prompt (validation, planning)' to [x]",
+            "dependencies": [
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T083",
+              "T084",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 11 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 12,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 12: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T093",
+            "agent_role": "Developer",
+            "instruction": "T093 [P] [W3] [US7] [python-pro] [mental_models.py:steelman] Implement steelmanning process prompt (decision-making, validation)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T093 [P] [W3] [US7] [python-pro] [mental_models.py:steelman] Implement steelmanning process prompt (decision-making, validation)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T083",
+              "T084",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 12 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 13,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 13: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T094",
+            "agent_role": "Developer",
+            "instruction": "T094 [P] [W3] [US7] [python-pro] [mental_models.py:trade-off] Implement trade-off-matrix process prompt (decision-making, prioritization)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T094 [P] [W3] [US7] [python-pro] [mental_models.py:trade-off] Implement trade-off-matrix process prompt (decision-making, prioritization)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 13 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 14,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 14: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T095",
+            "agent_role": "Developer",
+            "instruction": "T095 [P] [W3] [US7] [python-pro] [mental_models.py:fermi] Implement fermi-estimation process prompt (estimation)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T095 [P] [W3] [US7] [python-pro] [mental_models.py:fermi] Implement fermi-estimation process prompt (estimation)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T082",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 14 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 15,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 15: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T096",
+            "agent_role": "Developer",
+            "instruction": "T096 [P] [W3] [US7] [python-pro] [mental_models.py:abstraction] Implement abstraction-laddering process prompt (architecture, communication)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T096 [P] [W3] [US7] [python-pro] [mental_models.py:abstraction] Implement abstraction-laddering process prompt (architecture, communication)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T082",
+              "T095",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 15 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 16,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 16: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T097",
+            "agent_role": "Developer",
+            "instruction": "T097 [P] [W3] [US7] [python-pro] [mental_models.py:decomposition] Implement decomposition process prompt (planning, architecture)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T097 [P] [W3] [US7] [python-pro] [mental_models.py:decomposition] Implement decomposition process prompt (planning, architecture)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T096",
+              "T082",
+              "T095",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 16 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 17,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 17: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T098",
+            "agent_role": "Developer",
+            "instruction": "T098 [P] [W3] [US7] [python-pro] [mental_models.py:adversarial] Implement adversarial-thinking process prompt (risk-analysis, validation)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T098 [P] [W3] [US7] [python-pro] [mental_models.py:adversarial] Implement adversarial-thinking process prompt (risk-analysis, validation)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T097",
+              "T096",
+              "T082",
+              "T095",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 17 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 18,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 18: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T099",
+            "agent_role": "Developer",
+            "instruction": "T099 [P] [W3] [US7] [python-pro] [mental_models.py:opportunity] Implement opportunity-cost process prompt (decision-making, prioritization)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T099 [P] [W3] [US7] [python-pro] [mental_models.py:opportunity] Implement opportunity-cost process prompt (decision-making, prioritization)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T097",
+              "T096",
+              "T082",
+              "T098",
+              "T095",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 18 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 19,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 19: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T100",
+            "agent_role": "Developer",
+            "instruction": "T100 [P] [W3] [US7] [python-pro] [mental_models.py:constraint] Implement constraint-relaxation process prompt (planning, architecture)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T100 [P] [W3] [US7] [python-pro] [mental_models.py:constraint] Implement constraint-relaxation process prompt (planning, architecture)' to [x]",
+            "dependencies": [
+              "T092",
+              "T088",
+              "T090",
+              "T087",
+              "T085",
+              "T091",
+              "T093",
+              "T083",
+              "T084",
+              "T094",
+              "T089",
+              "T099",
+              "T097",
+              "T096",
+              "T082",
+              "T098",
+              "T095",
+              "T086"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 19 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 20,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 20: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T101",
+            "agent_role": "Developer",
+            "instruction": "T101 [P] [W3] [US7] [python-pro] [mental_models.py:time-horizon] Implement time-horizon-shifting process prompt (planning, decision-making)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T101 [P] [W3] [US7] [python-pro] [mental_models.py:time-horizon] Implement time-horizon-shifting process prompt (planning, decision-making)' to [x]",
+            "dependencies": [
+              "T093",
+              "T096",
+              "T082",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T089",
+              "T099",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 20 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 21,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 21: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T102",
+            "agent_role": "Developer",
+            "instruction": "T102 [P] [W3] [US7] [python-pro] [mental_models.py:impact-effort] Implement impact-effort-grid process prompt (prioritization)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T102 [P] [W3] [US7] [python-pro] [mental_models.py:impact-effort] Implement impact-effort-grid process prompt (prioritization)' to [x]",
+            "dependencies": [
+              "T093",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T089",
+              "T099",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 21 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 22,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 22: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T103",
+            "agent_role": "Developer",
+            "instruction": "T103 [P] [W3] [US7] [python-pro] [mental_models.py:inversion] Implement inversion process prompt (risk-analysis, planning)",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T103 [P] [W3] [US7] [python-pro] [mental_models.py:inversion] Implement inversion process prompt (risk-analysis, planning)' to [x]",
+            "dependencies": [
+              "T093",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T089",
+              "T099",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 22 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 23,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 23: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T104",
+            "agent_role": "Developer",
+            "instruction": "T104 [W4] [US7] [python-pro] [mental_models.py:selector] Implement MentalModelSelector class in promptchain/utils/mental_models.py",
+            "file_locks": [
+              "mental_models.py",
+              "promptchain/utils/mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T104 [W4] [US7] [python-pro] [mental_models.py:selector] Implement MentalModelSelector class in promptchain/utils/mental_models.py' to [x]",
+            "dependencies": [
+              "T093",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T089",
+              "T099",
+              "T103",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 23 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 24,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 24: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T105",
+            "agent_role": "Developer",
+            "instruction": "T105 [W4] [US7] [python-pro] [mental_models.py:select] Implement select_model() async method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T105 [W4] [US7] [python-pro] [mental_models.py:select] Implement select_model() async method in mental_models.py' to [x]",
+            "dependencies": [
+              "T093",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T104",
+              "T089",
+              "T099",
+              "T103",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 24 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 25,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 25: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T106",
+            "agent_role": "Developer",
+            "instruction": "T106 [W4] [US7] [python-pro] [mental_models.py:prompt] Implement _build_selection_prompt() in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T106 [W4] [US7] [python-pro] [mental_models.py:prompt] Implement _build_selection_prompt() in mental_models.py' to [x]",
+            "dependencies": [
+              "T105",
+              "T093",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T104",
+              "T089",
+              "T099",
+              "T103",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 25 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 26,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 26: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T107",
+            "agent_role": "Developer",
+            "instruction": "T107 [W5] [US7] [python-pro] [mental_models.py:applicator] Implement MentalModelApplicator class in promptchain/utils/mental_models.py",
+            "file_locks": [
+              "mental_models.py",
+              "promptchain/utils/mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T107 [W5] [US7] [python-pro] [mental_models.py:applicator] Implement MentalModelApplicator class in promptchain/utils/mental_models.py' to [x]",
+            "dependencies": [
+              "T105",
+              "T093",
+              "T106",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T104",
+              "T089",
+              "T099",
+              "T103",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 26 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 27,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 27: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T108",
+            "agent_role": "Developer",
+            "instruction": "T108 [W5] [US7] [python-pro] [mental_models.py:apply] Implement apply_model() async method in mental_models.py",
+            "file_locks": [
+              "mental_models.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T108 [W5] [US7] [python-pro] [mental_models.py:apply] Implement apply_model() async method in mental_models.py' to [x]",
+            "dependencies": [
+              "T107",
+              "T105",
+              "T093",
+              "T106",
+              "T096",
+              "T082",
+              "T101",
+              "T098",
+              "T092",
+              "T088",
+              "T090",
+              "T091",
+              "T083",
+              "T097",
+              "T086",
+              "T087",
+              "T085",
+              "T094",
+              "T084",
+              "T104",
+              "T089",
+              "T099",
+              "T103",
+              "T102",
+              "T100",
+              "T095"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 27 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
           "memory_bank_agent": "memory-bank-keeper"
         }
