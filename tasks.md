@@ -1,1 +1,1 @@
-specs/003-multi-agent-communication/tasks.md
+specs/008-type-safety-debt-pt2/tasks.md
