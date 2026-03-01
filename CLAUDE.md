@@ -355,8 +355,8 @@ Track orchestration efficiency:
 - **Conflict Rate**: File conflicts per phase (target: 0)
 
 ## Recent Changes
-- 008-type-safety-debt-pt2: Added Python 3.12.11 + mypy 1.16.1, litellm 1.0+, Textual 0.83+, LightRAG (hybridrag)
-- 008-type-safety-debt-pt2: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 007-type-safety-debt: In progress (16/18 tasks). Fixed type errors across 20+ files. Reduced mypy errors 557→421 (24% reduction). Zero regressions. Large files (state_agent.py, app.py, promptchaining.py) tracked for 008 sprint.
+- 008-type-safety-debt-pt2: Complete (41/41 tasks). Fixed 4 high-error files to 0 mypy errors each: state_agent.py (94→0), app.py (63→0), promptchaining.py (32→0), executors.py (31→0). Project total: 421→213 errors (49% reduction). Zero new test regressions. All SC met.
+- 007-type-safety-debt: Complete (18/18 tasks). Fixed type errors across 20+ files. Reduced mypy errors 557→421 (24% reduction). Zero regressions.
+- 006-promptchain-improvements: Complete (60/61 tasks). Added AsyncAgentInbox, JanitorAgent, ContextDistiller, PubSubBus, MicroCheckpoints, steering injection, global override, TUI interrupt command. Fixed Gemini MCP param bugs, TUI event loop, JSON parser robustness, MLflow shutdown, config cache. All 44 unit+integration tests green.
 
 

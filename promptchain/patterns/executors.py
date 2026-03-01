@@ -15,10 +15,11 @@ Each executor returns a standardized dict:
 """
 
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from promptchain.cli.models import MessageBus, Blackboard
+    from promptchain.cli.communication.message_bus import MessageBus
+    from promptchain.utils.blackboard import Blackboard
 
 
 # Check if LightRAG integration is available
@@ -30,6 +31,7 @@ except ImportError:
 
 class PatternNotAvailableError(Exception):
     """Raised when LightRAG/hybridrag is not installed."""
+
     pass
 
 
@@ -71,20 +73,26 @@ async def execute_branch(
     start_time = time.perf_counter()
 
     try:
-        from promptchain.integrations.lightrag import LightRAGBranchingThoughts, PatternConfig
+        from promptchain.integrations.lightrag.branching import (
+            BranchingConfig, LightRAGBranchingThoughts)
+        from promptchain.integrations.lightrag.core import (
+            LightRAGConfig, LightRAGIntegration)
 
-        config = PatternConfig(
+        lightrag_config = LightRAGConfig(
+            working_dir=deeplake_path or "~/.lightrag/default",
+        )
+        integration = LightRAGIntegration(config=lightrag_config)
+
+        config = BranchingConfig(
             pattern_id="tui-branch",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            hypothesis_count=count,
         )
 
         pattern = LightRAGBranchingThoughts(
+            lightrag_core=integration,
             config=config,
-            deeplake_path=deeplake_path or "~/.lightrag/default",
-            search_mode=mode.lower(),
-            num_hypotheses=count,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -99,7 +107,11 @@ async def execute_branch(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "hypotheses": result.result.get("hypotheses", []) if result.success and isinstance(result.result, dict) else [],
+            "hypotheses": (
+                result.result.get("hypotheses", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,
@@ -151,20 +163,38 @@ async def execute_expand(
         strategies = ["semantic"]
 
     try:
-        from promptchain.integrations.lightrag import LightRAGQueryExpander, PatternConfig
+        from promptchain.integrations.lightrag.core import (
+            LightRAGConfig, LightRAGIntegration)
+        from promptchain.integrations.lightrag.query_expansion import (
+            ExpansionStrategy, LightRAGQueryExpander, QueryExpansionConfig)
 
-        config = PatternConfig(
+        integration = LightRAGIntegration(
+            config=LightRAGConfig(working_dir=deeplake_path or "~/.lightrag/default")
+        )
+
+        # Map string strategy names to ExpansionStrategy enum values
+        strategy_map = {
+            "semantic": ExpansionStrategy.SEMANTIC,
+            "synonym": ExpansionStrategy.SYNONYM,
+            "acronym": ExpansionStrategy.ACRONYM,
+            "reformulation": ExpansionStrategy.REFORMULATION,
+            "contextual": ExpansionStrategy.REFORMULATION,
+        }
+        enum_strategies = [
+            strategy_map.get(s.lower(), ExpansionStrategy.SEMANTIC) for s in strategies
+        ]
+
+        config = QueryExpansionConfig(
             pattern_id="tui-expand",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            strategies=enum_strategies,
+            max_expansions_per_strategy=max_expansions,
         )
 
         pattern = LightRAGQueryExpander(
+            lightrag_integration=integration,
             config=config,
-            deeplake_path=deeplake_path or "~/.lightrag/default",
-            expansion_strategies=list(strategies),
-            max_expansions=max_expansions,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -179,7 +209,11 @@ async def execute_expand(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "expansions": result.result.get("expansions", []) if result.success and isinstance(result.result, dict) else [],
+            "expansions": (
+                result.result.get("expansions", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,
@@ -230,21 +264,28 @@ async def execute_multihop(
     start_time = time.perf_counter()
 
     try:
-        from promptchain.integrations.lightrag import LightRAGMultiHop, PatternConfig
+        from hybridrag.src.search_interface import \
+            SearchInterface  # type: ignore[import]
 
-        config = PatternConfig(
+        from promptchain.integrations.lightrag.core import (
+            LightRAGConfig, LightRAGIntegration)
+        from promptchain.integrations.lightrag.multi_hop import (
+            LightRAGMultiHop, MultiHopConfig)
+
+        integration = LightRAGIntegration(
+            config=LightRAGConfig(working_dir=deeplake_path or "~/.lightrag/default")
+        )
+
+        config = MultiHopConfig(
             pattern_id="tui-multihop",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            max_hops=max_hops,
         )
 
         pattern = LightRAGMultiHop(
+            search_interface=integration.search,
             config=config,
-            deeplake_path=deeplake_path or "~/.lightrag/default",
-            search_mode=mode.lower(),
-            max_hops=max_hops,
-            objective=objective,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -259,8 +300,16 @@ async def execute_multihop(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "hops": result.result.get("hops", []) if result.success and isinstance(result.result, dict) else [],
-            "answer": result.result.get("answer", "") if result.success and isinstance(result.result, dict) else "",
+            "hops": (
+                result.result.get("hops", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
+            "answer": (
+                result.result.get("answer", "")
+                if result.success and isinstance(result.result, dict)
+                else ""
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,
@@ -312,22 +361,34 @@ async def execute_hybrid(
     start_time = time.perf_counter()
 
     try:
-        from promptchain.integrations.lightrag import LightRAGHybridSearcher, PatternConfig
+        from promptchain.integrations.lightrag.core import (
+            LightRAGConfig, LightRAGIntegration)
+        from promptchain.integrations.lightrag.hybrid_search import (
+            FusionAlgorithm, HybridSearchConfig, LightRAGHybridSearcher)
 
-        config = PatternConfig(
+        integration = LightRAGIntegration(
+            config=LightRAGConfig(working_dir=deeplake_path or "~/.lightrag/default")
+        )
+
+        # Map fusion string to FusionAlgorithm enum
+        fusion_map = {
+            "rrf": FusionAlgorithm.RRF,
+            "linear": FusionAlgorithm.LINEAR,
+            "borda": FusionAlgorithm.BORDA,
+        }
+        fusion_algorithm = fusion_map.get(fusion.lower(), FusionAlgorithm.RRF)
+
+        config = HybridSearchConfig(
             pattern_id="tui-hybrid",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            fusion_algorithm=fusion_algorithm,
+            top_k=top_k,
         )
 
         pattern = LightRAGHybridSearcher(
+            lightrag_integration=integration,
             config=config,
-            deeplake_path=deeplake_path or "~/.lightrag/default",
-            fusion_algorithm=fusion.lower(),
-            local_weight=weights[0],
-            global_weight=weights[1],
-            top_k=top_k,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -342,7 +403,11 @@ async def execute_hybrid(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "results": result.result.get("results", []) if result.success and isinstance(result.result, dict) else [],
+            "results": (
+                result.result.get("results", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,
@@ -393,21 +458,31 @@ async def execute_sharded(
     start_time = time.perf_counter()
 
     try:
-        from promptchain.integrations.lightrag import LightRAGShardedRetriever, PatternConfig
+        from promptchain.integrations.lightrag.sharded import (
+            LightRAGShardedRetriever, LightRAGShardRegistry, ShardConfig,
+            ShardedRetrievalConfig, ShardType)
 
-        config = PatternConfig(
+        # Build a registry from the provided shard paths
+        registry = LightRAGShardRegistry()
+        for i, shard_path in enumerate(shards):
+            registry.register_shard(
+                ShardConfig(
+                    shard_id=f"shard_{i}",
+                    shard_type=ShardType.LIGHTRAG,
+                    working_dir=shard_path,
+                )
+            )
+
+        config = ShardedRetrievalConfig(
             pattern_id="tui-sharded",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            aggregate_top_k=top_k,
         )
 
         pattern = LightRAGShardedRetriever(
+            registry=registry,
             config=config,
-            shard_paths=list(shards),
-            aggregation_method=aggregation.lower(),
-            search_mode=mode.lower(),
-            top_k_per_shard=top_k,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -422,8 +497,16 @@ async def execute_sharded(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "shard_results": result.result.get("shard_results", {}) if result.success and isinstance(result.result, dict) else {},
-            "aggregated": result.result.get("aggregated", []) if result.success and isinstance(result.result, dict) else [],
+            "shard_results": (
+                result.result.get("shard_results", {})
+                if result.success and isinstance(result.result, dict)
+                else {}
+            ),
+            "aggregated": (
+                result.result.get("aggregated", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,
@@ -475,21 +558,26 @@ async def execute_speculate(
     start_time = time.perf_counter()
 
     try:
-        from promptchain.integrations.lightrag import LightRAGSpeculativeExecutor, PatternConfig
+        from promptchain.integrations.lightrag.core import (
+            LightRAGConfig, LightRAGIntegration)
+        from promptchain.integrations.lightrag.speculative import (
+            LightRAGSpeculativeExecutor, SpeculativeConfig)
 
-        config = PatternConfig(
+        integration = LightRAGIntegration(
+            config=LightRAGConfig(working_dir=deeplake_path or "~/.lightrag/default")
+        )
+
+        config = SpeculativeConfig(
             pattern_id="tui-speculate",
             emit_events=message_bus is not None,
             use_blackboard=blackboard is not None,
+            min_confidence=min_confidence,
+            max_concurrent=prefetch_count,
         )
 
         pattern = LightRAGSpeculativeExecutor(
+            lightrag_core=integration,
             config=config,
-            deeplake_path=deeplake_path or "~/.lightrag/default",
-            search_mode=mode.lower(),
-            min_confidence=min_confidence,
-            max_speculative_queries=prefetch_count,
-            verbose=verbose,
         )
 
         if message_bus:
@@ -504,8 +592,16 @@ async def execute_speculate(
         return {
             "success": result.success,
             "result": result.result if result.success else None,
-            "predictions": result.result.get("predictions", []) if result.success and isinstance(result.result, dict) else [],
-            "cache_info": result.result.get("cache_info", {}) if result.success and isinstance(result.result, dict) else {},
+            "predictions": (
+                result.result.get("predictions", [])
+                if result.success and isinstance(result.result, dict)
+                else []
+            ),
+            "cache_info": (
+                result.result.get("cache_info", {})
+                if result.success and isinstance(result.result, dict)
+                else {}
+            ),
             "error": result.errors[0] if result.errors else None,
             "execution_time_ms": execution_time_ms,
             "metadata": result.metadata,

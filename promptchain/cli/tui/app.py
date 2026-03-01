@@ -7,7 +7,8 @@ import threading
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Literal,
+                    Optional, Union, cast)
 
 # Module logger for debug tracing (enabled by --dev flag)
 logger = logging.getLogger(__name__)
@@ -28,11 +29,11 @@ from ..shell_executor import ShellCommandParser, ShellExecutor
 from ..utils.file_context_manager import FileContextManager
 from ..utils.output_formatter import OutputFormatter
 from .activity_log_viewer import ActivityLogViewer
-from .chat_view import ChatView
+from .autocomplete_popup import AutocompletePopup
+from .chat_view import ChatView, MessageItem
 from .input_widget import InputWidget
 from .observe_panel import ObservePanel
 from .reasoning_progress_widget import ReasoningProgressWidget
-from .autocomplete_popup import AutocompletePopup
 from .status_bar import StatusBar
 from .task_list_widget import TaskListWidget
 from .token_bar import TokenBar
@@ -152,6 +153,9 @@ class PromptChainApp(App):
     # Define layers for proper z-ordering (autocomplete popup above content)
     LAYERS = ["base", "autocomplete"]
 
+    # Type annotation for command_handler (assigned in subclass or post-init)
+    command_handler: Any
+
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+d", "quit", "Quit"),
@@ -234,7 +238,7 @@ class PromptChainApp(App):
         self.observe_panel: Optional[ObservePanel] = None
 
         # MLflow observer for optional observability (T118++)
-        self._mlflow_observer = None
+        self._mlflow_observer: Optional[Any] = None
 
         # Task controller for agentic loop control (task completion, handoffs)
         task_controller_config = TaskControllerConfig(
@@ -247,6 +251,7 @@ class PromptChainApp(App):
 
         # REACT Loop: Async input queue for mid-execution user input
         import asyncio
+
         self.user_input_queue: asyncio.Queue = asyncio.Queue()
         self.is_processing = False  # Track if agent is currently processing
 
@@ -256,9 +261,13 @@ class PromptChainApp(App):
 
         # Track AgenticStepProcessor call number for hierarchical step display (1.1, 2.1, etc.)
         self.processor_call_count = 0
-        self.last_step_number = 0  # Track last seen step to detect new processor instances
+        self.last_step_number = (
+            0  # Track last seen step to detect new processor instances
+        )
         self.processor_completed = False  # Track if last processor completed
-        self.last_displayed_step = None  # Track last hierarchical step shown to avoid repetition
+        self.last_displayed_step: Optional[str] = (
+            None  # Track last hierarchical step shown to avoid repetition
+        )
 
         # Store main thread ID for thread-safe UI updates
         self._main_thread_id = threading.get_ident()
@@ -328,7 +337,9 @@ class PromptChainApp(App):
 
         # Add recovery hint if available
         if error_context.recovery_hint:
-            message.content += f"\n\n[dim]Recovery suggestion:\n{error_context.recovery_hint}[/dim]"
+            message.content += (
+                f"\n\n[dim]Recovery suggestion:\n{error_context.recovery_hint}[/dim]"
+            )
 
         return message
 
@@ -442,7 +453,7 @@ class PromptChainApp(App):
             error_msg = Message(
                 role="system",
                 content="[italic]Activity logging is not enabled for this session.[/italic]\n"
-                        "[dim]Activity logs are only available when ActivityLogger is configured.[/dim]"
+                "[dim]Activity logs are only available when ActivityLogger is configured.[/dim]",
             )
             chat_view.add_message(error_msg)
             return
@@ -454,7 +465,7 @@ class PromptChainApp(App):
                 session_name=self.session.name,
                 log_dir=session_dir / "activity_logs",
                 db_path=session_dir / "activities.db",
-                id="log-viewer"
+                id="log-viewer",
             )
             self.log_viewer.display = False  # Hidden initially
 
@@ -477,7 +488,7 @@ class PromptChainApp(App):
             feedback_msg = Message(
                 role="system",
                 content="[bold]Activity Logs opened[/bold]\n"
-                        "[dim]Press Ctrl+L again to close, or use search/filters in the log view[/dim]"
+                "[dim]Press Ctrl+L again to close, or use search/filters in the log view[/dim]",
             )
             chat_view.add_message(feedback_msg)
 
@@ -498,13 +509,12 @@ class PromptChainApp(App):
                 feedback_msg = Message(
                     role="system",
                     content="[bold]Observe Panel opened[/bold]\n"
-                            "[dim]Shows detailed tool calls, LLM requests, and execution steps.[/dim]\n"
-                            "[dim]Press Ctrl+O again to close, or use --verbose flag to auto-open[/dim]"
+                    "[dim]Shows detailed tool calls, LLM requests, and execution steps.[/dim]\n"
+                    "[dim]Press Ctrl+O again to close, or use --verbose flag to auto-open[/dim]",
                 )
             else:
                 feedback_msg = Message(
-                    role="system",
-                    content="[dim]Observe Panel closed[/dim]"
+                    role="system", content="[dim]Observe Panel closed[/dim]"
                 )
             chat_view.add_message(feedback_msg)
 
@@ -524,7 +534,10 @@ class PromptChainApp(App):
                 chat_view = self.query_one("#chat-view", ChatView)
                 if chat_view.is_attached:
                     from ..models import Message
-                    cancel_msg = Message(role="system", content="[dim]Operation cancelled (Ctrl+C)[/dim]")
+
+                    cancel_msg = Message(
+                        role="system", content="[dim]Operation cancelled (Ctrl+C)[/dim]"
+                    )
                     chat_view.add_message(cancel_msg)
             except Exception as e:
                 # Ignore errors during early startup
@@ -536,6 +549,7 @@ class PromptChainApp(App):
 
         # Import tools registry to get tool count
         from ..tools import registry
+
         logger.debug("on_mount: Tools registry imported")
 
         # Try to load existing session, or create new one
@@ -545,7 +559,9 @@ class PromptChainApp(App):
             self.session = self.session_manager.load_session(self.session_name)
             assert self.session is not None  # Type narrowing for mypy
             self.title = f"PromptChain - {self.session.name}"
-            logger.debug(f"on_mount: Session loaded - {len(self.session.messages)} messages")
+            logger.debug(
+                f"on_mount: Session loaded - {len(self.session.messages)} messages"
+            )
 
             # Load existing messages into chat view
             chat_view = self.query_one("#chat-view", ChatView)
@@ -568,13 +584,19 @@ class PromptChainApp(App):
 
         # Get active agent and model info
         active_agent = self.session.agents.get(self.session.active_agent)
-        active_model = active_agent.model_name if active_agent else self.session.default_model
+        active_model = (
+            active_agent.model_name if active_agent else self.session.default_model
+        )
 
         # Get tool count
         tool_count = len(registry.list_tools())
 
         # Get agent's tools if available
-        agent_tool_count = len(active_agent.tools) if active_agent and active_agent.tools else tool_count
+        agent_tool_count = (
+            len(active_agent.tools)
+            if active_agent and active_agent.tools
+            else tool_count
+        )
 
         session_status = "New session created" if is_new_session else "Session loaded"
 
@@ -601,7 +623,9 @@ class PromptChainApp(App):
         # Update status bar with active agent's model and router mode indicator (T039, T061)
         status_bar = self.query_one("#status-bar", StatusBar)
         active_agent = self.session.agents.get(self.session.active_agent)
-        active_model = active_agent.model_name if active_agent else self.session.default_model
+        active_model = (
+            active_agent.model_name if active_agent else self.session.default_model
+        )
 
         # Determine if router mode is active (T039)
         orchestration = self.session.orchestration_config
@@ -613,7 +637,8 @@ class PromptChainApp(App):
 
         # Collect MCP server status (T069)
         mcp_server_status = [
-            {"id": server.id, "state": server.state} for server in self.session.mcp_servers
+            {"id": server.id, "state": server.state}
+            for server in self.session.mcp_servers
         ]
 
         # Get history token stats for status bar
@@ -636,7 +661,9 @@ class PromptChainApp(App):
         input_widget.focus()
 
         # Capture reasoning progress widget reference (T051)
-        self.reasoning_progress = self.query_one("#reasoning-progress", ReasoningProgressWidget)
+        self.reasoning_progress = self.query_one(
+            "#reasoning-progress", ReasoningProgressWidget
+        )
 
         # Capture task list widget reference
         self.task_list_widget = self.query_one("#task-list-widget", TaskListWidget)
@@ -684,14 +711,22 @@ class PromptChainApp(App):
         from promptchain.utils.execution_events import ExecutionEventType
 
         # Get current agent's chain
+        if self.session is None:
+            logger.debug("No session - callback bridge not established")
+            return
+        if not self.session.active_agent:
+            logger.debug("No active agent name - callback bridge not established")
+            return
         active_agent = self.session.agents.get(self.session.active_agent)
         if not active_agent:
             logger.debug("No active agent - callback bridge not established")
             return
 
         # Get the chain (could be PromptChain or AgentChain)
-        chain = getattr(active_agent, 'chain', None) or getattr(active_agent, 'agent_chain', None)
-        if not chain or not hasattr(chain, 'register_callback'):
+        chain = getattr(active_agent, "chain", None) or getattr(
+            active_agent, "agent_chain", None
+        )
+        if not chain or not hasattr(chain, "register_callback"):
             logger.debug("Agent has no callback manager - bridge not established")
             return
 
@@ -703,10 +738,13 @@ class PromptChainApp(App):
                     # LLM call started
                     model = event.data.get("model_name", "unknown")
                     messages = event.data.get("messages", [])
-                    prompt_preview = str(messages[-1] if messages else "")[:100] if messages else "Empty prompt"
+                    prompt_preview = (
+                        str(messages[-1] if messages else "")[:100]
+                        if messages
+                        else "Empty prompt"
+                    )
                     self.observe_panel.log_entry(
-                        "llm-request",
-                        f"[{model}] {prompt_preview}..."
+                        "llm-request", f"[{model}] {prompt_preview}..."
                     )
 
                 elif event.event_type == ExecutionEventType.MODEL_CALL_END:
@@ -714,31 +752,38 @@ class PromptChainApp(App):
                     model = event.data.get("model_name", "unknown")
                     usage = event.data.get("usage", {})
                     response = event.data.get("response", "")
-                    response_preview = str(response)[:100] if response else "No response"
+                    response_preview = (
+                        str(response)[:100] if response else "No response"
+                    )
 
                     # Format token info
                     prompt_tokens = usage.get("prompt_tokens", 0)
                     completion_tokens = usage.get("completion_tokens", 0)
                     total_tokens = usage.get("total_tokens", 0)
-                    token_info = f"({prompt_tokens}p + {completion_tokens}c = {total_tokens}t)"
+                    token_info = (
+                        f"({prompt_tokens}p + {completion_tokens}c = {total_tokens}t)"
+                    )
 
                     self.observe_panel.log_entry(
-                        "llm-response",
-                        f"[{model}] {response_preview}... {token_info}"
+                        "llm-response", f"[{model}] {response_preview}... {token_info}"
                     )
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_START:
                     # Tool call started
                     tool_name = event.data.get("tool_name", "unknown")
                     args_preview = str(event.data.get("arguments", ""))[:50]
-                    self.observe_panel.log_entry("tool-call", f"Calling: {tool_name}({args_preview}...)")
+                    self.observe_panel.log_entry(
+                        "tool-call", f"Calling: {tool_name}({args_preview}...)"
+                    )
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_END:
                     # Tool call completed
                     tool_name = event.data.get("tool_name", "unknown")
                     result = event.data.get("result", "")
                     result_preview = str(result)[:100] if result else "No result"
-                    self.observe_panel.log_entry("tool-result", f"{tool_name}: {result_preview}...")
+                    self.observe_panel.log_entry(
+                        "tool-result", f"{tool_name}: {result_preview}..."
+                    )
 
                 elif event.event_type == ExecutionEventType.STEP_START:
                     # Chain step started
@@ -756,30 +801,46 @@ class PromptChainApp(App):
         # Register callback with chain
         try:
             chain.register_callback(observability_callback)
-            logger.info("✓ Callback bridge established: CallbackManager → ObservePanel (primary observability)")
-            self.observe_panel.log_info("✓ Connected to CallbackManager (primary observability)")
+            logger.info(
+                "✓ Callback bridge established: CallbackManager → ObservePanel (primary observability)"
+            )
+            if self.observe_panel is not None:
+                self.observe_panel.log_info(
+                    "✓ Connected to CallbackManager (primary observability)"
+                )
         except Exception as e:
             logger.error(f"Failed to establish callback bridge: {e}")
-            self.observe_panel.log_info(f"⚠ Callback bridge failed: {e}")
+            if self.observe_panel is not None:
+                self.observe_panel.log_info(f"⚠ Callback bridge failed: {e}")
 
         # T118++: Optionally activate MLflow observer plugin
         try:
             from promptchain.observability import MLflowObserver
 
+            session_name = self.session.name if self.session is not None else "default"
             mlflow_observer = MLflowObserver(
-                experiment_name=f"promptchain-{self.session.name}",
-                tracking_uri=os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+                experiment_name=f"promptchain-{session_name}",
+                tracking_uri=os.environ.get(
+                    "MLFLOW_TRACKING_URI", "http://localhost:5000"
+                ),
             )
 
             if mlflow_observer.is_available():
                 chain.register_callback(mlflow_observer.handle_event)
-                logger.info("✓ MLflow observer plugin activated (optional observability)")
-                self.observe_panel.log_info("✓ MLflow observer connected (tracking enabled)")
+                logger.info(
+                    "✓ MLflow observer plugin activated (optional observability)"
+                )
+                if self.observe_panel is not None:
+                    self.observe_panel.log_info(
+                        "✓ MLflow observer connected (tracking enabled)"
+                    )
 
                 # Store reference for cleanup
                 self._mlflow_observer = mlflow_observer
             else:
-                logger.debug("MLflow observer not available (optional - install with: pip install mlflow)")
+                logger.debug(
+                    "MLflow observer not available (optional - install with: pip install mlflow)"
+                )
 
         except ImportError:
             logger.debug("MLflow observer plugin not available (optional)")
@@ -799,7 +860,7 @@ class PromptChainApp(App):
             return
 
         # Check if MCP config has default servers
-        if not hasattr(self.config, 'mcp') or not self.config.mcp.auto_connect_on_start:
+        if not hasattr(self.config, "mcp") or not self.config.mcp.auto_connect_on_start:
             return
 
         from ..models.mcp_config import MCPServerConfig
@@ -813,7 +874,9 @@ class PromptChainApp(App):
                 continue
 
             # Check if server already exists in session
-            existing = next((s for s in self.session.mcp_servers if s.id == server_id), None)
+            existing = next(
+                (s for s in self.session.mcp_servers if s.id == server_id), None
+            )
 
             if not existing:
                 # Add server to session
@@ -837,17 +900,19 @@ class PromptChainApp(App):
                         tools = existing.discovered_tools
                         # Show brief status in welcome (grayscale)
                         from ..models import Message
+
                         connect_msg = Message(
                             role="system",
-                            content=f"[dim]MCP '{server_id}' connected ({len(tools)} tools)[/dim]"
+                            content=f"[dim]MCP '{server_id}' connected ({len(tools)} tools)[/dim]",
                         )
                         chat_view.add_message(connect_msg)
                 except Exception as e:
                     # Log error but don't crash startup
                     from ..models import Message
+
                     error_msg = Message(
                         role="system",
-                        content=f"[dim]MCP '{server_id}' connection failed: {str(e)[:50]}[/dim]"
+                        content=f"[dim]MCP '{server_id}' connection failed: {str(e)[:50]}[/dim]",
                     )
                     chat_view.add_message(error_msg)
 
@@ -865,7 +930,7 @@ class PromptChainApp(App):
             current_step=0,
             max_steps=max_steps,
             objective=objective,
-            status="Starting..."
+            status="Starting...",
         )
         self.reasoning_progress.show_progress()
 
@@ -883,9 +948,7 @@ class PromptChainApp(App):
         max_steps = self.reasoning_progress._max_steps or 10
 
         self.reasoning_progress.update_progress(
-            current_step=step_num,
-            max_steps=max_steps,
-            status=status
+            current_step=step_num, max_steps=max_steps, status=status
         )
 
     def hide_reasoning_progress(self) -> None:
@@ -914,10 +977,7 @@ class PromptChainApp(App):
             pass
 
     def _log_reasoning_step(
-        self,
-        step_num: int,
-        step_content: str,
-        tool_calls: Optional[List] = None
+        self, step_num: int, step_content: str, tool_calls: Optional[List] = None
     ) -> None:
         """Log individual reasoning step to session history (T053).
 
@@ -939,7 +999,7 @@ class PromptChainApp(App):
             "agent_name": self.session.active_agent,
             "step_number": step_num,
             "content_preview": step_content[:200],
-            "had_tool_calls": len(tool_calls) > 0 if tool_calls else False
+            "had_tool_calls": len(tool_calls) > 0 if tool_calls else False,
         }
 
         # Log to session manager's JSONL
@@ -947,15 +1007,12 @@ class PromptChainApp(App):
         # self.session_manager._append_to_jsonl(self.session.id, log_entry)
 
         # Also log to ExecutionHistoryManager if available
-        if hasattr(self.session, 'history_manager'):
+        if hasattr(self.session, "history_manager"):
             self.session.history_manager.add_entry(
                 entry_type="reasoning_step",
                 content=f"Step {step_num}: {step_content}",
-                metadata={
-                    "step_number": step_num,
-                    "tool_calls": tool_calls
-                },
-                source="agentic_step_processor"
+                metadata={"step_number": step_num, "tool_calls": tool_calls},
+                source="agentic_step_processor",
             )
 
     def _check_agentic_completion(self, result: str, objective: str) -> bool:
@@ -977,7 +1034,9 @@ class PromptChainApp(App):
             return True
 
         # AgenticStepProcessor sets completion flag on agent_chain (fallback)
-        if hasattr(self.agent_chain, 'last_processor_completed'):
+        if self.agent_chain is not None and hasattr(
+            self.agent_chain, "last_processor_completed"
+        ):
             return self.agent_chain.last_processor_completed
 
         # Fallback: heuristic check based on result content
@@ -1024,6 +1083,8 @@ class PromptChainApp(App):
             return None
 
         # Check if target agent exists
+        if self.session is None:
+            return None
         if target_agent not in self.session.agents:
             # Log warning and return None
             return None
@@ -1042,7 +1103,7 @@ class PromptChainApp(App):
             handoff_response = await agent_chain.run_chat_turn_async(
                 continuation_prompt,
                 user_input_queue=self.user_input_queue,
-                streaming_callback=self._streaming_callback
+                streaming_callback=self._streaming_callback,
             )
 
             return handoff_response
@@ -1063,8 +1124,8 @@ class PromptChainApp(App):
             questions = context.get("questions", [])
             if questions:
                 content = (
-                    "[italic]I need your input to continue:[/italic]\n\n" +
-                    "\n".join(f"- {q}" for q in questions[:5])  # Limit to 5 questions
+                    "[italic]I need your input to continue:[/italic]\n\n"
+                    + "\n".join(f"- {q}" for q in questions[:5])  # Limit to 5 questions
                 )
                 return Message(role="system", content=content)
 
@@ -1088,7 +1149,7 @@ class PromptChainApp(App):
             "agent_name": self.session.active_agent,
             "objective": objective,
             "completed": completed,
-            "result_length": len(result)
+            "result_length": len(result),
         }
 
         # Log to session history.jsonl
@@ -1106,12 +1167,15 @@ class PromptChainApp(App):
         except Exception as log_error:
             # If logging fails, don't crash - just log to stderr
             import sys
+
             print(
                 f"ERROR: Failed to log completion to {log_file}: {log_error}",
                 file=sys.stderr,
             )
 
-    def _reasoning_progress_callback(self, current_step: int, max_steps: int, status: str) -> None:
+    def _reasoning_progress_callback(
+        self, current_step: int, max_steps: int, status: str
+    ) -> None:
         """Progress callback for AgenticStepProcessor reasoning updates (T052, T054).
 
         Args:
@@ -1129,44 +1193,54 @@ class PromptChainApp(App):
         new_processor_detected = False
 
         # Debug: Log every callback invocation
-        logger.debug(f"[STEP TRACKING] Callback invoked: current_step={current_step}, "
-                    f"last_step={self.last_step_number}, processor_completed={self.processor_completed}, "
-                    f"processor_call_count={self.processor_call_count}, status={status[:50]}")
+        logger.debug(
+            f"[STEP TRACKING] Callback invoked: current_step={current_step}, "
+            f"last_step={self.last_step_number}, processor_completed={self.processor_completed}, "
+            f"processor_call_count={self.processor_call_count}, status={status[:50]}"
+        )
 
-        if (current_step < self.last_step_number or
-            (current_step == 1 and self.last_step_number == 0) or
-            (current_step == 1 and self.processor_completed)):
+        if (
+            current_step < self.last_step_number
+            or (current_step == 1 and self.last_step_number == 0)
+            or (current_step == 1 and self.processor_completed)
+        ):
             self.processor_call_count += 1
             self.processor_completed = False  # Reset completion flag
             new_processor_detected = True
             self.reasoning_progress.show_progress()
-            logger.debug(f"[STEP TRACKING] ✓ New processor detected! Count: {self.processor_call_count}, "
-                        f"current_step: {current_step}, last_step: {self.last_step_number}")
+            logger.debug(
+                f"[STEP TRACKING] ✓ New processor detected! Count: {self.processor_call_count}, "
+                f"current_step: {current_step}, last_step: {self.last_step_number}"
+            )
 
         self.last_step_number = current_step
 
         # Track completion for next processor detection
         if status == "Complete":
             self.processor_completed = True
-            logger.debug(f"[STEP TRACKING] Processor {self.processor_call_count} completed at step {current_step}")
+            logger.debug(
+                f"[STEP TRACKING] Processor {self.processor_call_count} completed at step {current_step}"
+            )
 
         # Format hierarchical step number: {processor_call}.{internal_step}
         hierarchical_step = f"{self.processor_call_count}.{current_step}"
-        logger.debug(f"[STEP TRACKING] Formatted step: {hierarchical_step}, status: {status}")
+        logger.debug(
+            f"[STEP TRACKING] Formatted step: {hierarchical_step}, status: {status}"
+        )
 
         # Update progress display
         self.reasoning_progress.update_progress(
             current_step=current_step,
             max_steps=max_steps,
             objective="",  # Could be populated from AgenticStepProcessor if needed
-            status=status
+            status=status,
         )
 
         # T118: Log to observe panel in verbose mode with hierarchical numbering
         if self.verbose_mode and self.observe_panel:
             # Improved display: Only show step number for FIRST callback of each unique step
             # Subsequent status updates within same step shown as indented sub-items
-            is_new_step = (self.last_displayed_step != hierarchical_step)
+            is_new_step = self.last_displayed_step != hierarchical_step
 
             if is_new_step:
                 # First callback for this step - show full step prefix
@@ -1180,15 +1254,21 @@ class PromptChainApp(App):
             status_lower = status.lower()
             if "calling" in status_lower or "tool" in status_lower:
                 # Extract tool name if possible
-                tool_name = status.replace("Calling:", "").replace("Calling", "").strip()
+                tool_name = (
+                    status.replace("Calling:", "").replace("Calling", "").strip()
+                )
                 self.observe_panel.log_entry("tool-call", f"{display_prefix} {status}")
             elif "synthesizing" in status_lower or "result" in status_lower:
-                self.observe_panel.log_entry("tool-result", f"{display_prefix} {status}")
+                self.observe_panel.log_entry(
+                    "tool-result", f"{display_prefix} {status}"
+                )
             elif "reasoning" in status_lower or "thinking" in status_lower:
                 if is_new_step:
                     self.observe_panel.log_reasoning(hierarchical_step, status)
                 else:
-                    self.observe_panel.log_entry("reasoning", f"{display_prefix} {status}")
+                    self.observe_panel.log_entry(
+                        "reasoning", f"{display_prefix} {status}"
+                    )
             elif "complete" in status_lower:
                 self.observe_panel.log_info(f"{display_prefix} {status}")
             else:
@@ -1199,7 +1279,7 @@ class PromptChainApp(App):
             self._log_reasoning_step(
                 step_num=current_step,
                 step_content=f"Status: {status}",
-                tool_calls=None  # Could be enhanced to track actual tool calls
+                tool_calls=None,  # Could be enhanced to track actual tool calls
             )
 
         # Refresh task list widget (may have been updated by tool calls)
@@ -1216,7 +1296,7 @@ class PromptChainApp(App):
             self.reasoning_progress.update_progress(
                 current_step=current_step,
                 max_steps=max_steps,
-                status="Max steps reached - partial result"
+                status="Max steps reached - partial result",
             )
             # Hide after delay
             self.set_timer(2.0, lambda: self.reasoning_progress.hide_progress())
@@ -1231,12 +1311,14 @@ class PromptChainApp(App):
             content: Step content/description
         """
         try:
+
             def add_step():
                 try:
                     task_list = self.query_one("#task-list-widget", TaskListWidget)
                     task_list.add_internal_step(step_type, content)
                 except Exception:
                     pass  # Widget may not be ready
+
             self._safe_call_ui(add_step)
         except Exception:
             pass  # Silently ignore errors
@@ -1259,22 +1341,22 @@ class PromptChainApp(App):
             if event_type == "thinking":
                 # Show thinking in dim/italic
                 # Escape brackets to prevent Rich markup conflicts
-                safe_content = content.replace('[', '\\[').replace(']', '\\]')
+                safe_content = content.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
                     content=f"[dim italic]🧠 {safe_content}[/dim italic]",
-                    metadata={"streaming": True, "event_type": "thinking"}
+                    metadata={"streaming": True, "event_type": "thinking"},
                 )
                 # Track in task list (Claude Code style)
                 self._add_task_internal_step("thinking", content)
             elif event_type == "tool_call":
                 # Show tool call being made
                 # Escape brackets to prevent Rich markup conflicts
-                safe_content = content.replace('[', '\\[').replace(']', '\\]')
+                safe_content = content.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
                     content=f"[cyan]🔧 Calling: {safe_content}[/cyan]",
-                    metadata={"streaming": True, "event_type": "tool_call"}
+                    metadata={"streaming": True, "event_type": "tool_call"},
                 )
                 # Track in task list (Claude Code style)
                 self._add_task_internal_step("tool_call", content)
@@ -1282,22 +1364,22 @@ class PromptChainApp(App):
                 # Show tool result (truncated for display)
                 preview = content[:300] + "..." if len(content) > 300 else content
                 # Escape brackets to prevent Rich markup conflicts
-                safe_preview = preview.replace('[', '\\[').replace(']', '\\]')
+                safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
                     content=f"[green]✓ {safe_preview}[/green]",
-                    metadata={"streaming": True, "event_type": "tool_result"}
+                    metadata={"streaming": True, "event_type": "tool_result"},
                 )
                 # Track in task list (Claude Code style)
                 self._add_task_internal_step("tool_result", preview)
             elif event_type == "error":
                 # Show errors in red
                 # Escape brackets to prevent Rich markup conflicts
-                safe_content = content.replace('[', '\\[').replace(']', '\\]')
+                safe_content = content.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
                     content=f"[red]⚠️ {safe_content}[/red]",
-                    metadata={"streaming": True, "event_type": "error"}
+                    metadata={"streaming": True, "event_type": "error"},
                 )
                 # Track in task list (Claude Code style)
                 self._add_task_internal_step("error", content)
@@ -1305,27 +1387,41 @@ class PromptChainApp(App):
                 # Show that user input was received during execution
                 # Escape brackets to prevent Rich markup conflicts
                 preview = content[:100] + "..." if len(content) > 100 else content
-                safe_preview = preview.replace('[', '\\[').replace(']', '\\]')
+                safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
                     content=f"[yellow]📥 User input received: {safe_preview}[/yellow]",
-                    metadata={"streaming": True, "event_type": "user_input"}
+                    metadata={"streaming": True, "event_type": "user_input"},
                 )
             elif event_type == "tokens":
                 # Real-time token usage update - update token bar and status bar
                 logger.debug(f"Token event received: {content[:100]}")
                 try:
                     import json
+
                     token_data = json.loads(content)
                     self.cumulative_prompt_tokens = token_data.get("prompt_tokens", 0)
-                    self.cumulative_completion_tokens = token_data.get("completion_tokens", 0)
-                    logger.debug(f"Token update: prompt={self.cumulative_prompt_tokens}, completion={self.cumulative_completion_tokens}")
+                    self.cumulative_completion_tokens = token_data.get(
+                        "completion_tokens", 0
+                    )
+                    logger.debug(
+                        f"Token update: prompt={self.cumulative_prompt_tokens}, completion={self.cumulative_completion_tokens}"
+                    )
 
                     # Get history stats for context window display
                     history_tokens = 0
-                    max_history = self.session.history_max_tokens if hasattr(self.session, 'history_max_tokens') else 64000
+                    max_history = (
+                        self.session.history_max_tokens
+                        if self.session is not None
+                        and hasattr(self.session, "history_max_tokens")
+                        else 64000
+                    )
                     try:
-                        history_stats = self.session.history_manager.get_statistics()
+                        history_stats = (
+                            self.session.history_manager.get_statistics()
+                            if self.session is not None
+                            else {}
+                        )
                         history_tokens = history_stats.get("total_tokens", 0)
                     except Exception as e:
                         logger.debug(f"Failed to get history stats: {e}")
@@ -1413,7 +1509,9 @@ class PromptChainApp(App):
         input_widget = self.query_one("#input-widget", InputWidget)
         input_widget.focus()
 
-    async def on_input_widget_message_submitted(self, event: InputWidget.MessageSubmitted):
+    async def on_input_widget_message_submitted(
+        self, event: InputWidget.MessageSubmitted
+    ):
         """Handle user message submission.
 
         Args:
@@ -1429,10 +1527,11 @@ class PromptChainApp(App):
             # Show feedback that input was queued
             chat_view = self.query_one("#chat-view", ChatView)
             from ..models import Message
+
             queued_msg = Message(
                 role="user",
                 content=f"{content}\n[dim](queued for agent)[/dim]",
-                metadata={"queued": True}
+                metadata={"queued": True},
             )
             chat_view.add_message(queued_msg)
             return
@@ -1466,7 +1565,8 @@ class PromptChainApp(App):
                 from ..models import Message
 
                 goodbye_msg = Message(
-                    role="system", content=f"Session '{self.session.name}' saved. Goodbye!"
+                    role="system",
+                    content=f"Session '{self.session.name}' saved. Goodbye!",
                 )
                 chat_view.add_message(goodbye_msg)
             self.exit()
@@ -1501,16 +1601,14 @@ class PromptChainApp(App):
                 )
                 chat_view.add_message(session_msg)
             else:
-                error_msg = Message(
-                    role="system",
-                    content="No active session"
-                )
+                error_msg = Message(role="system", content="No active session")
                 chat_view.add_message(error_msg)
 
         elif command.startswith("/cache"):
             # Handle cache commands (T-cache: Python pycache clearing)
-            from ..models import Message
             import shutil
+
+            from ..models import Message
 
             parts = command.split()
             subcommand = parts[1] if len(parts) > 1 else "help"
@@ -1566,6 +1664,9 @@ class PromptChainApp(App):
             from ..models import Message
             from ..models.mcp_config import MCPServerConfig
 
+            if self.session is None:
+                return
+
             parts = command.split()
             subcommand = parts[1] if len(parts) > 1 else "help"
 
@@ -1575,23 +1676,29 @@ class PromptChainApp(App):
                     "id": "gemini",
                     "type": "stdio",
                     "command": "uv",
-                    "args": ["run", "--directory", "/home/gyasis/Documents/code/gemini-mcp", "fastmcp", "run"],
-                    "description": "Gemini AI with web search (gemini_research), code review, brainstorming"
+                    "args": [
+                        "run",
+                        "--directory",
+                        "/home/gyasis/Documents/code/gemini-mcp",
+                        "fastmcp",
+                        "run",
+                    ],
+                    "description": "Gemini AI with web search (gemini_research), code review, brainstorming",
                 },
                 "playwright": {
                     "id": "playwright",
                     "type": "stdio",
                     "command": "npx",
                     "args": ["@anthropic/mcp-playwright"],
-                    "description": "Browser automation and web scraping"
+                    "description": "Browser automation and web scraping",
                 },
                 "filesystem": {
                     "id": "filesystem",
                     "type": "stdio",
                     "command": "npx",
                     "args": ["-y", "@anthropic/mcp-filesystem", "."],
-                    "description": "File system operations"
-                }
+                    "description": "File system operations",
+                },
             }
 
             if subcommand == "add":
@@ -1600,7 +1707,7 @@ class PromptChainApp(App):
                     error_msg = Message(
                         role="system",
                         content="Usage: /mcp add <preset> OR /mcp add <id> <command> [args...]\n"
-                                f"Available presets: {', '.join(PRESET_MCP_SERVERS.keys())}"
+                        f"Available presets: {', '.join(PRESET_MCP_SERVERS.keys())}",
                     )
                     chat_view.add_message(error_msg)
                 else:
@@ -1610,11 +1717,11 @@ class PromptChainApp(App):
                         # Use preset
                         preset = PRESET_MCP_SERVERS[preset_or_id]
                         server = MCPServerConfig(
-                            id=preset["id"],
-                            type=preset["type"],
-                            command=preset["command"],
-                            args=preset["args"],
-                            auto_connect=True
+                            id=str(preset["id"]),
+                            type=cast(Literal["stdio", "http"], str(preset["type"])),
+                            command=str(preset["command"]),
+                            args=list(preset["args"]),
+                            auto_connect=True,
                         )
                     elif len(parts) >= 4:
                         # Custom server: /mcp add <id> <command> [args...]
@@ -1623,22 +1730,24 @@ class PromptChainApp(App):
                             type="stdio",
                             command=parts[3],
                             args=parts[4:] if len(parts) > 4 else [],
-                            auto_connect=True
+                            auto_connect=True,
                         )
                     else:
                         error_msg = Message(
                             role="system",
-                            content=f"Unknown preset '{preset_or_id}'. Use a preset or provide: /mcp add <id> <command> [args...]"
+                            content=f"Unknown preset '{preset_or_id}'. Use a preset or provide: /mcp add <id> <command> [args...]",
                         )
                         chat_view.add_message(error_msg)
                         return
 
                     # Check if already exists
-                    existing = [s for s in self.session.mcp_servers if s.id == server.id]
+                    existing = [
+                        s for s in self.session.mcp_servers if s.id == server.id
+                    ]
                     if existing:
                         error_msg = Message(
                             role="system",
-                            content=f"MCP server '{server.id}' already exists. Use /mcp connect {server.id} to connect."
+                            content=f"MCP server '{server.id}' already exists. Use /mcp connect {server.id} to connect.",
                         )
                         chat_view.add_message(error_msg)
                     else:
@@ -1646,8 +1755,8 @@ class PromptChainApp(App):
                         add_msg = Message(
                             role="system",
                             content=f"Added MCP server '{server.id}'\n"
-                                    f"  Command: {server.command} {' '.join(server.args)}\n\n"
-                                    f"Use /mcp connect {server.id} to connect and discover tools."
+                            f"  Command: {server.command} {' '.join(server.args)}\n\n"
+                            f"Use /mcp connect {server.id} to connect and discover tools.",
                         )
                         chat_view.add_message(add_msg)
 
@@ -1655,52 +1764,57 @@ class PromptChainApp(App):
                 # /mcp connect <server-id>
                 if len(parts) < 3:
                     error_msg = Message(
-                        role="system",
-                        content="Usage: /mcp connect <server-id>"
+                        role="system", content="Usage: /mcp connect <server-id>"
                     )
                     chat_view.add_message(error_msg)
                 else:
                     server_id = parts[2]
-                    server = next((s for s in self.session.mcp_servers if s.id == server_id), None)
+                    connect_server: Optional[Any] = next(
+                        (s for s in self.session.mcp_servers if s.id == server_id), None
+                    )
 
-                    if not server:
+                    if not connect_server:
                         error_msg = Message(
                             role="system",
-                            content=f"MCP server '{server_id}' not found. Use /mcp add to add it first."
+                            content=f"MCP server '{server_id}' not found. Use /mcp add to add it first.",
                         )
                         chat_view.add_message(error_msg)
                     else:
                         connect_msg = Message(
-                            role="system",
-                            content=f"Connecting to '{server_id}'..."
+                            role="system", content=f"Connecting to '{server_id}'..."
                         )
                         chat_view.add_message(connect_msg)
 
                         try:
                             from ..utils.mcp_manager import MCPManager
+
                             mcp_manager = MCPManager(self.session)
                             success = await mcp_manager.connect_server(server_id)
 
                             if success:
-                                tools = server.discovered_tools
+                                tools = connect_server.discovered_tools
                                 success_msg = Message(
                                     role="system",
                                     content=f"Connected to '{server_id}'!\n"
-                                            f"Discovered {len(tools)} tools:\n" +
-                                            "\n".join(f"  - {t}" for t in tools[:10]) +
-                                            (f"\n  ... and {len(tools) - 10} more" if len(tools) > 10 else "")
+                                    f"Discovered {len(tools)} tools:\n"
+                                    + "\n".join(f"  - {t}" for t in tools[:10])
+                                    + (
+                                        f"\n  ... and {len(tools) - 10} more"
+                                        if len(tools) > 10
+                                        else ""
+                                    ),
                                 )
                                 chat_view.add_message(success_msg)
                             else:
                                 error_msg = Message(
                                     role="system",
-                                    content=f"Failed to connect to '{server_id}': {server.error_message}"
+                                    content=f"Failed to connect to '{server_id}': {connect_server.error_message}",
                                 )
                                 chat_view.add_message(error_msg)
                         except Exception as e:
                             error_msg = Message(
                                 role="system",
-                                content=f"Error connecting to '{server_id}': {str(e)}"
+                                content=f"Error connecting to '{server_id}': {str(e)}",
                             )
                             chat_view.add_message(error_msg)
 
@@ -1710,15 +1824,19 @@ class PromptChainApp(App):
                     list_msg = Message(
                         role="system",
                         content="No MCP servers configured.\n\n"
-                                "Add one with:\n"
-                                "  /mcp add gemini     - Gemini AI with web search\n"
-                                "  /mcp add playwright - Browser automation\n"
-                                "  /mcp add filesystem - File operations"
+                        "Add one with:\n"
+                        "  /mcp add gemini     - Gemini AI with web search\n"
+                        "  /mcp add playwright - Browser automation\n"
+                        "  /mcp add filesystem - File operations",
                     )
                 else:
                     lines = ["MCP Servers:\n"]
                     for server in self.session.mcp_servers:
-                        status = {"connected": "✓", "disconnected": "○", "error": "✗"}.get(server.state, "?")
+                        status = {
+                            "connected": "✓",
+                            "disconnected": "○",
+                            "error": "✗",
+                        }.get(server.state, "?")
                         tool_count = len(server.discovered_tools)
                         lines.append(f"  {status} {server.id} - {server.state}")
                         if tool_count > 0:
@@ -1766,123 +1884,175 @@ class PromptChainApp(App):
                     )
                     chat_view.add_message(agent_msg)
                 else:
-                    chat_view.add_message(Message(role="system", content="No active session"))
+                    chat_view.add_message(
+                        Message(role="system", content="No active session")
+                    )
 
             elif subcommand == "list":
                 # List all agents
                 if self.session:
                     lines = ["[bold]Available Agents:[/bold]\n"]
                     # Default agent
-                    active_marker = " [green](active)[/green]" if not self.session.active_agent else ""
-                    lines.append(f"  [bold]default[/bold] - {self.session.default_model}{active_marker}")
+                    active_marker = (
+                        " [green](active)[/green]"
+                        if not self.session.active_agent
+                        else ""
+                    )
+                    lines.append(
+                        f"  [bold]default[/bold] - {self.session.default_model}{active_marker}"
+                    )
                     # Custom agents
                     for name, agent in self.session.agents.items():
-                        model = agent.get("model", "unknown") if isinstance(agent, dict) else getattr(agent, "model", "unknown")
-                        active_marker = " [green](active)[/green]" if self.session.active_agent == name else ""
+                        model = (
+                            agent.get("model", "unknown")
+                            if isinstance(agent, dict)
+                            else getattr(agent, "model", "unknown")
+                        )
+                        active_marker = (
+                            " [green](active)[/green]"
+                            if self.session.active_agent == name
+                            else ""
+                        )
                         lines.append(f"  [bold]{name}[/bold] - {model}{active_marker}")
-                    chat_view.add_message(Message(role="system", content="\n".join(lines)))
+                    chat_view.add_message(
+                        Message(role="system", content="\n".join(lines))
+                    )
                 else:
-                    chat_view.add_message(Message(role="system", content="No active session"))
+                    chat_view.add_message(
+                        Message(role="system", content="No active session")
+                    )
 
             elif subcommand == "create":
                 # Create new agent: /agent create <name> --model <model>
                 if len(parts) < 3:
-                    chat_view.add_message(Message(
-                        role="system",
-                        content="Usage: /agent create <name> --model <model>\nExample: /agent create coder --model openai/gpt-4"
-                    ))
+                    chat_view.add_message(
+                        Message(
+                            role="system",
+                            content="Usage: /agent create <name> --model <model>\nExample: /agent create coder --model openai/gpt-4",
+                        )
+                    )
                 else:
                     agent_name = parts[2]
                     # Parse --model flag
-                    model = self.session.default_model if self.session else "openai/gpt-4.1-mini-2025-04-14"
+                    model = (
+                        self.session.default_model
+                        if self.session
+                        else "openai/gpt-4.1-mini-2025-04-14"
+                    )
                     for i, p in enumerate(parts):
                         if p == "--model" and i + 1 < len(parts):
                             model = parts[i + 1]
                             break
 
                     if self.session:
-                        self.session.agents[agent_name] = {"model": model, "description": ""}
-                        chat_view.add_message(Message(
-                            role="system",
-                            content=f"Created agent '[bold]{agent_name}[/bold]' with model {model}"
-                        ))
+                        self.session.agents[agent_name] = {
+                            "model": model,
+                            "description": "",
+                        }
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"Created agent '[bold]{agent_name}[/bold]' with model {model}",
+                            )
+                        )
                     else:
-                        chat_view.add_message(Message(role="system", content="No active session"))
+                        chat_view.add_message(
+                            Message(role="system", content="No active session")
+                        )
 
             elif subcommand == "use":
                 # Switch to agent: /agent use <name>
                 if len(parts) < 3:
-                    chat_view.add_message(Message(
-                        role="system",
-                        content="Usage: /agent use <name>\nExample: /agent use coder"
-                    ))
+                    chat_view.add_message(
+                        Message(
+                            role="system",
+                            content="Usage: /agent use <name>\nExample: /agent use coder",
+                        )
+                    )
                 else:
                     agent_name = parts[2]
                     if self.session:
                         if agent_name == "default":
                             self.session.active_agent = None
-                            chat_view.add_message(Message(
-                                role="system",
-                                content="Switched to [bold]default[/bold] agent"
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content="Switched to [bold]default[/bold] agent",
+                                )
+                            )
                         elif agent_name in self.session.agents:
                             self.session.active_agent = agent_name
-                            chat_view.add_message(Message(
-                                role="system",
-                                content=f"Switched to agent '[bold]{agent_name}[/bold]'"
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content=f"Switched to agent '[bold]{agent_name}[/bold]'",
+                                )
+                            )
                         else:
-                            chat_view.add_message(Message(
-                                role="system",
-                                content=f"Agent '{agent_name}' not found. Use /agent list to see available agents."
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content=f"Agent '{agent_name}' not found. Use /agent list to see available agents.",
+                                )
+                            )
                     else:
-                        chat_view.add_message(Message(role="system", content="No active session"))
+                        chat_view.add_message(
+                            Message(role="system", content="No active session")
+                        )
 
             elif subcommand == "delete":
                 # Delete agent: /agent delete <name>
                 if len(parts) < 3:
-                    chat_view.add_message(Message(
-                        role="system",
-                        content="Usage: /agent delete <name>"
-                    ))
+                    chat_view.add_message(
+                        Message(role="system", content="Usage: /agent delete <name>")
+                    )
                 else:
                     agent_name = parts[2]
                     if self.session:
                         if agent_name == "default":
-                            chat_view.add_message(Message(
-                                role="system",
-                                content="Cannot delete the default agent"
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content="Cannot delete the default agent",
+                                )
+                            )
                         elif agent_name in self.session.agents:
                             del self.session.agents[agent_name]
                             if self.session.active_agent == agent_name:
                                 self.session.active_agent = None
-                            chat_view.add_message(Message(
-                                role="system",
-                                content=f"Deleted agent '[bold]{agent_name}[/bold]'"
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content=f"Deleted agent '[bold]{agent_name}[/bold]'",
+                                )
+                            )
                         else:
-                            chat_view.add_message(Message(
-                                role="system",
-                                content=f"Agent '{agent_name}' not found"
-                            ))
+                            chat_view.add_message(
+                                Message(
+                                    role="system",
+                                    content=f"Agent '{agent_name}' not found",
+                                )
+                            )
                     else:
-                        chat_view.add_message(Message(role="system", content="No active session"))
+                        chat_view.add_message(
+                            Message(role="system", content="No active session")
+                        )
 
             else:
                 # Unknown subcommand - show help
-                chat_view.add_message(Message(
-                    role="system",
-                    content=(
-                        "[bold]Agent Commands:[/bold]\n"
-                        "  /agent            - Show current agent info\n"
-                        "  /agent list       - List all agents\n"
-                        "  /agent create <name> --model <model> - Create new agent\n"
-                        "  /agent use <name> - Switch to agent\n"
-                        "  /agent delete <name> - Delete agent"
+                chat_view.add_message(
+                    Message(
+                        role="system",
+                        content=(
+                            "[bold]Agent Commands:[/bold]\n"
+                            "  /agent            - Show current agent info\n"
+                            "  /agent list       - List all agents\n"
+                            "  /agent create <name> --model <model> - Create new agent\n"
+                            "  /agent use <name> - Switch to agent\n"
+                            "  /agent delete <name> - Delete agent"
+                        ),
                     )
-                ))
+                )
 
         elif command.startswith("/mentalmodel"):
             # Handle mental model command
@@ -1893,7 +2063,9 @@ class PromptChainApp(App):
                 msg = Message(role="system", content=result.message)
                 chat_view.add_message(msg)
             else:
-                chat_view.add_message(Message(role="system", content="No active session"))
+                chat_view.add_message(
+                    Message(role="system", content="No active session")
+                )
 
         elif command.startswith("/branch"):
             await self._handle_branch_pattern(command)
@@ -1942,7 +2114,7 @@ class PromptChainApp(App):
             return {
                 "query": None,
                 "options": {},
-                "error": "Missing query. Usage: /pattern \"query\" [options]",
+                "error": 'Missing query. Usage: /pattern "query" [options]',
             }
 
         args_str = parts[1]
@@ -1961,7 +2133,7 @@ class PromptChainApp(App):
             query = parsed[0]
 
             # Parse --key=value flags
-            options = {}
+            options: Dict[str, Any] = {}
             for arg in parsed[1:]:
                 if arg.startswith("--"):
                     if "=" in arg:
@@ -1987,11 +2159,10 @@ class PromptChainApp(App):
 
     async def _handle_branch_pattern(self, command: str):
         """Handle /branch pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_branch)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_branch,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2068,11 +2239,10 @@ class PromptChainApp(App):
 
     async def _handle_expand_pattern(self, command: str):
         """Handle /expand pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_expand)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_expand,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2087,9 +2257,7 @@ class PromptChainApp(App):
         options = parsed["options"]
 
         # Show processing message
-        processing_msg = Message(
-            role="system", content=f"🔄 Expanding query: {query}"
-        )
+        processing_msg = Message(role="system", content=f"🔄 Expanding query: {query}")
         chat_view.add_message(processing_msg)
 
         try:
@@ -2148,11 +2316,10 @@ class PromptChainApp(App):
 
     async def _handle_multihop_pattern(self, command: str):
         """Handle /multihop pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_multihop)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_multihop,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2196,7 +2363,9 @@ class PromptChainApp(App):
                 documents = result.get("documents", result.get("results", []))
                 content_lines = [f"✅ Retrieved {len(documents)} documents:\n"]
                 for i, doc in enumerate(documents[:10], 1):  # Show first 10
-                    doc_preview = str(doc)[:100] + "..." if len(str(doc)) > 100 else str(doc)
+                    doc_preview = (
+                        str(doc)[:100] + "..." if len(str(doc)) > 100 else str(doc)
+                    )
                     content_lines.append(f"{i}. {doc_preview}")
                 if len(documents) > 10:
                     content_lines.append(f"\n... and {len(documents) - 10} more")
@@ -2232,11 +2401,10 @@ class PromptChainApp(App):
 
     async def _handle_hybrid_pattern(self, command: str):
         """Handle /hybrid pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_hybrid)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_hybrid,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2267,7 +2435,7 @@ class PromptChainApp(App):
 
             result = await execute_hybrid(
                 query=query,
-                fusion_method=options.get("fusion", "rrf"),
+                fusion=options.get("fusion", "rrf"),
                 top_k=options.get("top_k", 10),
                 deeplake_path=options.get("deeplake_path"),
                 verbose=options.get("verbose", False),
@@ -2280,7 +2448,9 @@ class PromptChainApp(App):
                 results_data = result.get("results", [])
                 content_lines = [f"✅ Found {len(results_data)} results:\n"]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
-                    res_preview = str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
+                    res_preview = (
+                        str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
+                    )
                     content_lines.append(f"{i}. {res_preview}")
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
@@ -2316,11 +2486,10 @@ class PromptChainApp(App):
 
     async def _handle_sharded_pattern(self, command: str):
         """Handle /sharded pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_sharded)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_sharded,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2338,13 +2507,17 @@ class PromptChainApp(App):
         if "shards" not in options:
             error_msg = Message(
                 role="system",
-                content="Error: --shards parameter is required.\nUsage: /sharded \"query\" --shards=shard1,shard2",
+                content='Error: --shards parameter is required.\nUsage: /sharded "query" --shards=shard1,shard2',
             )
             chat_view.add_message(error_msg)
             return
 
         # Show processing message
-        shards = options["shards"] if isinstance(options["shards"], list) else [options["shards"]]
+        shards = (
+            options["shards"]
+            if isinstance(options["shards"], list)
+            else [options["shards"]]
+        )
         processing_msg = Message(
             role="system",
             content=f"🗂️  Searching across {len(shards)} shards for: {query}",
@@ -2362,8 +2535,8 @@ class PromptChainApp(App):
 
             result = await execute_sharded(
                 query=query,
-                shard_paths=shards,
-                aggregation_method=options.get("aggregation", "rrf"),
+                shards=shards,
+                aggregation=options.get("aggregation", "rrf"),
                 top_k=options.get("top_k", 10),
                 verbose=options.get("verbose", False),
                 message_bus=message_bus,
@@ -2373,9 +2546,13 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 results_data = result.get("results", [])
-                content_lines = [f"✅ Found {len(results_data)} results across shards:\n"]
+                content_lines = [
+                    f"✅ Found {len(results_data)} results across shards:\n"
+                ]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
-                    res_preview = str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
+                    res_preview = (
+                        str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
+                    )
                     content_lines.append(f"{i}. {res_preview}")
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
@@ -2411,11 +2588,10 @@ class PromptChainApp(App):
 
     async def _handle_speculate_pattern(self, command: str):
         """Handle /speculate pattern command."""
+        from promptchain.patterns.executors import (PatternNotAvailableError,
+                                                    execute_speculate)
+
         from ..models import Message
-        from promptchain.patterns.executors import (
-            execute_speculate,
-            PatternNotAvailableError,
-        )
 
         chat_view = self.query_one("#chat-view", ChatView)
 
@@ -2457,9 +2633,13 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 predictions = result.get("predictions", result.get("results", []))
-                content_lines = [f"✅ Generated {len(predictions)} speculative predictions:\n"]
+                content_lines = [
+                    f"✅ Generated {len(predictions)} speculative predictions:\n"
+                ]
                 for i, pred in enumerate(predictions, 1):
-                    pred_preview = str(pred)[:100] + "..." if len(str(pred)) > 100 else str(pred)
+                    pred_preview = (
+                        str(pred)[:100] + "..." if len(str(pred)) > 100 else str(pred)
+                    )
                     content_lines.append(f"{i}. {pred_preview}")
                 content_lines.append(
                     f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
@@ -2593,8 +2773,7 @@ Examples:
         # Start spinner on the processing message
         if len(chat_view) > 0:
             last_item = chat_view.children[-1]
-            if hasattr(last_item, "is_processing"):
-                last_item.is_processing = True
+            if isinstance(last_item, MessageItem):
                 last_item.start_spinner()
 
         try:
@@ -2609,7 +2788,7 @@ Examples:
             # Stop spinner and remove processing message
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing") and last_item.is_processing:
+                if isinstance(last_item, MessageItem) and last_item.is_processing:
                     last_item.stop_spinner()
 
             chat_view.messages.pop()  # Remove processing indicator
@@ -2633,7 +2812,7 @@ Examples:
             # Stop spinner and remove processing indicator
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing") and last_item.is_processing:
+                if isinstance(last_item, MessageItem) and last_item.is_processing:
                     last_item.stop_spinner()
 
             if (
@@ -2751,7 +2930,7 @@ Return JSON:
 
 IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond conversationally without tools: "
                     """
-                }
+                },
             }
 
         orchestration = self.session.orchestration_config
@@ -2801,9 +2980,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         return {
             "models": [router_model],
             "instructions": [None, "{input}"],  # Pass-through instructions
-            "decision_prompt_templates": {
-                "single_agent_dispatch": decision_prompt
-            }
+            "decision_prompt_templates": {"single_agent_dispatch": decision_prompt},
         }
 
     def _get_or_create_agent_chain(self) -> Optional[AgentChain]:
@@ -2857,9 +3034,14 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Determine agent type: AgenticStepProcessor or simple PromptChain
             if agent.instruction_chain and len(agent.instruction_chain) > 0:
                 # Import AgenticStepProcessor for complex reasoning agents
-                from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+                from promptchain.utils.agentic_step_processor import \
+                    AgenticStepProcessor
 
-                objective = agent.instruction_chain[0] if isinstance(agent.instruction_chain[0], str) else str(agent.instruction_chain[0])
+                objective = (
+                    agent.instruction_chain[0]
+                    if isinstance(agent.instruction_chain[0], str)
+                    else str(agent.instruction_chain[0])
+                )
 
                 # Determine history mode from agent's history_config
                 history_mode = "progressive"  # Default for multi-hop reasoning
@@ -2868,16 +3050,21 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
                 # Create PromptChain with tools using agentic config
                 chain = PromptChain(
-                    models=[{
-                        "name": agent.model_name,
-                        "params": {"max_completion_tokens": agent.max_completion_tokens}
-                    }],
+                    models=[
+                        {
+                            "name": agent.model_name,
+                            "params": {
+                                "max_completion_tokens": agent.max_completion_tokens
+                            },
+                        }
+                    ],
                     instructions=[
                         AgenticStepProcessor(
                             objective=objective,
                             max_internal_steps=self.config.agentic.default_max_internal_steps,
                             model_name=agent.model_name,
-                            history_mode=history_mode or self.config.agentic.history_mode,
+                            history_mode=history_mode
+                            or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates
                         )
                     ],
@@ -2890,16 +3077,21 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
                 # Then register the actual tool functions for execution
                 for tool_meta in all_tools:
-                    chain.register_tool_function(tool_meta.function)
+                    if tool_meta is not None:
+                        chain.register_tool_function(tool_meta.function)
 
                 agents_dict[agent_name] = chain
             else:
                 # Simple PromptChain for basic agents
                 chain = PromptChain(
-                    models=[{
-                        "name": agent.model_name,
-                        "params": {"max_completion_tokens": agent.max_completion_tokens}
-                    }],
+                    models=[
+                        {
+                            "name": agent.model_name,
+                            "params": {
+                                "max_completion_tokens": agent.max_completion_tokens
+                            },
+                        }
+                    ],
                     instructions=["{input}"],  # Simple pass-through
                     verbose=False,
                     mcp_servers=mcp_server_configs if mcp_server_configs else None,
@@ -2908,7 +3100,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 # Add tool schemas FIRST, then register functions
                 chain.add_tools(all_tool_schemas)
                 for tool_meta in all_tools:
-                    chain.register_tool_function(tool_meta.function)
+                    if tool_meta is not None:
+                        chain.register_tool_function(tool_meta.function)
 
                 agents_dict[agent_name] = chain
 
@@ -2918,7 +3111,11 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         orchestration = self.session.orchestration_config
         num_agents = len(self.session.agents)
 
-        if num_agents > 1 and orchestration and orchestration.execution_mode == "router":
+        if (
+            num_agents > 1
+            and orchestration
+            and orchestration.execution_mode == "router"
+        ):
             # Multi-agent router mode
             router_config = self._build_router_config()
 
@@ -2951,7 +3148,6 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
         return self.agent_chain
 
-
     def add_agent_chain(self, agent_name: str, agent_model: str):
         """Add a new agent's PromptChain dynamically (T058).
 
@@ -2965,12 +3161,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             self.agent_chains = {}
 
         self.agent_chains[agent_name] = PromptChain(
-            models=[{
-                "name": agent_model,
-                "params": {"max_completion_tokens": 16000}
-            }],
+            models=[{"name": agent_model, "params": {"max_completion_tokens": 16000}}],
             instructions=["{input}"],
-            verbose=False
+            verbose=False,
         )
 
     def switch_active_agent(self, agent_name: str):
@@ -3053,7 +3246,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 return  # Guard against None agent name
 
             active_agent = self.session.agents.get(active_agent_name)
-            model_name = active_agent.model_name if active_agent else self.session.default_model
+            model_name = (
+                active_agent.model_name if active_agent else self.session.default_model
+            )
 
             # Create a processing message with plain text (animation handled by MessageItem)
             processing_msg = Message(
@@ -3066,8 +3261,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Start spinner animation on the last message item
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing"):
-                    last_item.is_processing = True
+                if isinstance(last_item, MessageItem):
                     last_item.start_spinner()
 
             # Get formatted history for context (T034)
@@ -3078,7 +3272,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Prepare input with history context (use content_with_files for LLM)
             if history:
                 # Add history as context before the current message
-                full_input = f"Previous conversation:\n{history}\n\nUser: {content_with_files}"
+                full_input = (
+                    f"Previous conversation:\n{history}\n\nUser: {content_with_files}"
+                )
             else:
                 full_input = content_with_files
 
@@ -3094,7 +3290,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     # Handle no agents configured
                     error_msg = Message(
                         role="system",
-                        content="[bold]Error: No agents configured for this session[/bold]"
+                        content="[bold]Error: No agents configured for this session[/bold]",
                     )
                     chat_view.add_message(error_msg)
                     return
@@ -3106,7 +3302,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     return await agent_chain.run_chat_turn_async(
                         content_with_files,
                         user_input_queue=self.user_input_queue,
-                        streaming_callback=self._streaming_callback
+                        streaming_callback=self._streaming_callback,
                     )
 
                 try:
@@ -3122,29 +3318,34 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     )
 
                     # If no valid default, use first available agent
-                    if not default_agent_name or default_agent_name not in self.session.agents:
+                    if (
+                        not default_agent_name
+                        or default_agent_name not in self.session.agents
+                    ):
                         default_agent_name = list(self.session.agents.keys())[0]
 
                     # Display fallback notification
                     # Escape brackets in exception message to prevent Rich markup conflicts
-                    safe_error = str(e).replace('[', '\\[').replace(']', '\\]')
+                    safe_error = str(e).replace("[", "\\[").replace("]", "\\]")
                     fallback_msg = Message(
                         role="system",
-                        content=f"[italic]Router failed ({type(e).__name__}: {safe_error}), using fallback: {default_agent_name}[/italic]"
+                        content=f"[italic]Router failed ({type(e).__name__}: {safe_error}), using fallback: {default_agent_name}[/italic]",
                     )
                     chat_view.add_message(fallback_msg)
 
                     # Execute with fallback agent directly
                     fallback_chain = self.session.agents[default_agent_name]
-                    response_content = await fallback_chain.process_prompt_async(content_with_files)
+                    response_content = await fallback_chain.process_prompt_async(
+                        content_with_files
+                    )
 
                     # Log router failure to JSONL (T044)
                     self.session_manager.log_router_failure(
                         session_id=self.session.id,
                         error_type=type(e).__name__,
                         reason=str(e),
-                        user_query=message_text,
-                        fallback_agent=default_agent_name
+                        user_query=content_with_files,
+                        fallback_agent=default_agent_name,
                     )
 
                     # Update active agent tracking for response formatting
@@ -3170,12 +3371,15 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                         session_id=self.session.id,
                         user_query=content_with_files,
                         selected_agent=selected_agent_name,
-                        rationale=getattr(agent_chain, 'last_routing_rationale', None),
+                        rationale=getattr(agent_chain, "last_routing_rationale", None),
                         all_agents=list(self.session.agents.keys()),
                     )
 
                     # T042: Detect agent switch and display visual indicator
-                    if self.last_displayed_agent and selected_agent_name != self.last_displayed_agent:
+                    if (
+                        self.last_displayed_agent
+                        and selected_agent_name != self.last_displayed_agent
+                    ):
                         # Show switch notification in chat
                         switch_message = f"[dim]→ Router switched to agent: [bold]{selected_agent_name}[/bold][/dim]"
                         await self._display_system_message(switch_message)
@@ -3187,7 +3391,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     if selected_agent_name != active_agent_name:
                         status_bar = self.query_one("#status-bar", StatusBar)
                         selected_agent = self.session.agents.get(selected_agent_name)
-                        selected_model = selected_agent.model_name if selected_agent else ""
+                        selected_model = (
+                            selected_agent.model_name if selected_agent else ""
+                        )
 
                         # T041: Update status bar with selected agent
                         status_bar.update_session_info(
@@ -3210,38 +3416,54 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 # T054: Check for agentic completion and handle exhaustion
                 # Enhanced with TaskController for handoff and task status detection
                 if agent_chain.last_selected_agent:
-                    selected_agent = self.session.agents.get(agent_chain.last_selected_agent)
+                    selected_agent = self.session.agents.get(
+                        agent_chain.last_selected_agent
+                    )
                     if selected_agent and selected_agent.instruction_chain:
                         # Extract objective from first instruction if it's a string
                         objective = ""
                         if selected_agent.instruction_chain:
                             first_instr = selected_agent.instruction_chain[0]
-                            objective = first_instr if isinstance(first_instr, str) else str(first_instr)
+                            objective = (
+                                first_instr
+                                if isinstance(first_instr, str)
+                                else str(first_instr)
+                            )
 
                         # Get step count from processor if available
-                        step_count = getattr(agent_chain, 'last_step_count', 1)
+                        step_count = getattr(agent_chain, "last_step_count", 1)
                         max_steps = self.config.agentic.default_max_internal_steps
 
                         # Use TaskController for enhanced status detection
-                        task_status = self._check_task_status(response_content, step_count)
+                        task_status = self._check_task_status(
+                            response_content, step_count
+                        )
 
                         # Check completion status
-                        completed = self._check_agentic_completion(response_content, objective)
+                        completed = self._check_agentic_completion(
+                            response_content, objective
+                        )
 
                         # Handle different task statuses
                         if task_status == TaskStatus.REQUIRES_HANDOFF:
                             # Attempt handoff to another agent
-                            handoff_target = self.task_controller.extract_handoff_target(response_content)
+                            handoff_target = (
+                                self.task_controller.extract_handoff_target(
+                                    response_content
+                                )
+                            )
                             if handoff_target and handoff_target in self.session.agents:
                                 # Display handoff notification
                                 handoff_msg = Message(
                                     role="system",
-                                    content=f"[dim]→ Handing off to agent:[/dim] [bold]{handoff_target}[/bold]"
+                                    content=f"[dim]→ Handing off to agent:[/dim] [bold]{handoff_target}[/bold]",
                                 )
                                 chat_view.add_message(handoff_msg)
 
                                 # Perform handoff
-                                handoff_response = await self._handle_handoff(response_content)
+                                handoff_response = await self._handle_handoff(
+                                    response_content
+                                )
                                 if handoff_response:
                                     # Append handoff response to original response
                                     response_content = f"{response_content}\n\n---\n\n**[{handoff_target}]:**\n{handoff_response}"
@@ -3253,7 +3475,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                                 chat_view.add_message(user_return_msg)
 
                         # Handle max steps exhaustion
-                        if hasattr(agent_chain, 'last_processor_exhausted') and agent_chain.last_processor_exhausted:
+                        if (
+                            hasattr(agent_chain, "last_processor_exhausted")
+                            and agent_chain.last_processor_exhausted
+                        ):
                             # Log exhaustion event (T053, T055)
                             self.session_manager.log_agentic_exhaustion(
                                 session_id=self.session.id,
@@ -3261,21 +3486,22 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                                 objective=objective,
                                 max_steps=max_steps,
                                 steps_completed=step_count,
-                                partial_result=response_content
+                                partial_result=response_content,
                             )
 
                             # Also log to ExecutionHistoryManager
-                            if hasattr(self.session, 'history_manager'):
+                            if hasattr(self.session, "history_manager"):
                                 self.session.history_manager.add_exhaustion_entry(
                                     objective=objective,
                                     max_steps=max_steps,
                                     steps_completed=step_count,
                                     partial_result=response_content,
-                                    source="agentic_step_processor"
+                                    source="agentic_step_processor",
                                 )
 
                             # Display warning to user with threshold info
                             from ..models import Message as MsgModel
+
                             warning_msg = MsgModel(
                                 role="system",
                                 content=(
@@ -3284,7 +3510,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                                     "  - Increase max_internal_steps in agent config\n"
                                     "  - Simplify the objective\n"
                                     "  - Break into smaller sub-objectives"
-                                )
+                                ),
                             )
                             chat_view.add_message(warning_msg)
 
@@ -3301,7 +3527,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                                 "agent_name": agent_chain.last_selected_agent,
                                 "objective": objective,
                                 "completed": True,
-                                "result_length": len(response_content)
+                                "result_length": len(response_content),
                             }
                             # TODO: Implement _append_to_jsonl method in SessionManager
                             # self.session_manager._append_to_jsonl(self.session.id, completion_entry)
@@ -3343,19 +3569,19 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             f"[bold]Workflow step completed:[/bold] {workflow_update['step_description']}\n"
                             f"[dim]Workflow progress: {workflow_update['progress_percentage']:.0f}% "
                             f"({workflow_update['completed_count']}/{workflow_update['total_steps']} steps)[/dim]"
-                        )
+                        ),
                     )
                     # Add progress message to chat (will be displayed after response)
                     self.session.add_message(
                         role="system",
                         content=progress_msg.content,
-                        metadata={"workflow_update": True}
+                        metadata={"workflow_update": True},
                     )
 
                 # Stop spinner and remove processing message
                 if len(chat_view) > 0:
                     last_item = chat_view.children[-1]
-                    if hasattr(last_item, "is_processing") and last_item.is_processing:
+                    if isinstance(last_item, MessageItem) and last_item.is_processing:
                         last_item.stop_spinner()
 
                 chat_view.messages.pop()  # Remove the processing indicator
@@ -3375,10 +3601,14 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     selected_name = agent_chain.last_selected_agent or active_agent_name
                     if selected_name and selected_name in agent_chain.agents:
                         agent_prompt_chain = agent_chain.agents[selected_name]
-                        if hasattr(agent_prompt_chain, 'total_prompt_tokens'):
+                        if hasattr(agent_prompt_chain, "total_prompt_tokens"):
                             # Update cumulative totals from the PromptChain
-                            self.cumulative_prompt_tokens = agent_prompt_chain.total_prompt_tokens
-                            self.cumulative_completion_tokens = agent_prompt_chain.total_completion_tokens
+                            self.cumulative_prompt_tokens = (
+                                agent_prompt_chain.total_prompt_tokens
+                            )
+                            self.cumulative_completion_tokens = (
+                                agent_prompt_chain.total_completion_tokens
+                            )
 
                 # Update status bar with token counts
                 history_stats = self.session.history_manager.get_statistics()
@@ -3442,7 +3672,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Stop spinner and remove processing indicator if it exists
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing") and last_item.is_processing:
+                if isinstance(last_item, MessageItem) and last_item.is_processing:
                     last_item.stop_spinner()
 
             if (
@@ -3472,8 +3702,13 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             content: User message with file context injected
             workflow: Active workflow state
         """
+        from promptchain.utils.agentic_step_processor import \
+            AgenticStepProcessor
+
         from ..models import Message
-        from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+
+        if self.session is None:
+            return
 
         chat_view = self.query_one("#chat-view", ChatView)
         status_bar = self.query_one("#status-bar", StatusBar)
@@ -3485,14 +3720,14 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             completion_msg = Message(
                 role="system",
                 content="[bold]Workflow completed![/bold]\n"
-                        f"All {len(workflow.steps)} steps finished."
+                f"All {len(workflow.steps)} steps finished.",
             )
             chat_view.add_message(completion_msg)
             return
 
         # Mark step as in_progress
         if current_step.status == "pending":
-            current_step.mark_in_progress(self.session.active_agent)
+            current_step.mark_in_progress(self.session.active_agent or "")
             self.session_manager.save_workflow(self.session.id, workflow)
 
         # Show workflow context
@@ -3502,7 +3737,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 f"[bold]Workflow Active:[/bold] {workflow.objective}\n"
                 f"[dim]Current step ({workflow.current_step_index + 1}/{len(workflow.steps)}):[/dim] {current_step.description}\n"
                 f"[dim]Progress: {workflow.progress_percentage:.0f}%[/dim]"
-            )
+            ),
         )
         chat_view.add_message(workflow_context_msg)
 
@@ -3511,12 +3746,13 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             message_count=len(self.session.messages),
             workflow_objective=workflow.objective,
             workflow_progress=workflow.progress_percentage,
-            workflow_step=f"{workflow.current_step_index + 1}/{len(workflow.steps)}",
         )
 
         # Get active agent model
-        active_agent = self.session.agents.get(self.session.active_agent)
-        model_name = active_agent.model_name if active_agent else self.session.default_model
+        active_agent = self.session.agents.get(self.session.active_agent or "")
+        model_name = (
+            active_agent.model_name if active_agent else self.session.default_model
+        )
 
         # Show processing indicator
         processing_msg = Message(
@@ -3529,8 +3765,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         # Start spinner on processing message
         if len(chat_view) > 0:
             last_item = chat_view.children[-1]
-            if hasattr(last_item, "is_processing"):
-                last_item.is_processing = True
+            if isinstance(last_item, MessageItem):
                 last_item.start_spinner()
 
         try:
@@ -3548,22 +3783,20 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
             # Create workflow-aware PromptChain with AgenticStepProcessor
             workflow_chain = PromptChain(
-                models=[{
-                    "name": model_name,
-                    "params": {"max_completion_tokens": 16000}
-                }],
+                models=[
+                    {"name": model_name, "params": {"max_completion_tokens": 16000}}
+                ],
                 instructions=[
                     f"Working on workflow: {workflow.objective}\nCurrent step: {current_step.description}",
                     agentic_processor,  # Multi-hop reasoning for current step
-                    "Summarize step completion: {input}"
+                    "Summarize step completion: {input}",
                 ],
                 verbose=False,
             )
 
             # Show reasoning progress for workflow step
             self.show_reasoning_progress(
-                objective=current_step.description,
-                max_steps=max_steps
+                objective=current_step.description, max_steps=max_steps
             )
 
             # Execute workflow step with agentic reasoning
@@ -3573,10 +3806,14 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # This allows us to see what the processor actually did
             agentic_metadata = {
                 "steps_executed": getattr(agentic_processor, "steps_executed", 0),
-                "total_tools_called": getattr(agentic_processor, "total_tools_called", 0),
+                "total_tools_called": getattr(
+                    agentic_processor, "total_tools_called", 0
+                ),
                 "total_tokens_used": getattr(agentic_processor, "total_tokens_used", 0),
                 "execution_time_ms": getattr(agentic_processor, "execution_time_ms", 0),
-                "max_steps_reached": getattr(agentic_processor, "max_steps_reached", False),
+                "max_steps_reached": getattr(
+                    agentic_processor, "max_steps_reached", False
+                ),
             }
 
             # Hide reasoning progress
@@ -3585,7 +3822,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Stop spinner and remove processing indicator
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing") and last_item.is_processing:
+                if isinstance(last_item, MessageItem) and last_item.is_processing:
                     last_item.stop_spinner()
 
             chat_view.messages.pop()  # Remove processing indicator
@@ -3630,25 +3867,24 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                         f"[bold]Workflow step completed:[/bold] {workflow_update['step_description']}\n"
                         f"[dim]Workflow progress: {workflow_update['progress_percentage']:.0f}% "
                         f"({workflow_update['completed_count']}/{workflow_update['total_steps']} steps)[/dim]"
-                    )
+                    ),
                 )
                 chat_view.add_message(progress_msg)
 
                 # Update status bar with new progress (T091)
                 status_bar.update_session_info(
-                    workflow_progress=workflow_update['progress_percentage'],
-                    workflow_step=f"{workflow_update['completed_count']}/{workflow_update['total_steps']}",
+                    workflow_progress=workflow_update["progress_percentage"],
                 )
 
                 # Check if workflow is now complete
-                workflow = self.session_manager.load_workflow(self.session.id)
-                if workflow and workflow.is_completed:
+                refreshed_workflow = self.session_manager.load_workflow(self.session.id)
+                if refreshed_workflow and refreshed_workflow.is_completed:
                     completion_msg = Message(
                         role="system",
                         content=(
                             f"[bold]Workflow '{workflow.objective}' completed successfully![/bold]\n"
                             f"[dim]All {len(workflow.steps)} steps finished.[/dim]"
-                        )
+                        ),
                     )
                     chat_view.add_message(completion_msg)
 
@@ -3656,7 +3892,6 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     status_bar.update_session_info(
                         workflow_objective=None,
                         workflow_progress=None,
-                        workflow_step=None,
                     )
 
         except Exception as e:
@@ -3666,7 +3901,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Stop spinner and remove processing indicator
             if len(chat_view) > 0:
                 last_item = chat_view.children[-1]
-                if hasattr(last_item, "is_processing") and last_item.is_processing:
+                if isinstance(last_item, MessageItem) and last_item.is_processing:
                     last_item.stop_spinner()
 
             if (
@@ -3752,7 +3987,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         """Handle app exit - save session and cleanup observers."""
         try:
             # Cleanup MLflow observer if active
-            if hasattr(self, '_mlflow_observer'):
+            if hasattr(self, "_mlflow_observer"):
                 try:
                     self._mlflow_observer.shutdown()
                     logger.debug("MLflow observer shutdown complete")
@@ -3780,12 +4015,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             (e.g. ``"steering"``, ``"abort"``).
             message: Human-readable interrupt message.
         """
-        from promptchain.utils.interrupt_queue import InterruptQueue, InterruptType
+        from promptchain.utils.interrupt_queue import (InterruptQueue,
+                                                       InterruptType)
 
         # Resolve the queue from either public or private attribute
         iq: Optional[InterruptQueue] = getattr(
-            self, "interrupt_queue",
-            getattr(self, "_interrupt_queue", None)
+            self, "interrupt_queue", getattr(self, "_interrupt_queue", None)
         )
         if iq is None:
             logger.warning(
