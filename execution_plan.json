@@ -1,196 +1,86 @@
 {
   "execution_plan": {
-    "phase_id": "007 Type Safety Debt",
+    "phase_id": "008 Type Safety Debt Part 2",
     "waves": [
       {
         "wave_id": 1,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 1: 17 independent task(s) with no file conflicts",
+        "rationale": "Wave 1: 7 independent task(s) with no file conflicts",
         "tasks": [
           {
             "task_id": "T001",
             "agent_role": "Developer",
-            "instruction": "T001 Create feature branch `007-type-safety-debt` from `main`",
-            "file_locks": [],
+            "instruction": "T001 Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt` and commit the output as the baseline snapshot for regression tracking",
+            "file_locks": [
+              "python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt",
+              "specs/008-type-safety-debt-pt2/mypy-baseline.txt"
+            ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Create feature branch `007-type-safety-debt` from `main`' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt` and commit the output as the baseline snapshot for regression tracking' to [x]",
             "dependencies": []
           },
           {
             "task_id": "T002",
             "agent_role": "Developer",
-            "instruction": "T002 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt` and commit the output as `specs/007-type-safety-debt/mypy-baseline.txt` for regression tracking",
+            "instruction": "T002 [US1] Fix `max_entries` implicit Optional at line 1014: change `max_entries: int = None` to `max_entries: Optional[int] = None` in `promptchain/utils/strategies/state_agent.py`",
             "file_locks": [
-              "specs/007-type-safety-debt/mypy-baseline.txt",
-              "tmp/mypy-baseline.txt",
-              "python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt"
+              "promptchain/utils/strategies/state_agent.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > /tmp/mypy-baseline.txt` and commit the output as `specs/007-type-safety-debt/mypy-baseline.txt` for regression tracking' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T003",
-            "agent_role": "Developer",
-            "instruction": "T003 Fix `promptchain/cli/session_manager.py` (15 errors) \u2014 add `TYPE_CHECKING` guard to import `MCPServerConfig`, `WorkflowState`, `WorkflowStep`, `Task`, `BlackboardEntry`, `MultiAgentWorkflow` from their respective modules; fix `append` `arg-type` (int appended to `list[str]`) at lines 1784 and 2189",
-            "file_locks": [
-              "promptchain/cli/session_manager.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T003 Fix `promptchain/cli/session_manager.py` (15 errors) \u2014 add `TYPE_CHECKING` guard to import `MCPServerConfig`, `WorkflowState`, `WorkflowStep`, `Task`, `BlackboardEntry`, `MultiAgentWorkflow` from their respective modules; fix `append` `arg-type` (int appended to `list[str]`) at lines 1784 and 2189' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T004",
-            "agent_role": "Developer",
-            "instruction": "T004 Fix `promptchain/cli/command_handler.py` (13 errors) \u2014 change bare `{}` / `[]` vars to typed annotations (`dict[str, list[Any]]`, `dict[str, Any]`); replace `Collection[str]` mutable usage with `list[str]` where items are appended/indexed; add `if self.agent_config.history is not None:` guards at lines 317 and 323; add `# type: ignore[import-untyped]` comment on yaml import",
-            "file_locks": [
-              "promptchain/cli/command_handler.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T004 Fix `promptchain/cli/command_handler.py` (13 errors) \u2014 change bare `{}` / `[]` vars to typed annotations (`dict[str, list[Any]]`, `dict[str, Any]`); replace `Collection[str]` mutable usage with `list[str]` where items are appended/indexed; add `if self.agent_config.history is not None:` guards at lines 317 and 323; add `# type: ignore[import-untyped]` comment on yaml import' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T005",
-            "agent_role": "Developer",
-            "instruction": "T005 [P] Fix `promptchain/cli/config/yaml_translator.py` (9 errors) \u2014 add `types-PyYAML` stub note or `# type: ignore[import-untyped]`; fix list type declarations (`list[str | AgenticStepProcessor]`); change `OrchestrationConfig(execution_mode=...)` call to cast/validate the string to `Literal['router', 'pipeline', 'round-robin', 'broadcast']`; fix `list[Any]` vs `dict[str, Any]` assignment at line 436",
-            "file_locks": [
-              "promptchain/cli/config/yaml_translator.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T005 [P] Fix `promptchain/cli/config/yaml_translator.py` (9 errors) \u2014 add `types-PyYAML` stub note or `# type: ignore[import-untyped]`; fix list type declarations (`list[str | AgenticStepProcessor]`); change `OrchestrationConfig(execution_mode=...)` call to cast/validate the string to `Literal['router', 'pipeline', 'round-robin', 'broadcast']`; fix `list[Any]` vs `dict[str, Any]` assignment at line 436' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T006",
-            "agent_role": "Developer",
-            "instruction": "T006 [P] Fix `promptchain/cli/tools/sandbox/docker_sandbox.py` (8 errors) \u2014 filter `None` from command lists before passing to `subprocess.run` (e.g., `[x for x in cmd if x is not None]`); fix missing `project_root` positional argument to `SafetyValidator` constructor at line 560; rename `validate_code` \u2192 `validate_command` at line 561 (matches actual `SafetyValidator` API)",
-            "file_locks": [
-              "subprocess.run",
-              "promptchain/cli/tools/sandbox/docker_sandbox.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T006 [P] Fix `promptchain/cli/tools/sandbox/docker_sandbox.py` (8 errors) \u2014 filter `None` from command lists before passing to `subprocess.run` (e.g., `[x for x in cmd if x is not None]`); fix missing `project_root` positional argument to `SafetyValidator` constructor at line 560; rename `validate_code` \u2192 `validate_command` at line 561 (matches actual `SafetyValidator` API)' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T007",
-            "agent_role": "Developer",
-            "instruction": "T007 [P] Fix `promptchain/cli/tools/safety.py` (8 errors) \u2014 replace `any` (builtin function used as type) with `Any` from `typing` at lines 398 and 583; change `result: str` declarations at lines 452, 457, 466, 468 to `result: Path | list[str] | int | str` or use separate typed variables; add `Path | None` cast before passing to `_validate_delete_operation` / `_validate_write_operation`",
-            "file_locks": [
-              "promptchain/cli/tools/safety.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T007 [P] Fix `promptchain/cli/tools/safety.py` (8 errors) \u2014 replace `any` (builtin function used as type) with `Any` from `typing` at lines 398 and 583; change `result: str` declarations at lines 452, 457, 466, 468 to `result: Path | list[str] | int | str` or use separate typed variables; add `Path | None` cast before passing to `_validate_delete_operation` / `_validate_write_operation`' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T008",
-            "agent_role": "Developer",
-            "instruction": "T008 [P] Fix `promptchain/tools/terminal/terminal_tool.py` (7 errors) \u2014 add `Optional[str]` and `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameter annotations (implicit Optional fix); add `assert result is not None` / early-return guards before accessing `.return_code` at lines 642, 684, 710; guard `session.name` with `if session is not None:` at line 823",
-            "file_locks": [
-              "promptchain/tools/terminal/terminal_tool.py",
-              "session.name"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [P] Fix `promptchain/tools/terminal/terminal_tool.py` (7 errors) \u2014 add `Optional[str]` and `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameter annotations (implicit Optional fix); add `assert result is not None` / early-return guards before accessing `.return_code` at lines 642, 684, 710; guard `session.name` with `if session is not None:` at line 823' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [US1] Fix `max_entries` implicit Optional at line 1014: change `max_entries: int = None` to `max_entries: Optional[int] = None` in `promptchain/utils/strategies/state_agent.py`' to [x]",
             "dependencies": []
           },
           {
             "task_id": "T009",
             "agent_role": "Developer",
-            "instruction": "T009 [P] Fix `promptchain/cli/communication/handlers.py` (7 errors) \u2014 move `_handlers: dict[str, list[Callable[..., Any]]]` declaration to the class body (not inside a method), initialised as a proper class variable or instance variable in `__init__` to resolve `has-type` and non-self attribute errors",
+            "instruction": "T009 [P] [US2] Fix `Session | None` union-attr errors (lines 1027, 1326, 1328, 1637, 1645, 1664, 1681, 1709, 1720, 3691): at each line that accesses `.agents`, `.history_max_tokens`, `.history_manager`, `.mcp_servers`, or `.messages`, add an early-return guard `if self.session is None: return` (or `assert self.session is not None`) immediately before the access in `promptchain/cli/tui/app.py`",
             "file_locks": [
-              "promptchain/cli/communication/handlers.py"
+              "promptchain/cli/tui/app.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] Fix `promptchain/cli/communication/handlers.py` (7 errors) \u2014 move `_handlers: dict[str, list[Callable[..., Any]]]` declaration to the class body (not inside a method), initialised as a proper class variable or instance variable in `__init__` to resolve `has-type` and non-self attribute errors' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] [US2] Fix `Session | None` union-attr errors (lines 1027, 1326, 1328, 1637, 1645, 1664, 1681, 1709, 1720, 3691): at each line that accesses `.agents`, `.history_max_tokens`, `.history_manager`, `.mcp_servers`, or `.messages`, add an early-return guard `if self.session is None: return` (or `assert self.session is not None`) immediately before the access in `promptchain/cli/tui/app.py`' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T010",
+            "task_id": "T020",
             "agent_role": "Developer",
-            "instruction": "T010 [P] Fix `promptchain/tools/terminal/session_manager.py` (5 errors) \u2014 add `Optional[str]` / `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameters at lines 51\u201352 and 464\u2013465; annotate `command_history: list[dict[str, Any]] = []` at line 57",
+            "instruction": "T020 [P] [US3] Fix `ModelProvider`/`ModelManagementConfig` no-redef errors at lines 100 and 102: wrap the fallback class stubs inside the `except ImportError:` block in a `if not TYPE_CHECKING:` guard (or rename the fallback stubs to avoid collision with the real import names) in `promptchain/utils/promptchaining.py`",
             "file_locks": [
-              "promptchain/tools/terminal/session_manager.py"
+              "promptchain/utils/promptchaining.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] Fix `promptchain/tools/terminal/session_manager.py` (5 errors) \u2014 add `Optional[str]` / `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameters at lines 51\u201352 and 464\u2013465; annotate `command_history: list[dict[str, Any]] = []` at line 57' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T020 [P] [US3] Fix `ModelProvider`/`ModelManagementConfig` no-redef errors at lines 100 and 102: wrap the fallback class stubs inside the `except ImportError:` block in a `if not TYPE_CHECKING:` guard (or rename the fallback stubs to avoid collision with the real import names) in `promptchain/utils/promptchaining.py`' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T011",
+            "task_id": "T036",
             "agent_role": "Developer",
-            "instruction": "T011 [P] Fix `promptchain/integrations/lightrag/events.py` (4 errors) \u2014 change `details: dict[str, Any] = None` to `details: Optional[dict[str, Any]] = None` at line 167 and similarly for `metadata` at line 184; change return type of the `Sequence[str]` method to `list[str]` and add `list(...)` cast; annotate `all_events: list[...]` at line 264",
-            "file_locks": [
-              "promptchain/integrations/lightrag/events.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] Fix `promptchain/integrations/lightrag/events.py` (4 errors) \u2014 change `details: dict[str, Any] = None` to `details: Optional[dict[str, Any]] = None` at line 167 and similarly for `metadata` at line 184; change return type of the `Sequence[str]` method to `list[str]` and add `list(...)` cast; annotate `all_events: list[...]` at line 264' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T012",
-            "agent_role": "Developer",
-            "instruction": "T012 [P] Fix `promptchain/cli/tools/filesystem_tools.py` (4 errors) \u2014 annotate `all_paths: list[Path] = []` and `results: list[Any] = []`; add `if metadata is not None:` guards before accessing `metadata.function` at lines 515\u2013516",
-            "file_locks": [
-              "metadata.function",
-              "promptchain/cli/tools/filesystem_tools.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] Fix `promptchain/cli/tools/filesystem_tools.py` (4 errors) \u2014 annotate `all_paths: list[Path] = []` and `results: list[Any] = []`; add `if metadata is not None:` guards before accessing `metadata.function` at lines 515\u2013516' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T013",
-            "agent_role": "Developer",
-            "instruction": "T013 [P] Fix `promptchain/cli/tools/executor.py` (3 errors) \u2014 add `if self.safety_validator is not None:` guards before `.validate_path()` and `.validate_command()` calls at lines 484, 494, 496",
-            "file_locks": [
-              "promptchain/cli/tools/executor.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] Fix `promptchain/cli/tools/executor.py` (3 errors) \u2014 add `if self.safety_validator is not None:` guards before `.validate_path()` and `.validate_command()` calls at lines 484, 494, 496' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T014",
-            "agent_role": "Developer",
-            "instruction": "T014 [P] Fix remaining 1\u20132 error files in a single pass:",
+            "instruction": "T036 [P] Run full project mypy check: `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"Found.*error\" | tail -1` \u2014 confirm total error count < 220 (down from 329); record result",
             "file_locks": [],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] Fix remaining 1\u20132 error files in a single pass:' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T036 [P] Run full project mypy check: `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"Found.*error\" | tail -1` \u2014 confirm total error count < 220 (down from 329); record result' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T015",
+            "task_id": "T039",
             "agent_role": "Developer",
-            "instruction": "T015 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u | wc -l` \u2014 confirm count < 10; record result in `specs/007-type-safety-debt/test-results.md`",
+            "instruction": "T039 [P] Run `pytest --tb=short -q` \u2014 confirm no new test failures vs pre-sprint baseline; annotate any pre-existing failures as pre-existing in `specs/008-type-safety-debt-pt2/test-results.md`",
             "file_locks": [
-              "specs/007-type-safety-debt/test-results.md"
+              "specs/008-type-safety-debt-pt2/test-results.md"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u | wc -l` \u2014 confirm count < 10; record result in `specs/007-type-safety-debt/test-results.md`' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T039 [P] Run `pytest --tb=short -q` \u2014 confirm no new test failures vs pre-sprint baseline; annotate any pre-existing failures as pre-existing in `specs/008-type-safety-debt-pt2/test-results.md`' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T016",
+            "task_id": "T041",
             "agent_role": "Developer",
-            "instruction": "T016 [P] Run `black . && isort . && flake8 promptchain/` \u2014 fix any linting issues introduced by annotation changes in modified files",
-            "file_locks": [],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] Run `black . && isort . && flake8 promptchain/` \u2014 fix any linting issues introduced by annotation changes in modified files' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T018",
-            "agent_role": "Developer",
-            "instruction": "T018 Update `CLAUDE.md` \"Recent Changes\" section to record 007-type-safety-debt as complete",
+            "instruction": "T041 Update `CLAUDE.md` \"Recent Changes\" section to record 008-type-safety-debt-pt2 as complete with final error count",
             "file_locks": [
               "CLAUDE.md"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T018 Update `CLAUDE.md` \"Recent Changes\" section to record 007-type-safety-debt as complete' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T041 Update `CLAUDE.md` \"Recent Changes\" section to record 008-type-safety-debt-pt2 as complete with final error count' to [x]",
             "dependencies": []
           }
         ],
@@ -203,26 +93,875 @@
       },
       {
         "wave_id": 2,
-        "strategy": "SEQUENTIAL_MERGE",
-        "rationale": "Wave 2: 1 independent task(s) with no file conflicts",
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 2: 4 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T017",
+            "task_id": "T003",
             "agent_role": "Developer",
-            "instruction": "T017 [P] Run `pytest` \u2014 confirm no regressions vs baseline; annotate any pre-existing failures as pre-existing in `specs/007-type-safety-debt/test-results.md`",
+            "instruction": "T003 [US1] Resolve `_validate_session_exists` attr-defined errors at lines 1112, 1425, 1563: search the StateAgent class body for the actual method name; add underscore prefix to the definition if missing, or add the method declaration if absent, in `promptchain/utils/strategies/state_agent.py`",
             "file_locks": [
-              "specs/007-type-safety-debt/test-results.md"
+              "promptchain/utils/strategies/state_agent.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] Run `pytest` \u2014 confirm no regressions vs baseline; annotate any pre-existing failures as pre-existing in `specs/007-type-safety-debt/test-results.md`' to [x]",
+            "completion_handshake": "Upon success, update tasks.md line containing 'T003 [US1] Resolve `_validate_session_exists` attr-defined errors at lines 1112, 1425, 1563: search the StateAgent class body for the actual method name; add underscore prefix to the definition if missing, or add the method declaration if absent, in `promptchain/utils/strategies/state_agent.py`' to [x]",
             "dependencies": [
-              "T015"
+              "T002"
+            ]
+          },
+          {
+            "task_id": "T010",
+            "agent_role": "Developer",
+            "instruction": "T010 [P] [US2] Fix `MCPServerConfig` arg-type errors (lines 1613\u20131616): convert `Sequence[str]` values to scalar `str` for `id` and `type` fields (e.g., `id=str(val[0])`) and to `list[str]` for the `args` field (e.g., `args=list(val)`) before passing to `MCPServerConfig(...)` in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] [US2] Fix `MCPServerConfig` arg-type errors (lines 1613\u20131616): convert `Sequence[str]` values to scalar `str` for `id` and `type` fields (e.g., `id=str(val[0])`) and to `list[str]` for the `args` field (e.g., `args=list(val)`) before passing to `MCPServerConfig(...)` in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T009"
+            ]
+          },
+          {
+            "task_id": "T021",
+            "agent_role": "Developer",
+            "instruction": "T021 [P] [US3] Fix `ClientSession`/`StdioServerParameters`/`stdio_client`/`experimental_mcp_client` None assignment errors at lines 120\u2013123: restructure the MCP import block to use `if TYPE_CHECKING:` for the type-level names and keep only runtime values (flags or sentinel objects) in the except branch; add `# type: ignore[assignment]` only where truly unavoidable in `promptchain/utils/promptchaining.py`",
+            "file_locks": [
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T021 [P] [US3] Fix `ClientSession`/`StdioServerParameters`/`stdio_client`/`experimental_mcp_client` None assignment errors at lines 120\u2013123: restructure the MCP import block to use `if TYPE_CHECKING:` for the type-level names and keep only runtime values (flags or sentinel objects) in the except branch; add `# type: ignore[assignment]` only where truly unavoidable in `promptchain/utils/promptchaining.py`' to [x]",
+            "dependencies": [
+              "T020"
+            ]
+          },
+          {
+            "task_id": "T040",
+            "agent_role": "Developer",
+            "instruction": "T040 Write results to `specs/008-type-safety-debt-pt2/test-results.md` using the template from `specs/008-type-safety-debt-pt2/quickstart.md` \u2014 record before/after error counts per file, pytest pass/fail counts, and linting status",
+            "file_locks": [
+              "specs/008-type-safety-debt-pt2/test-results.md",
+              "specs/008-type-safety-debt-pt2/quickstart.md"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T040 Write results to `specs/008-type-safety-debt-pt2/test-results.md` using the template from `specs/008-type-safety-debt-pt2/quickstart.md` \u2014 record before/after error counts per file, pytest pass/fail counts, and linting status' to [x]",
+            "dependencies": [
+              "T039"
             ]
           }
         ],
         "checkpoint_after": {
           "enabled": true,
           "verification_criteria": "Verify all Wave 2 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 3,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 3: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T004",
+            "agent_role": "Developer",
+            "instruction": "T004 [US1] Fix `Collection[Any] | None` mutable usage errors (lines 1122, 1123, 1244, 1245, 1250, 1251, 1373, 1374, 1536, 1537, 1610, 1611): change all `Collection[Any] | None` field annotations to `Optional[list[Any]]`, then add `if field is not None:` guards before every `.append()`, `.remove()`, `in` operator, and `__delitem__` call in `promptchain/utils/strategies/state_agent.py`",
+            "file_locks": [
+              "promptchain/utils/strategies/state_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T004 [US1] Fix `Collection[Any] | None` mutable usage errors (lines 1122, 1123, 1244, 1245, 1250, 1251, 1373, 1374, 1536, 1537, 1610, 1611): change all `Collection[Any] | None` field annotations to `Optional[list[Any]]`, then add `if field is not None:` guards before every `.append()`, `.remove()`, `in` operator, and `__delitem__` call in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "dependencies": [
+              "T003",
+              "T002"
+            ]
+          },
+          {
+            "task_id": "T011",
+            "agent_role": "Developer",
+            "instruction": "T011 [P] [US2] Fix `execute_hybrid` wrong kwarg error at line 2268/2270: rename `fusion_method=` to `fusion=` (the actual parameter name in `promptchain/patterns/executors.py:execute_hybrid`) in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] [US2] Fix `execute_hybrid` wrong kwarg error at line 2268/2270: rename `fusion_method=` to `fusion=` (the actual parameter name in `promptchain/patterns/executors.py:execute_hybrid`) in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T009",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T022",
+            "agent_role": "Developer",
+            "instruction": "T022 [P] [US3] Fix conditional function variant mismatched signatures at line 104: unify the two conditional definitions into a single signature (using `Optional` parameters) or add `@overload` declarations so mypy sees a consistent signature in `promptchain/utils/promptchaining.py`",
+            "file_locks": [
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T022 [P] [US3] Fix conditional function variant mismatched signatures at line 104: unify the two conditional definitions into a single signature (using `Optional` parameters) or add `@overload` declarations so mypy sees a consistent signature in `promptchain/utils/promptchaining.py`' to [x]",
+            "dependencies": [
+              "T020",
+              "T021"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 3 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 4,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 4: 3 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T005",
+            "agent_role": "Developer",
+            "instruction": "T005 [US1] Fix `sessions` var-annotated error at line 1367: change `sessions = {}` to `sessions: dict[str, Any] = {}` in `promptchain/utils/strategies/state_agent.py`",
+            "file_locks": [
+              "promptchain/utils/strategies/state_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T005 [US1] Fix `sessions` var-annotated error at line 1367: change `sessions = {}` to `sessions: dict[str, Any] = {}` in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "dependencies": [
+              "T003",
+              "T002",
+              "T004"
+            ]
+          },
+          {
+            "task_id": "T012",
+            "agent_role": "Developer",
+            "instruction": "T012 [P] [US2] Fix `execute_sharded` wrong kwargs at lines 2363\u20132366: rename `shard_paths=` to `shards=` and `aggregation_method=` to `aggregation=` (the actual parameter names in `promptchain/patterns/executors.py:execute_sharded`) in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] [US2] Fix `execute_sharded` wrong kwargs at lines 2363\u20132366: rename `shard_paths=` to `shards=` and `aggregation_method=` to `aggregation=` (the actual parameter names in `promptchain/patterns/executors.py:execute_sharded`) in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T010"
+            ]
+          },
+          {
+            "task_id": "T023",
+            "agent_role": "Developer",
+            "instruction": "T023 [P] [US3] Fix implicit Optional defaults at lines 148, 152, 1806, 1807, 1838, 1839: change `chainbreakers: list[Callable[..., Any]] = None` to `Optional[list[Callable[..., Any]]] = None`, `auto_unload_models: bool = None` to `Optional[bool] = None`, and similarly for `params`, `tool_choice`, `tools` in `promptchain/utils/promptchaining.py`",
+            "file_locks": [
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T023 [P] [US3] Fix implicit Optional defaults at lines 148, 152, 1806, 1807, 1838, 1839: change `chainbreakers: list[Callable[..., Any]] = None` to `Optional[list[Callable[..., Any]]] = None`, `auto_unload_models: bool = None` to `Optional[bool] = None`, and similarly for `params`, `tool_choice`, `tools` in `promptchain/utils/promptchaining.py`' to [x]",
+            "dependencies": [
+              "T022",
+              "T020",
+              "T021"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 4 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 5,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 5: 4 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T006",
+            "agent_role": "Developer",
+            "instruction": "T006 [US1] Fix `None.cursor` attr-defined errors at lines 1430 and 1584: add `if self._db_conn is None: raise RuntimeError(\"Database connection not initialized\")` (or `assert self._db_conn is not None`) immediately before each `.cursor()` call in `promptchain/utils/strategies/state_agent.py`",
+            "file_locks": [
+              "None.cursor",
+              "promptchain/utils/strategies/state_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T006 [US1] Fix `None.cursor` attr-defined errors at lines 1430 and 1584: add `if self._db_conn is None: raise RuntimeError(\"Database connection not initialized\")` (or `assert self._db_conn is not None`) immediately before each `.cursor()` call in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "dependencies": [
+              "T003",
+              "T002",
+              "T004",
+              "T005"
+            ]
+          },
+          {
+            "task_id": "T013",
+            "agent_role": "Developer",
+            "instruction": "T013 [P] [US2] Fix `Widget` missing `start_spinner`/`stop_spinner` attr-defined errors (lines 2598, 2613, 2637, 3071, 3359, 3446, 3534, 3589, 3670): at each `last_item = chat_view.children[-1]` site, replace the `hasattr(last_item, \"is_processing\")` guard with `isinstance(last_item, MessageItem)` narrowing, importing `MessageItem` from `promptchain.cli.tui.chat_view` at the top of `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain.cli.tui",
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] [US2] Fix `Widget` missing `start_spinner`/`stop_spinner` attr-defined errors (lines 2598, 2613, 2637, 3071, 3359, 3446, 3534, 3589, 3670): at each `last_item = chat_view.children[-1]` site, replace the `hasattr(last_item, \"is_processing\")` guard with `isinstance(last_item, MessageItem)` narrowing, importing `MessageItem` from `promptchain.cli.tui.chat_view` at the top of `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T009",
+              "T011",
+              "T010",
+              "T012"
+            ]
+          },
+          {
+            "task_id": "T024",
+            "agent_role": "Developer",
+            "instruction": "T024 [P] [US3] Fix union-attr `.objective` on `str | Callable | AgenticStepProcessor` at line 1619: add `if isinstance(instruction, AgenticStepProcessor):` check before the `.objective` access; handle the other union members explicitly in `promptchain/utils/promptchaining.py`",
+            "file_locks": [
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T024 [P] [US3] Fix union-attr `.objective` on `str | Callable | AgenticStepProcessor` at line 1619: add `if isinstance(instruction, AgenticStepProcessor):` check before the `.objective` access; handle the other union members explicitly in `promptchain/utils/promptchaining.py`' to [x]",
+            "dependencies": [
+              "T022",
+              "T020",
+              "T021",
+              "T023"
+            ]
+          },
+          {
+            "task_id": "T027",
+            "agent_role": "Developer",
+            "instruction": "T027 [P] [US4] Fix `Blackboard`/`MessageBus` attr-defined import errors at line 21: remove the invalid import `from promptchain.cli.models import Blackboard, MessageBus` (these names do not exist; the forward-reference strings `\"Blackboard\"` and `\"MessageBus\"` in function signatures require no live import) in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain.cli",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T027 [P] [US4] Fix `Blackboard`/`MessageBus` attr-defined import errors at line 21: remove the invalid import `from promptchain.cli.models import Blackboard, MessageBus` (these names do not exist; the forward-reference strings `\"Blackboard\"` and `\"MessageBus\"` in function signatures require no live import) in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T012"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 5 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 6,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 6: 4 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T007",
+            "agent_role": "Developer",
+            "instruction": "T007 [US1] Fix `dict` assigned to `str` variable errors at lines 1631\u20131634: change the variable declaration from `str` to `dict[str, Any]` (or rename the variable to avoid the type clash), then fix any downstream string-index accesses to use dict-key lookups in `promptchain/utils/strategies/state_agent.py`",
+            "file_locks": [
+              "promptchain/utils/strategies/state_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T007 [US1] Fix `dict` assigned to `str` variable errors at lines 1631\u20131634: change the variable declaration from `str` to `dict[str, Any]` (or rename the variable to avoid the type clash), then fix any downstream string-index accesses to use dict-key lookups in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "dependencies": [
+              "T003",
+              "T004",
+              "T002",
+              "T006",
+              "T005"
+            ]
+          },
+          {
+            "task_id": "T014",
+            "agent_role": "Developer",
+            "instruction": "T014 [P] [US2] Fix `PromptChainApp` missing `command_handler` attr-defined at line 1892: declare `command_handler: CommandHandler` (or appropriate type) as a class-level attribute or add it to `__init__` with the correct type in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] [US2] Fix `PromptChainApp` missing `command_handler` attr-defined at line 1892: declare `command_handler: CommandHandler` (or appropriate type) as a class-level attribute or add it to `__init__` with the correct type in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T010",
+              "T012",
+              "T009",
+              "T013"
+            ]
+          },
+          {
+            "task_id": "T025",
+            "agent_role": "Developer",
+            "instruction": "T025 [P] [US3] Fix `step_outputs` var-annotated error at line 220: change `step_outputs = {}` to `step_outputs: dict[str, Any] = {}` in `promptchain/utils/promptchaining.py`",
+            "file_locks": [
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T025 [P] [US3] Fix `step_outputs` var-annotated error at line 220: change `step_outputs = {}` to `step_outputs: dict[str, Any] = {}` in `promptchain/utils/promptchaining.py`' to [x]",
+            "dependencies": [
+              "T021",
+              "T020",
+              "T023",
+              "T022",
+              "T024"
+            ]
+          },
+          {
+            "task_id": "T028",
+            "agent_role": "Developer",
+            "instruction": "T028 [P] [US4] Fix `LightRAGBranchingThoughts` wrong kwargs at line 82 (execute_branch function): update the constructor call to use `lightrag_core=<integration_instance>` and wrap settings in `BranchingConfig(...)` matching the actual `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/branching.py` for exact config fields in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/integrations/lightrag/branching.py",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T028 [P] [US4] Fix `LightRAGBranchingThoughts` wrong kwargs at line 82 (execute_branch function): update the constructor call to use `lightrag_core=<integration_instance>` and wrap settings in `BranchingConfig(...)` matching the actual `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/branching.py` for exact config fields in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T027",
+              "T012"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 6 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 7,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 7: 4 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T008",
+            "agent_role": "Developer",
+            "instruction": "T008 [US1] Verify US1 complete: run `python -m mypy promptchain/utils/strategies/state_agent.py --ignore-missing-imports 2>&1 | grep \"error:\"` and confirm empty output (0 errors)",
+            "file_locks": [
+              "promptchain/utils/strategies/state_agent.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [US1] Verify US1 complete: run `python -m mypy promptchain/utils/strategies/state_agent.py --ignore-missing-imports 2>&1 | grep \"error:\"` and confirm empty output (0 errors)' to [x]",
+            "dependencies": [
+              "T003",
+              "T004",
+              "T002",
+              "T006",
+              "T007",
+              "T005"
+            ]
+          },
+          {
+            "task_id": "T015",
+            "agent_role": "Developer",
+            "instruction": "T015 [P] [US2] Fix `list[str]` assigned to `float` variable errors at lines 1978 and 1980: correct the type annotation of the affected variable from `float` to `list[str] | str | float` (or split into separate variables with appropriate types) in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] [US2] Fix `list[str]` assigned to `float` variable errors at lines 1978 and 1980: correct the type annotation of the affected variable from `float` to `list[str] | str | float` (or split into separate variables with appropriate types) in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T010",
+              "T012",
+              "T009",
+              "T013",
+              "T014"
+            ]
+          },
+          {
+            "task_id": "T026",
+            "agent_role": "Developer",
+            "instruction": "T026 [US3] Verify US3 complete: run `python -m mypy promptchain/utils/promptchaining.py --ignore-missing-imports 2>&1 | grep \"promptchaining.py.*error:\"` and confirm empty output (0 errors)",
+            "file_locks": [
+              "promptchaining.py",
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T026 [US3] Verify US3 complete: run `python -m mypy promptchain/utils/promptchaining.py --ignore-missing-imports 2>&1 | grep \"promptchaining.py.*error:\"` and confirm empty output (0 errors)' to [x]",
+            "dependencies": [
+              "T021",
+              "T025",
+              "T020",
+              "T023",
+              "T022",
+              "T024"
+            ]
+          },
+          {
+            "task_id": "T029",
+            "agent_role": "Developer",
+            "instruction": "T029 [P] [US4] Fix `LightRAGQueryExpander` wrong kwargs at line 162 (execute_expand function): update constructor call to use `lightrag_integration=<integration_instance>` and `config=QueryExpansionConfig(strategies=..., ...)` matching `__init__(self, search_interface=None, lightrag_integration=None, config=None)` signature; inspect `promptchain/integrations/lightrag/query_expansion.py` for QueryExpansionConfig fields in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/patterns/executors.py",
+              "promptchain/integrations/lightrag/query_expansion.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T029 [P] [US4] Fix `LightRAGQueryExpander` wrong kwargs at line 162 (execute_expand function): update constructor call to use `lightrag_integration=<integration_instance>` and `config=QueryExpansionConfig(strategies=..., ...)` matching `__init__(self, search_interface=None, lightrag_integration=None, config=None)` signature; inspect `promptchain/integrations/lightrag/query_expansion.py` for QueryExpansionConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T027",
+              "T028",
+              "T012"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 7 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 8,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 8: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T016",
+            "agent_role": "Developer",
+            "instruction": "T016 [P] [US2] Fix `name message_text not defined` error at line 3146: trace the enclosing scope to find where `message_text` should be assigned; add the assignment before line 3146 or correct the variable reference in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] [US2] Fix `name message_text not defined` error at line 3146: trace the enclosing scope to find where `message_text` should be assigned; add the assignment before line 3146 or correct the variable reference in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T010",
+              "T012",
+              "T015",
+              "T009",
+              "T013",
+              "T014"
+            ]
+          },
+          {
+            "task_id": "T030",
+            "agent_role": "Developer",
+            "instruction": "T030 [P] [US4] Fix `LightRAGMultiHop` wrong kwargs at lines 202/241 (execute_multihop function): update constructor call to use `search_interface=<interface>` and `config=MultiHopConfig(...)` matching `__init__(self, search_interface, config=None)` signature; inspect `promptchain/integrations/lightrag/multi_hop.py` for MultiHopConfig fields in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/integrations/lightrag/multi_hop.py",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T030 [P] [US4] Fix `LightRAGMultiHop` wrong kwargs at lines 202/241 (execute_multihop function): update constructor call to use `search_interface=<interface>` and `config=MultiHopConfig(...)` matching `__init__(self, search_interface, config=None)` signature; inspect `promptchain/integrations/lightrag/multi_hop.py` for MultiHopConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T028",
+              "T012",
+              "T027",
+              "T029"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 8 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 9,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 9: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T017",
+            "agent_role": "Developer",
+            "instruction": "T017 [P] [US2] Fix `ToolMetadata | None` union-attr `.function` errors at lines 2893 and 2911: add `if tool_meta is not None:` guard before each `.function` access in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] [US2] Fix `ToolMetadata | None` union-attr `.function` errors at lines 2893 and 2911: add `if tool_meta is not None:` guard before each `.function` access in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T016",
+              "T010",
+              "T012",
+              "T015",
+              "T009",
+              "T013",
+              "T014"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 9 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 10,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 10: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T018",
+            "agent_role": "Developer",
+            "instruction": "T018 [P] [US2] Fix `Argument 2 to next has incompatible type None` error at line 1664: change the `next(iter(...), None)` default to a proper `MCPServerConfig` sentinel or change the variable type to `Optional[MCPServerConfig]` and handle the None downstream in `promptchain/cli/tui/app.py`",
+            "file_locks": [
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T018 [P] [US2] Fix `Argument 2 to next has incompatible type None` error at line 1664: change the `next(iter(...), None)` default to a proper `MCPServerConfig` sentinel or change the variable type to `Optional[MCPServerConfig]` and handle the None downstream in `promptchain/cli/tui/app.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T016",
+              "T010",
+              "T017",
+              "T012",
+              "T015",
+              "T009",
+              "T013",
+              "T014"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 10 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 11,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 11: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T019",
+            "agent_role": "Developer",
+            "instruction": "T019 [US2] Verify US2 complete: run `python -m mypy promptchain/cli/tui/app.py --ignore-missing-imports 2>&1 | grep \"app.py.*error:\"` and confirm empty output (0 errors); also manually test TUI starts without errors with `promptchain --help`",
+            "file_locks": [
+              "app.py",
+              "promptchain/cli/tui/app.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T019 [US2] Verify US2 complete: run `python -m mypy promptchain/cli/tui/app.py --ignore-missing-imports 2>&1 | grep \"app.py.*error:\"` and confirm empty output (0 errors); also manually test TUI starts without errors with `promptchain --help`' to [x]",
+            "dependencies": [
+              "T011",
+              "T016",
+              "T010",
+              "T017",
+              "T012",
+              "T015",
+              "T009",
+              "T018",
+              "T013",
+              "T014"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 11 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 12,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 12: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T031",
+            "agent_role": "Developer",
+            "instruction": "T031 [P] [US4] Fix `execute_hybrid` wrong kwarg `fusion_method` at app.py-facing call in executors.py and/or the execute_hybrid function body: confirm the internal call at line 284 area uses `fusion=` not `fusion_method=`; if the error is in a nested call within execute_hybrid, rename to `fusion=` in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "app.py",
+              "promptchain/patterns/executors.py",
+              "executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T031 [P] [US4] Fix `execute_hybrid` wrong kwarg `fusion_method` at app.py-facing call in executors.py and/or the execute_hybrid function body: confirm the internal call at line 284 area uses `fusion=` not `fusion_method=`; if the error is in a nested call within execute_hybrid, rename to `fusion=` in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T019",
+              "T030",
+              "T012",
+              "T028",
+              "T027",
+              "T029"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 12 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 13,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 13: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T032",
+            "agent_role": "Developer",
+            "instruction": "T032 [P] [US4] Fix `LightRAGHybridSearcher` wrong kwargs at line 323 (execute_hybrid function): update constructor call to use `lightrag_integration=<integration>` and `config=HybridSearchConfig(...)` matching `__init__(self, lightrag_integration, config=None)` signature; inspect `promptchain/integrations/lightrag/hybrid_search.py` for HybridSearchConfig fields in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/integrations/lightrag/hybrid_search.py",
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T032 [P] [US4] Fix `LightRAGHybridSearcher` wrong kwargs at line 323 (execute_hybrid function): update constructor call to use `lightrag_integration=<integration>` and `config=HybridSearchConfig(...)` matching `__init__(self, lightrag_integration, config=None)` signature; inspect `promptchain/integrations/lightrag/hybrid_search.py` for HybridSearchConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T031",
+              "T030",
+              "T028",
+              "T012",
+              "T027",
+              "T029"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 13 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 14,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 14: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T033",
+            "agent_role": "Developer",
+            "instruction": "T033 [P] [US4] Fix `execute_sharded` wrong kwarg names and `LightRAGShardedRetriever` wrong kwargs at lines 365/404: rename `aggregation_method=` \u2192 `aggregation=` and `shard_paths=` \u2192 `shards=` in the execute_sharded call site; update `LightRAGShardedRetriever` constructor to use `registry=LightRAGShardRegistry(...)` (instantiate registry first, populate shards, then pass) in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/patterns/executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T033 [P] [US4] Fix `execute_sharded` wrong kwarg names and `LightRAGShardedRetriever` wrong kwargs at lines 365/404: rename `aggregation_method=` \u2192 `aggregation=` and `shard_paths=` \u2192 `shards=` in the execute_sharded call site; update `LightRAGShardedRetriever` constructor to use `registry=LightRAGShardRegistry(...)` (instantiate registry first, populate shards, then pass) in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T031",
+              "T030",
+              "T028",
+              "T012",
+              "T027",
+              "T032",
+              "T029"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 14 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 15,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 15: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T034",
+            "agent_role": "Developer",
+            "instruction": "T034 [P] [US4] Fix `LightRAGSpeculativeExecutor` wrong kwargs at line 486 (execute_speculate function): update constructor call to use `lightrag_core=<integration>` and `config=SpeculativeConfig(...)` matching `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/speculative.py` for SpeculativeConfig fields in `promptchain/patterns/executors.py`",
+            "file_locks": [
+              "promptchain/patterns/executors.py",
+              "promptchain/integrations/lightrag/speculative.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T034 [P] [US4] Fix `LightRAGSpeculativeExecutor` wrong kwargs at line 486 (execute_speculate function): update constructor call to use `lightrag_core=<integration>` and `config=SpeculativeConfig(...)` matching `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/speculative.py` for SpeculativeConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "dependencies": [
+              "T011",
+              "T031",
+              "T030",
+              "T028",
+              "T012",
+              "T027",
+              "T032",
+              "T029",
+              "T033"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 15 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 16,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 16: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T035",
+            "agent_role": "Developer",
+            "instruction": "T035 [US4] Verify US4 complete: run `python -m mypy promptchain/patterns/executors.py --ignore-missing-imports 2>&1 | grep \"executors.py.*error:\"` and confirm empty output (0 errors)",
+            "file_locks": [
+              "promptchain/patterns/executors.py",
+              "executors.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T035 [US4] Verify US4 complete: run `python -m mypy promptchain/patterns/executors.py --ignore-missing-imports 2>&1 | grep \"executors.py.*error:\"` and confirm empty output (0 errors)' to [x]",
+            "dependencies": [
+              "T011",
+              "T031",
+              "T030",
+              "T028",
+              "T012",
+              "T027",
+              "T032",
+              "T034",
+              "T029",
+              "T033"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 16 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 17,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 17: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T037",
+            "agent_role": "Developer",
+            "instruction": "T037 [P] Run `black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any formatting issues introduced by annotation changes in the 4 modified files",
+            "file_locks": [
+              "black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py",
+              "promptchain/cli/tui/app.py",
+              "promptchain/utils/strategies/state_agent.py",
+              "promptchain/patterns/executors.py",
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T037 [P] Run `black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any formatting issues introduced by annotation changes in the 4 modified files' to [x]",
+            "dependencies": [
+              "T026",
+              "T016",
+              "T003",
+              "T020",
+              "T006",
+              "T032",
+              "T018",
+              "T013",
+              "T033",
+              "T022",
+              "T024",
+              "T011",
+              "T010",
+              "T028",
+              "T009",
+              "T027",
+              "T021",
+              "T031",
+              "T030",
+              "T008",
+              "T015",
+              "T002",
+              "T023",
+              "T034",
+              "T007",
+              "T005",
+              "T025",
+              "T017",
+              "T019",
+              "T004",
+              "T035",
+              "T012",
+              "T029",
+              "T014"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 17 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "memory-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 18,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 18: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T038",
+            "agent_role": "Developer",
+            "instruction": "T038 [P] Run `isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any import ordering issues (e.g., `Optional`, `TYPE_CHECKING` import additions)",
+            "file_locks": [
+              "promptchain/cli/tui/app.py",
+              "promptchain/utils/strategies/state_agent.py",
+              "isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py",
+              "promptchain/patterns/executors.py",
+              "promptchain/utils/promptchaining.py"
+            ],
+            "constitution_rules": [],
+            "completion_handshake": "Upon success, update tasks.md line containing 'T038 [P] Run `isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any import ordering issues (e.g., `Optional`, `TYPE_CHECKING` import additions)' to [x]",
+            "dependencies": [
+              "T026",
+              "T016",
+              "T003",
+              "T020",
+              "T006",
+              "T032",
+              "T018",
+              "T013",
+              "T033",
+              "T022",
+              "T024",
+              "T011",
+              "T010",
+              "T037",
+              "T028",
+              "T009",
+              "T027",
+              "T021",
+              "T031",
+              "T030",
+              "T008",
+              "T015",
+              "T002",
+              "T023",
+              "T034",
+              "T007",
+              "T005",
+              "T025",
+              "T017",
+              "T019",
+              "T004",
+              "T035",
+              "T012",
+              "T029",
+              "T014"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 18 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
           "memory_bank_agent": "memory-bank-keeper"
         }

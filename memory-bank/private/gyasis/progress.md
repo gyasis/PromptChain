@@ -1,32 +1,146 @@
 # Progress
 
-**Last Updated**: 2026-02-26 02:07:13
+**Last Updated**: 2026-02-27 06:33:24
 
 ## Overall Progress
-- Total Tasks: 18
-- Completed: 18 ✅
-- Pending: 0 ⏳
-- Progress: 100%
+- Total Tasks: 132
+- Completed: 47 ✅
+- Pending: 85 ⏳
+- Progress: 35%
 
 ## Task Breakdown
-- [x] T001 Create feature branch `007-type-safety-debt` from `main`
-- [x] T002 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep "error:" | sort -u > /tmp/mypy-baseline.txt` and commit the output as `specs/007-type-safety-debt/mypy-baseline.txt` for regression tracking
-- [x] T003 Fix `promptchain/cli/session_manager.py` (15 errors) — add `TYPE_CHECKING` guard to import `MCPServerConfig`, `WorkflowState`, `WorkflowStep`, `Task`, `BlackboardEntry`, `MultiAgentWorkflow` from their respective modules; fix `append` `arg-type` (int appended to `list[str]`) at lines 1784 and 2189
-- [x] T004 Fix `promptchain/cli/command_handler.py` (13 errors) — change bare `{}` / `[]` vars to typed annotations (`dict[str, list[Any]]`, `dict[str, Any]`); replace `Collection[str]` mutable usage with `list[str]` where items are appended/indexed; add `if self.agent_config.history is not None:` guards at lines 317 and 323; add `# type: ignore[import-untyped]` comment on yaml import
-- [x] T005 [P] Fix `promptchain/cli/config/yaml_translator.py` (9 errors) — add `types-PyYAML` stub note or `# type: ignore[import-untyped]`; fix list type declarations (`list[str | AgenticStepProcessor]`); change `OrchestrationConfig(execution_mode=...)` call to cast/validate the string to `Literal['router', 'pipeline', 'round-robin', 'broadcast']`; fix `list[Any]` vs `dict[str, Any]` assignment at line 436
-- [x] T006 [P] Fix `promptchain/cli/tools/sandbox/docker_sandbox.py` (8 errors) — filter `None` from command lists before passing to `subprocess.run` (e.g., `[x for x in cmd if x is not None]`); fix missing `project_root` positional argument to `SafetyValidator` constructor at line 560; rename `validate_code` → `validate_command` at line 561 (matches actual `SafetyValidator` API)
-- [x] T007 [P] Fix `promptchain/cli/tools/safety.py` (8 errors) — replace `any` (builtin function used as type) with `Any` from `typing` at lines 398 and 583; change `result: str` declarations at lines 452, 457, 466, 468 to `result: Path | list[str] | int | str` or use separate typed variables; add `Path | None` cast before passing to `_validate_delete_operation` / `_validate_write_operation`
-- [x] T008 [P] Fix `promptchain/tools/terminal/terminal_tool.py` (7 errors) — add `Optional[str]` and `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameter annotations (implicit Optional fix); add `assert result is not None` / early-return guards before accessing `.return_code` at lines 642, 684, 710; guard `session.name` with `if session is not None:` at line 823
-- [x] T009 [P] Fix `promptchain/cli/communication/handlers.py` (7 errors) — move `_handlers: dict[str, list[Callable[..., Any]]]` declaration to the class body (not inside a method), initialised as a proper class variable or instance variable in `__init__` to resolve `has-type` and non-self attribute errors
-- [x] T010 [P] Fix `promptchain/tools/terminal/session_manager.py` (5 errors) — add `Optional[str]` / `Optional[dict[str, str]]` to `working_directory` and `environment_variables` parameters at lines 51–52 and 464–465; annotate `command_history: list[dict[str, Any]] = []` at line 57
-- [x] T011 [P] Fix `promptchain/integrations/lightrag/events.py` (4 errors) — change `details: dict[str, Any] = None` to `details: Optional[dict[str, Any]] = None` at line 167 and similarly for `metadata` at line 184; change return type of the `Sequence[str]` method to `list[str]` and add `list(...)` cast; annotate `all_events: list[...]` at line 264
-- [x] T012 [P] Fix `promptchain/cli/tools/filesystem_tools.py` (4 errors) — annotate `all_paths: list[Path] = []` and `results: list[Any] = []`; add `if metadata is not None:` guards before accessing `metadata.function` at lines 515–516
-- [x] T013 [P] Fix `promptchain/cli/tools/executor.py` (3 errors) — add `if self.safety_validator is not None:` guards before `.validate_path()` and `.validate_command()` calls at lines 484, 494, 496
-- [x] T014 [P] Fix remaining 1–2 error files in a single pass:
-- [x] T015 [P] Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep "error:" | sort -u | wc -l` — confirm count < 10; record result in `specs/007-type-safety-debt/test-results.md`
-- [x] T016 [P] Run `black . && isort . && flake8 promptchain/` — fix any linting issues introduced by annotation changes in modified files
-- [x] T017 [P] Run `pytest` — confirm no regressions vs baseline; annotate any pre-existing failures as pre-existing in `specs/007-type-safety-debt/test-results.md`
-- [x] T018 Update `CLAUDE.md` "Recent Changes" section to record 007-type-safety-debt as complete
+- [x] T001 [W1] [sql-pro] [schema.sql] Add V3 SQLite schema tables (task_queue, blackboard, workflow_state) in promptchain/cli/schema.sql
+- [x] T002 [P] [W1] [python-pro] [communication/__init__.py] Create communication module init in promptchain/cli/communication/__init__.py
+- [x] T003 [P] [W2] [python-pro] [models/message.py] Add Message and MessageType dataclasses in promptchain/cli/models/message.py
+- [x] T004 [P] [W2] [python-pro] [models/task.py] Add Task dataclass in promptchain/cli/models/task.py
+- [x] T005 [P] [W2] [python-pro] [models/blackboard.py] Add BlackboardEntry dataclass in promptchain/cli/models/blackboard.py
+- [x] T006 [P] [W2] [python-pro] [models/workflow.py] Add WorkflowState and WorkflowStage in promptchain/cli/models/workflow.py
+- [x] T007 [W3] [python-pro] [models/__init__.py] Update promptchain/cli/models/__init__.py to export new models
+- [x] T008 [W1] [python-pro] [session_manager.py] Implement V3 schema migration in promptchain/cli/session_manager.py (method: _check_and_migrate_v3)
+- [x] T009 [P] [W2] [python-pro] [session_manager.py:blackboard] Add blackboard CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T010 [P] [W2] [python-pro] [session_manager.py:task_queue] Add task_queue CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T011 [P] [W2] [python-pro] [session_manager.py:workflow] Add workflow_state CRUD methods to SessionManager in promptchain/cli/session_manager.py
+- [x] T012 [P] [W2] [python-pro] [tools/registry.py:metadata] Extend ToolMetadata with allowed_agents and capabilities fields in promptchain/cli/tools/registry.py
+- [ ] T014 [P] [W2] [test-automator] [tests/cli/] Create test directory structure: tests/cli/communication/, tests/cli/e2e/
+- [x] T013 [W3] [python-pro] [tools/registry.py:discover] Add discover_capabilities() method to ToolRegistry in promptchain/cli/tools/registry.py
+- [ ] T015 [P] [W1] [US1] [test-automator] [test_registry.py:metadata] Unit test for ToolMetadata extensions in tests/cli/tools/test_registry.py
+- [ ] T016 [P] [W1] [US1] [test-automator] [test_registry.py:discover] Unit test for discover_capabilities() in tests/cli/tools/test_registry.py
+- [ ] T017 [P] [W1] [US1] [test-automator] [test_capability_discovery.py] Integration test for capability discovery in tests/cli/integration/test_capability_discovery.py
+- [x] T018 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept allowed_agents param in promptchain/cli/tools/registry.py
+- [x] T019 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept capabilities param in promptchain/cli/tools/registry.py
+- [x] T020 [W3] [US1] [python-pro] [tools/registry.py] Implement discover_capabilities(agent_name, capability_filter) in promptchain/cli/tools/registry.py
+- [ ] T021 [W3] [US1] [test-automator] [test_registry.py] Add backward compatibility test - tools without allowed_agents work for all agents
+- [x] T022 [P] [W4] [US1] [python-pro] [registration.py:filesystem] Tag filesystem tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T023 [P] [W4] [US1] [python-pro] [registration.py:session] Tag session tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T024 [P] [W4] [US1] [python-pro] [registration.py:shell] Tag shell tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T025 [P] [W4] [US1] [python-pro] [registration.py:context] Tag context tools with capabilities in promptchain/cli/tools/library/registration.py
+- [x] T026 [W5] [US1] [python-pro] [command_handler.py] Add /capabilities CLI command in promptchain/cli/command_handler.py
+- [ ] T027 [P] [W1] [US2] [test-automator] [test_delegation.py:model] Unit test for Task model in tests/cli/tools/test_delegation.py
+- [ ] T028 [P] [W1] [US2] [test-automator] [test_delegation.py:tool] Unit test for delegate_task tool in tests/cli/tools/test_delegation.py
+- [ ] T029 [P] [W1] [US2] [test-automator] [test_task_delegation.py] Integration test for task status transitions in tests/cli/integration/test_task_delegation.py
+- [x] T030 [W2] [US2] [python-pro] [delegation_tools.py] Implement delegate_task() tool in promptchain/cli/tools/library/delegation_tools.py
+- [x] T031 [W2] [US2] [python-pro] [delegation_tools.py] Implement get_pending_tasks() helper in promptchain/cli/tools/library/delegation_tools.py
+- [x] T032 [W2] [US2] [python-pro] [delegation_tools.py] Implement update_task_status() helper in promptchain/cli/tools/library/delegation_tools.py
+- [x] T033 [P] [W3] [US2] [python-pro] [library/__init__.py] Register delegation tools in promptchain/cli/tools/library/__init__.py
+- [x] T034 [P] [W3] [US2] [python-pro] [command_handler.py] Add /tasks CLI command in promptchain/cli/command_handler.py
+- [x] T035 [W3] [US2] [python-pro] [delegation_tools.py] Add task validation (target_agent != source_agent) in delegation_tools.py
+- [ ] T036 [W3] [US2] [python-pro] [delegation_tools.py] Add activity logger integration for task events in delegation_tools.py
+- [ ] T037 [P] [W1] [US3] [test-automator] [test_blackboard.py:model] Unit test for BlackboardEntry model in tests/cli/tools/test_blackboard.py
+- [ ] T038 [P] [W1] [US3] [test-automator] [test_blackboard.py:write] Unit test for write_to_blackboard tool in tests/cli/tools/test_blackboard.py
+- [ ] T039 [P] [W1] [US3] [test-automator] [test_blackboard.py:read] Unit test for read_from_blackboard tool in tests/cli/tools/test_blackboard.py
+- [ ] T040 [P] [W1] [US3] [test-automator] [test_blackboard.py:integration] Integration test for blackboard operations in tests/cli/integration/test_blackboard.py
+- [x] T041 [W2] [US3] [python-pro] [blackboard_tools.py] Implement write_to_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T042 [W2] [US3] [python-pro] [blackboard_tools.py] Implement read_from_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T043 [W2] [US3] [python-pro] [blackboard_tools.py] Implement list_blackboard_keys() tool in promptchain/cli/tools/library/blackboard_tools.py
+- [x] T044 [W2] [US3] [python-pro] [blackboard_tools.py] Add upsert logic with version incrementing in blackboard_tools.py
+- [x] T045 [P] [W3] [US3] [python-pro] [library/__init__.py] Register blackboard tools in promptchain/cli/tools/library/__init__.py
+- [x] T046 [P] [W3] [US3] [python-pro] [command_handler.py] Add /blackboard CLI command in promptchain/cli/command_handler.py
+- [ ] T047 [W3] [US3] [python-pro] [blackboard_tools.py] Add activity logger integration for blackboard events
+- [ ] T048 [P] [W1] [US4] [test-automator] [test_handlers.py:message] Unit test for Message dataclass in tests/cli/communication/test_handlers.py
+- [ ] T049 [P] [W1] [US4] [test-automator] [test_handlers.py:decorator] Unit test for @cli_communication_handler decorator in tests/cli/communication/test_handlers.py
+- [ ] T050 [P] [W1] [US4] [test-automator] [test_message_bus.py] Unit test for message_bus send/broadcast in tests/cli/communication/test_message_bus.py
+- [ ] T051 [P] [W1] [US4] [test-automator] [test_handlers.py:filter] Integration test for handler filtering in tests/cli/communication/test_handlers.py
+- [x] T052 [W2] [US4] [python-pro] [handlers.py] Implement @cli_communication_handler decorator in promptchain/cli/communication/handlers.py
+- [x] T053 [W2] [US4] [python-pro] [handlers.py] Add handler filtering logic (sender, receiver, type) in handlers.py
+- [x] T054 [W3] [US4] [python-pro] [message_bus.py] Implement MessageBus class with send() in promptchain/cli/communication/message_bus.py
+- [x] T055 [W3] [US4] [python-pro] [message_bus.py] Implement broadcast() method in message_bus.py
+- [x] T056 [W3] [US4] [python-pro] [message_bus.py] Add handler registry for message routing in message_bus.py
+- [x] T057 [W3] [US4] [python-pro] [message_bus.py] Integrate activity logger for message events in message_bus.py
+- [x] T058 [W3] [US4] [python-pro] [message_bus.py] Add fail-safe error handling (log and continue) in message_bus.py
+- [x] T059 [W4] [US4] [python-pro] [communication/__init__.py] Export communication module in promptchain/cli/communication/__init__.py
+- [ ] T060 [P] [W1] [US5] [test-automator] [test_workflow.py:model] Unit test for WorkflowState model in tests/cli/integration/test_workflow.py
+- [ ] T061 [P] [W1] [US5] [test-automator] [test_workflow.py:transitions] Unit test for workflow stage transitions in tests/cli/integration/test_workflow.py
+- [ ] T062 [P] [W1] [US5] [test-automator] [test_workflow.py:persistence] Integration test for workflow persistence in tests/cli/integration/test_workflow.py
+- [ ] T063 [W2] [US5] [python-pro] [session_manager.py] Implement create_workflow() in promptchain/cli/session_manager.py
+- [ ] T064 [W2] [US5] [python-pro] [session_manager.py] Implement update_workflow_stage() in session_manager.py
+- [ ] T065 [W2] [US5] [python-pro] [session_manager.py] Implement add_completed_task() in session_manager.py
+- [ ] T066 [W2] [US5] [python-pro] [session_manager.py] Implement get_workflow_state() in session_manager.py
+- [x] T067 [P] [W3] [US5] [python-pro] [command_handler.py] Add /workflow CLI command in promptchain/cli/command_handler.py
+- [ ] T068 [P] [W3] [US5] [python-pro] [delegation_tools.py] Integrate workflow updates with task completion callbacks
+- [x] T069 [W3] [US5] [python-pro] [session_manager.py] Add workflow state restoration on session load
+- [ ] T070 [P] [W1] [US6] [test-automator] [test_delegation.py:help] Unit test for request_help tool in tests/cli/tools/test_delegation.py
+- [ ] T071 [P] [W1] [US6] [test-automator] [test_help_request.py] Integration test for help routing in tests/cli/integration/test_help_request.py
+- [x] T072 [W2] [US6] [python-pro] [delegation_tools.py] Implement request_help() tool in promptchain/cli/tools/library/delegation_tools.py
+- [x] T073 [W2] [US6] [python-pro] [delegation_tools.py] Add capability matching logic for help routing in delegation_tools.py
+- [x] T074 [W2] [US6] [python-pro] [delegation_tools.py] Add broadcast fallback when no matching capability found
+- [x] T075 [W3] [US6] [python-pro] [library/__init__.py] Register request_help tool in library/__init__.py
+- [ ] T076 [P] [W1] [US7] [test-automator] [test_mental_models.py:model] Unit test for MentalModel dataclass in tests/cli/tools/test_mental_models.py
+- [ ] T077 [P] [W1] [US7] [test-automator] [test_mental_models.py:registry] Unit test for MentalModelRegistry in tests/cli/tools/test_mental_models.py
+- [ ] T078 [P] [W1] [US7] [test-automator] [test_mental_models.py:selector] Unit test for MentalModelSelector in tests/cli/tools/test_mental_models.py
+- [ ] T079 [P] [W1] [US7] [test-automator] [test_mental_models.py:find] Unit test for find_models_for_task() in tests/cli/tools/test_mental_models.py
+- [ ] T080 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:select] Integration test for mental model selection in tests/cli/integration/test_mental_models.py
+- [ ] T081 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:apply] Integration test for model application in tests/cli/integration/test_mental_models.py
+- [ ] T082 [W2] [US7] [python-pro] [mental_models.py:dataclass] Create MentalModel dataclass in promptchain/utils/mental_models.py
+- [ ] T083 [W2] [US7] [python-pro] [mental_models.py:tag] Create Tag dataclass in promptchain/utils/mental_models.py
+- [ ] T084 [W2] [US7] [python-pro] [mental_models.py:registry] Implement MentalModelRegistry class in promptchain/utils/mental_models.py
+- [ ] T085 [W2] [US7] [python-pro] [mental_models.py:get] Implement get_model() method in mental_models.py
+- [ ] T086 [W2] [US7] [python-pro] [mental_models.py:list] Implement list_models() method in mental_models.py
+- [ ] T087 [W2] [US7] [python-pro] [mental_models.py:tags] Implement list_tags() method in mental_models.py
+- [ ] T088 [W2] [US7] [python-pro] [mental_models.py:find] Implement find_models_for_task() method in mental_models.py
+- [ ] T089 [P] [W3] [US7] [python-pro] [mental_models.py:rubber-duck] Implement rubber-duck process prompt (debugging, communication)
+- [ ] T090 [P] [W3] [US7] [python-pro] [mental_models.py:five-whys] Implement five-whys process prompt (debugging, validation)
+- [ ] T091 [P] [W3] [US7] [python-pro] [mental_models.py:pre-mortem] Implement pre-mortem process prompt (risk-analysis, planning)
+- [ ] T092 [P] [W3] [US7] [python-pro] [mental_models.py:assumption] Implement assumption-surfacing process prompt (validation, planning)
+- [ ] T093 [P] [W3] [US7] [python-pro] [mental_models.py:steelman] Implement steelmanning process prompt (decision-making, validation)
+- [ ] T094 [P] [W3] [US7] [python-pro] [mental_models.py:trade-off] Implement trade-off-matrix process prompt (decision-making, prioritization)
+- [ ] T095 [P] [W3] [US7] [python-pro] [mental_models.py:fermi] Implement fermi-estimation process prompt (estimation)
+- [ ] T096 [P] [W3] [US7] [python-pro] [mental_models.py:abstraction] Implement abstraction-laddering process prompt (architecture, communication)
+- [ ] T097 [P] [W3] [US7] [python-pro] [mental_models.py:decomposition] Implement decomposition process prompt (planning, architecture)
+- [ ] T098 [P] [W3] [US7] [python-pro] [mental_models.py:adversarial] Implement adversarial-thinking process prompt (risk-analysis, validation)
+- [ ] T099 [P] [W3] [US7] [python-pro] [mental_models.py:opportunity] Implement opportunity-cost process prompt (decision-making, prioritization)
+- [ ] T100 [P] [W3] [US7] [python-pro] [mental_models.py:constraint] Implement constraint-relaxation process prompt (planning, architecture)
+- [ ] T101 [P] [W3] [US7] [python-pro] [mental_models.py:time-horizon] Implement time-horizon-shifting process prompt (planning, decision-making)
+- [ ] T102 [P] [W3] [US7] [python-pro] [mental_models.py:impact-effort] Implement impact-effort-grid process prompt (prioritization)
+- [ ] T103 [P] [W3] [US7] [python-pro] [mental_models.py:inversion] Implement inversion process prompt (risk-analysis, planning)
+- [ ] T104 [W4] [US7] [python-pro] [mental_models.py:selector] Implement MentalModelSelector class in promptchain/utils/mental_models.py
+- [ ] T105 [W4] [US7] [python-pro] [mental_models.py:select] Implement select_model() async method in mental_models.py
+- [ ] T106 [W4] [US7] [python-pro] [mental_models.py:prompt] Implement _build_selection_prompt() in mental_models.py
+- [ ] T107 [W5] [US7] [python-pro] [mental_models.py:applicator] Implement MentalModelApplicator class in promptchain/utils/mental_models.py
+- [ ] T108 [W5] [US7] [python-pro] [mental_models.py:apply] Implement apply_model() async method in mental_models.py
+- [ ] T109 [W6] [US7] [python-pro] [agent_chain.py:param] Add enable_mental_models parameter to AgentChain in promptchain/utils/agent_chain.py
+- [ ] T110 [W6] [US7] [python-pro] [agent_chain.py:register] Add _register_mental_model_tools() method to AgentChain
+- [ ] T111 [W6] [US7] [python-pro] [agent_chain.py:create] Add _create_mental_model_tools() method to AgentChain
+- [ ] T112 [W6] [US7] [python-pro] [agent_chain.py:select_schema] Implement select_mental_model tool schema in agent_chain.py
+- [ ] T113 [W6] [US7] [python-pro] [agent_chain.py:get_schema] Implement get_mental_model tool schema in agent_chain.py
+- [ ] T114 [W6] [US7] [python-pro] [agent_chain.py:list_schema] Implement list_mental_models tool schema in agent_chain.py
+- [ ] T115 [W6] [US7] [python-pro] [agent_chain.py:handle] Implement _handle_mental_model_tool() async method in agent_chain.py
+- [ ] T116 [W7] [US7] [python-pro] [agent_chain.py:auto] Add auto-select mental model logic in process_input() in agent_chain.py
+- [ ] T117 [W7] [US7] [python-pro] [agent_chain.py:enhance] Enhance user input with mental model guidance when model selected
+- [ ] T118 [W7] [US7] [python-pro] [agent_chain.py:context] Add mental model context to conversation history
+- [ ] T119 [P] [W8] [US7] [python-pro] [command_handler.py] Add /mentalmodels CLI command in promptchain/cli/command_handler.py
+- [ ] T120 [P] [W8] [US7] [python-pro] [registration.py] Add mental model tools to CLI tool registry in promptchain/cli/tools/library/registration.py
+- [ ] T121 [P] [W1] [test-automator] [test_multi_agent.py] E2E test for complete multi-agent workflow in tests/cli/e2e/test_multi_agent.py
+- [ ] T122 [P] [W1] [test-automator] [test_communication.py] Performance test for communication < 10ms in tests/cli/performance/test_communication.py
+- [ ] T123 [P] [W1] [test-automator] [test_blackboard.py] Performance test for blackboard < 5ms in tests/cli/performance/test_blackboard.py
+- [ ] T124 [W1] [test-automator] [tests/cli/] Backward compatibility test - existing CLI tests pass in tests/cli/
+- [ ] T125 [P] [W1] [python-pro] [cli/__init__.py] Update promptchain/cli/__init__.py exports for new modules
+- [ ] T129 [P] [W1] [test-automator] [test_mental_models_e2e.py] E2E test for mental models integration with multi-agent workflow in tests/cli/e2e/test_mental_models_e2e.py
+- [ ] T130 [P] [W1] [test-automator] [test_mental_models.py] Performance test for mental model selection < 100ms in tests/cli/performance/test_mental_models.py
+- [ ] T126 [W2] [general-purpose] Run quickstart.md validation scenarios manually
+- [ ] T127 [W2] [general-purpose] [checklists/requirements.md] Update checklists/requirements.md with completion status
+- [ ] T128 [W2] [general-purpose] Validate all 15 success criteria (SC-001 to SC-015)
+- [P] tasks = different files, no dependencies
+- [Story] label maps task to specific user story
 
 ## Recent Milestones
 9837ff2 [MILESTONE] Dev-kid initialized
