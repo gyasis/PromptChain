@@ -9,20 +9,24 @@ Provides a safe interface to MLflow tracking that gracefully handles:
 All functions fail silently with warning logs rather than raising exceptions.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional
 from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Dict, Generator, Optional
+
+if TYPE_CHECKING:
+    from mlflow.entities import Run
 
 # Attempt to import mlflow
 MLFLOW_AVAILABLE = False
-mlflow = None
+mlflow: Any = None
 
 try:
-    import mlflow
-    from mlflow.entities import Run
+    import mlflow  # type: ignore[no-redef]
+
     MLFLOW_AVAILABLE = True
 except ImportError:
-    Run = None  # Type hint placeholder
     logging.debug("MLflow not installed - tracking will be disabled")
 
 
@@ -49,8 +53,9 @@ def is_available() -> bool:
     return MLFLOW_AVAILABLE
 
 
-def initialize_mlflow(tracking_uri: Optional[str] = None,
-                      experiment_name: Optional[str] = None) -> bool:
+def initialize_mlflow(
+    tracking_uri: Optional[str] = None, experiment_name: Optional[str] = None
+) -> bool:
     """
     Initialize MLflow with tracking URI and experiment.
 
@@ -67,7 +72,8 @@ def initialize_mlflow(tracking_uri: Optional[str] = None,
 
     try:
         # Import config here to avoid circular dependency
-        from promptchain.observability.config import get_tracking_uri, get_experiment_name
+        from promptchain.observability.config import (get_experiment_name,
+                                                      get_tracking_uri)
 
         uri = tracking_uri or get_tracking_uri()
         exp_name = experiment_name or get_experiment_name()
@@ -80,7 +86,9 @@ def initialize_mlflow(tracking_uri: Optional[str] = None,
             experiment = mlflow.get_experiment_by_name(exp_name)
             if experiment is None:
                 experiment_id = mlflow.create_experiment(exp_name)
-                logger.info(f"Created MLflow experiment: {exp_name} (ID: {experiment_id})")
+                logger.info(
+                    f"Created MLflow experiment: {exp_name} (ID: {experiment_id})"
+                )
             else:
                 logger.info(f"Using existing MLflow experiment: {exp_name}")
             mlflow.set_experiment(exp_name)
@@ -112,7 +120,9 @@ def set_experiment(experiment_name: str) -> bool:
         experiment = mlflow.get_experiment_by_name(experiment_name)
         if experiment is None:
             experiment_id = mlflow.create_experiment(experiment_name)
-            logger.info(f"Created MLflow experiment: {experiment_name} (ID: {experiment_id})")
+            logger.info(
+                f"Created MLflow experiment: {experiment_name} (ID: {experiment_id})"
+            )
 
         mlflow.set_experiment(experiment_name)
         return True
@@ -138,8 +148,9 @@ def start_run(run_name: Optional[str] = None, nested: bool = False) -> Optional[
 
     try:
         run = mlflow.start_run(run_name=run_name, nested=nested)
-        logger.debug(f"Started MLflow run: {run.info.run_id}" +
-                    (f" (nested)" if nested else ""))
+        logger.debug(
+            f"Started MLflow run: {run.info.run_id}" + (f" (nested)" if nested else "")
+        )
         return run
 
     except Exception as e:
@@ -308,7 +319,7 @@ def log_text(text: str, artifact_file: str) -> None:
         logger.warning(f"Failed to log MLflow text artifact '{artifact_file}': {e}")
 
 
-def log_dict(dictionary: Dict, artifact_file: str) -> None:
+def log_dict(dictionary: Dict[str, Any], artifact_file: str) -> None:
     """
     Log a dictionary as a JSON artifact file.
 
@@ -327,7 +338,9 @@ def log_dict(dictionary: Dict, artifact_file: str) -> None:
 
 
 @contextmanager
-def run_context(run_name: Optional[str] = None, nested: bool = False):
+def run_context(
+    run_name: Optional[str] = None, nested: bool = False
+) -> Generator[Optional[Run], None, None]:
     """
     Context manager for MLflow runs.
 
