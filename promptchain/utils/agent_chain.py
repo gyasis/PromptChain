@@ -1,31 +1,37 @@
 # agent_chain.py
 import asyncio
-import json
-import re
-from promptchain.utils.promptchaining import PromptChain
-from promptchain.utils.logging_utils import RunLogger
-from promptchain.utils.agent_execution_result import AgentExecutionResult
-from typing import List, Dict, Any, Optional, Union, Tuple, Callable, TYPE_CHECKING
-import os
-import traceback
 import functools
+import json
 import logging
+import os
+import re
+import sqlite3
+import traceback
 import uuid
 from datetime import datetime
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple,
+                    Union)
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.theme import Theme
-import sqlite3
-from promptchain.observability import track_routing
 
+from promptchain.observability import track_routing
+from promptchain.utils.agent_execution_result import AgentExecutionResult
+from promptchain.utils.logging_utils import RunLogger
+from promptchain.utils.promptchaining import PromptChain
+
+from .strategies.dynamic_decomposition_strategy import \
+    execute_dynamic_decomposition_strategy_async
 # Strategy imports
-from .strategies.single_dispatch_strategy import execute_single_dispatch_strategy_async
+from .strategies.single_dispatch_strategy import \
+    execute_single_dispatch_strategy_async
 from .strategies.static_plan_strategy import execute_static_plan_strategy_async
-from .strategies.dynamic_decomposition_strategy import execute_dynamic_decomposition_strategy_async
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
+
 
 class AgentChain:
     """
@@ -67,20 +73,23 @@ class AgentChain:
         auto_include_history (bool): When True, automatically include conversation history in all agent calls.
         cache_config (Optional[Dict[str, Any]]): Configuration for caching conversation history.
     """
-    def __init__(self,
-                 # Required arguments first
-                 agents: Dict[str, PromptChain],
-                 agent_descriptions: Dict[str, str],
-                 # Optional arguments follow
-                 router: Optional[Union[Dict[str, Any], Callable]] = None,
-                 execution_mode: str = "router",
-                 max_history_tokens: int = 4000,
-                 log_dir: Optional[str] = None,
-                 additional_prompt_dirs: Optional[List[str]] = None,
-                 verbose: bool = False,
-                 # Replace separate cache parameters with a single dict
-                 cache_config: Optional[Dict[str, Any]] = None,
-                 **kwargs): # Use kwargs for new optional parameters
+
+    def __init__(
+        self,
+        # Required arguments first
+        agents: Dict[str, PromptChain],
+        agent_descriptions: Dict[str, str],
+        # Optional arguments follow
+        router: Optional[Union[Dict[str, Any], Callable]] = None,
+        execution_mode: str = "router",
+        max_history_tokens: int = 4000,
+        log_dir: Optional[str] = None,
+        additional_prompt_dirs: Optional[List[str]] = None,
+        verbose: bool = False,
+        # Replace separate cache parameters with a single dict
+        cache_config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):  # Use kwargs for new optional parameters
 
         # --- Validation ---
         valid_modes = ["router", "pipeline", "round_robin", "broadcast"]
@@ -88,12 +97,18 @@ class AgentChain:
             raise ValueError(f"execution_mode must be one of {valid_modes}.")
         if not agents:
             raise ValueError("At least one agent must be provided.")
-        if not agent_descriptions or set(agents.keys()) != set(agent_descriptions.keys()):
-            raise ValueError("agent_descriptions must be provided for all agents and match agent keys.")
+        if not agent_descriptions or set(agents.keys()) != set(
+            agent_descriptions.keys()
+        ):
+            raise ValueError(
+                "agent_descriptions must be provided for all agents and match agent keys."
+            )
         # --> Add validation: Router is required if mode is router (unless using supervisor) <--
         use_supervisor = kwargs.get("use_supervisor", False)
         if execution_mode == "router" and router is None and not use_supervisor:
-            raise ValueError("A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router', unless use_supervisor=True.")
+            raise ValueError(
+                "A 'router' configuration (Dict or Callable) must be provided when execution_mode is 'router', unless use_supervisor=True."
+            )
 
         # --- Initialize basic attributes ---
         self.agents = agents
@@ -103,47 +118,62 @@ class AgentChain:
         self.execution_mode = execution_mode
         self.max_history_tokens = max_history_tokens
         self.additional_prompt_dirs = additional_prompt_dirs
-        self.max_internal_steps = kwargs.get("max_internal_steps", 3) # For router internal loop
-        self.synthesizer_config = kwargs.get("synthesizer_config", None) # For broadcast mode
-        
+        self.max_internal_steps = kwargs.get(
+            "max_internal_steps", 3
+        )  # For router internal loop
+        self.synthesizer_config = kwargs.get(
+            "synthesizer_config", None
+        )  # For broadcast mode
+
         # Cache configuration - from dict
         self.cache_config = cache_config or {}
         self.enable_cache = bool(self.cache_config)
-        
+
         # Set default cache config values
         if self.enable_cache:
             import os
-            
+
             # Set default name if not provided (random UUID)
-            if 'name' not in self.cache_config:
-                self.cache_config['name'] = str(uuid.uuid4())
-                
+            if "name" not in self.cache_config:
+                self.cache_config["name"] = str(uuid.uuid4())
+
             # Set default directory path if not provided
-            if 'path' not in self.cache_config:
-                self.cache_config['path'] = os.path.join(os.getcwd(), '.cache')
-                
+            if "path" not in self.cache_config:
+                self.cache_config["path"] = os.path.join(os.getcwd(), ".cache")
+
             # Construct database path: directory/name.db
             db_filename = f"{self.cache_config['name']}.db"
-            self.cache_path = os.path.join(self.cache_config['path'], db_filename)
+            self.cache_path = os.path.join(self.cache_config["path"], db_filename)
         else:
-            self.cache_path = None
-            
+            self.cache_path: Optional[str] = None
+
         self.db_connection = None
-        
+
         # <<< New: Router Strategy >>>
         self.router_strategy = kwargs.get("router_strategy", "single_agent_dispatch")
         # Enable auto-history inclusion when set
         self.auto_include_history = kwargs.get("auto_include_history", False)
         # Default agent for fallback when router fails
         self.default_agent = kwargs.get("default_agent", None)
-        valid_router_strategies = ["single_agent_dispatch", "static_plan", "dynamic_decomposition"]
-        if self.execution_mode == 'router' and self.router_strategy not in valid_router_strategies:
-            raise ValueError(f"Invalid router_strategy '{self.router_strategy}'. Must be one of {valid_router_strategies}")
+        valid_router_strategies = [
+            "single_agent_dispatch",
+            "static_plan",
+            "dynamic_decomposition",
+        ]
+        if (
+            self.execution_mode == "router"
+            and self.router_strategy not in valid_router_strategies
+        ):
+            raise ValueError(
+                f"Invalid router_strategy '{self.router_strategy}'. Must be one of {valid_router_strategies}"
+            )
 
         # <<< NEW: Per-Agent History Configuration (v0.4.2) >>>
         # Store agent_history_configs with validation
         raw_configs = kwargs.get("agent_history_configs", None)
-        self.agent_history_configs = self._validate_and_process_history_configs(raw_configs)
+        self.agent_history_configs = self._validate_and_process_history_configs(
+            raw_configs
+        )
 
         # T077: Create ExecutionHistoryManager instances for each agent based on configs
         self._history_managers: Dict[str, Any] = self._create_history_managers()
@@ -151,33 +181,45 @@ class AgentChain:
         # ✅ NEW: OrchestratorSupervisor support (v0.4.1k)
         self.use_supervisor = kwargs.get("use_supervisor", False)
         self.supervisor_strategy = kwargs.get("supervisor_strategy", "adaptive")
-        self.orchestrator_supervisor = None  # Will be initialized if use_supervisor=True
+        self.orchestrator_supervisor = (
+            None  # Will be initialized if use_supervisor=True
+        )
         log_init_data = {
             "event": "AgentChain initialized",
             "execution_mode": self.execution_mode,
-            "router_type": type(router).__name__ if execution_mode == 'router' else 'N/A',
+            "router_type": (
+                type(router).__name__ if execution_mode == "router" else "N/A"
+            ),
             "agent_names": self.agent_names,
             "verbose": verbose,
             "file_logging_enabled": bool(log_dir),
-            "max_internal_steps": self.max_internal_steps if execution_mode == 'router' else 'N/A',
-            "synthesizer_configured": bool(self.synthesizer_config) if execution_mode == 'broadcast' else 'N/A',
-            "router_strategy": self.router_strategy if self.execution_mode == 'router' else 'N/A',
+            "max_internal_steps": (
+                self.max_internal_steps if execution_mode == "router" else "N/A"
+            ),
+            "synthesizer_configured": (
+                bool(self.synthesizer_config)
+                if execution_mode == "broadcast"
+                else "N/A"
+            ),
+            "router_strategy": (
+                self.router_strategy if self.execution_mode == "router" else "N/A"
+            ),
             "auto_include_history": self.auto_include_history,
             "default_agent": self.default_agent,
             "enable_cache": self.enable_cache,
-            "cache_path": self.cache_path if self.enable_cache else 'N/A',
-            "cache_config": self.cache_config
+            "cache_path": self.cache_path if self.enable_cache else "N/A",
+            "cache_config": self.cache_config,
         }
         # <<< End New: Router Strategy >>>
-        
+
         # --- Session log filename (set to None initially, will be set at chat start) ---
         self.session_log_filename = None
         self.logger = RunLogger(log_dir=log_dir)
         self.decision_maker_chain: Optional[PromptChain] = None
         self.custom_router_function: Optional[Callable] = None
-        self._round_robin_index = 0 # For round_robin mode
+        self._round_robin_index = 0  # For round_robin mode
         self._conversation_history: List[Dict[str, str]] = []
-        self._tokenizer = None # Initialize tokenizer
+        self._tokenizer = None  # Initialize tokenizer
 
         # ✅ NEW: Event callback system for multi-agent orchestration observability
         self._orchestration_callbacks: List[Callable] = []
@@ -187,30 +229,41 @@ class AgentChain:
 
         # ✅ NEW: Per-agent history configuration (v0.4.2)
         # Allows each agent to control if/how it receives conversation history
-        self._agent_history_configs: Dict[str, Dict[str, Any]] = kwargs.get("agent_history_configs", {})
+        self._agent_history_configs: Dict[str, Dict[str, Any]] = kwargs.get(
+            "agent_history_configs", {}
+        )
 
         # Validate agent_history_configs keys match agent names
         if self._agent_history_configs:
-            invalid_agents = set(self._agent_history_configs.keys()) - set(self.agent_names)
+            invalid_agents = set(self._agent_history_configs.keys()) - set(
+                self.agent_names
+            )
             if invalid_agents:
-                raise ValueError(f"agent_history_configs contains invalid agent names: {invalid_agents}. Valid agents: {self.agent_names}")
-            logger.info(f"Per-agent history configurations loaded for: {list(self._agent_history_configs.keys())}")
+                raise ValueError(
+                    f"agent_history_configs contains invalid agent names: {invalid_agents}. Valid agents: {self.agent_names}"
+                )
+            logger.info(
+                f"Per-agent history configurations loaded for: {list(self._agent_history_configs.keys())}"
+            )
 
         # ✅ NEW: ActivityLogger integration for comprehensive agent activity logging
         # Captures ALL agent interactions without affecting chat history or token usage
         self.activity_logger = kwargs.get("activity_logger", None)
         if self.activity_logger:
-            logger.info("ActivityLogger enabled for comprehensive agent activity tracking")
+            logger.info(
+                "ActivityLogger enabled for comprehensive agent activity tracking"
+            )
 
         # Setup cache if enabled
         if self.enable_cache:
             self._setup_cache()
 
         # --- Configure Router ---
-        if self.execution_mode == 'router':
+        if self.execution_mode == "router":
             # ✅ Option 1: Use OrchestratorSupervisor (new library feature)
             if self.use_supervisor:
-                from promptchain.utils.orchestrator_supervisor import OrchestratorSupervisor
+                from promptchain.utils.orchestrator_supervisor import \
+                    OrchestratorSupervisor
 
                 # Create supervisor with strategy preference
                 self.orchestrator_supervisor = OrchestratorSupervisor(
@@ -219,67 +272,99 @@ class AgentChain:
                     dev_print_callback=None,  # Can be set later via kwargs
                     max_reasoning_steps=kwargs.get("supervisor_max_steps", 8),
                     model_name=kwargs.get("supervisor_model", "openai/gpt-4.1-mini"),
-                    strategy_preference=self.supervisor_strategy
+                    strategy_preference=self.supervisor_strategy,
                 )
 
                 # Use supervisor as router function
-                self.custom_router_function = self.orchestrator_supervisor.as_router_function()
+                self.custom_router_function = (
+                    self.orchestrator_supervisor.as_router_function()
+                )
                 log_init_data["router_type"] = "OrchestratorSupervisor"
                 log_init_data["supervisor_strategy"] = self.supervisor_strategy
                 if self.verbose:
-                    print(f"AgentChain router mode initialized with OrchestratorSupervisor (strategy: {self.supervisor_strategy})")
+                    print(
+                        f"AgentChain router mode initialized with OrchestratorSupervisor (strategy: {self.supervisor_strategy})"
+                    )
 
             # ✅ Option 2: Traditional router configuration
             elif isinstance(router, dict):
-                log_init_data["router_config_model"] = router.get('models', ['N/A'])[0]
-                self._configure_default_llm_router(router) # Pass the whole config dict
-                if self.verbose: print(f"AgentChain router mode initialized with default LLM router (Strategy: {self.router_strategy}).")
+                log_init_data["router_config_model"] = router.get("models", ["N/A"])[0]
+                self._configure_default_llm_router(router)  # Pass the whole config dict
+                if self.verbose:
+                    print(
+                        f"AgentChain router mode initialized with default LLM router (Strategy: {self.router_strategy})."
+                    )
             elif callable(router):
                 # Custom router functions aren't inherently strategy-aware unless designed to be.
                 # We might need to disallow custom functions if strategy != single_agent_dispatch, or document the required output format.
                 if self.router_strategy != "single_agent_dispatch":
-                    logging.warning(f"Custom router function provided with strategy '{self.router_strategy}'. Ensure the function output matches the strategy's expectations.")
+                    logging.warning(
+                        f"Custom router function provided with strategy '{self.router_strategy}'. Ensure the function output matches the strategy's expectations."
+                    )
                 if not asyncio.iscoroutinefunction(router):
-                    raise TypeError("Custom router function must be an async function (defined with 'async def').")
+                    raise TypeError(
+                        "Custom router function must be an async function (defined with 'async def')."
+                    )
                 self.custom_router_function = router
-                if self.verbose: print("AgentChain router mode initialized with custom router function.")
+                if self.verbose:
+                    print(
+                        "AgentChain router mode initialized with custom router function."
+                    )
             else:
-                raise TypeError("Invalid 'router' type for router mode. Must be Dict or async Callable.")
+                raise TypeError(
+                    "Invalid 'router' type for router mode. Must be Dict or async Callable."
+                )
 
         self.logger.log_run(log_init_data)
         try:
             import tiktoken
+
             self._tokenizer = tiktoken.get_encoding("cl100k_base")
         except ImportError:
-            logging.warning("tiktoken not installed. Using character count for history truncation.")
-            self.logger.log_run({"event": "warning", "message": "tiktoken not installed, using char count for history"})
+            logging.warning(
+                "tiktoken not installed. Using character count for history truncation."
+            )
+            self.logger.log_run(
+                {
+                    "event": "warning",
+                    "message": "tiktoken not installed, using char count for history",
+                }
+            )
 
     def _setup_cache(self):
         """Sets up the SQLite database for caching conversation history."""
         import os
         import sqlite3
-        
+
         # Create cache directory if it doesn't exist
         cache_dir = os.path.dirname(self.cache_path)
         if cache_dir and not os.path.exists(cache_dir):
-            if self.verbose: print(f"Creating cache directory: {cache_dir}")
+            if self.verbose:
+                print(f"Creating cache directory: {cache_dir}")
             try:
                 os.makedirs(cache_dir, exist_ok=True)
                 self.logger.log_run({"event": "cache_dir_created", "path": cache_dir})
             except Exception as e:
                 logging.error(f"Failed to create cache directory {cache_dir}: {e}")
-                self.logger.log_run({"event": "cache_dir_create_error", "path": cache_dir, "error": str(e)})
+                self.logger.log_run(
+                    {
+                        "event": "cache_dir_create_error",
+                        "path": cache_dir,
+                        "error": str(e),
+                    }
+                )
                 self.enable_cache = False  # Disable cache if directory creation fails
                 return
-        
+
         # Initialize the SQLite database
         try:
             # Connect to the database (will create it if it doesn't exist)
             self.db_connection = sqlite3.connect(self.cache_path)
             cursor = self.db_connection.cursor()
-            
+
             # Create the sessions table if it doesn't exist
-            cursor.execute('''
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id TEXT NOT NULL,
@@ -287,10 +372,12 @@ class AgentChain:
                 created_at TEXT NOT NULL,
                 config TEXT
             )
-            ''')
-            
+            """
+            )
+
             # Create the conversation table if it doesn't exist
-            cursor.execute('''
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS conversation_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id TEXT NOT NULL,
@@ -299,39 +386,56 @@ class AgentChain:
                 content TEXT NOT NULL,
                 timestamp TEXT NOT NULL
             )
-            ''')
-            
+            """
+            )
+
             # Use the name from config as session_id
             session_id = self.cache_config.get("name")
-            
+
             # Generate a new session instance UUID for this run
             import uuid
+
             self.session_instance_uuid = str(uuid.uuid4())
-            
+
             # Create a new session instance record
             import datetime
             import json
-            
+
             now = datetime.datetime.now().isoformat()
             cursor.execute(
                 "INSERT INTO sessions (session_id, session_instance_uuid, created_at, config) VALUES (?, ?, ?, ?)",
-                (session_id, self.session_instance_uuid, now, json.dumps(self.cache_config))
+                (
+                    session_id,
+                    self.session_instance_uuid,
+                    now,
+                    json.dumps(self.cache_config),
+                ),
             )
-            
-            self.logger.log_run({
-                "event": "cache_db_initialized", 
-                "path": self.cache_path, 
-                "session_id": session_id,
-                "session_instance_uuid": self.session_instance_uuid
-            })
-            if self.verbose: 
+
+            self.logger.log_run(
+                {
+                    "event": "cache_db_initialized",
+                    "path": self.cache_path,
+                    "session_id": session_id,
+                    "session_instance_uuid": self.session_instance_uuid,
+                }
+            )
+            if self.verbose:
                 print(f"SQLite cache initialized with session ID: {session_id}")
                 print(f"Session instance UUID: {self.session_instance_uuid}")
-            
+
             self.db_connection.commit()
         except Exception as e:
-            logging.error(f"Failed to initialize SQLite cache database {self.cache_path}: {e}")
-            self.logger.log_run({"event": "cache_db_init_error", "path": self.cache_path, "error": str(e)})
+            logging.error(
+                f"Failed to initialize SQLite cache database {self.cache_path}: {e}"
+            )
+            self.logger.log_run(
+                {
+                    "event": "cache_db_init_error",
+                    "path": self.cache_path,
+                    "error": str(e),
+                }
+            )
             self.enable_cache = False  # Disable cache if database initialization fails
             self.db_connection = None
             self.session_instance_uuid = None
@@ -390,9 +494,10 @@ class AgentChain:
         Returns:
             Dictionary mapping agent names to ExecutionHistoryManager instances (or None if disabled).
         """
-        from promptchain.utils.execution_history_manager import ExecutionHistoryManager
+        from promptchain.utils.execution_history_manager import \
+            ExecutionHistoryManager
 
-        history_managers = {}
+        history_managers: Dict[str, Any] = {}
 
         for agent_name in self.agent_names:
             # Get agent-specific config or use global auto_include_history setting
@@ -403,7 +508,9 @@ class AgentChain:
                 if not config.get("enabled", True):
                     history_managers[agent_name] = None
                     if self.verbose:
-                        print(f"History disabled for agent '{agent_name}' (token savings enabled)")
+                        print(
+                            f"History disabled for agent '{agent_name}' (token savings enabled)"
+                        )
                     continue
 
                 # Create manager with agent-specific settings
@@ -412,78 +519,119 @@ class AgentChain:
                 history_managers[agent_name] = ExecutionHistoryManager(
                     max_tokens=config.get("max_tokens", 4000),
                     max_entries=config.get("max_entries", 20),
-                    truncation_strategy=config.get("truncation_strategy", "oldest_first")
+                    truncation_strategy=config.get(
+                        "truncation_strategy", "oldest_first"
+                    ),
                 )
 
                 if self.verbose:
-                    print(f"History manager created for agent '{agent_name}': "
-                          f"max_tokens={config.get('max_tokens', 4000)}, "
-                          f"max_entries={config.get('max_entries', 20)}")
+                    print(
+                        f"History manager created for agent '{agent_name}': "
+                        f"max_tokens={config.get('max_tokens', 4000)}, "
+                        f"max_entries={config.get('max_entries', 20)}"
+                    )
 
             elif self.auto_include_history:
                 # Use default history config when auto_include_history is True
                 history_managers[agent_name] = ExecutionHistoryManager(
                     max_tokens=self.max_history_tokens,
                     max_entries=20,  # Default entry limit
-                    truncation_strategy="oldest_first"
+                    truncation_strategy="oldest_first",
                 )
 
                 if self.verbose:
-                    print(f"Default history manager created for agent '{agent_name}': "
-                          f"max_tokens={self.max_history_tokens}, max_entries=20")
+                    print(
+                        f"Default history manager created for agent '{agent_name}': "
+                        f"max_tokens={self.max_history_tokens}, max_entries=20"
+                    )
 
             else:
                 # No history for this agent
                 history_managers[agent_name] = None
                 if self.verbose:
-                    print(f"No history manager for agent '{agent_name}' (auto_include_history=False)")
+                    print(
+                        f"No history manager for agent '{agent_name}' (auto_include_history=False)"
+                    )
 
         return history_managers
 
     def _configure_default_llm_router(self, config: Dict[str, Any]):
         """Initializes the default 2-step LLM decision maker chain."""
-        # --- Updated Validation --- 
+        # --- Updated Validation ---
         # We now expect 'decision_prompt_templates' (plural) which should be a Dict
-        if not all(k in config for k in ['models', 'instructions', 'decision_prompt_templates']):
-            raise ValueError("Router Dict config must contain 'models', 'instructions', and 'decision_prompt_templates'.")
-        if not isinstance(config['decision_prompt_templates'], dict):
-            raise ValueError("Router Dict 'decision_prompt_templates' must be a dictionary mapping strategy names to prompt strings.")
-        if self.router_strategy not in config['decision_prompt_templates']:
-            raise ValueError(f"Router Dict 'decision_prompt_templates' is missing a template for the selected strategy: '{self.router_strategy}'. Available: {list(config['decision_prompt_templates'].keys())}")
-        if not isinstance(config['decision_prompt_templates'][self.router_strategy], str):
-            raise ValueError(f"Value for strategy '{self.router_strategy}' in 'decision_prompt_templates' must be a string.")
-             
+        if not all(
+            k in config for k in ["models", "instructions", "decision_prompt_templates"]
+        ):
+            raise ValueError(
+                "Router Dict config must contain 'models', 'instructions', and 'decision_prompt_templates'."
+            )
+        if not isinstance(config["decision_prompt_templates"], dict):
+            raise ValueError(
+                "Router Dict 'decision_prompt_templates' must be a dictionary mapping strategy names to prompt strings."
+            )
+        if self.router_strategy not in config["decision_prompt_templates"]:
+            raise ValueError(
+                f"Router Dict 'decision_prompt_templates' is missing a template for the selected strategy: '{self.router_strategy}'. Available: {list(config['decision_prompt_templates'].keys())}"
+            )
+        if not isinstance(
+            config["decision_prompt_templates"][self.router_strategy], str
+        ):
+            raise ValueError(
+                f"Value for strategy '{self.router_strategy}' in 'decision_prompt_templates' must be a string."
+            )
+
         # Basic validation for instructions and models remains the same
-        if not isinstance(config['instructions'], list) or len(config['instructions']) != 2 \
-           or config['instructions'][0] is not None \
-           or not isinstance(config['instructions'][1], str): # Step 2 should be template like '{input}'
-            raise ValueError("Router Dict 'instructions' must be a list like [None, template_str].")
-        if not isinstance(config['models'], list) or len(config['models']) != 1:
-            raise ValueError("Router Dict 'models' must be a list of one model configuration (for step 2).")
+        if (
+            not isinstance(config["instructions"], list)
+            or len(config["instructions"]) != 2
+            or config["instructions"][0] is not None
+            or not isinstance(config["instructions"][1], str)
+        ):  # Step 2 should be template like '{input}'
+            raise ValueError(
+                "Router Dict 'instructions' must be a list like [None, template_str]."
+            )
+        if not isinstance(config["models"], list) or len(config["models"]) != 1:
+            raise ValueError(
+                "Router Dict 'models' must be a list of one model configuration (for step 2)."
+            )
         # --- End Updated Validation ---
 
         # Store the *dictionary* of templates
-        self._decision_prompt_templates = config['decision_prompt_templates'] 
-        decision_instructions = list(config['instructions'])
+        self._decision_prompt_templates = config["decision_prompt_templates"]
+        decision_instructions = list(config["instructions"])
         # Inject the preparation function at index 0 (for step 1)
         # _prepare_full_decision_prompt will now use self.router_strategy to pick the template
-        decision_instructions[0] = functools.partial(self._prepare_full_decision_prompt, self)
+        decision_instructions[0] = functools.partial(
+            self._prepare_full_decision_prompt, self
+        )
         # Step 2 instruction should already be in the list (e.g., '{input}')
 
         try:
             self.decision_maker_chain = PromptChain(
-                models=config['models'], # Expecting 1 model for step 2
-                instructions=decision_instructions, # Now has 2 items [func, str]
+                models=config["models"],  # Expecting 1 model for step 2
+                instructions=decision_instructions,  # Now has 2 items [func, str]
                 verbose=self.verbose,
-                store_steps=True, # To see the prepared prompt if needed
+                store_steps=True,  # To see the prepared prompt if needed
                 additional_prompt_dirs=self.additional_prompt_dirs,
                 # Pass other config items, excluding the ones we handled
-                **{k: v for k, v in config.items() if k not in ['models', 'instructions', 'decision_prompt_templates']}
+                **{
+                    k: v
+                    for k, v in config.items()
+                    if k not in ["models", "instructions", "decision_prompt_templates"]
+                },
             )
-            if self.verbose: print("Default 2-step decision maker chain configured.")
+            if self.verbose:
+                print("Default 2-step decision maker chain configured.")
         except Exception as e:
-            self.logger.log_run({"event": "error", "message": f"Failed to initialize default LLM router chain: {e}"})
-            raise RuntimeError(f"Failed to initialize default LLM router chain: {e}") from e
+            self.logger.log_run(
+                {
+                    "event": "error",
+                    "message": f"Failed to initialize default LLM router chain: {e}",
+                }
+            )
+            raise RuntimeError(
+                f"Failed to initialize default LLM router chain: {e}"
+            ) from e
 
     def _prepare_full_decision_prompt(self, context_self, user_input: str) -> str:
         """
@@ -498,10 +646,17 @@ class AgentChain:
             The formatted prompt string for the LLM decision step.
         """
         history_context = context_self._format_chat_history()
-        agent_details = "\n".join([f" - {name}: {desc}" for name, desc in context_self.agent_descriptions.items()])
+        agent_details = "\n".join(
+            [
+                f" - {name}: {desc}"
+                for name, desc in context_self.agent_descriptions.items()
+            ]
+        )
 
         # --- Select the template based on strategy ---
-        template = context_self._decision_prompt_templates.get(context_self.router_strategy)
+        template = context_self._decision_prompt_templates.get(
+            context_self.router_strategy
+        )
         if not template:
             # This should have been caught in __init__, but double-check
             error_msg = f"Internal Error: No decision prompt template found for strategy '{context_self.router_strategy}'."
@@ -509,24 +664,35 @@ class AgentChain:
             context_self.logger.log_run({"event": "error", "message": error_msg})
             return f"ERROR: {error_msg}"
         # --- End Template Selection ---
-        
+
         # Use the selected template
         try:
             prompt = template.format(
                 user_input=user_input,
                 history=history_context,
-                agent_details=agent_details
+                agent_details=agent_details,
             )
             if context_self.verbose:
-                print("\n--- Preparing Full Decision Prompt (Step 1 Output / Step 2 Input) ---")
+                print(
+                    "\n--- Preparing Full Decision Prompt (Step 1 Output / Step 2 Input) ---"
+                )
                 print(f"Full Prompt for Decision LLM:\n{prompt}")
-                print("-------------------------------------------------------------------\n")
-            context_self.logger.log_run({"event": "prepare_full_decision_prompt", "input_length": len(user_input)})
+                print(
+                    "-------------------------------------------------------------------\n"
+                )
+            context_self.logger.log_run(
+                {
+                    "event": "prepare_full_decision_prompt",
+                    "input_length": len(user_input),
+                }
+            )
             return prompt
         except KeyError as e:
             error_msg = f"Missing placeholder in decision prompt template: {e}. Template requires {{user_input}}, {{history}}, {{agent_details}}."
             logging.error(error_msg)
-            context_self.logger.log_run({"event": "error", "message": error_msg, "template": template})
+            context_self.logger.log_run(
+                {"event": "error", "message": error_msg, "template": template}
+            )
             # Return error message so chain processing stops cleanly
             return f"ERROR: Prompt template formatting failed: {e}"
         except Exception as e:
@@ -537,18 +703,22 @@ class AgentChain:
 
     def _count_tokens(self, text: str) -> int:
         """Counts tokens using tiktoken if available, otherwise uses character length estimate."""
-        if not text: return 0
+        if not text:
+            return 0
         if self._tokenizer:
             try:
                 return len(self._tokenizer.encode(text))
             except Exception as e:
-                if self.verbose: print(f"Tiktoken encoding error (falling back to char count): {e}")
-                self.logger.log_run({"event": "warning", "message": f"Tiktoken encoding error: {e}"})
+                if self.verbose:
+                    print(f"Tiktoken encoding error (falling back to char count): {e}")
+                self.logger.log_run(
+                    {"event": "warning", "message": f"Tiktoken encoding error: {e}"}
+                )
                 # Log the error but fallback
-                return len(text) // 4 # Fallback estimate
+                return len(text) // 4  # Fallback estimate
         else:
             # Tokenizer not available
-            return len(text) // 4 # Rough estimate
+            return len(text) // 4  # Rough estimate
 
     def _format_chat_history(self, max_tokens: Optional[int] = None) -> str:
         """Formats chat history, truncating based on token count."""
@@ -556,14 +726,15 @@ class AgentChain:
             return "No previous conversation history."
 
         limit = max_tokens if max_tokens is not None else self.max_history_tokens
-        formatted_history = []
+        formatted_history: List[str] = []
         current_tokens = 0
         token_count_method = "tiktoken" if self._tokenizer else "character estimate"
 
         for message in reversed(self._conversation_history):
-            role = message.get("role", "user").capitalize() # Default role if missing
+            role = message.get("role", "user").capitalize()  # Default role if missing
             content = message.get("content", "")
-            if not content: continue # Skip empty messages
+            if not content:
+                continue  # Skip empty messages
 
             entry = f"{role}: {content}"
             entry_tokens = self._count_tokens(entry)
@@ -574,9 +745,18 @@ class AgentChain:
                 current_tokens += entry_tokens
             else:
                 if self.verbose:
-                    print(f"History truncation: Limit {limit} tokens ({token_count_method}) reached. Stopping history inclusion.")
-                self.logger.log_run({"event": "history_truncated", "limit": limit, "final_token_count": current_tokens, "method": token_count_method})
-                break # Stop adding messages
+                    print(
+                        f"History truncation: Limit {limit} tokens ({token_count_method}) reached. Stopping history inclusion."
+                    )
+                self.logger.log_run(
+                    {
+                        "event": "history_truncated",
+                        "limit": limit,
+                        "final_token_count": current_tokens,
+                        "method": token_count_method,
+                    }
+                )
+                break  # Stop adding messages
 
         final_history_str = "\n".join(formatted_history)
         if not final_history_str:
@@ -594,7 +774,7 @@ class AgentChain:
         max_entries: Optional[int] = None,
         truncation_strategy: str = "oldest_first",
         include_types: Optional[List[str]] = None,
-        exclude_sources: Optional[List[str]] = None
+        exclude_sources: Optional[List[str]] = None,
     ) -> str:
         """Formats chat history for a specific agent with custom filtering and limits (T077).
 
@@ -618,7 +798,9 @@ class AgentChain:
         if history_manager is None:
             # Agent has history disabled (e.g., terminal agents)
             if self.verbose:
-                print(f"No history for agent '{agent_name}' (disabled for token efficiency)")
+                print(
+                    f"No history for agent '{agent_name}' (disabled for token efficiency)"
+                )
             return "No previous conversation history."
 
         # Get formatted history from ExecutionHistoryManager
@@ -626,7 +808,7 @@ class AgentChain:
             format_style="chat",
             max_tokens=max_tokens,
             include_types=include_types,
-            exclude_sources=exclude_sources
+            exclude_sources=exclude_sources,
         )
 
         if not formatted_history or formatted_history == "No history available.":
@@ -634,7 +816,9 @@ class AgentChain:
 
         return formatted_history
 
-    def _add_to_history(self, role: str, content: str, agent_name: Optional[str] = None):
+    def _add_to_history(
+        self, role: str, content: str, agent_name: Optional[str] = None
+    ):
         """Adds a message to the conversation history, ensuring role and content are present (T077).
 
         Args:
@@ -643,7 +827,9 @@ class AgentChain:
             agent_name (Optional[str]): If role is "assistant", the name of the agent that generated the response
         """
         if not role or not content:
-            self.logger.log_run({"event": "history_add_skipped", "reason": "Missing role or content"})
+            self.logger.log_run(
+                {"event": "history_add_skipped", "reason": "Missing role or content"}
+            )
             return
 
         # Store the original role for the conversation history
@@ -655,16 +841,24 @@ class AgentChain:
         if role == "assistant" and agent_name:
             db_role = f"assistant:{agent_name}"
             if self.verbose:
-                print(f"History updated - Role: {role} (Agent: {agent_name}), Content: {content[:100]}...")
+                print(
+                    f"History updated - Role: {role} (Agent: {agent_name}), Content: {content[:100]}..."
+                )
         else:
             if self.verbose:
                 print(f"History updated - Role: {role}, Content: {content[:100]}...")
 
         # Log history addition minimally to avoid excessive logging
-        self.logger.log_run({"event": "history_add", "role": db_role, "content_length": len(content)})
+        self.logger.log_run(
+            {"event": "history_add", "role": db_role, "content_length": len(content)}
+        )
 
         # T077: Add to ExecutionHistoryManagers for all agents
-        entry_type = "user_input" if role == "user" else "agent_output" if role == "assistant" else "system_message"
+        entry_type = (
+            "user_input"
+            if role == "user"
+            else "agent_output" if role == "assistant" else "system_message"
+        )
         source = agent_name if agent_name else role
 
         for agent, history_manager in self._history_managers.items():
@@ -672,7 +866,9 @@ class AgentChain:
                 try:
                     history_manager.add_entry(entry_type, content, source=source)
                 except Exception as e:
-                    logging.warning(f"Failed to add entry to history manager for agent '{agent}': {e}")
+                    logging.warning(
+                        f"Failed to add entry to history manager for agent '{agent}': {e}"
+                    )
 
         # Append to cache if enabled
         if self.enable_cache:
@@ -682,30 +878,37 @@ class AgentChain:
             except Exception as e:
                 logging.error(f"Failed to append to cache: {e}")
                 self.logger.log_run({"event": "cache_append_error", "error": str(e)})
-    
+
     def _append_to_cache(self, entry: Dict[str, str]):
         """Appends a history entry to the SQLite database."""
         if not self.db_connection:
-            if self.verbose: print("Cannot append to cache: database connection not established")
+            if self.verbose:
+                print("Cannot append to cache: database connection not established")
             return
-            
+
         import datetime
-        
+
         try:
             cursor = self.db_connection.cursor()
-            
+
             # Get the session ID
             session_id = self.cache_config.get("name", "default")
             now = datetime.datetime.now().isoformat()
-            
+
             # Insert the entry with session instance UUID
             cursor.execute(
                 "INSERT INTO conversation_entries (session_id, session_instance_uuid, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
-                (session_id, self.session_instance_uuid, entry["role"], entry["content"], now)
+                (
+                    session_id,
+                    self.session_instance_uuid,
+                    entry["role"],
+                    entry["content"],
+                    now,
+                ),
             )
-            
+
             self.db_connection.commit()
-            
+
             if self.verbose:
                 print(f"Cache updated - Added entry for role: {entry['role']}")
             self.logger.log_run({"event": "cache_updated", "entry_role": entry["role"]})
@@ -713,46 +916,48 @@ class AgentChain:
             # Log error but don't stop execution
             logging.error(f"Error appending to SQLite cache {self.cache_path}: {e}")
             self.logger.log_run({"event": "cache_append_error", "error": str(e)})
-    
+
     def get_cached_history(self, include_all_instances: bool = False) -> Dict[str, Any]:
         """
         Retrieves the cached conversation history from SQLite.
-        
+
         Args:
             include_all_instances: If True, includes entries from all session instances.
                                   If False (default), only includes entries from the current instance.
         """
         if not self.enable_cache:
             return {"error": "Cache is not enabled", "conversation": []}
-            
+
         if not self.db_connection:
             return {"error": "Database connection not established", "conversation": []}
-            
+
         try:
             cursor = self.db_connection.cursor()
-            
+
             # Get the session ID
             session_id = self.cache_config.get("name", "default")
-            
+
             # Get all session instances for this session_id
             cursor.execute(
                 "SELECT session_instance_uuid, created_at FROM sessions WHERE session_id = ? ORDER BY created_at",
-                (session_id,)
+                (session_id,),
             )
             instances = cursor.fetchall()
-            
+
             if not instances:
                 return {"error": f"Session {session_id} not found", "conversation": []}
-            
+
             # Build a list of instances
             instance_list = []
             for instance_uuid, created_at in instances:
-                instance_list.append({
-                    "uuid": instance_uuid,
-                    "created_at": created_at,
-                    "is_current": instance_uuid == self.session_instance_uuid
-                })
-            
+                instance_list.append(
+                    {
+                        "uuid": instance_uuid,
+                        "created_at": created_at,
+                        "is_current": instance_uuid == self.session_instance_uuid,
+                    }
+                )
+
             # Get conversation entries based on filter parameter
             if include_all_instances:
                 # Get all entries for this session_id
@@ -761,7 +966,7 @@ class AgentChain:
                        FROM conversation_entries 
                        WHERE session_id = ? 
                        ORDER BY id""",
-                    (session_id,)
+                    (session_id,),
                 )
             else:
                 # Get only entries for current instance
@@ -770,31 +975,33 @@ class AgentChain:
                        FROM conversation_entries 
                        WHERE session_id = ? AND session_instance_uuid = ? 
                        ORDER BY id""",
-                    (session_id, self.session_instance_uuid)
+                    (session_id, self.session_instance_uuid),
                 )
-            
+
             # Build the result
             entries = []
             for instance_uuid, role, content, timestamp in cursor.fetchall():
-                entries.append({
-                    "session_instance_uuid": instance_uuid,
-                    "role": role,
-                    "content": content,
-                    "timestamp": timestamp
-                })
-                
+                entries.append(
+                    {
+                        "session_instance_uuid": instance_uuid,
+                        "role": role,
+                        "content": content,
+                        "timestamp": timestamp,
+                    }
+                )
+
             return {
                 "session_id": session_id,
                 "current_instance_uuid": self.session_instance_uuid,
                 "instances": instance_list,
                 "conversation": entries,
-                "include_all_instances": include_all_instances
+                "include_all_instances": include_all_instances,
             }
         except Exception as e:
             logging.error(f"Error reading from SQLite cache {self.cache_path}: {e}")
             self.logger.log_run({"event": "cache_read_error", "error": str(e)})
             return {"error": str(e), "conversation": []}
-    
+
     def close_cache(self):
         """Closes the database connection."""
         if self.db_connection:
@@ -832,16 +1039,24 @@ class AgentChain:
     def _parse_decision(self, decision_output: str) -> Dict[str, Any]:
         """Parses the decision maker's JSON output based on the router strategy."""
         if not decision_output:
-            self.logger.log_run({"event": "parse_decision_error", "reason": "Empty output"})
+            self.logger.log_run(
+                {"event": "parse_decision_error", "reason": "Empty output"}
+            )
             return {}
 
         # Clean the output
         cleaned_output = self._clean_json_output(decision_output)
         if not cleaned_output:
-            self.logger.log_run({"event": "parse_decision_error", "reason": "Cleaned output is empty", "raw": decision_output})
+            self.logger.log_run(
+                {
+                    "event": "parse_decision_error",
+                    "reason": "Cleaned output is empty",
+                    "raw": decision_output,
+                }
+            )
             return {}
-        
-        data = None # Initialize data to avoid UnboundLocalError in exception handlers
+
+        data = None  # Initialize data to avoid UnboundLocalError in exception handlers
         try:
             data = json.loads(cleaned_output)
             parsed_result = {}
@@ -850,88 +1065,140 @@ class AgentChain:
                 chosen_agent = data.get("chosen_agent")
                 if chosen_agent and chosen_agent in self.agent_names:
                     parsed_result["chosen_agent"] = chosen_agent
-                    parsed_result["refined_query"] = data.get("refined_query") # Optional
-                    self.logger.log_run({
-                        "event": "parse_decision_success", "strategy": "single_agent_dispatch",
-                        "result": parsed_result
-                    })
+                    parsed_result["refined_query"] = data.get(
+                        "refined_query"
+                    )  # Optional
+                    self.logger.log_run(
+                        {
+                            "event": "parse_decision_success",
+                            "strategy": "single_agent_dispatch",
+                            "result": parsed_result,
+                        }
+                    )
                 else:
-                    raise ValueError(f"Missing or invalid 'chosen_agent' for single_agent_dispatch strategy. Found: {chosen_agent}")
+                    raise ValueError(
+                        f"Missing or invalid 'chosen_agent' for single_agent_dispatch strategy. Found: {chosen_agent}"
+                    )
 
             elif self.router_strategy == "static_plan":
                 plan = data.get("plan")
                 initial_input = data.get("initial_input")
                 # Validate plan
-                if isinstance(plan, list) and all(agent_name in self.agent_names for agent_name in plan) and plan:
+                if (
+                    isinstance(plan, list)
+                    and all(agent_name in self.agent_names for agent_name in plan)
+                    and plan
+                ):
                     parsed_result["plan"] = plan
                     # Validate initial_input (must be present and a string)
                     if isinstance(initial_input, str):
                         parsed_result["initial_input"] = initial_input
-                        self.logger.log_run({
-                            "event": "parse_decision_success", "strategy": "static_plan",
-                            "result": parsed_result
-                        })
+                        self.logger.log_run(
+                            {
+                                "event": "parse_decision_success",
+                                "strategy": "static_plan",
+                                "result": parsed_result,
+                            }
+                        )
                     else:
-                        raise ValueError(f"Missing or invalid 'initial_input' (must be string) for static_plan strategy. Found: {initial_input}")
+                        raise ValueError(
+                            f"Missing or invalid 'initial_input' (must be string) for static_plan strategy. Found: {initial_input}"
+                        )
                 else:
-                    raise ValueError(f"Missing or invalid 'plan' (must be non-empty list of valid agent names) for static_plan strategy. Found: {plan}")
+                    raise ValueError(
+                        f"Missing or invalid 'plan' (must be non-empty list of valid agent names) for static_plan strategy. Found: {plan}"
+                    )
 
             elif self.router_strategy == "dynamic_decomposition":
                 next_action = data.get("next_action")
-                is_complete = data.get("is_task_complete", False) # Default to false
+                is_complete = data.get("is_task_complete", False)  # Default to false
 
                 if next_action == "call_agent":
                     agent_name = data.get("agent_name")
                     agent_input = data.get("agent_input")
-                    if agent_name and agent_name in self.agent_names and isinstance(agent_input, str):
+                    if (
+                        agent_name
+                        and agent_name in self.agent_names
+                        and isinstance(agent_input, str)
+                    ):
                         parsed_result["next_action"] = "call_agent"
                         parsed_result["agent_name"] = agent_name
                         parsed_result["agent_input"] = agent_input
-                        parsed_result["is_task_complete"] = False # Explicitly false
-                        self.logger.log_run({
-                            "event": "parse_decision_success", "strategy": "dynamic_decomposition",
-                            "result": parsed_result
-                        })
+                        parsed_result["is_task_complete"] = False  # Explicitly false
+                        self.logger.log_run(
+                            {
+                                "event": "parse_decision_success",
+                                "strategy": "dynamic_decomposition",
+                                "result": parsed_result,
+                            }
+                        )
                     else:
-                        raise ValueError(f"Missing or invalid 'agent_name' or 'agent_input' for dynamic_decomposition 'call_agent' action. Found: name={agent_name}, input_type={type(agent_input).__name__}")
+                        raise ValueError(
+                            f"Missing or invalid 'agent_name' or 'agent_input' for dynamic_decomposition 'call_agent' action. Found: name={agent_name}, input_type={type(agent_input).__name__}"
+                        )
                 elif next_action == "final_answer":
                     final_answer = data.get("final_answer")
                     if isinstance(final_answer, str):
                         parsed_result["next_action"] = "final_answer"
                         parsed_result["final_answer"] = final_answer
-                        parsed_result["is_task_complete"] = True # Explicitly true
-                        self.logger.log_run({
-                            "event": "parse_decision_success", "strategy": "dynamic_decomposition",
-                            "result": parsed_result
-                        })
+                        parsed_result["is_task_complete"] = True  # Explicitly true
+                        self.logger.log_run(
+                            {
+                                "event": "parse_decision_success",
+                                "strategy": "dynamic_decomposition",
+                                "result": parsed_result,
+                            }
+                        )
                     else:
-                        raise ValueError(f"Missing or invalid 'final_answer' (must be string) for dynamic_decomposition 'final_answer' action. Found type: {type(final_answer).__name__}")
+                        raise ValueError(
+                            f"Missing or invalid 'final_answer' (must be string) for dynamic_decomposition 'final_answer' action. Found type: {type(final_answer).__name__}"
+                        )
                 # Add elif for "clarify" action later if needed
                 else:
-                    raise ValueError(f"Invalid 'next_action' value for dynamic_decomposition strategy. Must be 'call_agent' or 'final_answer'. Found: {next_action}")
+                    raise ValueError(
+                        f"Invalid 'next_action' value for dynamic_decomposition strategy. Must be 'call_agent' or 'final_answer'. Found: {next_action}"
+                    )
 
             else:
-                raise ValueError(f"Parsing logic not implemented for router strategy: {self.router_strategy}")
+                raise ValueError(
+                    f"Parsing logic not implemented for router strategy: {self.router_strategy}"
+                )
 
             return parsed_result
 
         except json.JSONDecodeError as e:
-            self.logger.log_run({
-                "event": "parse_decision_error", "strategy": self.router_strategy,
-                "reason": f"JSONDecodeError: {e}", "raw": decision_output, "cleaned": cleaned_output
-            })
+            self.logger.log_run(
+                {
+                    "event": "parse_decision_error",
+                    "strategy": self.router_strategy,
+                    "reason": f"JSONDecodeError: {e}",
+                    "raw": decision_output,
+                    "cleaned": cleaned_output,
+                }
+            )
             return {}
-        except ValueError as e: # Catch validation errors
-            self.logger.log_run({
-                "event": "parse_decision_error", "strategy": self.router_strategy,
-                "reason": f"ValidationError: {e}", "raw": decision_output, "cleaned": cleaned_output, "parsed_data": data
-            })
+        except ValueError as e:  # Catch validation errors
+            self.logger.log_run(
+                {
+                    "event": "parse_decision_error",
+                    "strategy": self.router_strategy,
+                    "reason": f"ValidationError: {e}",
+                    "raw": decision_output,
+                    "cleaned": cleaned_output,
+                    "parsed_data": data,
+                }
+            )
             return {}
         except Exception as e:
-            self.logger.log_run({
-                "event": "parse_decision_error", "strategy": self.router_strategy,
-                "reason": f"Unexpected error: {e}", "raw": decision_output, "cleaned": cleaned_output
-            }, exc_info=True)
+            self.logger.log_run(
+                {
+                    "event": "parse_decision_error",
+                    "strategy": self.router_strategy,
+                    "reason": f"Unexpected error: {e}",
+                    "raw": decision_output,
+                    "cleaned": cleaned_output,
+                }
+            )
             return {}
 
     @track_routing(extract_decision=True)
@@ -939,21 +1206,39 @@ class AgentChain:
         """Performs simple pattern-based routing (example)."""
         # Simple Math Check: Look for numbers and common math operators
         # This is a basic example; more sophisticated regex/parsing could be used.
-        math_pattern = r'[\d\.\s]+[\+\-\*\/^%]+[\d\.\s]+' # Looks for number-operator-number pattern
+        math_pattern = r"[\d\.\s]+[\+\-\*\/^%]+[\d\.\s]+"  # Looks for number-operator-number pattern
         # Keywords that often indicate math
-        math_keywords = ['calculate', 'what is', 'solve for', 'compute', 'math problem']
+        math_keywords = ["calculate", "what is", "solve for", "compute", "math problem"]
 
         input_lower = user_input.lower()
 
-        if re.search(math_pattern, user_input) or any(keyword in input_lower for keyword in math_keywords):
+        if re.search(math_pattern, user_input) or any(
+            keyword in input_lower for keyword in math_keywords
+        ):
             # Check if the math agent exists
             if "math_agent" in self.agents:
-                if self.verbose: print("Simple Router: Detected potential math query.")
-                self.logger.log_run({"event": "simple_router_match", "input": user_input, "matched_agent": "math_agent"})
+                if self.verbose:
+                    print("Simple Router: Detected potential math query.")
+                self.logger.log_run(
+                    {
+                        "event": "simple_router_match",
+                        "input": user_input,
+                        "matched_agent": "math_agent",
+                    }
+                )
                 return "math_agent"
             else:
-                if self.verbose: print("Simple Router: Detected math query, but 'math_agent' not available.")
-                self.logger.log_run({"event": "simple_router_warning", "input": user_input, "reason": "Math detected, but no math_agent"})
+                if self.verbose:
+                    print(
+                        "Simple Router: Detected math query, but 'math_agent' not available."
+                    )
+                self.logger.log_run(
+                    {
+                        "event": "simple_router_warning",
+                        "input": user_input,
+                        "reason": "Math detected, but no math_agent",
+                    }
+                )
 
         # Add more simple rules here if needed (e.g., for creative writing prompts)
         # creative_keywords = ['write a poem', 'tell a story', 'haiku']
@@ -963,7 +1248,8 @@ class AgentChain:
         #         pass
 
         # If no simple rules match, defer to LLM decision maker
-        if self.verbose: print("Simple Router: No direct match, deferring to Complex Router.")
+        if self.verbose:
+            print("Simple Router: No direct match, deferring to Complex Router.")
         self.logger.log_run({"event": "simple_router_defer", "input": user_input})
         return None
 
@@ -971,7 +1257,7 @@ class AgentChain:
         self,
         user_input: str,
         override_include_history: Optional[bool] = None,
-        return_metadata: bool = False
+        return_metadata: bool = False,
     ) -> Union[str, AgentExecutionResult]:
         """Processes user input based on the configured execution_mode.
 
@@ -996,7 +1282,14 @@ class AgentChain:
         prompt_tokens: Optional[int] = None
         completion_tokens: Optional[int] = None
 
-        self.logger.log_run({"event": "process_input_start", "mode": self.execution_mode, "input": user_input, "return_metadata": return_metadata})
+        self.logger.log_run(
+            {
+                "event": "process_input_start",
+                "mode": self.execution_mode,
+                "input": user_input,
+                "return_metadata": return_metadata,
+            }
+        )
         self._add_to_history("user", user_input)
 
         # ✅ Activity Logging: Start interaction chain and log user input
@@ -1008,9 +1301,9 @@ class AgentChain:
                 content={"input": user_input},
                 metadata={
                     "execution_mode": self.execution_mode,
-                    "timestamp": start_time.isoformat()
+                    "timestamp": start_time.isoformat(),
                 },
-                tags=["root_interaction", self.execution_mode]
+                tags=["root_interaction", self.execution_mode],
             )
 
         # Determine if we should include history for this call
@@ -1019,21 +1312,24 @@ class AgentChain:
             include_history = override_include_history
             if self.verbose and include_history != self.auto_include_history:
                 print(f"History inclusion overridden for this call: {include_history}")
-                self.logger.log_run({"event": "history_inclusion_override", "value": include_history})
+                self.logger.log_run(
+                    {"event": "history_inclusion_override", "value": include_history}
+                )
 
         final_response = ""
-        agent_order = list(self.agents.keys()) # Defined once for pipeline/round_robin
+        agent_order = list(self.agents.keys())  # Defined once for pipeline/round_robin
         chosen_agent_name = None  # To track which agent was used
 
-        if self.execution_mode == 'pipeline':
-            if self.verbose: print(f"\n--- Executing in Pipeline Mode ---")
+        if self.execution_mode == "pipeline":
+            if self.verbose:
+                print(f"\n--- Executing in Pipeline Mode ---")
             current_input = user_input
             pipeline_failed = False
             for i, agent_name in enumerate(agent_order):
                 agent_instance = self.agents[agent_name]
                 step_num = i + 1
                 pipeline_step_input = current_input
-                
+
                 # Include history if configured
                 if include_history:
                     formatted_history = self._format_chat_history()
@@ -1043,17 +1339,20 @@ class AgentChain:
                     history_tokens = 0
                     try:
                         import tiktoken
+
                         enc = tiktoken.encoding_for_model("gpt-4")
                         history_tokens = len(enc.encode(formatted_history))
                     except ImportError:
-                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        logging.warning(
+                            "tiktoken not available - install with 'pip install tiktoken' for accurate token counting"
+                        )
                         history_tokens = -1
                     except Exception as e:
                         logging.warning(f"Error calculating token count: {e}")
                         history_tokens = -1
 
                     # ✅ Track cumulative token count across conversation
-                    if not hasattr(self, '_cumulative_history_tokens'):
+                    if not hasattr(self, "_cumulative_history_tokens"):
                         self._cumulative_history_tokens = 0
                     if history_tokens > 0:
                         self._cumulative_history_tokens += history_tokens
@@ -1062,79 +1361,117 @@ class AgentChain:
                     orange_start = "\033[38;5;208m"
                     orange_end = "\033[0m"
 
-                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
-                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+                    token_display = (
+                        f"{history_tokens} tokens"
+                        if history_tokens > 0
+                        else "tokens unavailable (install tiktoken)"
+                    )
+                    cumulative_display = (
+                        f" | cumulative: {self._cumulative_history_tokens}"
+                        if history_tokens > 0
+                        else ""
+                    )
 
-                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=pipeline | agent={agent_name} | step={step_num} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(
+                        f"{orange_start}[HISTORY INJECTED] mode=pipeline | agent={agent_name} | step={step_num} | {token_display}{cumulative_display}{orange_end}"
+                    )
                     logging.info(f"{orange_start}{'='*80}{orange_end}")
                     logging.info(f"{orange_start}[HISTORY START]{orange_end}")
-                    for line in formatted_history.split('\n'):
+                    for line in formatted_history.split("\n"):
                         logging.info(f"{orange_start}{line}{orange_end}")
                     logging.info(f"{orange_start}[HISTORY END]{orange_end}")
                     logging.info(f"{orange_start}{'='*80}{orange_end}")
 
                     if self.verbose:
-                        print(f"  Including history for pipeline step {step_num} ({agent_name}), {token_display}")
+                        print(
+                            f"  Including history for pipeline step {step_num} ({agent_name}), {token_display}"
+                        )
 
                     # Log detailed history metadata
-                    self.logger.log_run({
-                        "event": "pipeline_history_injected",
-                        "step": step_num,
-                        "agent": agent_name,
-                        "history_length": len(formatted_history),
-                        "history_tokens": history_tokens,
-                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
-                        "history_content": formatted_history
-                    })
+                    self.logger.log_run(
+                        {
+                            "event": "pipeline_history_injected",
+                            "step": step_num,
+                            "agent": agent_name,
+                            "history_length": len(formatted_history),
+                            "history_tokens": history_tokens,
+                            "cumulative_history_tokens": (
+                                self._cumulative_history_tokens
+                                if history_tokens > 0
+                                else -1
+                            ),
+                            "history_content": formatted_history,
+                        }
+                    )
 
                 if self.verbose:
-                    print(f"  Pipeline Step {step_num}/{len(agent_order)}: Running agent '{agent_name}'")
+                    print(
+                        f"  Pipeline Step {step_num}/{len(agent_order)}: Running agent '{agent_name}'"
+                    )
                     print(f"    Input Type: String")
-                    print(f"    Input Content (Truncated): {str(pipeline_step_input)[:100]}...")
-                self.logger.log_run({
-                    "event": "pipeline_step_start",
-                    "step": step_num,
-                    "total_steps": len(agent_order),
-                    "agent": agent_name,
-                    "input_type": "string",
-                    "input_length": len(str(pipeline_step_input)),
-                    "history_included": include_history
-                })
-                try:
-                    agent_response = await agent_instance.process_prompt_async(pipeline_step_input)
-                    current_input = agent_response
-                    self.logger.log_run({
-                        "event": "pipeline_step_success",
+                    print(
+                        f"    Input Content (Truncated): {str(pipeline_step_input)[:100]}..."
+                    )
+                self.logger.log_run(
+                    {
+                        "event": "pipeline_step_start",
                         "step": step_num,
+                        "total_steps": len(agent_order),
                         "agent": agent_name,
-                        "response_length": len(current_input)
-                    })
+                        "input_type": "string",
+                        "input_length": len(str(pipeline_step_input)),
+                        "history_included": include_history,
+                    }
+                )
+                try:
+                    agent_response = await agent_instance.process_prompt_async(
+                        pipeline_step_input
+                    )
+                    current_input = agent_response
+                    self.logger.log_run(
+                        {
+                            "event": "pipeline_step_success",
+                            "step": step_num,
+                            "agent": agent_name,
+                            "response_length": len(current_input),
+                        }
+                    )
 
                     # ✅ Activity Logging: Log agent output
                     if self.activity_logger:
                         self.activity_logger.log_activity(
                             activity_type="agent_output",
                             agent_name=agent_name,
-                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            agent_model=(
+                                agent_instance.models[0]
+                                if hasattr(agent_instance, "models")
+                                and agent_instance.models
+                                else None
+                            ),
                             content={"output": agent_response},
                             metadata={
                                 "execution_mode": "pipeline",
                                 "pipeline_step": step_num,
-                                "total_steps": len(agent_order)
+                                "total_steps": len(agent_order),
                             },
-                            tags=["pipeline", "success"]
+                            tags=["pipeline", "success"],
                         )
 
-                    if self.verbose: print(f"    Output from {agent_name} (Input for next): {current_input[:150]}...")
+                    if self.verbose:
+                        print(
+                            f"    Output from {agent_name} (Input for next): {current_input[:150]}..."
+                        )
                 except Exception as e:
                     error_msg = f"Error running agent {agent_name} in pipeline step {step_num}: {e}"
                     logging.error(error_msg, exc_info=True)
-                    self.logger.log_run({
-                        "event": "pipeline_step_error",
-                        "step": step_num,
-                        "agent": agent_name,
-                        "error": str(e)
-                    })
+                    self.logger.log_run(
+                        {
+                            "event": "pipeline_step_error",
+                            "step": step_num,
+                            "agent": agent_name,
+                            "error": str(e),
+                        }
+                    )
 
                     # ✅ Activity Logging: Log error
                     if self.activity_logger:
@@ -1145,36 +1482,45 @@ class AgentChain:
                             metadata={
                                 "execution_mode": "pipeline",
                                 "pipeline_step": step_num,
-                                "total_steps": len(agent_order)
+                                "total_steps": len(agent_order),
                             },
-                            tags=["pipeline", "error"]
+                            tags=["pipeline", "error"],
                         )
 
-                    final_response = f"Pipeline failed at step {step_num} ({agent_name}): {e}"
+                    final_response = (
+                        f"Pipeline failed at step {step_num} ({agent_name}): {e}"
+                    )
                     pipeline_failed = True
                     break
             if not pipeline_failed:
                 final_response = current_input
                 chosen_agent_name = agent_order[-1]  # Last agent in the pipeline
             if not final_response:
-                final_response = "[Pipeline completed but produced an empty final response.]"
+                final_response = (
+                    "[Pipeline completed but produced an empty final response.]"
+                )
                 self.logger.log_run({"event": "pipeline_empty_response"})
 
-        elif self.execution_mode == 'round_robin':
-            if self.verbose: print(f"\n--- Executing in Round Robin Mode ---")
+        elif self.execution_mode == "round_robin":
+            if self.verbose:
+                print(f"\n--- Executing in Round Robin Mode ---")
             if not self.agents:
                 final_response = "Error: No agents configured for round_robin."
-                self.logger.log_run({"event": "round_robin_error", "reason": "No agents"})
+                self.logger.log_run(
+                    {"event": "round_robin_error", "reason": "No agents"}
+                )
             else:
                 # Choose the next agent in the rotation
                 selected_agent_name = agent_order[self._round_robin_index]
                 chosen_agent_name = selected_agent_name  # Track the agent name
                 # Update the index for next call
-                self._round_robin_index = (self._round_robin_index + 1) % len(agent_order)
-                
+                self._round_robin_index = (self._round_robin_index + 1) % len(
+                    agent_order
+                )
+
                 agent_instance = self.agents[selected_agent_name]
                 round_robin_input = user_input
-                
+
                 # Include history if configured
                 if include_history:
                     formatted_history = self._format_chat_history()
@@ -1184,17 +1530,20 @@ class AgentChain:
                     history_tokens = 0
                     try:
                         import tiktoken
+
                         enc = tiktoken.encoding_for_model("gpt-4")
                         history_tokens = len(enc.encode(formatted_history))
                     except ImportError:
-                        logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                        logging.warning(
+                            "tiktoken not available - install with 'pip install tiktoken' for accurate token counting"
+                        )
                         history_tokens = -1
                     except Exception as e:
                         logging.warning(f"Error calculating token count: {e}")
                         history_tokens = -1
 
                     # ✅ Track cumulative token count across conversation
-                    if not hasattr(self, '_cumulative_history_tokens'):
+                    if not hasattr(self, "_cumulative_history_tokens"):
                         self._cumulative_history_tokens = 0
                     if history_tokens > 0:
                         self._cumulative_history_tokens += history_tokens
@@ -1203,70 +1552,114 @@ class AgentChain:
                     orange_start = "\033[38;5;208m"
                     orange_end = "\033[0m"
 
-                    token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
-                    cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+                    token_display = (
+                        f"{history_tokens} tokens"
+                        if history_tokens > 0
+                        else "tokens unavailable (install tiktoken)"
+                    )
+                    cumulative_display = (
+                        f" | cumulative: {self._cumulative_history_tokens}"
+                        if history_tokens > 0
+                        else ""
+                    )
 
-                    logging.info(f"{orange_start}[HISTORY INJECTED] mode=round_robin | agent={selected_agent_name} | {token_display}{cumulative_display}{orange_end}")
+                    logging.info(
+                        f"{orange_start}[HISTORY INJECTED] mode=round_robin | agent={selected_agent_name} | {token_display}{cumulative_display}{orange_end}"
+                    )
                     logging.info(f"{orange_start}{'='*80}{orange_end}")
                     logging.info(f"{orange_start}[HISTORY START]{orange_end}")
-                    for line in formatted_history.split('\n'):
+                    for line in formatted_history.split("\n"):
                         logging.info(f"{orange_start}{line}{orange_end}")
                     logging.info(f"{orange_start}[HISTORY END]{orange_end}")
                     logging.info(f"{orange_start}{'='*80}{orange_end}")
 
                     if self.verbose:
-                        print(f"  Including history for round-robin agent {selected_agent_name}, {token_display}")
+                        print(
+                            f"  Including history for round-robin agent {selected_agent_name}, {token_display}"
+                        )
 
                     # Log detailed history metadata
-                    self.logger.log_run({
-                        "event": "round_robin_history_injected",
-                        "agent": selected_agent_name,
-                        "history_length": len(formatted_history),
-                        "history_tokens": history_tokens,
-                        "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
-                        "history_content": formatted_history
-                    })
+                    self.logger.log_run(
+                        {
+                            "event": "round_robin_history_injected",
+                            "agent": selected_agent_name,
+                            "history_length": len(formatted_history),
+                            "history_tokens": history_tokens,
+                            "cumulative_history_tokens": (
+                                self._cumulative_history_tokens
+                                if history_tokens > 0
+                                else -1
+                            ),
+                            "history_content": formatted_history,
+                        }
+                    )
 
                 if self.verbose:
-                    print(f"  Round Robin: Selected agent '{selected_agent_name}' (Next index: {self._round_robin_index})")
-                    print(f"    Input Content (Truncated): {round_robin_input[:100]}...")
-                self.logger.log_run({
-                    "event": "round_robin_agent_start",
-                    "agent": selected_agent_name,
-                    "next_index": self._round_robin_index,
-                    "history_included": include_history
-                })
-                try:
-                    final_response = await agent_instance.process_prompt_async(round_robin_input)
-                    self.logger.log_run({
-                        "event": "round_robin_agent_success",
+                    print(
+                        f"  Round Robin: Selected agent '{selected_agent_name}' (Next index: {self._round_robin_index})"
+                    )
+                    print(
+                        f"    Input Content (Truncated): {round_robin_input[:100]}..."
+                    )
+                self.logger.log_run(
+                    {
+                        "event": "round_robin_agent_start",
                         "agent": selected_agent_name,
-                        "response_length": len(final_response)
-                    })
+                        "next_index": self._round_robin_index,
+                        "history_included": include_history,
+                    }
+                )
+                try:
+                    final_response = await agent_instance.process_prompt_async(
+                        round_robin_input
+                    )
+                    self.logger.log_run(
+                        {
+                            "event": "round_robin_agent_success",
+                            "agent": selected_agent_name,
+                            "response_length": len(final_response),
+                        }
+                    )
 
                     # ✅ Activity Logging: Log agent output
                     if self.activity_logger:
                         self.activity_logger.log_activity(
                             activity_type="agent_output",
                             agent_name=selected_agent_name,
-                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            agent_model=(
+                                agent_instance.models[0]
+                                if hasattr(agent_instance, "models")
+                                and agent_instance.models
+                                else None
+                            ),
                             content={"output": final_response},
                             metadata={
                                 "execution_mode": "round_robin",
-                                "selected_index": self._round_robin_index - 1 if self._round_robin_index > 0 else len(agent_order) - 1
+                                "selected_index": (
+                                    self._round_robin_index - 1
+                                    if self._round_robin_index > 0
+                                    else len(agent_order) - 1
+                                ),
                             },
-                            tags=["round_robin", "success"]
+                            tags=["round_robin", "success"],
                         )
 
-                    if self.verbose: print(f"    Output from {selected_agent_name}: {final_response[:150]}...")
+                    if self.verbose:
+                        print(
+                            f"    Output from {selected_agent_name}: {final_response[:150]}..."
+                        )
                 except Exception as e:
-                    error_msg = f"Error running agent {selected_agent_name} in round_robin: {e}"
+                    error_msg = (
+                        f"Error running agent {selected_agent_name} in round_robin: {e}"
+                    )
                     logging.error(error_msg, exc_info=True)
-                    self.logger.log_run({
-                        "event": "round_robin_agent_error",
-                        "agent": selected_agent_name,
-                        "error": str(e)
-                    })
+                    self.logger.log_run(
+                        {
+                            "event": "round_robin_agent_error",
+                            "agent": selected_agent_name,
+                            "error": str(e),
+                        }
+                    )
 
                     # ✅ Activity Logging: Log error
                     if self.activity_logger:
@@ -1275,23 +1668,30 @@ class AgentChain:
                             agent_name=selected_agent_name,
                             content={"error": str(e), "error_type": type(e).__name__},
                             metadata={"execution_mode": "round_robin"},
-                            tags=["round_robin", "error"]
+                            tags=["round_robin", "error"],
                         )
 
-                    final_response = f"Round robin agent {selected_agent_name} failed: {e}"
+                    final_response = (
+                        f"Round robin agent {selected_agent_name} failed: {e}"
+                    )
 
-        elif self.execution_mode == 'router':
+        elif self.execution_mode == "router":
             # For router mode we'll delegate to a strategy-specific function
             # based on the configured router_strategy
             if self.router_strategy == "single_agent_dispatch":
                 # Execute with the original single-agent dispatch strategy
-                if self.verbose: print(f"\n--- Executing in Router Mode (Strategy: single_agent_dispatch) ---")
-                self.logger.log_run({"event": "router_strategy", "strategy": "single_agent_dispatch"})
+                if self.verbose:
+                    print(
+                        f"\n--- Executing in Router Mode (Strategy: single_agent_dispatch) ---"
+                    )
+                self.logger.log_run(
+                    {"event": "router_strategy", "strategy": "single_agent_dispatch"}
+                )
                 strategy_data = {
                     "user_input": user_input,
-                    "include_history": include_history
+                    "include_history": include_history,
                 }
-                
+
                 # Get the agent name from router via simple or complex routing
                 chosen_agent_name = await self._get_agent_name_from_router(user_input)
 
@@ -1303,15 +1703,17 @@ class AgentChain:
                         content={
                             "chosen_agent": chosen_agent_name,
                             "available_agents": list(self.agents.keys()),
-                            "router_strategy": self.router_strategy
+                            "router_strategy": self.router_strategy,
                         },
                         metadata={"execution_mode": "router"},
-                        tags=["router", "decision"]
+                        tags=["router", "decision"],
                     )
 
                 # Execute the agent if we got a valid name
                 if chosen_agent_name and chosen_agent_name in self.agents:
-                    final_response = await execute_single_dispatch_strategy_async(self, user_input, strategy_data)
+                    final_response = await execute_single_dispatch_strategy_async(
+                        self, user_input, strategy_data
+                    )
 
                     # ✅ Activity Logging: Log agent output from router execution
                     if self.activity_logger:
@@ -1319,16 +1721,23 @@ class AgentChain:
                         self.activity_logger.log_activity(
                             activity_type="agent_output",
                             agent_name=chosen_agent_name,
-                            agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                            agent_model=(
+                                agent_instance.models[0]
+                                if hasattr(agent_instance, "models")
+                                and agent_instance.models
+                                else None
+                            ),
                             content={"output": final_response},
                             metadata={
                                 "execution_mode": "router",
-                                "router_strategy": "single_agent_dispatch"
+                                "router_strategy": "single_agent_dispatch",
                             },
-                            tags=["router", "single_dispatch", "success"]
+                            tags=["router", "single_dispatch", "success"],
                         )
                 else:
-                    final_response = "I couldn't determine which agent should handle your request."
+                    final_response = (
+                        "I couldn't determine which agent should handle your request."
+                    )
 
                     # ✅ Activity Logging: Log router fallback
                     if self.activity_logger:
@@ -1338,49 +1747,62 @@ class AgentChain:
                             content={
                                 "reason": "No valid agent selected",
                                 "chosen_agent": chosen_agent_name,
-                                "fallback_response": final_response
+                                "fallback_response": final_response,
                             },
                             metadata={"execution_mode": "router"},
-                            tags=["router", "fallback", "error"]
+                            tags=["router", "fallback", "error"],
                         )
-            
+
             elif self.router_strategy == "static_plan":
                 # Execute with the static plan strategy
-                if self.verbose: print(f"\n--- Executing in Router Mode (Strategy: static_plan) ---")
-                self.logger.log_run({"event": "router_strategy", "strategy": "static_plan"})
-                plan_response = await execute_static_plan_strategy_async(self, user_input)
+                if self.verbose:
+                    print(f"\n--- Executing in Router Mode (Strategy: static_plan) ---")
+                self.logger.log_run(
+                    {"event": "router_strategy", "strategy": "static_plan"}
+                )
+                plan_response = await execute_static_plan_strategy_async(
+                    self, user_input
+                )
                 final_response = plan_response  # Use the string result directly
 
                 # ✅ Get actual agent info from plan metadata instead of hardcoding "state"
-                plan_meta = getattr(self, '_last_plan_metadata', None)
-                if plan_meta and plan_meta.get('last_agent'):
-                    chosen_agent_name = plan_meta['last_agent']
-                elif plan_meta and plan_meta.get('plan'):
+                plan_meta = getattr(self, "_last_plan_metadata", None)
+                if plan_meta and plan_meta.get("last_agent"):
+                    chosen_agent_name = plan_meta["last_agent"]
+                elif plan_meta and plan_meta.get("plan"):
                     # Fallback to showing all agents in plan
                     chosen_agent_name = f"multi-agent: {' → '.join(plan_meta['plan'])}"
                 else:
                     chosen_agent_name = "multi-agent"  # Better than "state"
-            
+
             elif self.router_strategy == "dynamic_decomposition":
                 # Execute with the dynamic decomposition strategy
-                if self.verbose: print(f"\n--- Executing in Router Mode (Strategy: dynamic_decomposition) ---")
-                self.logger.log_run({"event": "router_strategy", "strategy": "dynamic_decomposition"})
-                decomp_response = await execute_dynamic_decomposition_strategy_async(self, user_input)
+                if self.verbose:
+                    print(
+                        f"\n--- Executing in Router Mode (Strategy: dynamic_decomposition) ---"
+                    )
+                self.logger.log_run(
+                    {"event": "router_strategy", "strategy": "dynamic_decomposition"}
+                )
+                decomp_response = await execute_dynamic_decomposition_strategy_async(
+                    self, user_input
+                )
                 final_response = decomp_response  # Use the string result directly
 
                 # ✅ Get actual agent info from decomposition metadata
-                decomp_meta = getattr(self, '_last_decomp_metadata', None)
-                if decomp_meta and decomp_meta.get('last_agent'):
-                    chosen_agent_name = decomp_meta['last_agent']
+                decomp_meta = getattr(self, "_last_decomp_metadata", None)
+                if decomp_meta and decomp_meta.get("last_agent"):
+                    chosen_agent_name = decomp_meta["last_agent"]
                 else:
                     chosen_agent_name = "dynamic-decomp"  # Better than "state"
-            
+
             else:
                 # This shouldn't happen due to validation in __init__ but just in case
                 raise ValueError(f"Unsupported router_strategy: {self.router_strategy}")
 
-        elif self.execution_mode == 'broadcast':
-            if self.verbose: print(f"\n--- Executing in Broadcast Mode ---")
+        elif self.execution_mode == "broadcast":
+            if self.verbose:
+                print(f"\n--- Executing in Broadcast Mode ---")
             if not self.agents:
                 final_response = "Error: No agents configured for broadcast."
                 self.logger.log_run({"event": "broadcast_error", "reason": "No agents"})
@@ -1389,7 +1811,7 @@ class AgentChain:
                 agent_names_list = list(self.agents.keys())
                 for agent_name in agent_names_list:
                     agent_instance = self.agents[agent_name]
-                    
+
                     # Prepare input with history if configured
                     broadcast_input = user_input
                     if include_history:
@@ -1400,17 +1822,20 @@ class AgentChain:
                         history_tokens = 0
                         try:
                             import tiktoken
+
                             enc = tiktoken.encoding_for_model("gpt-4")
                             history_tokens = len(enc.encode(formatted_history))
                         except ImportError:
-                            logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                            logging.warning(
+                                "tiktoken not available - install with 'pip install tiktoken' for accurate token counting"
+                            )
                             history_tokens = -1
                         except Exception as e:
                             logging.warning(f"Error calculating token count: {e}")
                             history_tokens = -1
 
                         # ✅ Track cumulative token count across conversation
-                        if not hasattr(self, '_cumulative_history_tokens'):
+                        if not hasattr(self, "_cumulative_history_tokens"):
                             self._cumulative_history_tokens = 0
                         if history_tokens > 0:
                             self._cumulative_history_tokens += history_tokens
@@ -1419,47 +1844,79 @@ class AgentChain:
                         orange_start = "\033[38;5;208m"
                         orange_end = "\033[0m"
 
-                        token_display = f"{history_tokens} tokens" if history_tokens > 0 else "tokens unavailable (install tiktoken)"
-                        cumulative_display = f" | cumulative: {self._cumulative_history_tokens}" if history_tokens > 0 else ""
+                        token_display = (
+                            f"{history_tokens} tokens"
+                            if history_tokens > 0
+                            else "tokens unavailable (install tiktoken)"
+                        )
+                        cumulative_display = (
+                            f" | cumulative: {self._cumulative_history_tokens}"
+                            if history_tokens > 0
+                            else ""
+                        )
 
-                        logging.info(f"{orange_start}[HISTORY INJECTED] mode=broadcast | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+                        logging.info(
+                            f"{orange_start}[HISTORY INJECTED] mode=broadcast | agent={agent_name} | {token_display}{cumulative_display}{orange_end}"
+                        )
                         logging.info(f"{orange_start}{'='*80}{orange_end}")
                         logging.info(f"{orange_start}[HISTORY START]{orange_end}")
-                        for line in formatted_history.split('\n'):
+                        for line in formatted_history.split("\n"):
                             logging.info(f"{orange_start}{line}{orange_end}")
                         logging.info(f"{orange_start}[HISTORY END]{orange_end}")
                         logging.info(f"{orange_start}{'='*80}{orange_end}")
 
                         if self.verbose:
-                            print(f"  Including history for broadcast agent {agent_name}, {token_display}")
+                            print(
+                                f"  Including history for broadcast agent {agent_name}, {token_display}"
+                            )
 
                         # Log detailed history metadata
-                        self.logger.log_run({
-                            "event": "broadcast_history_injected",
-                            "agent": agent_name,
-                            "history_length": len(formatted_history),
-                            "history_tokens": history_tokens,
-                            "cumulative_history_tokens": self._cumulative_history_tokens if history_tokens > 0 else -1,
-                            "history_content": formatted_history
-                        })
+                        self.logger.log_run(
+                            {
+                                "event": "broadcast_history_injected",
+                                "agent": agent_name,
+                                "history_length": len(formatted_history),
+                                "history_tokens": history_tokens,
+                                "cumulative_history_tokens": (
+                                    self._cumulative_history_tokens
+                                    if history_tokens > 0
+                                    else -1
+                                ),
+                                "history_content": formatted_history,
+                            }
+                        )
 
                     async def run_agent_task(name, agent, inp):
                         try:
                             return name, await agent.process_prompt_async(inp)
                         except Exception as e:
                             return name, e
-                    tasks.append(run_agent_task(agent_name, agent_instance, broadcast_input))
-                    self.logger.log_run({
-                        "event": "broadcast_agent_start", 
-                        "agent": agent_name,
-                        "history_included": include_history
-                    })
+
+                    tasks.append(
+                        run_agent_task(agent_name, agent_instance, broadcast_input)
+                    )
+                    self.logger.log_run(
+                        {
+                            "event": "broadcast_agent_start",
+                            "agent": agent_name,
+                            "history_included": include_history,
+                        }
+                    )
                 results_with_names = await asyncio.gather(*tasks)
                 processed_results = {}
                 for agent_name, result in results_with_names:
                     if isinstance(result, Exception):
-                        logging.error(f"Error executing agent {agent_name} during broadcast: {result}", exc_info=result)
-                        self.logger.log_run({"event": "broadcast_agent_error", "agent": agent_name, "error": str(result)})
+                        logging.error(
+                            f"Error executing agent {agent_name} during broadcast: {result}",
+                            exc_info=result,
+                        )
+                        self.logger.log_run(
+                            {
+                                "event": "broadcast_agent_error",
+                                "agent": agent_name,
+                                "error": str(result),
+                            }
+                        )
                         processed_results[agent_name] = f"Error: {result}"
 
                         # ✅ Activity Logging: Log broadcast agent error
@@ -1467,12 +1924,21 @@ class AgentChain:
                             self.activity_logger.log_activity(
                                 activity_type="error",
                                 agent_name=agent_name,
-                                content={"error": str(result), "error_type": type(result).__name__},
+                                content={
+                                    "error": str(result),
+                                    "error_type": type(result).__name__,
+                                },
                                 metadata={"execution_mode": "broadcast"},
-                                tags=["broadcast", "error"]
+                                tags=["broadcast", "error"],
                             )
                     else:
-                        self.logger.log_run({"event": "broadcast_agent_success", "agent": agent_name, "response_length": len(result)})
+                        self.logger.log_run(
+                            {
+                                "event": "broadcast_agent_success",
+                                "agent": agent_name,
+                                "response_length": len(result),
+                            }
+                        )
                         processed_results[agent_name] = result
 
                         # ✅ Activity Logging: Log broadcast agent output
@@ -1481,59 +1947,90 @@ class AgentChain:
                             self.activity_logger.log_activity(
                                 activity_type="agent_output",
                                 agent_name=agent_name,
-                                agent_model=agent_instance.models[0] if hasattr(agent_instance, 'models') and agent_instance.models else None,
+                                agent_model=(
+                                    agent_instance.models[0]
+                                    if hasattr(agent_instance, "models")
+                                    and agent_instance.models
+                                    else None
+                                ),
                                 content={"output": result},
                                 metadata={"execution_mode": "broadcast"},
-                                tags=["broadcast", "success"]
+                                tags=["broadcast", "success"],
                             )
-                
+
                 if not self.synthesizer_config:
                     # Simple concatenation if no synthesizer is configured
-                    sections = [f"### {name} Response:\n{response}" for name, response in processed_results.items()]
+                    sections = [
+                        f"### {name} Response:\n{response}"
+                        for name, response in processed_results.items()
+                    ]
                     final_response = "\n\n".join(sections)
                     chosen_agent_name = "broadcast"  # Special case for broadcast mode
-                    if self.verbose: print(f"  Broadcast completed without synthesizer.")
+                    if self.verbose:
+                        print(f"  Broadcast completed without synthesizer.")
                     self.logger.log_run({"event": "broadcast_concatenation"})
                 else:
                     # Use a configured synthesizer to combine results
                     try:
-                        if self.verbose: print(f"  Running broadcast synthesizer...")
-                        
+                        if self.verbose:
+                            print(f"  Running broadcast synthesizer...")
+
                         # Convert to JSON for template insertion
                         results_json = json.dumps(processed_results)
-                        
+
                         # Extract config
-                        synth_model = self.synthesizer_config.get("model", "openai/gpt-4o-mini")
-                        synth_prompt_template = self.synthesizer_config.get("prompt", "Synthesize these agent responses: {agent_responses}")
+                        synth_model = self.synthesizer_config.get(
+                            "model", "openai/gpt-4o-mini"
+                        )
+                        synth_prompt_template = self.synthesizer_config.get(
+                            "prompt",
+                            "Synthesize these agent responses: {agent_responses}",
+                        )
                         synth_params = self.synthesizer_config.get("params", {})
-                        
+
                         # Format the prompt
-                        synth_prompt = synth_prompt_template.format(agent_responses=results_json)
-                        
+                        synth_prompt = synth_prompt_template.format(
+                            agent_responses=results_json
+                        )
+
                         # Create a temporary PromptChain for synthesis
                         synthesizer = PromptChain(
-                            models=[synth_model], 
+                            models=[synth_model],
                             instructions=[synth_prompt],
                             verbose=self.verbose,
-                            **synth_params
+                            **synth_params,
                         )
-                        
+
                         final_response = await synthesizer.process_prompt_async("")
-                        chosen_agent_name = "synthesizer"  # Special case for broadcast with synthesizer
-                        if self.verbose: print(f"  Synthesis complete.")
+                        chosen_agent_name = (
+                            "synthesizer"  # Special case for broadcast with synthesizer
+                        )
+                        if self.verbose:
+                            print(f"  Synthesis complete.")
                         self.logger.log_run({"event": "broadcast_synthesis_success"})
                     except Exception as e:
                         error_msg = f"Error in broadcast synthesizer: {e}"
                         logging.error(error_msg, exc_info=True)
-                        self.logger.log_run({"event": "broadcast_synthesis_error", "error": str(e)})
+                        self.logger.log_run(
+                            {"event": "broadcast_synthesis_error", "error": str(e)}
+                        )
                         # Fall back to concatenation
-                        sections = [f"### {name} Response:\n{response}" for name, response in processed_results.items()]
+                        sections = [
+                            f"### {name} Response:\n{response}"
+                            for name, response in processed_results.items()
+                        ]
                         sections.append(f"### Synthesis Error:\n{error_msg}")
                         final_response = "\n\n".join(sections)
                         chosen_agent_name = "broadcast"  # Fallback to broadcast
         else:
             final_response = f"Unsupported execution mode: {self.execution_mode}"
-            self.logger.log_run({"event": "error", "reason": "Unsupported mode", "mode": self.execution_mode})
+            self.logger.log_run(
+                {
+                    "event": "error",
+                    "reason": "Unsupported mode",
+                    "mode": self.execution_mode,
+                }
+            )
 
         # Add to history with the agent name
         self._add_to_history("assistant", final_response, agent_name=chosen_agent_name)
@@ -1543,26 +2040,39 @@ class AgentChain:
         execution_time_ms = (end_time - start_time).total_seconds() * 1000
 
         # ✅ NEW (v0.4.2): Capture orchestrator metrics if OrchestratorSupervisor was used
-        if hasattr(self, '_last_orchestrator_metrics') and self._last_orchestrator_metrics:
-            orchestrator_reasoning_steps = self._last_orchestrator_metrics.get('reasoning_steps', 0)
+        if (
+            hasattr(self, "_last_orchestrator_metrics")
+            and self._last_orchestrator_metrics
+        ):
+            orchestrator_reasoning_steps = self._last_orchestrator_metrics.get(
+                "reasoning_steps", 0
+            )
             # Note: tools_called from orchestrator are reasoning tool calls, not agent tool calls
             # Agent tool calls will be captured separately in the future
             if self.verbose:
-                print(f"  Captured orchestrator metrics: {orchestrator_reasoning_steps} reasoning steps")
+                print(
+                    f"  Captured orchestrator metrics: {orchestrator_reasoning_steps} reasoning steps"
+                )
 
-        self.logger.log_run({
-            "event": "process_input_end",
-            "mode": self.execution_mode,
-            "response_length": len(final_response),
-            "agent_used": chosen_agent_name,
-            "execution_time_ms": execution_time_ms,
-            "return_metadata": return_metadata
-        })
+        self.logger.log_run(
+            {
+                "event": "process_input_end",
+                "mode": self.execution_mode,
+                "response_length": len(final_response),
+                "agent_used": chosen_agent_name,
+                "execution_time_ms": execution_time_ms,
+                "return_metadata": return_metadata,
+            }
+        )
 
         # ✅ Activity Logging: End interaction chain
         if self.activity_logger:
             self.activity_logger.end_interaction_chain(
-                status="completed" if not any(isinstance(e, Exception) for e in errors) else "failed"
+                status=(
+                    "completed"
+                    if not any(isinstance(e, Exception) for e in errors)
+                    else "failed"
+                )
             )
 
         # Return metadata if requested
@@ -1584,12 +2094,14 @@ class AgentChain:
                 cache_hit=False,  # TODO: Check cache status
                 cache_key=None,  # TODO: Get cache key if used
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
             )
         else:
             return final_response
 
-    async def run_agent_direct(self, agent_name: str, user_input: str, send_history: bool = False) -> str:
+    async def run_agent_direct(
+        self, agent_name: str, user_input: str, send_history: bool = False
+    ) -> str:
         """Runs a specific agent directly, bypassing the routing logic.
 
         Args:
@@ -1597,35 +2109,58 @@ class AgentChain:
             user_input (str): The user's message for the agent.
             send_history (bool): If True, prepends the formatted conversation history to the input.
         """
-        if not user_input: return "Input cannot be empty."
+        if not user_input:
+            return "Input cannot be empty."
         if agent_name not in self.agents:
             error_msg = f"Error: Agent '{agent_name}' not found. Available agents: {list(self.agents.keys())}"
             logging.error(error_msg)
-            self.logger.log_run({"event": "run_direct_error", "reason": "Agent not found", "requested_agent": agent_name})
+            self.logger.log_run(
+                {
+                    "event": "run_direct_error",
+                    "reason": "Agent not found",
+                    "requested_agent": agent_name,
+                }
+            )
             raise ValueError(error_msg)
 
         start_time = asyncio.get_event_loop().time()
-        log_event_start = {"event": "run_direct_start", "agent_name": agent_name, "input": user_input}
-        if self.verbose: print(f"\n=== Running Agent Directly: {agent_name} ===\nInput: '{user_input}'")
+        log_event_start = {
+            "event": "run_direct_start",
+            "agent_name": agent_name,
+            "input": user_input,
+        }
+        if self.verbose:
+            print(
+                f"\n=== Running Agent Directly: {agent_name} ===\nInput: '{user_input}'"
+            )
         self.logger.log_run(log_event_start)
-        self._add_to_history("user", f"(Direct to {agent_name}{' with history' if send_history else ''}) {user_input}")
+        self._add_to_history(
+            "user",
+            f"(Direct to {agent_name}{' with history' if send_history else ''}) {user_input}",
+        )
 
         selected_agent_chain = self.agents[agent_name]
         query_for_agent = user_input
 
         # --- Prepend history if requested ---
         if send_history:
-            if self.verbose: print(f"  Prepending conversation history for {agent_name}...")
-            formatted_history = self._format_chat_history() # Use internal method with its truncation
+            if self.verbose:
+                print(f"  Prepending conversation history for {agent_name}...")
+            formatted_history = (
+                self._format_chat_history()
+            )  # Use internal method with its truncation
 
             # ✅ Calculate token count for history using tiktoken (v0.4.2 - enhanced observability)
             history_tokens = 0
             try:
                 import tiktoken
+
                 enc = tiktoken.encoding_for_model("gpt-4")
                 history_tokens = len(enc.encode(formatted_history))
             except ImportError:
-                logging.warning("tiktoken not available - install with 'pip install tiktoken' for accurate token counting")
+                logging.warning(
+                    "tiktoken not available - install with 'pip install tiktoken' for accurate token counting"
+                )
                 # Fallback to existing method
                 history_tokens = self._count_tokens(formatted_history)
             except Exception as e:
@@ -1637,11 +2172,18 @@ class AgentChain:
             HISTORY_WARNING_THRESHOLD = 6000
             if history_tokens > HISTORY_WARNING_THRESHOLD:
                 warning_msg = f"Warning: Sending long history ({history_tokens} tokens) to agent '{agent_name}'. This might be slow or exceed limits."
-                print(f"\033[93m{warning_msg}\033[0m") # Yellow warning
-                self.logger.log_run({"event": "run_direct_history_warning", "agent": agent_name, "history_tokens": history_tokens, "threshold": HISTORY_WARNING_THRESHOLD})
+                print(f"\033[93m{warning_msg}\033[0m")  # Yellow warning
+                self.logger.log_run(
+                    {
+                        "event": "run_direct_history_warning",
+                        "agent": agent_name,
+                        "history_tokens": history_tokens,
+                        "threshold": HISTORY_WARNING_THRESHOLD,
+                    }
+                )
 
             # ✅ Track cumulative token count across conversation
-            if not hasattr(self, '_cumulative_history_tokens'):
+            if not hasattr(self, "_cumulative_history_tokens"):
                 self._cumulative_history_tokens = 0
             if history_tokens > 0:
                 self._cumulative_history_tokens += history_tokens
@@ -1653,51 +2195,85 @@ class AgentChain:
             token_display = f"{history_tokens} tokens"
             cumulative_display = f" | cumulative: {self._cumulative_history_tokens}"
 
-            logging.info(f"{orange_start}[HISTORY INJECTED] mode=run_direct | agent={agent_name} | {token_display}{cumulative_display}{orange_end}")
+            logging.info(
+                f"{orange_start}[HISTORY INJECTED] mode=run_direct | agent={agent_name} | {token_display}{cumulative_display}{orange_end}"
+            )
             logging.info(f"{orange_start}{'='*80}{orange_end}")
             logging.info(f"{orange_start}[HISTORY START]{orange_end}")
-            for line in formatted_history.split('\n'):
+            for line in formatted_history.split("\n"):
                 logging.info(f"{orange_start}{line}{orange_end}")
             logging.info(f"{orange_start}[HISTORY END]{orange_end}")
             logging.info(f"{orange_start}{'='*80}{orange_end}")
 
             query_for_agent = f"Conversation History:\n---\n{formatted_history}\n---\n\nUser Request:\n{user_input}"
             if self.verbose:
-                print(f"  Input for {agent_name} with history (truncated): {query_for_agent[:200]}...")
-            self.logger.log_run({
-                "event": "run_direct_history_prepended",
-                "agent": agent_name,
-                "history_tokens": history_tokens,
-                "cumulative_history_tokens": self._cumulative_history_tokens,
-                "history_content": formatted_history
-            })
+                print(
+                    f"  Input for {agent_name} with history (truncated): {query_for_agent[:200]}..."
+                )
+            self.logger.log_run(
+                {
+                    "event": "run_direct_history_prepended",
+                    "agent": agent_name,
+                    "history_tokens": history_tokens,
+                    "cumulative_history_tokens": self._cumulative_history_tokens,
+                    "history_content": formatted_history,
+                }
+            )
         # --- End history prepending ---
 
         try:
             if self.verbose:
                 print(f"--- Executing Agent: {agent_name} ---")
-            self.logger.log_run({"event": "direct_agent_running", "agent_name": agent_name, "input_length": len(query_for_agent)})
+            self.logger.log_run(
+                {
+                    "event": "direct_agent_running",
+                    "agent_name": agent_name,
+                    "input_length": len(query_for_agent),
+                }
+            )
 
-            agent_response = await selected_agent_chain.process_prompt_async(query_for_agent)
+            agent_response = await selected_agent_chain.process_prompt_async(
+                query_for_agent
+            )
 
             if self.verbose:
                 print(f"Agent Response ({agent_name}): {agent_response}")
                 print(f"--- Finished Agent: {agent_name} ---")
-            self.logger.log_run({"event": "direct_agent_finished", "agent_name": agent_name, "response_length": len(agent_response)})
+            self.logger.log_run(
+                {
+                    "event": "direct_agent_finished",
+                    "agent_name": agent_name,
+                    "response_length": len(agent_response),
+                }
+            )
 
             # Add to history with the agent name
             self._add_to_history("assistant", agent_response, agent_name=agent_name)
 
             end_time = asyncio.get_event_loop().time()
             duration = int((end_time - start_time) * 1000)
-            self.logger.log_run({"event": "run_direct_end", "agent_name": agent_name, "response_length": len(agent_response), "duration_ms": duration})
+            self.logger.log_run(
+                {
+                    "event": "run_direct_end",
+                    "agent_name": agent_name,
+                    "response_length": len(agent_response),
+                    "duration_ms": duration,
+                }
+            )
             return agent_response
 
         except Exception as e:
             error_msg = f"An error occurred during direct execution of agent '{agent_name}': {e}"
             logging.error(error_msg, exc_info=True)
             self._add_to_history("system_error", error_msg)
-            self.logger.log_run({"event": "run_direct_error", "agent_name": agent_name, "error": str(e), "traceback": traceback.format_exc()})
+            self.logger.log_run(
+                {
+                    "event": "run_direct_error",
+                    "agent_name": agent_name,
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+            )
             return f"I encountered an error running the {agent_name}: {e}"
 
     async def run_chat(self):
@@ -1706,28 +2282,36 @@ class AgentChain:
         if self.logger.log_dir:
             session_id = uuid.uuid4().hex[:8]
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.session_log_filename = os.path.join(self.logger.log_dir, f"router_chat_{timestamp}_{session_id}.jsonl")
+            self.session_log_filename = os.path.join(
+                self.logger.log_dir, f"router_chat_{timestamp}_{session_id}.jsonl"
+            )
             self.logger.set_session_filename(self.session_log_filename)
             print(f"[Log] Session log file: {self.session_log_filename}")
         print(f"Starting Agentic Chat (Mode: {self.execution_mode})...")
         print("Type 'exit' to quit.")
-        print("Use '@agent_name: your message' to run an agent directly (e.g., '@math_agent: 5*5').")
-        print("Use '@history @agent_name: your message' to run an agent directly *with* full history.")
+        print(
+            "Use '@agent_name: your message' to run an agent directly (e.g., '@math_agent: 5*5')."
+        )
+        print(
+            "Use '@history @agent_name: your message' to run an agent directly *with* full history."
+        )
         self.logger.log_run({"event": "chat_started", "mode": self.execution_mode})
 
         turn = 1
         # Create console with custom theme for better markdown rendering
-        theme = Theme({
-            "markdown.code": "bold cyan",
-            "markdown.h1": "bold red",
-            "markdown.h2": "bold yellow",
-            "markdown.h3": "bold green",
-            "markdown.h4": "bold blue",
-            "markdown.link": "underline cyan",
-            "markdown.item": "green"
-        })
+        theme = Theme(
+            {
+                "markdown.code": "bold cyan",
+                "markdown.h1": "bold red",
+                "markdown.h2": "bold yellow",
+                "markdown.h3": "bold green",
+                "markdown.h4": "bold blue",
+                "markdown.link": "underline cyan",
+                "markdown.item": "green",
+            }
+        )
         console = Console(theme=theme, force_terminal=True)
-        
+
         while True:
             try:
                 user_message_full = input(f"\n[{turn}] You: ")
@@ -1737,10 +2321,12 @@ class AgentChain:
                 break
             except KeyboardInterrupt:
                 print("\nKeyboard interrupt detected. Exiting.")
-                self.logger.log_run({"event": "chat_ended", "reason": "KeyboardInterrupt"})
+                self.logger.log_run(
+                    {"event": "chat_ended", "reason": "KeyboardInterrupt"}
+                )
                 break
 
-            if user_message_full.lower() == 'exit':
+            if user_message_full.lower() == "exit":
                 print("\ud83d\udcdb Exit command received.")
                 self.logger.log_run({"event": "chat_ended", "reason": "Exit command"})
                 break
@@ -1752,26 +2338,49 @@ class AgentChain:
             try:
                 # --- Check for Direct Agent Calls (with or without history) ---
                 send_history_flag = False
-                user_actual_message = user_message_full # Default if no flags
+                user_actual_message = user_message_full  # Default if no flags
                 target_agent = None
 
                 # Pattern 1: @history @agent_name: message
-                history_direct_match = re.match(r"@history\s+@(\w+):\s*(.*)", user_message_full, re.DOTALL | re.IGNORECASE)
+                history_direct_match = re.match(
+                    r"@history\s+@(\w+):\s*(.*)",
+                    user_message_full,
+                    re.DOTALL | re.IGNORECASE,
+                )
                 if history_direct_match:
                     send_history_flag = True
                     target_agent, user_actual_message = history_direct_match.groups()
-                    if self.verbose: print(f"~~ History + Direct agent call detected for: {target_agent} ~~")
-                    self.logger.log_run({"event": "direct_call_detected", "agent": target_agent, "with_history": True})
+                    if self.verbose:
+                        print(
+                            f"~~ History + Direct agent call detected for: {target_agent} ~~"
+                        )
+                    self.logger.log_run(
+                        {
+                            "event": "direct_call_detected",
+                            "agent": target_agent,
+                            "with_history": True,
+                        }
+                    )
 
                 # Pattern 2: @agent_name: message (only if Pattern 1 didn't match)
                 elif not target_agent:
-                    direct_match = re.match(r"@(\w+):\s*(.*)", user_message_full, re.DOTALL)
+                    direct_match = re.match(
+                        r"@(\w+):\s*(.*)", user_message_full, re.DOTALL
+                    )
                     if direct_match:
-                        send_history_flag = False # Explicitly false for this pattern
+                        send_history_flag = False  # Explicitly false for this pattern
                         target_agent, user_actual_message = direct_match.groups()
-                        if self.verbose: 
-                            print(f"~~ Direct agent call detected for: {target_agent} (no history flag) ~~")
-                        self.logger.log_run({"event": "direct_call_detected", "agent": target_agent, "with_history": False})
+                        if self.verbose:
+                            print(
+                                f"~~ Direct agent call detected for: {target_agent} (no history flag) ~~"
+                            )
+                        self.logger.log_run(
+                            {
+                                "event": "direct_call_detected",
+                                "agent": target_agent,
+                                "with_history": False,
+                            }
+                        )
 
                 # --- Execute Direct Call or Normal Processing ---
                 if target_agent:
@@ -1780,26 +2389,51 @@ class AgentChain:
                             response = await self.run_agent_direct(
                                 target_agent,
                                 user_actual_message.strip(),
-                                send_history=send_history_flag
+                                send_history=send_history_flag,
                             )
                         except ValueError as ve:
                             print(str(ve))
                             response = "Please try again with a valid agent name."
                         except Exception as direct_e:
-                            logging.error(f"Error during direct agent execution: {direct_e}", exc_info=True)
+                            logging.error(
+                                f"Error during direct agent execution: {direct_e}",
+                                exc_info=True,
+                            )
                             response = f"Sorry, an error occurred while running {target_agent}: {direct_e}"
-                            self.logger.log_run({"event": "run_direct_unexpected_error", "agent_name": target_agent, "error": str(direct_e), "traceback": traceback.format_exc()})
+                            self.logger.log_run(
+                                {
+                                    "event": "run_direct_unexpected_error",
+                                    "agent_name": target_agent,
+                                    "error": str(direct_e),
+                                    "traceback": traceback.format_exc(),
+                                }
+                            )
                     else:
-                        print(f"Error: Agent '{target_agent}' not found. Available: {list(self.agents.keys())}")
+                        print(
+                            f"Error: Agent '{target_agent}' not found. Available: {list(self.agents.keys())}"
+                        )
                         response = f"Agent '{target_agent}' not recognized. Please choose from {list(self.agents.keys())} or use automatic routing."
-                        self.logger.log_run({"event": "direct_call_agent_not_found", "requested_agent": target_agent})
+                        self.logger.log_run(
+                            {
+                                "event": "direct_call_agent_not_found",
+                                "requested_agent": target_agent,
+                            }
+                        )
                 else:
                     response = await self.process_input(user_message_full)
 
             except Exception as e:
-                logging.error(f"An unexpected error occurred in chat loop: {e}", exc_info=True)
+                logging.error(
+                    f"An unexpected error occurred in chat loop: {e}", exc_info=True
+                )
                 response = f"Sorry, an error occurred: {e}"
-                self.logger.log_run({"event": "chat_loop_error", "error": str(e), "traceback": traceback.format_exc()})
+                self.logger.log_run(
+                    {
+                        "event": "chat_loop_error",
+                        "error": str(e),
+                        "traceback": traceback.format_exc(),
+                    }
+                )
 
             # Print the assistant's response using rich.Markdown
             console.print("\n[bold cyan]Assistant:[/bold cyan]")
@@ -1808,19 +2442,23 @@ class AgentChain:
                 class CustomMarkdown(Markdown):
                     def __init__(self, markup: str):
                         super().__init__(markup)
-                        
-                    def render_code_block(self, code: str, info_string: str = "") -> Syntax:
+
+                    def render_code_block(
+                        self, code: str, info_string: str = ""
+                    ) -> Syntax:
                         """Override code block rendering to add line numbers and proper syntax highlighting"""
-                        lexer = info_string or "python"  # Default to Python if no language specified
+                        lexer = (
+                            info_string or "python"
+                        )  # Default to Python if no language specified
                         return Syntax(
                             code,
                             lexer,
                             theme="monokai",
                             line_numbers=True,
                             indent_guides=True,
-                            word_wrap=True
+                            word_wrap=True,
                         )
-                
+
                 # Render the response as markdown
                 md = CustomMarkdown(response)
                 console.print(md)
@@ -1828,7 +2466,7 @@ class AgentChain:
                 # Fallback to plain text if markdown rendering fails
                 logging.warning(f"Failed to render response as markdown: {md_error}")
                 console.print(response)
-            
+
             turn += 1
 
         print("\n--- Chat Finished ---")
@@ -1837,8 +2475,12 @@ class AgentChain:
     async def run_chat_turn_async(
         self,
         user_input: str,
-        user_input_queue: Optional[Any] = None,  # REACT: asyncio.Queue for mid-execution input
-        streaming_callback: Optional[Callable[[str, str], None]] = None  # REACT: streaming events
+        user_input_queue: Optional[
+            Any
+        ] = None,  # REACT: asyncio.Queue for mid-execution input
+        streaming_callback: Optional[
+            Callable[[str, str], None]
+        ] = None,  # REACT: streaming events
     ) -> str:
         """Process a single chat turn and return the response.
 
@@ -1876,7 +2518,10 @@ class AgentChain:
 
             # Add user input to conversation history
             self._conversation_history.append(
-                {"role": "user", "content": refined_query if refined_query else user_input}
+                {
+                    "role": "user",
+                    "content": refined_query if refined_query else user_input,
+                }
             )
 
             # Execute selected agent
@@ -1896,11 +2541,13 @@ class AgentChain:
             response = await selected_agent.process_prompt_async(
                 agent_input,
                 user_input_queue=user_input_queue,
-                streaming_callback=streaming_callback
+                streaming_callback=streaming_callback,
             )
 
             # Add agent response to conversation history
-            self._conversation_history.append({"role": "assistant", "content": response})
+            self._conversation_history.append(
+                {"role": "assistant", "content": response}
+            )
 
             return response
         else:
@@ -1972,55 +2619,61 @@ class AgentChain:
         """
         Determines the agent name to use for the current input using the router.
         Used to track which agent generated a response for history tracking.
-        
+
         Args:
             user_input (str): The user's input message
-            
+
         Returns:
             Optional[str]: The name of the chosen agent, or None if no agent could be determined
         """
         # Try simple router first (pattern matching)
         chosen_agent_name = self._simple_router(user_input)
         if chosen_agent_name:
-            if self.verbose: 
+            if self.verbose:
                 print(f"  Simple router selected: {chosen_agent_name}")
             return chosen_agent_name
-            
+
         # If simple router didn't match, use complex router
-        if self.verbose: 
-            print(f"  Simple router didn't match, using complex router to get agent name...")
-        
+        if self.verbose:
+            print(
+                f"  Simple router didn't match, using complex router to get agent name..."
+            )
+
         try:
             # Format the conversation history for the router
             formatted_history = self._format_chat_history()
-            
+
             # Prepare decision maker prompt or use custom router
             if self.custom_router_function:
-                if self.verbose: 
+                if self.verbose:
                     print(f"  Executing custom router function to get agent name...")
                 try:
                     decision_output = await self.custom_router_function(
-                        user_input, 
-                        self._conversation_history,
-                        self.agent_descriptions
+                        user_input, self._conversation_history, self.agent_descriptions
                     )
                 except Exception as router_error:
-                    logging.error(f"Custom router function failed: {router_error}", exc_info=router_error)
+                    logging.error(
+                        f"Custom router function failed: {router_error}",
+                        exc_info=router_error,
+                    )
                     return None
             else:
-                if self.verbose: 
+                if self.verbose:
                     print(f"  Executing LLM decision maker chain to get agent name...")
-                decision_output = await self.decision_maker_chain.process_prompt_async(user_input)
-            
+                assert self.decision_maker_chain is not None
+                decision_output = await self.decision_maker_chain.process_prompt_async(
+                    user_input
+                )
+
             # Parse the decision output to get chosen agent
             parsed_decision_dict = self._parse_decision(decision_output)
             chosen_agent_name = parsed_decision_dict.get("chosen_agent")
-            
+
             if chosen_agent_name:
-                if self.verbose: 
+                if self.verbose:
                     print(f"  Complex router selected: {chosen_agent_name}")
                 return chosen_agent_name
-                
+
         except Exception as e:
             logging.error(f"Error getting agent name from router: {e}", exc_info=True)
 
@@ -2057,14 +2710,19 @@ class AgentChain:
                 if self.verbose:
                     print(f"  Simple router selected: {chosen_agent_name}")
                 # T041: Log simple router selection
-                self.logger.log_run({
-                    "event": "router_decision",
-                    "router_type": "simple",
-                    "selected_agent": chosen_agent_name,
-                    "user_input": user_input[:100],  # Truncate for logging
-                    "refined_query": None
-                })
-                return (chosen_agent_name, user_input)  # No refinement from simple router
+                self.logger.log_run(
+                    {
+                        "event": "router_decision",
+                        "router_type": "simple",
+                        "selected_agent": chosen_agent_name,
+                        "user_input": user_input[:100],  # Truncate for logging
+                        "refined_query": None,
+                    }
+                )
+                return (
+                    chosen_agent_name,
+                    user_input,
+                )  # No refinement from simple router
 
             # If simple router didn't match, use complex router
             if self.verbose:
@@ -2078,14 +2736,15 @@ class AgentChain:
                 if self.verbose:
                     print(f"  Executing custom router function...")
                 decision_output = await self.custom_router_function(
-                    user_input,
-                    self._conversation_history,
-                    self.agent_descriptions
+                    user_input, self._conversation_history, self.agent_descriptions
                 )
             else:
                 if self.verbose:
                     print(f"  Executing LLM decision maker chain...")
-                decision_output = await self.decision_maker_chain.process_prompt_async(user_input)
+                assert self.decision_maker_chain is not None
+                decision_output = await self.decision_maker_chain.process_prompt_async(
+                    user_input
+                )
 
             # Parse the decision output to get chosen agent and optional refined query
             parsed_decision_dict = self._parse_decision(decision_output)
@@ -2099,49 +2758,70 @@ class AgentChain:
                         print(f"  Refined query: {refined_query}")
 
                 # T041: Log complex router (LLM) selection with reasoning
-                self.logger.log_run({
-                    "event": "router_decision",
-                    "router_type": "complex_llm",
-                    "selected_agent": chosen_agent_name,
-                    "user_input": user_input[:100],  # Truncate for logging
-                    "refined_query": refined_query[:100] if refined_query else None,
-                    "decision_output": decision_output[:200] if decision_output else None,  # Include LLM reasoning
-                    "history_tokens": self._count_tokens(formatted_history) if formatted_history else 0
-                })
+                self.logger.log_run(
+                    {
+                        "event": "router_decision",
+                        "router_type": "complex_llm",
+                        "selected_agent": chosen_agent_name,
+                        "user_input": user_input[:100],  # Truncate for logging
+                        "refined_query": refined_query[:100] if refined_query else None,
+                        "decision_output": (
+                            decision_output[:200] if decision_output else None
+                        ),  # Include LLM reasoning
+                        "history_tokens": (
+                            self._count_tokens(formatted_history)
+                            if formatted_history
+                            else 0
+                        ),
+                    }
+                )
 
                 # Return refined query if provided, otherwise return original input
-                return (chosen_agent_name, refined_query if refined_query else user_input)
+                return (
+                    chosen_agent_name,
+                    refined_query if refined_query else user_input,
+                )
             else:
                 # No agent chosen, fall back to default
                 if self.verbose:
-                    print(f"  Router did not return valid agent, falling back to default")
+                    print(
+                        f"  Router did not return valid agent, falling back to default"
+                    )
                 # T041: Log fallback to default agent
-                self.logger.log_run({
-                    "event": "router_fallback",
-                    "reason": "no_agent_selected",
-                    "default_agent": self.default_agent,
-                    "user_input": user_input[:100]
-                })
+                self.logger.log_run(
+                    {
+                        "event": "router_fallback",
+                        "reason": "no_agent_selected",
+                        "default_agent": self.default_agent,
+                        "user_input": user_input[:100],
+                    }
+                )
                 if self.default_agent:
                     return (self.default_agent, user_input)
                 else:
-                    raise Exception("Router failed to select agent and no default agent configured")
+                    raise Exception(
+                        "Router failed to select agent and no default agent configured"
+                    )
 
         except Exception as e:
             logging.error(f"Error in _route_to_agent: {e}", exc_info=True)
 
             # T041: Log router error and fallback
-            self.logger.log_run({
-                "event": "router_error",
-                "error": str(e),
-                "default_agent": self.default_agent,
-                "user_input": user_input[:100]
-            })
+            self.logger.log_run(
+                {
+                    "event": "router_error",
+                    "error": str(e),
+                    "default_agent": self.default_agent,
+                    "user_input": user_input[:100],
+                }
+            )
 
             # Fall back to default agent if configured
             if self.default_agent:
                 if self.verbose:
-                    print(f"  Router error, falling back to default agent: {self.default_agent}")
+                    print(
+                        f"  Router error, falling back to default agent: {self.default_agent}"
+                    )
                 return (self.default_agent, user_input)
             else:
                 # Re-raise if no fallback available
