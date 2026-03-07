@@ -143,9 +143,11 @@ class AgentChain:
 
             # Construct database path: directory/name.db
             db_filename = f"{self.cache_config['name']}.db"
-            self.cache_path = os.path.join(self.cache_config["path"], db_filename)
+            self.cache_path: Optional[str] = os.path.join(
+                self.cache_config["path"], db_filename
+            )
         else:
-            self.cache_path: Optional[str] = None
+            self.cache_path = None
 
         self.db_connection = None
 
@@ -2481,7 +2483,7 @@ class AgentChain:
         streaming_callback: Optional[
             Callable[[str, str], None]
         ] = None,  # REACT: streaming events
-    ) -> str:
+    ) -> Union[str, "AgentExecutionResult"]:
         """Process a single chat turn and return the response.
 
         This method is used for programmatic interaction with the AgentChain,
