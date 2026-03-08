@@ -81,8 +81,8 @@ class MLflowObserver:
         self.auto_log_artifacts = auto_log_artifacts
         self._initialized = False
         self._active_run: Optional[Any] = None
-        self._step_runs: Dict[str, Any] = {}  # Track nested runs for steps
-        self._run_start_times: Dict[str, float] = (
+        self._step_runs: Dict[int, Any] = {}  # Track nested runs for steps
+        self._run_start_times: Dict[str, datetime] = (
             {}
         )  # Track timing for duration metrics
 

@@ -8,12 +8,12 @@ template management for agents.
 
 import json
 import logging
-from typing import List, Dict, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
 
+from promptchain.cli.models.prompt import AgentTemplate, Prompt, Strategy
 from promptchain.utils.preprompt import PrePrompt
 from promptchain.utils.prompt_loader import list_available_prompts
-from promptchain.cli.models.prompt import Prompt, Strategy, AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,7 @@ class PromptManager:
         # which defaults to library path. We need to manually handle
         # user strategies from self.strategies_dir
         self.preprompt = PrePrompt(
-            additional_prompt_dirs=[
-                str(self.agents_dir),
-                str(self.custom_dir)
-            ]
+            additional_prompt_dirs=[str(self.agents_dir), str(self.custom_dir)]
         )
 
         logger.info(f"PromptManager initialized with prompts_dir: {self.prompts_dir}")
@@ -72,12 +69,14 @@ class PromptManager:
             self.agents_dir,
             self.strategies_dir,
             self.custom_dir,
-            self.templates_dir
+            self.templates_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Ensured directory exists: {directory}")
 
-    def list_prompts(self, category: Optional[str] = None, search: Optional[str] = None) -> List[Prompt]:
+    def list_prompts(
+        self, category: Optional[str] = None, search: Optional[str] = None
+    ) -> List[Prompt]:
         """List all available prompts, optionally filtered.
 
         Args:
@@ -91,10 +90,7 @@ class PromptManager:
 
         # Manually discover prompts from our directories
         # (prompt_loader has path resolution issues)
-        dirs_to_scan = {
-            'agents': self.agents_dir,
-            'custom': self.custom_dir
-        }
+        dirs_to_scan = {"agents": self.agents_dir, "custom": self.custom_dir}
 
         for cat, dir_path in dirs_to_scan.items():
             # Filter by category if specified
@@ -107,13 +103,13 @@ class PromptManager:
             # Scan for .md files
             for prompt_file in dir_path.glob("*.md"):
                 try:
-                    content = prompt_file.read_text(encoding='utf-8')
+                    content = prompt_file.read_text(encoding="utf-8")
 
                     # Extract description (first non-empty line after title)
                     description = None
-                    lines = content.split('\n')
+                    lines = content.split("\n")
                     for line in lines[1:]:  # Skip title
-                        if line.strip() and not line.startswith('#'):
+                        if line.strip() and not line.startswith("#"):
                             description = line.strip()
                             break
 
@@ -125,14 +121,16 @@ class PromptManager:
                         category=cat,
                         description=description,
                         path=str(prompt_file),
-                        strategies=[s.id for s in self.list_strategies()]
+                        strategies=[s.id for s in self.list_strategies()],
                     )
 
                     # Filter by search term if specified
                     if search:
                         search_lower = search.lower()
-                        if search_lower not in prompt.id.lower() and \
-                           (not prompt.description or search_lower not in prompt.description.lower()):
+                        if search_lower not in prompt.id.lower() and (
+                            not prompt.description
+                            or search_lower not in prompt.description.lower()
+                        ):
                             continue
 
                     all_prompts.append(prompt)
@@ -192,7 +190,7 @@ class PromptManager:
         prompt_id: str,
         content: str,
         category: str = "custom",
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> Path:
         """Save a new prompt to the specified category.
 
@@ -222,7 +220,7 @@ class PromptManager:
 
         # Save prompt file
         prompt_path = category_dir / f"{prompt_id}.md"
-        prompt_path.write_text(content, encoding='utf-8')
+        prompt_path.write_text(content, encoding="utf-8")
 
         # Rescan prompts to update cache
         self.preprompt._scan_all_prompt_dirs()
@@ -236,7 +234,7 @@ class PromptManager:
         Returns:
             List of Strategy objects
         """
-        strategies = []
+        strategies: List[Strategy] = []
 
         if not self.strategies_dir.exists():
             return strategies
@@ -246,9 +244,9 @@ class PromptManager:
                 data = json.loads(strategy_file.read_text())
                 strategy = Strategy(
                     id=strategy_file.stem,
-                    name=data.get('name', strategy_file.stem),
-                    prompt=data.get('prompt', ''),
-                    description=data.get('description')
+                    name=data.get("name", strategy_file.stem),
+                    prompt=data.get("prompt", ""),
+                    description=data.get("description"),
                 )
                 strategies.append(strategy)
             except Exception as e:
@@ -261,7 +259,7 @@ class PromptManager:
         strategy_id: str,
         name: str,
         prompt: str,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> Path:
         """Save a new strategy.
 
@@ -274,17 +272,10 @@ class PromptManager:
         Returns:
             Path to saved strategy file
         """
-        strategy_data = {
-            "name": name,
-            "prompt": prompt,
-            "description": description
-        }
+        strategy_data = {"name": name, "prompt": prompt, "description": description}
 
         strategy_path = self.strategies_dir / f"{strategy_id}.json"
-        strategy_path.write_text(
-            json.dumps(strategy_data, indent=2),
-            encoding='utf-8'
-        )
+        strategy_path.write_text(json.dumps(strategy_data, indent=2), encoding="utf-8")
 
         logger.info(f"Saved strategy '{strategy_id}' to {strategy_path}")
         return strategy_path
@@ -298,7 +289,7 @@ class PromptManager:
         Returns:
             List of AgentTemplate objects
         """
-        templates = []
+        templates: List[AgentTemplate] = []
 
         if not self.templates_dir.exists():
             return templates
@@ -327,12 +318,11 @@ class PromptManager:
         Returns:
             Path to saved template file
         """
-        template_filename = template.name.lower().replace(' ', '-') + '.json'
+        template_filename = template.name.lower().replace(" ", "-") + ".json"
         template_path = self.templates_dir / template_filename
 
         template_path.write_text(
-            json.dumps(template.to_dict(), indent=2),
-            encoding='utf-8'
+            json.dumps(template.to_dict(), indent=2), encoding="utf-8"
         )
 
         logger.info(f"Saved template '{template.name}' to {template_path}")
@@ -362,7 +352,7 @@ class PromptManager:
         Returns:
             File content as string
         """
-        return Path(path).read_text(encoding='utf-8')
+        return Path(path).read_text(encoding="utf-8")
 
     def get_prompt(self, prompt_id: str) -> Optional[Prompt]:
         """Get a specific prompt by ID.

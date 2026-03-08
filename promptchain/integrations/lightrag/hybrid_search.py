@@ -11,7 +11,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class SearchTechnique(Enum):
     """Available search techniques in LightRAG."""
+
     LOCAL = "local"
     GLOBAL = "global"
     HYBRID = "hybrid"
@@ -32,6 +33,7 @@ class SearchTechnique(Enum):
 
 class FusionAlgorithm(Enum):
     """Result fusion algorithms."""
+
     RRF = "rrf"  # Reciprocal Rank Fusion
     LINEAR = "linear"  # Weighted linear combination
     BORDA = "borda"  # Borda count voting
@@ -47,6 +49,7 @@ class TechniqueResult:
         scores: Corresponding scores for each result.
         query_time_ms: Time taken to execute the query in milliseconds.
     """
+
     technique: SearchTechnique
     results: List[Any]
     scores: List[float]
@@ -64,6 +67,7 @@ class HybridSearchConfig(PatternConfig):
         top_k: Number of top results to return after fusion.
         normalize_scores: Whether to normalize scores before fusion.
     """
+
     techniques: List[SearchTechnique] = field(
         default_factory=lambda: [SearchTechnique.LOCAL, SearchTechnique.GLOBAL]
     )
@@ -84,6 +88,7 @@ class HybridSearchResult(PatternResult):
         fused_scores: Scores assigned by the fusion algorithm.
         technique_contributions: Count of results contributed by each technique.
     """
+
     query: str = ""
     technique_results: List[TechniqueResult] = field(default_factory=list)
     fused_results: List[Any] = field(default_factory=list)
@@ -112,7 +117,7 @@ class LightRAGHybridSearcher(BasePattern):
     def __init__(
         self,
         lightrag_integration: "LightRAGIntegration",
-        config: Optional[HybridSearchConfig] = None
+        config: Optional[HybridSearchConfig] = None,
     ):
         """Initialize hybrid searcher.
 
@@ -132,7 +137,7 @@ class LightRAGHybridSearcher(BasePattern):
             logger.error(f"LightRAG not available: {e}")
             raise
 
-    async def execute(self, query: str, **kwargs) -> HybridSearchResult:
+    async def execute(self, query: str, **kwargs) -> HybridSearchResult:  # type: ignore[override]
         """Execute hybrid search with fusion.
 
         Args:
@@ -144,34 +149,42 @@ class LightRAGHybridSearcher(BasePattern):
         """
         start_time = time.perf_counter()
 
-        self.emit_event("pattern.hybrid_search.started", {
-            "query": query,
-            "techniques": [t.value for t in self.config.techniques],
-            "fusion_algorithm": self.config.fusion_algorithm.value,
-        })
+        self.emit_event(
+            "pattern.hybrid_search.started",
+            {
+                "query": query,
+                "techniques": [t.value for t in self.config.techniques],
+                "fusion_algorithm": self.config.fusion_algorithm.value,
+            },
+        )
 
         # Execute all techniques in parallel
         technique_results = await self._execute_techniques(query, **kwargs)
 
-        self.emit_event("pattern.hybrid_search.fusing", {
-            "num_techniques": len(technique_results),
-            "total_results": sum(len(tr.results) for tr in technique_results),
-        })
+        self.emit_event(
+            "pattern.hybrid_search.fusing",
+            {
+                "num_techniques": len(technique_results),
+                "total_results": sum(len(tr.results) for tr in technique_results),
+            },
+        )
 
         # Fuse results using configured algorithm (respect top_k override)
         top_k = kwargs.get("top_k", self.config.top_k)
         fused_results, fused_scores, contributions = await self._fuse_results(
-            technique_results,
-            top_k=top_k
+            technique_results, top_k=top_k
         )
 
         execution_time_ms = (time.perf_counter() - start_time) * 1000
 
-        self.emit_event("pattern.hybrid_search.completed", {
-            "query": query,
-            "num_fused_results": len(fused_results),
-            "execution_time_ms": execution_time_ms,
-        })
+        self.emit_event(
+            "pattern.hybrid_search.completed",
+            {
+                "query": query,
+                "num_fused_results": len(fused_results),
+                "execution_time_ms": execution_time_ms,
+            },
+        )
 
         return HybridSearchResult(
             pattern_id=self.config.pattern_id,
@@ -185,11 +198,7 @@ class LightRAGHybridSearcher(BasePattern):
             technique_contributions=contributions,
         )
 
-    async def _execute_techniques(
-        self,
-        query: str,
-        **kwargs
-    ) -> List[TechniqueResult]:
+    async def _execute_techniques(self, query: str, **kwargs) -> List[TechniqueResult]:
         """Execute all configured search techniques in parallel.
 
         Args:
@@ -212,20 +221,20 @@ class LightRAGHybridSearcher(BasePattern):
                 logger.error(
                     f"Technique {self.config.techniques[i].value} failed: {result}"
                 )
-                self.emit_event("pattern.hybrid_search.technique_failed", {
-                    "technique": self.config.techniques[i].value,
-                    "error": str(result),
-                })
+                self.emit_event(
+                    "pattern.hybrid_search.technique_failed",
+                    {
+                        "technique": self.config.techniques[i].value,
+                        "error": str(result),
+                    },
+                )
             else:
                 successful_results.append(result)
 
         return successful_results
 
     async def _execute_single_technique(
-        self,
-        technique: SearchTechnique,
-        query: str,
-        **kwargs
+        self, technique: SearchTechnique, query: str, **kwargs
     ) -> TechniqueResult:
         """Execute a single search technique.
 
@@ -274,11 +283,14 @@ class LightRAGHybridSearcher(BasePattern):
             results = [raw_result]
             scores = [1.0]
 
-        self.emit_event("pattern.hybrid_search.technique_completed", {
-            "technique": technique.value,
-            "num_results": len(results),
-            "query_time_ms": query_time_ms,
-        })
+        self.emit_event(
+            "pattern.hybrid_search.technique_completed",
+            {
+                "technique": technique.value,
+                "num_results": len(results),
+                "query_time_ms": query_time_ms,
+            },
+        )
 
         return TechniqueResult(
             technique=technique,
@@ -288,9 +300,7 @@ class LightRAGHybridSearcher(BasePattern):
         )
 
     async def _fuse_results(
-        self,
-        technique_results: List[TechniqueResult],
-        top_k: Optional[int] = None
+        self, technique_results: List[TechniqueResult], top_k: Optional[int] = None
     ) -> tuple[List[Any], List[float], Dict[str, int]]:
         """Fuse results from multiple techniques.
 
@@ -304,19 +314,23 @@ class LightRAGHybridSearcher(BasePattern):
         final_top_k = top_k if top_k is not None else self.config.top_k
 
         if self.config.fusion_algorithm == FusionAlgorithm.RRF:
-            return self._reciprocal_rank_fusion(technique_results, k=self.config.rrf_k, top_k=final_top_k)
+            return self._reciprocal_rank_fusion(
+                technique_results, k=self.config.rrf_k, top_k=final_top_k
+            )
         elif self.config.fusion_algorithm == FusionAlgorithm.LINEAR:
             return self._linear_fusion(technique_results, top_k=final_top_k)
         elif self.config.fusion_algorithm == FusionAlgorithm.BORDA:
             return self._borda_fusion(technique_results, top_k=final_top_k)
         else:
-            raise ValueError(f"Unknown fusion algorithm: {self.config.fusion_algorithm}")
+            raise ValueError(
+                f"Unknown fusion algorithm: {self.config.fusion_algorithm}"
+            )
 
     def _reciprocal_rank_fusion(
         self,
         technique_results: List[TechniqueResult],
         k: int = 60,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ) -> tuple[List[Any], List[float], Dict[str, int]]:
         """Fuse results using Reciprocal Rank Fusion (RRF).
 
@@ -357,9 +371,7 @@ class LightRAGHybridSearcher(BasePattern):
 
         # Sort by RRF score
         sorted_results = sorted(
-            result_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
+            result_scores.items(), key=lambda x: x[1], reverse=True
         )[:final_top_k]
 
         # Extract final results
@@ -367,7 +379,7 @@ class LightRAGHybridSearcher(BasePattern):
         fused_scores = [score for _, score in sorted_results]
 
         # Count contributions
-        contributions = {}
+        contributions: Dict[str, int] = {}
         for result_key, _ in sorted_results:
             for source in result_sources[result_key]:
                 contributions[source] = contributions.get(source, 0) + 1
@@ -378,7 +390,7 @@ class LightRAGHybridSearcher(BasePattern):
         self,
         technique_results: List[TechniqueResult],
         weights: Optional[List[float]] = None,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ) -> tuple[List[Any], List[float], Dict[str, int]]:
         """Fuse results using weighted linear combination.
 
@@ -421,15 +433,13 @@ class LightRAGHybridSearcher(BasePattern):
 
         # Sort by weighted score
         sorted_results = sorted(
-            result_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
+            result_scores.items(), key=lambda x: x[1], reverse=True
         )[:final_top_k]
 
         fused_results = [result_objects[key] for key, _ in sorted_results]
         fused_scores = [score for _, score in sorted_results]
 
-        contributions = {}
+        contributions: Dict[str, int] = {}
         for result_key, _ in sorted_results:
             for source in result_sources[result_key]:
                 contributions[source] = contributions.get(source, 0) + 1
@@ -437,9 +447,7 @@ class LightRAGHybridSearcher(BasePattern):
         return fused_results, fused_scores, contributions
 
     def _borda_fusion(
-        self,
-        technique_results: List[TechniqueResult],
-        top_k: Optional[int] = None
+        self, technique_results: List[TechniqueResult], top_k: Optional[int] = None
     ) -> tuple[List[Any], List[float], Dict[str, int]]:
         """Fuse results using Borda count voting.
 
@@ -478,15 +486,13 @@ class LightRAGHybridSearcher(BasePattern):
 
         # Sort by Borda points
         sorted_results = sorted(
-            result_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
+            result_scores.items(), key=lambda x: x[1], reverse=True
         )[:final_top_k]
 
         fused_results = [result_objects[key] for key, _ in sorted_results]
         fused_scores = [score for _, score in sorted_results]
 
-        contributions = {}
+        contributions: Dict[str, int] = {}
         for result_key, _ in sorted_results:
             for source in result_sources[result_key]:
                 contributions[source] = contributions.get(source, 0) + 1

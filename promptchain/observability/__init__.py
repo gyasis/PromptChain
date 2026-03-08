@@ -24,49 +24,51 @@ from .mlflow_observer import MLflowObserver
 
 try:
     # Import decorators and lifecycle functions
-    from .decorators import (
-        track_llm_call,
-        track_task,
-        track_routing,
-        track_session,
-        init_mlflow,
-        shutdown_mlflow,
-    )
+    from .decorators import (init_mlflow, shutdown_mlflow, track_llm_call,
+                             track_routing, track_session, track_task)
 
     _MLFLOW_AVAILABLE = True
 except ImportError:
     # Graceful fallback: Provide no-op stubs when MLflow unavailable or modules not yet created
     _MLFLOW_AVAILABLE = False
 
-    def track_llm_call(*args, **kwargs):
+    def track_llm_call(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for track_llm_call decorator"""
+
         def decorator(func):
             return func
+
         return decorator(args[0]) if args and callable(args[0]) else decorator
 
-    def track_task(*args, **kwargs):
+    def track_task(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for track_task decorator"""
+
         def decorator(func):
             return func
+
         return decorator(args[0]) if args and callable(args[0]) else decorator
 
-    def track_routing(*args, **kwargs):
+    def track_routing(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for track_routing decorator"""
+
         def decorator(func):
             return func
+
         return decorator(args[0]) if args and callable(args[0]) else decorator
 
-    def track_session(*args, **kwargs):
+    def track_session(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for track_session decorator"""
+
         def decorator(func):
             return func
+
         return decorator(args[0]) if args and callable(args[0]) else decorator
 
-    def init_mlflow(*args, **kwargs):
+    def init_mlflow(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for init_mlflow"""
         pass
 
-    def shutdown_mlflow(*args, **kwargs):
+    def shutdown_mlflow(*args, **kwargs):  # type: ignore[misc]
         """No-op stub for shutdown_mlflow"""
         pass
 

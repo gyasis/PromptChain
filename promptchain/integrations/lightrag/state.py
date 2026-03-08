@@ -8,23 +8,25 @@ including:
 - Typed state accessors with validation
 """
 
+import copy
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, TYPE_CHECKING
-import logging
-import copy
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generic, List,
+                    Optional, TypeVar)
 
 if TYPE_CHECKING:
-    from promptchain.cli.models import Blackboard
+    from promptchain.cli.models import Blackboard  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @dataclass
 class StateEntry:
     """A single state entry with metadata."""
+
     key: str
     value: Any
     source: str
@@ -43,6 +45,7 @@ class StateEntry:
 @dataclass
 class StateSnapshot:
     """Point-in-time capture of pattern state."""
+
     pattern_id: str
     timestamp: datetime
     entries: Dict[str, Any]
@@ -95,11 +98,13 @@ class PatternBlackboardMixin:
     @property
     def pattern_id(self) -> str:
         """Get the pattern ID for state operations."""
-        if hasattr(self, 'config') and hasattr(self.config, 'pattern_id'):
+        if hasattr(self, "config") and hasattr(self.config, "pattern_id"):
             return self.config.pattern_id
         return "unknown"
 
-    def share_result(self, key: str, value: Any, ttl_seconds: Optional[float] = None) -> None:
+    def share_result(
+        self, key: str, value: Any, ttl_seconds: Optional[float] = None
+    ) -> None:
         """Share a result via Blackboard with optional TTL.
 
         Args:
@@ -108,10 +113,7 @@ class PatternBlackboardMixin:
             ttl_seconds: Optional time-to-live in seconds
         """
         entry = StateEntry(
-            key=key,
-            value=value,
-            source=self.pattern_id,
-            ttl_seconds=ttl_seconds
+            key=key, value=value, source=self.pattern_id, ttl_seconds=ttl_seconds
         )
 
         # Update version if key exists
@@ -127,7 +129,7 @@ class PatternBlackboardMixin:
             except Exception as e:
                 logger.warning(f"Failed to share state {key}: {e}")
 
-    def read_shared(self, key: str, default: T = None) -> Optional[T]:
+    def read_shared(self, key: str, default: Optional[T] = None) -> Optional[T]:
         """Read a shared value from Blackboard.
 
         Args:
@@ -152,7 +154,9 @@ class PatternBlackboardMixin:
 
         return default
 
-    def read_typed(self, key: str, expected_type: type, default: T = None) -> Optional[T]:
+    def read_typed(
+        self, key: str, expected_type: type, default: Optional[T] = None
+    ) -> Optional[T]:
         """Read a value with type validation.
 
         Args:
@@ -167,7 +171,9 @@ class PatternBlackboardMixin:
         if value is None:
             return default
         if not isinstance(value, expected_type):
-            logger.warning(f"State {key} has type {type(value)}, expected {expected_type}")
+            logger.warning(
+                f"State {key} has type {type(value)}, expected {expected_type}"
+            )
             return default
         return value
 
@@ -186,7 +192,9 @@ class PatternBlackboardMixin:
         self.share_result(key, new_value)
         return new_value
 
-    def batch_share(self, updates: Dict[str, Any], ttl_seconds: Optional[float] = None) -> None:
+    def batch_share(
+        self, updates: Dict[str, Any], ttl_seconds: Optional[float] = None
+    ) -> None:
         """Share multiple state values atomically."""
         for key, value in updates.items():
             self.share_result(key, value, ttl_seconds=ttl_seconds)
@@ -202,7 +210,7 @@ class PatternBlackboardMixin:
             pattern_id=self.pattern_id,
             timestamp=datetime.utcnow(),
             entries=entries,
-            metadata={"state_count": len(entries)}
+            metadata={"state_count": len(entries)},
         )
 
     def restore_snapshot(self, snapshot: StateSnapshot) -> None:
@@ -218,7 +226,7 @@ class PatternBlackboardMixin:
         """Record state change in history."""
         self._state_history.append(copy.deepcopy(entry))
         if len(self._state_history) > self._max_history:
-            self._state_history = self._state_history[-self._max_history:]
+            self._state_history = self._state_history[-self._max_history :]
 
     def get_state_history(self, key: Optional[str] = None) -> List[StateEntry]:
         """Get state change history with optional key filter."""
@@ -267,7 +275,9 @@ class PatternStateCoordinator:
             for name, pattern in self._registered_patterns.items()
         }
 
-    def coordinate_handoff(self, from_pattern: str, to_pattern: str, keys: List[str]) -> None:
+    def coordinate_handoff(
+        self, from_pattern: str, to_pattern: str, keys: List[str]
+    ) -> None:
         """Coordinate state handoff between patterns.
 
         Copies specified state keys from one pattern to another.

@@ -9,21 +9,26 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, List, Optional
 
 import click
+
+from promptchain.observability import (init_mlflow, shutdown_mlflow,
+                                       track_session)
 
 from . import __version__
 from .models import Config
 from .tui.app import PromptChainApp
-from promptchain.observability import track_session, init_mlflow, shutdown_mlflow
-
 
 # Global flag for dev mode (set by CLI)
 _DEV_MODE = False
 
 
-def setup_logging(dev_mode: bool = False, session_name: str = "default", sessions_dir: Optional[Path] = None):
+def setup_logging(
+    dev_mode: bool = False,
+    session_name: str = "default",
+    sessions_dir: Optional[Path] = None,
+):
     """Configure logging based on mode.
 
     Args:
@@ -52,10 +57,12 @@ def setup_logging(dev_mode: bool = False, session_name: str = "default", session
         # Configure file handler with detailed format
         file_handler = logging.FileHandler(debug_log_path, mode="w", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter(
-            "%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
-            datefmt="%H:%M:%S"
-        ))
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
 
         # Set root logger to DEBUG with ONLY file handler (no console)
         root_logger = logging.getLogger()
@@ -71,11 +78,20 @@ def setup_logging(dev_mode: bool = False, session_name: str = "default", session
         # Suppress all console output from known noisy libraries
         # (they still go to file via root logger)
         for noisy_logger in [
-            "litellm", "httpx", "httpcore", "LiteLLM", "openai",
-            "urllib3", "asyncio", "anyio", "mcp"
+            "litellm",
+            "httpx",
+            "httpcore",
+            "LiteLLM",
+            "openai",
+            "urllib3",
+            "asyncio",
+            "anyio",
+            "mcp",
         ]:
             logging.getLogger(noisy_logger).handlers = []  # Remove their handlers
-            logging.getLogger(noisy_logger).propagate = True  # Propagate to root (file only)
+            logging.getLogger(noisy_logger).propagate = (
+                True  # Propagate to root (file only)
+            )
 
         # Log startup info to file
         root_logger.info("=" * 80)
@@ -106,14 +122,20 @@ def setup_logging(dev_mode: bool = False, session_name: str = "default", session
         logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 
         # PromptChain internal modules
-        logging.getLogger("promptchain.utils.execution_history_manager").setLevel(logging.CRITICAL)
-        logging.getLogger("promptchain.utils.agentic_step_processor").setLevel(logging.CRITICAL)
+        logging.getLogger("promptchain.utils.execution_history_manager").setLevel(
+            logging.CRITICAL
+        )
+        logging.getLogger("promptchain.utils.agentic_step_processor").setLevel(
+            logging.CRITICAL
+        )
         logging.getLogger("promptchain.utils.agent_chain").setLevel(logging.CRITICAL)
         logging.getLogger("promptchain.utils.logging_utils").setLevel(logging.CRITICAL)
         logging.getLogger("promptchain.utils.preprompt").setLevel(logging.CRITICAL)
         logging.getLogger("promptchain.utils.mcp_helpers").setLevel(logging.CRITICAL)
         logging.getLogger("promptchain.cli.activity_logger").setLevel(logging.CRITICAL)
-        logging.getLogger("promptchain.cli.utils.mcp_manager").setLevel(logging.CRITICAL)
+        logging.getLogger("promptchain.cli.utils.mcp_manager").setLevel(
+            logging.CRITICAL
+        )
         logging.getLogger("terminal_tool").setLevel(logging.CRITICAL)
 
         # MCP library loggers
@@ -158,7 +180,14 @@ def setup_logging(dev_mode: bool = False, session_name: str = "default", session
 )
 @click.version_option(version=__version__, prog_name="promptchain")
 @click.pass_context
-def main(ctx, session: str, sessions_dir: Optional[Path], config: Optional[Path], verbose: bool, dev: bool):
+def main(
+    ctx,
+    session: str,
+    sessions_dir: Optional[Path],
+    config: Optional[Path],
+    verbose: bool,
+    dev: bool,
+):
     """PromptChain - Interactive terminal interface for LLM conversations.
 
     Launch an interactive chat interface with persistent sessions, multi-agent
@@ -183,11 +212,11 @@ def main(ctx, session: str, sessions_dir: Optional[Path], config: Optional[Path]
     """
     # Store context for subcommands
     ctx.ensure_object(dict)
-    ctx.obj['session'] = session
-    ctx.obj['sessions_dir'] = sessions_dir
-    ctx.obj['config'] = config
-    ctx.obj['verbose'] = verbose
-    ctx.obj['dev'] = dev
+    ctx.obj["session"] = session
+    ctx.obj["sessions_dir"] = sessions_dir
+    ctx.obj["config"] = config
+    ctx.obj["verbose"] = verbose
+    ctx.obj["dev"] = dev
 
     # If no subcommand invoked, launch the TUI (default behavior)
     if ctx.invoked_subcommand is None:
@@ -195,7 +224,13 @@ def main(ctx, session: str, sessions_dir: Optional[Path], config: Optional[Path]
 
 
 @track_session()
-def _launch_tui(session: str, sessions_dir: Optional[Path], config: Optional[Path], verbose: bool, dev: bool):
+def _launch_tui(
+    session: str,
+    sessions_dir: Optional[Path],
+    config: Optional[Path],
+    verbose: bool,
+    dev: bool,
+):
     """Launch the interactive TUI application."""
     # Initialize MLflow observability
     init_mlflow()
@@ -234,7 +269,9 @@ def _launch_tui(session: str, sessions_dir: Optional[Path], config: Optional[Pat
         # Create and run the Textual app (T037)
         app = PromptChainApp(
             session_name=session,
-            sessions_dir=Path(base_config.sessions_dir) if base_config.sessions_dir else None,
+            sessions_dir=(
+                Path(base_config.sessions_dir) if base_config.sessions_dir else None
+            ),
             config=base_config,  # Config already includes settings from YAML
             verbose_mode=verbose,  # T118: Verbose observability mode
         )
@@ -248,7 +285,7 @@ def _launch_tui(session: str, sessions_dir: Optional[Path], config: Optional[Pat
 
 
 @main.command()
-@click.argument('query', required=True)
+@click.argument("query", required=True)
 @click.option(
     "--session",
     "-s",
@@ -273,7 +310,13 @@ def _launch_tui(session: str, sessions_dir: Optional[Path], config: Optional[Pat
     default=None,
     help="Model to use (overrides agent model, e.g., 'openai/gpt-4')",
 )
-def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optional[str], model: Optional[str]):
+def query(
+    query: str,
+    session: str,
+    sessions_dir: Optional[Path],
+    agent: Optional[str],
+    model: Optional[str],
+):
     """Execute a single query without launching the TUI.
 
     Runs a query against the specified session and returns the response.
@@ -288,14 +331,16 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
         promptchain query "Summarize README.md" --agent researcher
     """
     import asyncio
+    import os
+    import re
     import subprocess
     import tempfile
-    import re
-    import os
+
+    from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+    from promptchain.utils.promptchaining import PromptChain
+
     from .session_manager import SessionManager
     from .utils.mcp_manager import MCPManager
-    from promptchain.utils.promptchaining import PromptChain
-    from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
     # Setup basic logging (suppress verbose output)
     setup_logging(dev_mode=False, session_name=session, sessions_dir=sessions_dir)
@@ -305,12 +350,12 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
 
         Returns list of (script_path, success, output) tuples.
         """
-        results = []
+        results: List[Any] = []
 
         # Pattern to find bash/shell code blocks
         patterns = [
-            r'```(?:bash|sh|shell)\n(.*?)```',  # ```bash ... ```
-            r'```\n#!/bin/bash\n(.*?)```',  # ``` #!/bin/bash ... ```
+            r"```(?:bash|sh|shell)\n(.*?)```",  # ```bash ... ```
+            r"```\n#!/bin/bash\n(.*?)```",  # ``` #!/bin/bash ... ```
         ]
 
         scripts = []
@@ -323,12 +368,12 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
 
         for i, script_content in enumerate(scripts):
             # Add shebang if not present
-            if not script_content.strip().startswith('#!'):
-                script_content = '#!/bin/bash\nset -e\n' + script_content
+            if not script_content.strip().startswith("#!"):
+                script_content = "#!/bin/bash\nset -e\n" + script_content
 
             # Save script to temp file
-            script_path = os.path.join(work_dir, f'auto_script_{i}.sh')
-            with open(script_path, 'w') as f:
+            script_path = os.path.join(work_dir, f"auto_script_{i}.sh")
+            with open(script_path, "w") as f:
                 f.write(script_content)
             os.chmod(script_path, 0o755)
 
@@ -336,22 +381,27 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
             click.echo(f"\n[AUTO-EXEC] Running script {i+1}...", err=True)
             try:
                 result = subprocess.run(
-                    ['bash', script_path],
+                    ["bash", script_path],
                     cwd=work_dir,
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
                 )
                 success = result.returncode == 0
                 output = result.stdout + result.stderr
                 results.append((script_path, success, output))
 
                 if success:
-                    click.echo(f"[AUTO-EXEC] Script {i+1} completed successfully", err=True)
+                    click.echo(
+                        f"[AUTO-EXEC] Script {i+1} completed successfully", err=True
+                    )
                     if result.stdout:
                         click.echo(result.stdout)
                 else:
-                    click.echo(f"[AUTO-EXEC] Script {i+1} failed (exit {result.returncode})", err=True)
+                    click.echo(
+                        f"[AUTO-EXEC] Script {i+1} failed (exit {result.returncode})",
+                        err=True,
+                    )
                     click.echo(result.stderr, err=True)
 
             except subprocess.TimeoutExpired:
@@ -380,6 +430,7 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
         if not agent_obj:
             # Create default agent if doesn't exist
             from .models.agent_config import Agent
+
             model_name = model or session_obj.default_model
             agent_obj = Agent(name=agent_name, model_name=model_name)
             session_obj.agents[agent_name] = agent_obj
@@ -394,13 +445,14 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
         user_custom_dir = Path.home() / ".promptchain" / "prompts" / "custom"
 
         # PrePrompt will search additional dirs first, then standard (project root) prompts
-        preprompt = PrePrompt(additional_prompt_dirs=[
-            str(user_prompts_dir),
-            str(user_custom_dir)
-        ])
+        preprompt = PrePrompt(
+            additional_prompt_dirs=[str(user_prompts_dir), str(user_custom_dir)]
+        )
 
         # Load strategy from project strategies folder
-        project_strategies_dir = Path(__file__).parent.parent.parent / "prompts" / "strategies"
+        project_strategies_dir = (
+            Path(__file__).parent.parent.parent / "prompts" / "strategies"
+        )
 
         # Try to load autonomous_executor prompt with code_execution strategy
         try:
@@ -411,13 +463,21 @@ def query(query: str, session: str, sessions_dir: Optional[Path], agent: Optiona
             strategy_file = project_strategies_dir / "code_execution.json"
             if strategy_file.exists():
                 import json
+
                 strategy_data = json.loads(strategy_file.read_text())
                 strategy_prompt = strategy_data.get("prompt", "")
                 base_prompt = f"{strategy_prompt}\n\n{base_prompt}"
 
             # Substitute placeholders
-            loaded_prompt = base_prompt.replace("{context}", "").replace("{instructions}", f"USER TASK: {query}").replace("{input}", query)
-            click.echo(f"[{agent_name}] Loaded prompt: autonomous_executor:code_execution", err=True)
+            loaded_prompt = (
+                base_prompt.replace("{context}", "")
+                .replace("{instructions}", f"USER TASK: {query}")
+                .replace("{input}", query)
+            )
+            click.echo(
+                f"[{agent_name}] Loaded prompt: autonomous_executor:code_execution",
+                err=True,
+            )
         except FileNotFoundError:
             # Fallback to inline prompt if prompt files not found
             click.echo(f"[{agent_name}] Using fallback autonomous prompt", err=True)
@@ -441,16 +501,20 @@ Provide the complete, executable solution now."""
 
         # Create PromptChain for execution (AgenticStepProcessor available for future agentic workflows)
         chain = PromptChain(
-            models=[{
-                "name": model_name,
-                "params": {"max_completion_tokens": agent_obj.max_completion_tokens}
-            }],
+            models=[
+                {
+                    "name": model_name,
+                    "params": {
+                        "max_completion_tokens": agent_obj.max_completion_tokens
+                    },
+                }
+            ],
             instructions=[loaded_prompt],
             verbose=True,
         )
 
         # Create working directory for script execution
-        work_dir = tempfile.mkdtemp(prefix='promptchain_exec_')
+        work_dir = tempfile.mkdtemp(prefix="promptchain_exec_")
 
         # Execute query
         try:
@@ -466,12 +530,18 @@ Provide the complete, executable solution now."""
             exec_results = extract_and_run_scripts(response, work_dir)
 
             if exec_results:
-                click.echo(f"\n[AUTO-EXEC] Executed {len(exec_results)} script(s)", err=True)
+                click.echo(
+                    f"\n[AUTO-EXEC] Executed {len(exec_results)} script(s)", err=True
+                )
                 for script_path, success, output in exec_results:
                     status = "SUCCESS" if success else "FAILED"
-                    click.echo(f"  - {os.path.basename(script_path)}: {status}", err=True)
+                    click.echo(
+                        f"  - {os.path.basename(script_path)}: {status}", err=True
+                    )
             else:
-                click.echo("[AUTO-EXEC] No executable scripts found in response", err=True)
+                click.echo(
+                    "[AUTO-EXEC] No executable scripts found in response", err=True
+                )
 
             # Update session usage
             agent_obj.update_usage()
@@ -480,6 +550,7 @@ Provide the complete, executable solution now."""
         except Exception as e:
             click.echo(f"Error: {e}", err=True)
             import traceback
+
             traceback.print_exc()
             sys.exit(1)
 
@@ -490,6 +561,7 @@ Provide the complete, executable solution now."""
 # Register subcommand groups
 try:
     from .commands.patterns import patterns
+
     main.add_command(patterns)
 except ImportError:
     # Patterns commands not available (missing dependencies)
@@ -497,6 +569,7 @@ except ImportError:
 
 try:
     from .commands.chains import chain
+
     main.add_command(chain)
 except ImportError:
     # Chain commands not available

@@ -6,10 +6,11 @@ that can be used as PromptChain pattern implementations.
 
 # Import conditionally to avoid import errors when dependencies not installed
 try:
-    from promptchain.integrations.lightrag import LightRAGIntegration, LIGHTRAG_AVAILABLE
+    from promptchain.integrations.lightrag import (LIGHTRAG_AVAILABLE,
+                                                   LightRAGIntegration)
 except ImportError:
     LIGHTRAG_AVAILABLE = False
-    LightRAGIntegration = None
+    LightRAGIntegration = None  # type: ignore[assignment]
 
 __all__ = [
     "LIGHTRAG_AVAILABLE",

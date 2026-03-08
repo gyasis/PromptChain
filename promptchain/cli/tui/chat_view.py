@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, List, Optional, Union
 
 import pyperclip
-from rich.console import Console, ConsoleOptions, RenderResult, Group
+from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.markdown import Markdown
 from rich.text import Text
 from textual import events
@@ -26,17 +26,17 @@ def _looks_like_markdown(text: str) -> bool:
     """
     # Common markdown patterns
     markdown_indicators = [
-        "**",       # Bold
-        "__",       # Bold alt
-        "```",      # Code block
-        "`",        # Inline code
-        "# ",       # Headers
+        "**",  # Bold
+        "__",  # Bold alt
+        "```",  # Code block
+        "`",  # Inline code
+        "# ",  # Headers
         "## ",
         "### ",
-        "- ",       # Lists
-        "1. ",      # Numbered lists
-        "[",        # Links
-        "> ",       # Blockquotes
+        "- ",  # Lists
+        "1. ",  # Numbered lists
+        "[",  # Links
+        "> ",  # Blockquotes
     ]
     # Note: Removed single "*" and "_" as they cause false positives
     return any(indicator in text for indicator in markdown_indicators)
@@ -94,11 +94,11 @@ class MessageItem(ListItem):
 
     def start_spinner(self) -> None:
         """No-op - spinners removed for cleaner UI."""
-        self.is_processing = True
+        self.is_processing = True  # type: ignore[assignment]
 
     def stop_spinner(self) -> None:
         """Stop processing state."""
-        self.is_processing = False
+        self.is_processing = False  # type: ignore[assignment]
         if self.spin_task:
             self.spin_task.cancel()
             self.spin_task = None

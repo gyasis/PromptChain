@@ -7,12 +7,12 @@ including:
 - Event topic conventions and helpers
 """
 
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
-import logging
 import fnmatch
+import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from promptchain.cli.models import MessageBus
+    from promptchain.cli.models import MessageBus  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,12 @@ class PatternMessageBusMixin:
             return
 
         event_data = {
-            "pattern_id": getattr(self, 'config', {}).pattern_id if hasattr(self, 'config') else 'unknown',
-            **data
+            "pattern_id": (
+                getattr(self, "config", {}).pattern_id  # type: ignore[union-attr]
+                if hasattr(self, "config")
+                else "unknown"
+            ),
+            **data,
         }
 
         try:
@@ -66,7 +70,9 @@ class PatternMessageBusMixin:
         for event in events:
             self.emit_event(event.get("type", "unknown"), event.get("data", {}))
 
-    def subscribe_to(self, pattern: str, handler: Callable, filter_fn: Optional[Callable] = None) -> str:
+    def subscribe_to(
+        self, pattern: str, handler: Callable, filter_fn: Optional[Callable] = None
+    ) -> str:
         """Subscribe to events matching a pattern with optional filtering.
 
         Args:
@@ -82,12 +88,14 @@ class PatternMessageBusMixin:
             return ""
 
         subscription_id = f"sub_{len(self._subscriptions)}"
-        self._subscriptions.append({
-            "id": subscription_id,
-            "pattern": pattern,
-            "handler": handler,
-            "filter_fn": filter_fn
-        })
+        self._subscriptions.append(
+            {
+                "id": subscription_id,
+                "pattern": pattern,
+                "handler": handler,
+                "filter_fn": filter_fn,
+            }
+        )
 
         # Wrap handler with filter
         def filtered_handler(event_type: str, event_data: Dict[str, Any]):
@@ -100,25 +108,36 @@ class PatternMessageBusMixin:
 
     def unsubscribe(self, subscription_id: str) -> bool:
         """Unsubscribe from events by subscription ID."""
-        self._subscriptions = [s for s in self._subscriptions if s["id"] != subscription_id]
+        self._subscriptions = [
+            s for s in self._subscriptions if s["id"] != subscription_id
+        ]
         return True
 
     def _record_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Record event in history for debugging."""
         from datetime import datetime
-        self._event_history.append({
-            "type": event_type,
-            "data": data,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+
+        self._event_history.append(
+            {
+                "type": event_type,
+                "data": data,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
         # Trim history if needed
         if len(self._event_history) > self._max_history:
-            self._event_history = self._event_history[-self._max_history:]
+            self._event_history = self._event_history[-self._max_history :]
 
-    def get_event_history(self, event_type_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_event_history(
+        self, event_type_filter: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get recorded event history with optional filtering."""
         if event_type_filter:
-            return [e for e in self._event_history if fnmatch.fnmatch(e["type"], event_type_filter)]
+            return [
+                e
+                for e in self._event_history
+                if fnmatch.fnmatch(e["type"], event_type_filter)
+            ]
         return list(self._event_history)
 
 
@@ -148,22 +167,29 @@ class PatternEventBroadcaster:
         """Broadcast an event to the shared MessageBus."""
         self._bus.publish(event_type, data)
 
-    def coordinate_workflow(self, workflow_id: str, steps: List[Dict[str, Any]]) -> None:
+    def coordinate_workflow(
+        self, workflow_id: str, steps: List[Dict[str, Any]]
+    ) -> None:
         """Emit workflow coordination events.
 
         Args:
             workflow_id: Unique workflow identifier
             steps: List of workflow steps with pattern and action
         """
-        self.broadcast("workflow.started", {"workflow_id": workflow_id, "steps": len(steps)})
+        self.broadcast(
+            "workflow.started", {"workflow_id": workflow_id, "steps": len(steps)}
+        )
 
         for i, step in enumerate(steps):
-            self.broadcast(f"workflow.step.{i}", {
-                "workflow_id": workflow_id,
-                "step_index": i,
-                "pattern": step.get("pattern"),
-                "action": step.get("action")
-            })
+            self.broadcast(
+                f"workflow.step.{i}",
+                {
+                    "workflow_id": workflow_id,
+                    "step_index": i,
+                    "pattern": step.get("pattern"),
+                    "action": step.get("action"),
+                },
+            )
 
 
 # Topic convention helpers
