@@ -231,7 +231,7 @@ class LightRAGHybridSearcher(BasePattern):
             else:
                 successful_results.append(result)
 
-        return successful_results
+        return successful_results  # type: ignore[return-value]
 
     async def _execute_single_technique(
         self, technique: SearchTechnique, query: str, **kwargs

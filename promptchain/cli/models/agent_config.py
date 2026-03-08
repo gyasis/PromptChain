@@ -128,7 +128,7 @@ class HistoryConfig:
         }
 
         # Get config for type, fallback to coder defaults
-        config_dict: Dict[str, Any] = type_configs.get(
+        config_dict: Dict[str, Any] = type_configs.get(  # type: ignore[assignment]
             agent_type.lower(), type_configs["coder"]
         )
         return cls.from_dict(config_dict)

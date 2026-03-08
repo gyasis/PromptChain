@@ -10,7 +10,7 @@ try:
                                                    LightRAGIntegration)
 except ImportError:
     LIGHTRAG_AVAILABLE = False
-    LightRAGIntegration = None  # type: ignore[assignment]
+    LightRAGIntegration = None  # type: ignore[misc,assignment]
 
 __all__ = [
     "LIGHTRAG_AVAILABLE",

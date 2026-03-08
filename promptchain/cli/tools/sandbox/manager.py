@@ -10,17 +10,11 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .base import (
-    BaseSandbox,
-    EnvironmentConfig,
-    EnvironmentType,
-    SandboxResult,
-    ProvisionError,
-    ExecutionError,
-    CleanupError,
-)
-from .uv_sandbox import UVSandbox
+from .base import (BaseSandbox, CleanupError, EnvironmentConfig,
+                   EnvironmentType, ExecutionError, ProvisionError,
+                   SandboxResult)
 from .docker_sandbox import DockerSandbox
+from .uv_sandbox import UVSandbox
 
 
 class SandboxManager:
@@ -80,9 +74,7 @@ class SandboxManager:
         self._initialized = True
 
     def create_environment(
-        self,
-        env_type: EnvironmentType,
-        config: EnvironmentConfig
+        self, env_type: EnvironmentType, config: EnvironmentConfig
     ) -> str:
         """Create and provision new sandbox environment.
 
@@ -106,7 +98,7 @@ class SandboxManager:
             if env_type == EnvironmentType.UV:
                 sandbox = UVSandbox(config)
             elif env_type == EnvironmentType.DOCKER:
-                sandbox = DockerSandbox(config)
+                sandbox = DockerSandbox(config)  # type: ignore[assignment]
             else:
                 raise ValueError(
                     f"Unsupported environment type: {env_type}. "
@@ -122,10 +114,7 @@ class SandboxManager:
             return env_id
 
     def execute_in_environment(
-        self,
-        env_id: str,
-        code: str,
-        timeout: Optional[int] = None
+        self, env_id: str, code: str, timeout: Optional[int] = None
     ) -> SandboxResult:
         """Execute code in a specific environment.
 
@@ -238,7 +227,7 @@ class SandboxManager:
         # Find oldest environment (by last_used timestamp)
         oldest_env_id = min(
             self.environments.keys(),
-            key=lambda eid: self.environments[eid].last_used or 0
+            key=lambda eid: self.environments[eid].last_used or 0,
         )
 
         # Cleanup oldest environment

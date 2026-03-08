@@ -4,18 +4,19 @@ Expands queries using multiple strategies (synonym, semantic, acronym, reformula
 and searches in parallel to retrieve more comprehensive results.
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import asyncio
 import logging
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 
 if TYPE_CHECKING:
     from hybridrag.src.search_interface import SearchInterface
+
     from promptchain.integrations.lightrag.core import LightRAGIntegration
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ExpansionStrategy(Enum):
     """Query expansion strategies."""
+
     SYNONYM = "synonym"  # Expand using synonyms and related terms
     SEMANTIC = "semantic"  # Expand using semantic similarity
     ACRONYM = "acronym"  # Expand acronyms and abbreviations
@@ -40,6 +42,7 @@ class QueryExpansionConfig(PatternConfig):
         deduplicate: Whether to deduplicate results.
         parallel_search: Whether to search all expansions in parallel.
     """
+
     strategies: List[ExpansionStrategy] = field(
         default_factory=lambda: [ExpansionStrategy.SEMANTIC]
     )
@@ -60,6 +63,7 @@ class ExpandedQuery:
         strategy: Strategy used to generate this expansion.
         similarity_score: Similarity score to original (0.0-1.0).
     """
+
     query_id: str
     original_query: str
     expanded_query: str
@@ -77,6 +81,7 @@ class QueryExpansionResult(PatternResult):
         search_results: Aggregated search results from all queries.
         unique_results_found: Number of unique results after deduplication.
     """
+
     original_query: str = ""
     expanded_queries: List[ExpandedQuery] = field(default_factory=list)
     search_results: List[Any] = field(default_factory=list)
@@ -85,20 +90,22 @@ class QueryExpansionResult(PatternResult):
     def to_dict(self) -> Dict[str, Any]:
         """Convert result to dictionary for serialization."""
         base = super().to_dict()
-        base.update({
-            "original_query": self.original_query,
-            "expanded_queries": [
-                {
-                    "query_id": eq.query_id,
-                    "original_query": eq.original_query,
-                    "expanded_query": eq.expanded_query,
-                    "strategy": eq.strategy.value,
-                    "similarity_score": eq.similarity_score,
-                }
-                for eq in self.expanded_queries
-            ],
-            "unique_results_found": self.unique_results_found,
-        })
+        base.update(
+            {
+                "original_query": self.original_query,
+                "expanded_queries": [
+                    {
+                        "query_id": eq.query_id,
+                        "original_query": eq.original_query,
+                        "expanded_query": eq.expanded_query,
+                        "strategy": eq.strategy.value,
+                        "similarity_score": eq.similarity_score,
+                    }
+                    for eq in self.expanded_queries
+                ],
+                "unique_results_found": self.unique_results_found,
+            }
+        )
         return base
 
 
@@ -128,7 +135,7 @@ class LightRAGQueryExpander(BasePattern):
         self,
         search_interface: Optional["SearchInterface"] = None,
         lightrag_integration: Optional["LightRAGIntegration"] = None,
-        config: Optional[QueryExpansionConfig] = None
+        config: Optional[QueryExpansionConfig] = None,
     ):
         """Initialize query expander.
 
@@ -157,10 +164,8 @@ class LightRAGQueryExpander(BasePattern):
         # Store integration for context extraction
         self._integration = lightrag_integration
 
-    async def execute(
-        self,
-        query: str,
-        strategies: Optional[List[ExpansionStrategy]] = None
+    async def execute(  # type: ignore[override]
+        self, query: str, strategies: Optional[List[ExpansionStrategy]] = None
     ) -> QueryExpansionResult:
         """Execute query expansion and parallel search.
 
@@ -174,10 +179,13 @@ class LightRAGQueryExpander(BasePattern):
         start_time = time.perf_counter()
         expansion_strategies = strategies or self.config.strategies
 
-        self.emit_event("pattern.query_expansion.started", {
-            "query": query,
-            "strategies": [s.value for s in expansion_strategies],
-        })
+        self.emit_event(
+            "pattern.query_expansion.started",
+            {
+                "query": query,
+                "strategies": [s.value for s in expansion_strategies],
+            },
+        )
 
         try:
             # Extract context from knowledge graph for semantic understanding
@@ -188,31 +196,40 @@ class LightRAGQueryExpander(BasePattern):
                 query, expansion_strategies, context
             )
 
-            self.emit_event("pattern.query_expansion.expanded", {
-                "query": query,
-                "expansion_count": len(expanded_queries),
-                "strategies_used": [s.value for s in expansion_strategies],
-            })
+            self.emit_event(
+                "pattern.query_expansion.expanded",
+                {
+                    "query": query,
+                    "expansion_count": len(expanded_queries),
+                    "strategies_used": [s.value for s in expansion_strategies],
+                },
+            )
 
             # Execute searches for all expanded queries
             search_results = await self._execute_searches(query, expanded_queries)
 
-            self.emit_event("pattern.query_expansion.searching", {
-                "query": query,
-                "total_queries": len(expanded_queries) + 1,  # +1 for original
-            })
+            self.emit_event(
+                "pattern.query_expansion.searching",
+                {
+                    "query": query,
+                    "total_queries": len(expanded_queries) + 1,  # +1 for original
+                },
+            )
 
             # Deduplicate and rank results
             unique_results = self._deduplicate_results(search_results)
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
 
-            self.emit_event("pattern.query_expansion.completed", {
-                "query": query,
-                "unique_results": len(unique_results),
-                "total_expansions": len(expanded_queries),
-                "execution_time_ms": elapsed_ms,
-            })
+            self.emit_event(
+                "pattern.query_expansion.completed",
+                {
+                    "query": query,
+                    "unique_results": len(unique_results),
+                    "total_expansions": len(expanded_queries),
+                    "execution_time_ms": elapsed_ms,
+                },
+            )
 
             return QueryExpansionResult(
                 pattern_id=self.config.pattern_id,
@@ -227,7 +244,7 @@ class LightRAGQueryExpander(BasePattern):
                     "strategies_used": [s.value for s in expansion_strategies],
                     "total_queries": len(expanded_queries) + 1,
                     "parallel_execution": self.config.parallel_search,
-                }
+                },
             )
 
         except ImportError as e:
@@ -272,10 +289,7 @@ class LightRAGQueryExpander(BasePattern):
             return {}
 
     async def _generate_expansions(
-        self,
-        query: str,
-        strategies: List[ExpansionStrategy],
-        context: Dict[str, Any]
+        self, query: str, strategies: List[ExpansionStrategy], context: Dict[str, Any]
     ) -> List[ExpandedQuery]:
         """Generate query expansions using specified strategies.
 
@@ -291,26 +305,22 @@ class LightRAGQueryExpander(BasePattern):
 
         for strategy in strategies:
             try:
-                expansions = await self._expand_with_strategy(
-                    query, strategy, context
-                )
+                expansions = await self._expand_with_strategy(query, strategy, context)
                 expanded_queries.extend(expansions)
             except Exception as e:
                 logger.warning(f"Expansion with {strategy.value} failed: {e}")
 
         # Filter by similarity threshold
         filtered = [
-            eq for eq in expanded_queries
+            eq
+            for eq in expanded_queries
             if eq.similarity_score >= self.config.min_similarity
         ]
 
         return filtered
 
     async def _expand_with_strategy(
-        self,
-        query: str,
-        strategy: ExpansionStrategy,
-        context: Dict[str, Any]
+        self, query: str, strategy: ExpansionStrategy, context: Dict[str, Any]
     ) -> List[ExpandedQuery]:
         """Expand query using a specific strategy.
 
@@ -334,7 +344,7 @@ class LightRAGQueryExpander(BasePattern):
             expansions = await self._expand_reformulations(query, context)
 
         # Limit to max_expansions_per_strategy
-        return expansions[:self.config.max_expansions_per_strategy]
+        return expansions[: self.config.max_expansions_per_strategy]
 
     async def _expand_synonyms(
         self, query: str, context: Dict[str, Any]
@@ -352,19 +362,20 @@ class LightRAGQueryExpander(BasePattern):
         expansions = []
         entities = context.get("entities", [])
 
-        for i, entity in enumerate(entities[:self.config.max_expansions_per_strategy]):
+        for i, entity in enumerate(entities[: self.config.max_expansions_per_strategy]):
             expanded = query.replace(
-                entity.get("name", ""),
-                entity.get("type", entity.get("name", ""))
+                entity.get("name", ""), entity.get("type", entity.get("name", ""))
             )
             if expanded != query:
-                expansions.append(ExpandedQuery(
-                    query_id=str(uuid.uuid4()),
-                    original_query=query,
-                    expanded_query=expanded,
-                    strategy=ExpansionStrategy.SYNONYM,
-                    similarity_score=0.8,  # Heuristic
-                ))
+                expansions.append(
+                    ExpandedQuery(
+                        query_id=str(uuid.uuid4()),
+                        original_query=query,
+                        expanded_query=expanded,
+                        strategy=ExpansionStrategy.SYNONYM,
+                        similarity_score=0.8,  # Heuristic
+                    )
+                )
 
         return expansions
 
@@ -384,16 +395,20 @@ class LightRAGQueryExpander(BasePattern):
         expansions = []
         relationships = context.get("relationships", [])
 
-        for i, rel in enumerate(relationships[:self.config.max_expansions_per_strategy]):
+        for i, rel in enumerate(
+            relationships[: self.config.max_expansions_per_strategy]
+        ):
             # Create expansion based on relationship
             expanded = f"{query} {rel.get('type', '')} {rel.get('target', '')}"
-            expansions.append(ExpandedQuery(
-                query_id=str(uuid.uuid4()),
-                original_query=query,
-                expanded_query=expanded.strip(),
-                strategy=ExpansionStrategy.SEMANTIC,
-                similarity_score=0.85,  # Heuristic
-            ))
+            expansions.append(
+                ExpandedQuery(
+                    query_id=str(uuid.uuid4()),
+                    original_query=query,
+                    expanded_query=expanded.strip(),
+                    strategy=ExpansionStrategy.SEMANTIC,
+                    similarity_score=0.85,  # Heuristic
+                )
+            )
 
         return expansions
 
@@ -419,16 +434,18 @@ class LightRAGQueryExpander(BasePattern):
                 for entity in context.get("entities", []):
                     if word in entity.get("name", "").upper():
                         expanded = query.replace(word, entity.get("name", word))
-                        expansions.append(ExpandedQuery(
-                            query_id=str(uuid.uuid4()),
-                            original_query=query,
-                            expanded_query=expanded,
-                            strategy=ExpansionStrategy.ACRONYM,
-                            similarity_score=0.9,
-                        ))
+                        expansions.append(
+                            ExpandedQuery(
+                                query_id=str(uuid.uuid4()),
+                                original_query=query,
+                                expanded_query=expanded,
+                                strategy=ExpansionStrategy.ACRONYM,
+                                similarity_score=0.9,
+                            )
+                        )
                         break
 
-        return expansions[:self.config.max_expansions_per_strategy]
+        return expansions[: self.config.max_expansions_per_strategy]
 
     async def _expand_reformulations(
         self, query: str, context: Dict[str, Any]
@@ -450,22 +467,24 @@ class LightRAGQueryExpander(BasePattern):
             f"How does {query} work?",
         ]
 
-        for i, reformulated in enumerate(reformulations[:self.config.max_expansions_per_strategy]):
+        for i, reformulated in enumerate(
+            reformulations[: self.config.max_expansions_per_strategy]
+        ):
             if reformulated.lower() != query.lower():
-                expansions.append(ExpandedQuery(
-                    query_id=str(uuid.uuid4()),
-                    original_query=query,
-                    expanded_query=reformulated,
-                    strategy=ExpansionStrategy.REFORMULATION,
-                    similarity_score=0.75,  # Heuristic
-                ))
+                expansions.append(
+                    ExpandedQuery(
+                        query_id=str(uuid.uuid4()),
+                        original_query=query,
+                        expanded_query=reformulated,
+                        strategy=ExpansionStrategy.REFORMULATION,
+                        similarity_score=0.75,  # Heuristic
+                    )
+                )
 
         return expansions
 
     async def _execute_searches(
-        self,
-        original_query: str,
-        expanded_queries: List[ExpandedQuery]
+        self, original_query: str, expanded_queries: List[ExpandedQuery]
     ) -> List[Any]:
         """Execute searches for all query variations.
 
@@ -482,13 +501,14 @@ class LightRAGQueryExpander(BasePattern):
             try:
                 # Use multi_query_search for parallel execution
                 results = await self._search.multi_query_search(
-                    queries=all_queries,
-                    mode="hybrid"
+                    queries=all_queries, mode="hybrid"
                 )
                 return results if isinstance(results, list) else [results]
             except AttributeError:
                 # Fallback if multi_query_search not available
-                logger.warning("multi_query_search not available, falling back to sequential")
+                logger.warning(
+                    "multi_query_search not available, falling back to sequential"
+                )
                 return await self._execute_sequential_searches(all_queries)
         else:
             return await self._execute_sequential_searches(all_queries)

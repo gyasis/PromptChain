@@ -7,9 +7,9 @@ similar to Claude Code's TodoWrite functionality.
 import json
 from typing import Any, Dict, List, Optional
 
-from ...models.task_list import TaskListManager, TaskList
 from promptchain.observability import track_task
 
+from ...models.task_list import TaskList, TaskListManager
 
 # Global task list manager (shared across session)
 _task_list_manager: Optional[TaskListManager] = None
@@ -76,12 +76,16 @@ def task_list_write(todos_json: str) -> str:
         if not isinstance(task, dict):
             continue
 
-        formatted_tasks.append({
-            "content": task.get("content", ""),
-            "active_form": task.get("activeForm", task.get("active_form", task.get("content", ""))),
-            "status": task.get("status", "pending"),
-            "result": task.get("result"),
-        })
+        formatted_tasks.append(
+            {
+                "content": task.get("content", ""),
+                "active_form": task.get(
+                    "activeForm", task.get("active_form", task.get("content", ""))
+                ),
+                "status": task.get("status", "pending"),
+                "result": task.get("result"),
+            }
+        )
 
     # Update the task list
     manager.update_list(formatted_tasks)
@@ -156,26 +160,26 @@ Example usage:
                             "content": {
                                 "type": "string",
                                 "minLength": 1,
-                                "description": "Task description in imperative form (e.g., 'Fix the bug')"
+                                "description": "Task description in imperative form (e.g., 'Fix the bug')",
                             },
                             "status": {
                                 "type": "string",
                                 "enum": ["pending", "in_progress", "completed"],
-                                "description": "Current status of the task"
+                                "description": "Current status of the task",
                             },
                             "activeForm": {
                                 "type": "string",
                                 "minLength": 1,
-                                "description": "Task in present continuous form (e.g., 'Fixing the bug')"
-                            }
+                                "description": "Task in present continuous form (e.g., 'Fixing the bug')",
+                            },
                         },
-                        "required": ["content", "status", "activeForm"]
-                    }
+                        "required": ["content", "status", "activeForm"],
+                    },
                 }
             },
-            "required": ["todos"]
-        }
-    }
+            "required": ["todos"],
+        },
+    },
 }
 
 
@@ -184,7 +188,7 @@ def register_task_list_tools() -> List[Dict[str, Any]]:
     return [TASK_LIST_WRITE_SCHEMA]
 
 
-def get_task_list_functions() -> Dict[str, callable]:
+def get_task_list_functions() -> Dict[str, Any]:
     """Get task list functions for tool execution."""
     return {
         "task_list_write": lambda todos: task_list_write(json.dumps(todos)),

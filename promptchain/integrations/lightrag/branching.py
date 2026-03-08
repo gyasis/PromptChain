@@ -15,20 +15,21 @@ An LLM judge evaluates each hypothesis based on:
 - Supporting evidence quality
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 import asyncio
 import json
 import logging
 import time
 import uuid
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 from promptchain.integrations.lightrag import LIGHTRAG_AVAILABLE
 from promptchain.observability import track_llm_call
+from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 
 if TYPE_CHECKING:
     from hybridrag.src.lightrag_core import HybridLightRAGCore
+
     from promptchain.integrations.lightrag.core import LightRAGIntegration
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class BranchingConfig(PatternConfig):
         diversity_threshold: Minimum diversity between hypotheses (0.0-1.0).
         record_outcomes: Whether to record outcomes for future learning.
     """
+
     hypothesis_count: int = 3
     generator_model: Optional[str] = None
     judge_model: str = "openai/gpt-4o"
@@ -63,6 +65,7 @@ class Hypothesis:
         confidence: Confidence score (0.0-1.0).
         mode: Query mode used ("local", "global", "hybrid").
     """
+
     hypothesis_id: str
     approach: str
     reasoning: str
@@ -91,6 +94,7 @@ class HypothesisScore:
         strengths: List of identified strengths.
         weaknesses: List of identified weaknesses.
     """
+
     hypothesis_id: str
     score: float
     reasoning: str
@@ -118,6 +122,7 @@ class BranchingResult(PatternResult):
         selected_hypothesis: The hypothesis chosen as best.
         selection_reasoning: Explanation of why it was selected.
     """
+
     hypotheses: List[Hypothesis] = field(default_factory=list)
     scores: List[HypothesisScore] = field(default_factory=list)
     selected_hypothesis: Optional[Hypothesis] = None
@@ -126,12 +131,18 @@ class BranchingResult(PatternResult):
     def to_dict(self) -> Dict[str, Any]:
         """Convert result to dictionary for serialization."""
         base_dict = super().to_dict()
-        base_dict.update({
-            "hypotheses": [h.to_dict() for h in self.hypotheses],
-            "scores": [s.to_dict() for s in self.scores],
-            "selected_hypothesis": self.selected_hypothesis.to_dict() if self.selected_hypothesis else None,
-            "selection_reasoning": self.selection_reasoning,
-        })
+        base_dict.update(
+            {
+                "hypotheses": [h.to_dict() for h in self.hypotheses],
+                "scores": [s.to_dict() for s in self.scores],
+                "selected_hypothesis": (
+                    self.selected_hypothesis.to_dict()
+                    if self.selected_hypothesis
+                    else None
+                ),
+                "selection_reasoning": self.selection_reasoning,
+            }
+        )
         return base_dict
 
 
@@ -158,7 +169,7 @@ class LightRAGBranchingThoughts(BasePattern):
     def __init__(
         self,
         lightrag_core: Union["HybridLightRAGCore", "LightRAGIntegration"],
-        config: Optional[BranchingConfig] = None
+        config: Optional[BranchingConfig] = None,
     ):
         """Initialize the Branching Thoughts pattern.
 
@@ -182,6 +193,7 @@ class LightRAGBranchingThoughts(BasePattern):
         # Import LiteLLM for judge
         try:
             import litellm
+
             self._litellm = litellm
         except ImportError:
             raise ImportError(
@@ -189,10 +201,8 @@ class LightRAGBranchingThoughts(BasePattern):
                 "Install with: pip install litellm"
             )
 
-    async def execute(
-        self,
-        problem: str,
-        hypothesis_count: Optional[int] = None
+    async def execute(  # type: ignore[override]
+        self, problem: str, hypothesis_count: Optional[int] = None
     ) -> BranchingResult:
         """Execute the Branching Thoughts pattern.
 
@@ -209,10 +219,13 @@ class LightRAGBranchingThoughts(BasePattern):
         start_time = time.perf_counter()
         count = hypothesis_count or self.config.hypothesis_count
 
-        self.emit_event("pattern.branching.started", {
-            "problem": problem,
-            "hypothesis_count": count,
-        })
+        self.emit_event(
+            "pattern.branching.started",
+            {
+                "problem": problem,
+                "hypothesis_count": count,
+            },
+        )
 
         try:
             # Generate hypotheses using different query modes
@@ -226,17 +239,25 @@ class LightRAGBranchingThoughts(BasePattern):
 
             execution_time_ms = (time.perf_counter() - start_time) * 1000
 
-            self.emit_event("pattern.branching.completed", {
-                "selected_hypothesis_id": selected.hypothesis_id if selected else None,
-                "execution_time_ms": execution_time_ms,
-            })
+            self.emit_event(
+                "pattern.branching.completed",
+                {
+                    "selected_hypothesis_id": (
+                        selected.hypothesis_id if selected else None
+                    ),
+                    "execution_time_ms": execution_time_ms,
+                },
+            )
 
             # Share result via Blackboard if enabled
             if selected:
-                self.share_result(f"branching.{self.config.pattern_id}.selected", {
-                    "hypothesis": selected.to_dict(),
-                    "reasoning": reasoning,
-                })
+                self.share_result(
+                    f"branching.{self.config.pattern_id}.selected",
+                    {
+                        "hypothesis": selected.to_dict(),
+                        "reasoning": reasoning,
+                    },
+                )
 
             return BranchingResult(
                 pattern_id=self.config.pattern_id,
@@ -261,11 +282,7 @@ class LightRAGBranchingThoughts(BasePattern):
                 errors=[str(e)],
             )
 
-    async def _generate_hypotheses(
-        self,
-        problem: str,
-        count: int
-    ) -> List[Hypothesis]:
+    async def _generate_hypotheses(self, problem: str, count: int) -> List[Hypothesis]:
         """Generate hypotheses using different query modes.
 
         Args:
@@ -289,10 +306,13 @@ class LightRAGBranchingThoughts(BasePattern):
         for mode in modes:
             tasks.append(self._query_with_mode(problem, mode))
 
-        self.emit_event("pattern.branching.generating", {
-            "modes": modes,
-            "count": len(tasks),
-        })
+        self.emit_event(
+            "pattern.branching.generating",
+            {
+                "modes": modes,
+                "count": len(tasks),
+            },
+        )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -306,11 +326,14 @@ class LightRAGBranchingThoughts(BasePattern):
             hypothesis = self._extract_hypothesis(mode, result, i)
             hypotheses.append(hypothesis)
 
-            self.emit_event("pattern.branching.hypothesis_generated", {
-                "hypothesis_id": hypothesis.hypothesis_id,
-                "mode": mode,
-                "confidence": hypothesis.confidence,
-            })
+            self.emit_event(
+                "pattern.branching.hypothesis_generated",
+                {
+                    "hypothesis_id": hypothesis.hypothesis_id,
+                    "mode": mode,
+                    "confidence": hypothesis.confidence,
+                },
+            )
 
         return hypotheses
 
@@ -335,14 +358,9 @@ class LightRAGBranchingThoughts(BasePattern):
                 return await self._lightrag.hybrid_query(problem)
         else:
             # Assume it's a core object with query method
-            return await self._lightrag.query(problem, mode=mode)
+            return await self._lightrag.query(problem, mode=mode)  # type: ignore[union-attr]
 
-    def _extract_hypothesis(
-        self,
-        mode: str,
-        result: Any,
-        index: int
-    ) -> Hypothesis:
+    def _extract_hypothesis(self, mode: str, result: Any, index: int) -> Hypothesis:
         """Extract a hypothesis from a query result.
 
         Args:
@@ -377,14 +395,9 @@ class LightRAGBranchingThoughts(BasePattern):
             mode=mode,
         )
 
-    @track_llm_call(
-        model_param="judge_model",
-        extract_args=["temperature"]
-    )
+    @track_llm_call(model_param="judge_model", extract_args=["temperature"])
     async def _judge_hypotheses(
-        self,
-        problem: str,
-        hypotheses: List[Hypothesis]
+        self, problem: str, hypotheses: List[Hypothesis]
     ) -> List[HypothesisScore]:
         """Judge and score each hypothesis using an LLM.
 
@@ -395,9 +408,12 @@ class LightRAGBranchingThoughts(BasePattern):
         Returns:
             List of HypothesisScore objects.
         """
-        self.emit_event("pattern.branching.judging", {
-            "hypothesis_count": len(hypotheses),
-        })
+        self.emit_event(
+            "pattern.branching.judging",
+            {
+                "hypothesis_count": len(hypotheses),
+            },
+        )
 
         # Create judge prompt
         judge_prompt = self._create_judge_prompt(problem, hypotheses)
@@ -410,17 +426,14 @@ class LightRAGBranchingThoughts(BasePattern):
                     {
                         "role": "system",
                         "content": "You are an expert judge evaluating different hypotheses. "
-                                   "Analyze each hypothesis carefully and provide detailed scoring."
+                        "Analyze each hypothesis carefully and provide detailed scoring.",
                     },
-                    {
-                        "role": "user",
-                        "content": judge_prompt
-                    }
+                    {"role": "user", "content": judge_prompt},
                 ],
                 temperature=0.2,  # Low temperature for consistent judging
             )
 
-            judge_output = response.choices[0].message.content
+            judge_output = response.choices[0].message.content or ""  # type: ignore[union-attr]
 
             # Parse judge output into scores
             scores = self._parse_judge_output(judge_output, hypotheses)
@@ -441,11 +454,7 @@ class LightRAGBranchingThoughts(BasePattern):
                 for h in hypotheses
             ]
 
-    def _create_judge_prompt(
-        self,
-        problem: str,
-        hypotheses: List[Hypothesis]
-    ) -> str:
+    def _create_judge_prompt(self, problem: str, hypotheses: List[Hypothesis]) -> str:
         """Create a prompt for the LLM judge.
 
         Args:
@@ -501,9 +510,7 @@ Format your response as JSON:
         return prompt
 
     def _parse_judge_output(
-        self,
-        output: str,
-        hypotheses: List[Hypothesis]
+        self, output: str, hypotheses: List[Hypothesis]
     ) -> List[HypothesisScore]:
         """Parse the judge's output into scores.
 
@@ -525,13 +532,15 @@ Format your response as JSON:
 
                 scores = []
                 for eval_data in data.get("evaluations", []):
-                    scores.append(HypothesisScore(
-                        hypothesis_id=eval_data["hypothesis_id"],
-                        score=float(eval_data["score"]),
-                        reasoning=eval_data.get("reasoning", ""),
-                        strengths=eval_data.get("strengths", []),
-                        weaknesses=eval_data.get("weaknesses", []),
-                    ))
+                    scores.append(
+                        HypothesisScore(
+                            hypothesis_id=eval_data["hypothesis_id"],
+                            score=float(eval_data["score"]),
+                            reasoning=eval_data.get("reasoning", ""),
+                            strengths=eval_data.get("strengths", []),
+                            weaknesses=eval_data.get("weaknesses", []),
+                        )
+                    )
                 return scores
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
@@ -550,9 +559,7 @@ Format your response as JSON:
         ]
 
     def _select_best_hypothesis(
-        self,
-        hypotheses: List[Hypothesis],
-        scores: List[HypothesisScore]
+        self, hypotheses: List[Hypothesis], scores: List[HypothesisScore]
     ) -> tuple[Optional[Hypothesis], str]:
         """Select the best hypothesis based on scores.
 
@@ -572,8 +579,7 @@ Format your response as JSON:
         # Find hypothesis with highest score
         best_score = max(scores, key=lambda s: s.score)
         best_hypothesis = next(
-            (h for h in hypotheses if h.hypothesis_id == best_score.hypothesis_id),
-            None
+            (h for h in hypotheses if h.hypothesis_id == best_score.hypothesis_id), None
         )
 
         if best_hypothesis is None:
@@ -585,10 +591,13 @@ Format your response as JSON:
             f"Reasoning: {best_score.reasoning}"
         )
 
-        self.emit_event("pattern.branching.selected", {
-            "hypothesis_id": best_hypothesis.hypothesis_id,
-            "mode": best_hypothesis.mode,
-            "score": best_score.score,
-        })
+        self.emit_event(
+            "pattern.branching.selected",
+            {
+                "hypothesis_id": best_hypothesis.hypothesis_id,
+                "mode": best_hypothesis.mode,
+                "score": best_score.score,
+            },
+        )
 
         return best_hypothesis, reasoning

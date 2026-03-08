@@ -24,13 +24,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .environment import EnvironmentManager
 from .path_resolver import PathResolver
 from .security import SecurityGuardrails
 from .session_manager import PersistentTerminalSession, SessionManager
-from .simple_persistent_session import SimplePersistentSession, SimpleSessionManager
+from .simple_persistent_session import (SimplePersistentSession,
+                                        SimpleSessionManager)
 
 # Optional visual formatter import
 try:
