@@ -376,7 +376,7 @@ class LightRAGBranchingThoughts(BasePattern):
         if isinstance(result, str):
             reasoning = result
         elif isinstance(result, dict):
-            reasoning = result.get("response", result.get("answer", str(result)))
+            reasoning = result.get("response", result.get("answer", str(result))) or str(result)  # type: ignore[assignment]
         else:
             reasoning = str(result)
 

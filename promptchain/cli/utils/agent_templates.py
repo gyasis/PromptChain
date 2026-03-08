@@ -634,8 +634,8 @@ def list_templates() -> List[Dict[str, str]]:
             "display_name": template.display_name,
             "description": template.description,
             "model": template.model,
-            "complexity": template.metadata.get("complexity", "unknown"),
-            "token_usage": template.metadata.get("token_usage", "unknown"),
+            "complexity": template.metadata.get("complexity", "unknown"),  # type: ignore[union-attr]
+            "token_usage": template.metadata.get("token_usage", "unknown"),  # type: ignore[union-attr]
         }
         for template in AGENT_TEMPLATES.values()
     ]

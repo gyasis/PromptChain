@@ -16,22 +16,20 @@ This module extends AgenticStepProcessor with:
 - Real-time course correction through user interrupts
 """
 
-from typing import List, Dict, Any, Optional, Callable, Awaitable
-from dataclasses import dataclass
-from enum import Enum
 import asyncio
 import copy
-import logging
 import json
+import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from .agentic_step_processor import (
-    AgenticStepProcessor,
-    get_function_name_from_tool_call
-)
-from .memo_store import MemoStore, inject_relevant_memos
-from .interrupt_queue import InterruptQueue, InterruptHandler, InterruptType
+from .agentic_step_processor import (AgenticStepProcessor,
+                                     get_function_name_from_tool_call)
 from .async_agent_inbox import AsyncAgentInbox, InboxMessage
 from .context_distiller import ContextDistiller
+from .interrupt_queue import InterruptHandler, InterruptQueue, InterruptType
+from .memo_store import MemoStore, inject_relevant_memos
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +37,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Safe JSON Parsing Utility (Issue #3 Fix)
 # ============================================================================
+
 
 def parse_json_safely(text: str, context: str = "") -> dict:
     """
@@ -66,7 +65,9 @@ def parse_json_safely(text: str, context: str = "") -> dict:
 
     # If not a string, return empty dict
     if not isinstance(text, str):
-        logger.warning(f"JSON parsing {context}: Expected string or dict, got {type(text)}")
+        logger.warning(
+            f"JSON parsing {context}: Expected string or dict, got {type(text)}"
+        )
         return {}
 
     try:
@@ -77,11 +78,14 @@ def parse_json_safely(text: str, context: str = "") -> dict:
 
         # Try to extract JSON from markdown code blocks
         import re
-        code_block = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+
+        code_block = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
         if code_block:
             try:
                 extracted = json.loads(code_block.group(1))
-                logger.info(f"Successfully extracted JSON from markdown code block {context}")
+                logger.info(
+                    f"Successfully extracted JSON from markdown code block {context}"
+                )
                 return extracted
             except json.JSONDecodeError:
                 logger.debug(f"Failed to parse JSON from code block {context}")
@@ -95,9 +99,11 @@ def parse_json_safely(text: str, context: str = "") -> dict:
 # Data Structures for Verification Results
 # ============================================================================
 
+
 @dataclass
 class VerificationResult:
     """Result of RAG-based logic verification."""
+
     approved: bool
     confidence: float  # 0.0 to 1.0
     warnings: List[str]
@@ -109,6 +115,7 @@ class VerificationResult:
 @dataclass
 class LogicFlowResult:
     """Result of overall logic flow validation."""
+
     is_valid: bool
     progress_score: float  # 0.0 to 1.0
     anti_patterns: List[str]
@@ -119,6 +126,7 @@ class LogicFlowResult:
 @dataclass
 class AugmentedReasoning:
     """Result of Gemini-augmented reasoning."""
+
     recommendation: str
     confidence: float
     sources: List[Dict[str, Any]]
@@ -129,6 +137,7 @@ class AugmentedReasoning:
 @dataclass
 class VerificationMetadata:
     """Metadata from verification process."""
+
     rag_verification: Optional[VerificationResult] = None
     gemini_augmentation: Optional[AugmentedReasoning] = None
     result_verification: Optional[VerificationResult] = None
@@ -139,6 +148,7 @@ class VerificationMetadata:
 
 class DecisionComplexity(str, Enum):
     """Complexity level of decision requiring augmentation."""
+
     SIMPLE = "simple"  # Single tool, clear choice
     MODERATE = "moderate"  # Multiple options, need validation
     COMPLEX = "complex"  # Requires creative thinking
@@ -148,6 +158,7 @@ class DecisionComplexity(str, Enum):
 # ============================================================================
 # Logic Verifier - RAG-based verification
 # ============================================================================
+
 
 class LogicVerifier:
     """Verifies logic flows and tool selections using DeepLake RAG."""
@@ -167,7 +178,7 @@ class LogicVerifier:
         objective: str,
         tool_name: str,
         tool_args: Dict[str, Any],
-        context: List[Dict]
+        context: List[Dict],
     ) -> VerificationResult:
         """
         Verify if tool selection is appropriate using RAG.
@@ -211,12 +222,14 @@ class LogicVerifier:
                 arguments={
                     "query": query,
                     "n_results": 5,
-                    "recency_weight": 0.2  # Slight recency bias
-                }
+                    "recency_weight": 0.2,  # Slight recency bias
+                },
             )
 
             # Parse RAG results (Issue #3 Fix: Safe JSON parsing)
-            rag_data = parse_json_safely(rag_results, context="RAG results in _verify_with_rag")
+            rag_data = parse_json_safely(
+                rag_results, context="RAG results in _verify_with_rag"
+            )
 
             # Analyze results
             warnings = self._extract_warnings(rag_data, tool_name)
@@ -230,7 +243,7 @@ class LogicVerifier:
                 warnings=warnings,
                 alternatives=alternatives,
                 reasoning=reasoning,
-                rag_sources=rag_data.get("documents", [])
+                rag_sources=rag_data.get("documents", []),
             )
 
             # Cache result
@@ -253,14 +266,11 @@ class LogicVerifier:
                 warnings=[f"Verification error: {str(e)}"],
                 alternatives=[],
                 reasoning="Verification failed - proceeding with caution",
-                rag_sources=[]
+                rag_sources=[],
             )
 
     async def verify_logic_flow(
-        self,
-        objective: str,
-        execution_history: List[Dict],
-        next_action: Dict
+        self, objective: str, execution_history: List[Dict], next_action: Dict
     ) -> LogicFlowResult:
         """
         Verify overall logic flow consistency.
@@ -292,14 +302,13 @@ class LogicVerifier:
             similar_flows = await self.mcp_helper.call_mcp_tool(
                 server_id="deeplake-rag",
                 tool_name="retrieve_context",
-                arguments={
-                    "query": query,
-                    "n_results": 3
-                }
+                arguments={"query": query, "n_results": 3},
             )
 
             # Issue #3 Fix: Safe JSON parsing
-            flow_data = parse_json_safely(similar_flows, context="similar flows in _validate_logic_flow")
+            flow_data = parse_json_safely(
+                similar_flows, context="similar flows in _validate_logic_flow"
+            )
 
             # Detect anti-patterns
             anti_patterns = self._detect_anti_patterns(execution_history, flow_data)
@@ -311,7 +320,7 @@ class LogicVerifier:
                 progress_score=progress_score,
                 anti_patterns=anti_patterns,
                 recommendations=recommendations,
-                similar_flows=flow_data.get("documents", [])
+                similar_flows=flow_data.get("documents", []),
             )
 
         except Exception as e:
@@ -322,7 +331,7 @@ class LogicVerifier:
                 progress_score=0.5,
                 anti_patterns=[],
                 recommendations=[],
-                similar_flows=[]
+                similar_flows=[],
             )
 
     def _summarize_context(self, context: List[Dict]) -> str:
@@ -334,7 +343,10 @@ class LogicVerifier:
                 tool_name = msg.get("name", "unknown")
                 recent_actions.append(f"tool={tool_name}")
             elif role == "assistant" and msg.get("tool_calls"):
-                tools = [get_function_name_from_tool_call(tc) for tc in msg.get("tool_calls", [])]
+                tools = [
+                    get_function_name_from_tool_call(tc)
+                    for tc in msg.get("tool_calls", [])
+                ]
                 # Filter out None values before joining
                 valid_tools = [t for t in tools if t is not None]
                 if valid_tools:
@@ -383,7 +395,9 @@ class LogicVerifier:
 
         return warnings
 
-    def _calculate_confidence(self, rag_data: Dict, tool_name: str, objective: str) -> float:
+    def _calculate_confidence(
+        self, rag_data: Dict, tool_name: str, objective: str
+    ) -> float:
         """Calculate confidence score from RAG results."""
         documents = rag_data.get("documents", [])
         scores = rag_data.get("scores", [])
@@ -429,16 +443,21 @@ class LogicVerifier:
                     if word.lower() in ["tool:", "using", "called"]:
                         if i + 1 < len(words):
                             potential_tool = words[i + 1].strip(",.()[]")
-                            if potential_tool != current_tool and len(potential_tool) > 3:
+                            if (
+                                potential_tool != current_tool
+                                and len(potential_tool) > 3
+                            ):
                                 alternatives.add(potential_tool)
 
         return list(alternatives)[:5]  # Return top 5
 
-    def _generate_reasoning(self, rag_data: Dict, confidence: float, warnings: List[str]) -> str:
+    def _generate_reasoning(
+        self, rag_data: Dict, confidence: float, warnings: List[str]
+    ) -> str:
         """Generate reasoning explanation."""
         reasoning_parts = [
             f"Confidence score: {confidence:.2f}",
-            f"Based on {len(rag_data.get('documents', []))} historical patterns"
+            f"Based on {len(rag_data.get('documents', []))} historical patterns",
         ]
 
         if warnings:
@@ -448,7 +467,9 @@ class LogicVerifier:
 
         return ". ".join(reasoning_parts)
 
-    def _detect_anti_patterns(self, execution_history: List[Dict], flow_data: Dict) -> List[str]:
+    def _detect_anti_patterns(
+        self, execution_history: List[Dict], flow_data: Dict
+    ) -> List[str]:
         """Detect anti-patterns in execution."""
         anti_patterns = []
 
@@ -458,13 +479,17 @@ class LogicVerifier:
         for msg in execution_history:
             if msg.get("role") == "tool":
                 tool_name = msg.get("name")
-                tool_args = str(sorted(msg.get("arguments", {}).items()))  # Stable string repr
+                tool_args = str(
+                    sorted(msg.get("arguments", {}).items())
+                )  # Stable string repr
                 tool_signatures.append(f"{tool_name}:{hash(tool_args)}")
 
         # Only flag if 3+ consecutive identical signatures (stuck state)
         for i in range(len(tool_signatures) - 2):
-            if (tool_signatures[i] == tool_signatures[i+1] == tool_signatures[i+2]):
-                anti_patterns.append("Repeated identical tool calls detected (possible stuck state)")
+            if tool_signatures[i] == tool_signatures[i + 1] == tool_signatures[i + 2]:
+                anti_patterns.append(
+                    "Repeated identical tool calls detected (possible stuck state)"
+                )
                 break
 
         # Check for excessive iterations without progress
@@ -508,12 +533,16 @@ class LogicVerifier:
 
         return min(progress * 2, 1.0)  # Scale and clamp to [0, 1]
 
-    def _generate_recommendations(self, flow_data: Dict, anti_patterns: List[str]) -> List[str]:
+    def _generate_recommendations(
+        self, flow_data: Dict, anti_patterns: List[str]
+    ) -> List[str]:
         """Generate recommendations for improvement."""
         recommendations = []
 
         if anti_patterns:
-            recommendations.append("Consider alternative approaches to avoid detected patterns")
+            recommendations.append(
+                "Consider alternative approaches to avoid detected patterns"
+            )
 
         documents = flow_data.get("documents", [])
         if documents:
@@ -525,6 +554,7 @@ class LogicVerifier:
 # ============================================================================
 # Gemini Reasoning Augmentor - Deep reasoning integration
 # ============================================================================
+
 
 class GeminiReasoningAugmentor:
     """Augments internal thinking with Gemini deep research."""
@@ -544,7 +574,7 @@ class GeminiReasoningAugmentor:
         objective: str,
         current_context: str,
         decision_point: str,
-        complexity: DecisionComplexity = DecisionComplexity.MODERATE
+        complexity: DecisionComplexity = DecisionComplexity.MODERATE,
     ) -> AugmentedReasoning:
         """
         Use Gemini for complex decision points.
@@ -567,7 +597,9 @@ class GeminiReasoningAugmentor:
         try:
             if complexity == DecisionComplexity.CRITICAL:
                 # Use deep research for critical decisions
-                return await self._deep_research(objective, current_context, decision_point)
+                return await self._deep_research(
+                    objective, current_context, decision_point
+                )
 
             elif complexity == DecisionComplexity.COMPLEX:
                 # Use grounded research for complex decisions
@@ -588,14 +620,11 @@ class GeminiReasoningAugmentor:
                 confidence=0.5,
                 sources=[],
                 reasoning_depth="none",
-                alternatives=[]
+                alternatives=[],
             )
 
     async def _deep_research(
-        self,
-        objective: str,
-        context: str,
-        decision_point: str
+        self, objective: str, context: str, decision_point: str
     ) -> AugmentedReasoning:
         """Use Gemini Deep Research for critical decisions."""
         query = (
@@ -609,18 +638,19 @@ class GeminiReasoningAugmentor:
         task_result = await self.mcp_helper.call_mcp_tool(
             server_id="gemini_mcp_server",
             tool_name="start_deep_research",
-            arguments={
-                "query": query,
-                "enable_notifications": False
-            }
+            arguments={"query": query, "enable_notifications": False},
         )
 
         # Issue #3 Fix: Safe JSON parsing
-        task_data = parse_json_safely(task_result, context="task result in _deep_research")
+        task_data = parse_json_safely(
+            task_result, context="task result in _deep_research"
+        )
         task_id = task_data.get("task_id")
 
         # BUG-010 fix: Poll for completion instead of returning placeholder
-        logger.info(f"Deep research started: task_id={task_id}, polling for completion...")
+        logger.info(
+            f"Deep research started: task_id={task_id}, polling for completion..."
+        )
 
         # Poll status until completed (max 60 minutes as per Gemini docs)
         max_wait_seconds = 3600  # 1 hour
@@ -632,10 +662,12 @@ class GeminiReasoningAugmentor:
             status_result = await self.mcp_helper.call_mcp_tool(
                 server_id="gemini_mcp_server",
                 tool_name="check_research_status",
-                arguments={"task_id": task_id}
+                arguments={"task_id": task_id},
             )
 
-            status_data = parse_json_safely(status_result, context="status in _deep_research")
+            status_data = parse_json_safely(
+                status_result, context="status in _deep_research"
+            )
             status = status_data.get("status")
 
             if status == "completed":
@@ -644,10 +676,12 @@ class GeminiReasoningAugmentor:
                 results = await self.mcp_helper.call_mcp_tool(
                     server_id="gemini_mcp_server",
                     tool_name="get_research_results",
-                    arguments={"task_id": task_id, "include_sources": True}
+                    arguments={"task_id": task_id, "include_sources": True},
                 )
 
-                results_data = parse_json_safely(results, context="results in _deep_research")
+                results_data = parse_json_safely(
+                    results, context="results in _deep_research"
+                )
                 report = results_data.get("report", "No report generated")
                 sources = results_data.get("sources", [])
 
@@ -656,7 +690,7 @@ class GeminiReasoningAugmentor:
                     confidence=0.95,  # Deep research is highly confident
                     sources=[s.get("url", "") for s in sources if isinstance(s, dict)],
                     reasoning_depth="deep",
-                    alternatives=[]
+                    alternatives=[],
                 )
 
             elif status == "failed":
@@ -666,7 +700,7 @@ class GeminiReasoningAugmentor:
                     confidence=0.5,
                     sources=[],
                     reasoning_depth="shallow",
-                    alternatives=[]
+                    alternatives=[],
                 )
 
             # Still in progress - wait and continue
@@ -675,38 +709,41 @@ class GeminiReasoningAugmentor:
             logger.debug(f"Deep research in progress: {elapsed_seconds}s elapsed")
 
         # Timeout - return partial results if available
-        logger.warning(f"Deep research timeout after {max_wait_seconds}s: task_id={task_id}")
+        logger.warning(
+            f"Deep research timeout after {max_wait_seconds}s: task_id={task_id}"
+        )
         return AugmentedReasoning(
             recommendation="Deep research timed out - results may be incomplete",
             confidence=0.6,
             sources=[],
             reasoning_depth="partial",
-            alternatives=[]
+            alternatives=[],
         )
 
-    async def _grounded_research(self, decision: str, context: str) -> AugmentedReasoning:
+    async def _grounded_research(
+        self, decision: str, context: str
+    ) -> AugmentedReasoning:
         """Use Gemini Research for grounded analysis."""
         topic = f"Decision: {decision}\nContext: {context[:300]}"
 
         research_result = await self.mcp_helper.call_mcp_tool(
             server_id="gemini_mcp_server",
             tool_name="gemini_research",
-            arguments={"topic": topic}
+            arguments={"topic": topic},
         )
 
         return self._parse_research_result(research_result, "grounded")
 
-    async def _brainstorm_options(self, decision: str, context: str) -> AugmentedReasoning:
+    async def _brainstorm_options(
+        self, decision: str, context: str
+    ) -> AugmentedReasoning:
         """Use Gemini Brainstorm for creative options."""
         topic = f"{decision}\n\nContext: {context[:200]}"
 
         brainstorm_result = await self.mcp_helper.call_mcp_tool(
             server_id="gemini_mcp_server",
             tool_name="gemini_brainstorm",
-            arguments={
-                "topic": topic,
-                "context": ""
-            }
+            arguments={"topic": topic, "context": ""},
         )
 
         return self._parse_brainstorm_result(brainstorm_result)
@@ -716,7 +753,7 @@ class GeminiReasoningAugmentor:
         result = await self.mcp_helper.call_mcp_tool(
             server_id="gemini_mcp_server",
             tool_name="ask_gemini",
-            arguments={"prompt": question}
+            arguments={"prompt": question},
         )
 
         return self._parse_simple_result(result)
@@ -724,11 +761,13 @@ class GeminiReasoningAugmentor:
     def _parse_research_result(self, result: str, depth: str) -> AugmentedReasoning:
         """Parse Gemini research result."""
         return AugmentedReasoning(
-            recommendation=result[:500] if isinstance(result, str) else str(result)[:500],
+            recommendation=(
+                result[:500] if isinstance(result, str) else str(result)[:500]
+            ),
             confidence=0.85,
             sources=[],  # Could extract from result
             reasoning_depth=depth,
-            alternatives=[]
+            alternatives=[],
         )
 
     def _parse_brainstorm_result(self, result: str) -> AugmentedReasoning:
@@ -736,15 +775,17 @@ class GeminiReasoningAugmentor:
         # Extract alternatives from result
         alternatives = []
         if isinstance(result, str):
-            lines = result.split('\n')
-            alternatives = [line.strip('- ') for line in lines if line.strip().startswith('-')][:5]
+            lines = result.split("\n")
+            alternatives = [
+                line.strip("- ") for line in lines if line.strip().startswith("-")
+            ][:5]
 
         return AugmentedReasoning(
             recommendation=result if isinstance(result, str) else str(result),
             confidence=0.7,
             sources=[],
             reasoning_depth="creative",
-            alternatives=alternatives
+            alternatives=alternatives,
         )
 
     def _parse_simple_result(self, result: str) -> AugmentedReasoning:
@@ -754,14 +795,11 @@ class GeminiReasoningAugmentor:
             confidence=0.6,
             sources=[],
             reasoning_depth="shallow",
-            alternatives=[]
+            alternatives=[],
         )
 
     async def verify_tool_result(
-        self,
-        tool_name: str,
-        tool_result: str,
-        expected_outcome: str
+        self, tool_name: str, tool_result: str, expected_outcome: str
     ) -> VerificationResult:
         """
         Use Gemini to verify tool result quality.
@@ -786,19 +824,23 @@ Assess if the result meets expectations. Identify any issues or concerns.
             assessment = await self.mcp_helper.call_mcp_tool(
                 server_id="gemini_mcp_server",
                 tool_name="gemini_debug",
-                arguments={"error_message": verification_query}
+                arguments={"error_message": verification_query},
             )
 
             # Parse assessment
-            approved = "error" not in assessment.lower() and "failed" not in assessment.lower()
+            approved = (
+                "error" not in assessment.lower() and "failed" not in assessment.lower()
+            )
 
             return VerificationResult(
                 approved=approved,
                 confidence=0.8 if approved else 0.4,
                 warnings=[] if approved else ["Gemini detected potential issues"],
                 alternatives=[],
-                reasoning=assessment if isinstance(assessment, str) else str(assessment),
-                rag_sources=[]
+                reasoning=(
+                    assessment if isinstance(assessment, str) else str(assessment)
+                ),
+                rag_sources=[],
             )
 
         except Exception as e:
@@ -809,13 +851,14 @@ Assess if the result meets expectations. Identify any issues or concerns.
                 warnings=[f"Verification error: {str(e)}"],
                 alternatives=[],
                 reasoning="Verification failed - proceeding with caution",
-                rag_sources=[]
+                rag_sources=[],
             )
 
 
 # ============================================================================
 # Enhanced Agentic Step Processor
 # ============================================================================
+
 
 class EnhancedAgenticStepProcessor(AgenticStepProcessor):
     """
@@ -842,7 +885,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         interrupt_queue: Optional[InterruptQueue] = None,
         inbox: Optional[AsyncAgentInbox] = None,
         context_distiller: Optional[ContextDistiller] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize enhanced processor.
@@ -1054,10 +1097,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             _asyncio.run(coro)
 
     def _assess_decision_complexity(
-        self,
-        objective: str,
-        tool_name: str,
-        execution_history: List[Dict]
+        self, objective: str, tool_name: str, execution_history: List[Dict]
     ) -> DecisionComplexity:
         """
         Assess complexity of current decision.
@@ -1085,7 +1125,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         # Simple decisions
         return DecisionComplexity.SIMPLE
 
-    async def run_async(
+    async def run_async(  # type: ignore[override]
         self,
         initial_input: str,
         available_tools: List[Dict[str, Any]],
@@ -1104,8 +1144,8 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         """
         if self.context_distiller is not None:
             try:
-                if self.context_distiller.should_distill(self):
-                    await self.context_distiller.distill(self)
+                if self.context_distiller.should_distill(self):  # type: ignore[arg-type]
+                    await self.context_distiller.distill(self)  # type: ignore[attr-defined]
             except Exception as exc:
                 logger.warning(
                     "EnhancedAgenticStepProcessor.run_async: distiller raised "
@@ -1128,7 +1168,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
         llm_runner: Callable[..., Awaitable[Any]],
         tool_executor: Callable[[Any], Awaitable[str]],
         mcp_helper=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Enhanced run_async with verification integration.
@@ -1157,14 +1197,18 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                 relevant_memos = self.memo_store.retrieve_relevant_memos(
                     task_description=self.objective,
                     top_k=3,
-                    outcome_filter="success"  # Only learn from successes
+                    outcome_filter="success",  # Only learn from successes
                 )
 
                 if relevant_memos:
                     self.memos_retrieved += len(relevant_memos)
-                    memo_context = self.memo_store.format_memos_for_context(relevant_memos, max_memos=3)
+                    memo_context = self.memo_store.format_memos_for_context(
+                        relevant_memos, max_memos=3
+                    )
                     enhanced_input = f"{memo_context}\n\n{initial_input}"
-                    logger.info(f"Injected {len(relevant_memos)} relevant memos into context")
+                    logger.info(
+                        f"Injected {len(relevant_memos)} relevant memos into context"
+                    )
             except Exception as e:
                 logger.error(f"Failed to retrieve memos: {e}", exc_info=True)
 
@@ -1175,10 +1219,10 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             """Enhanced tool executor with verification and interrupt handling."""
             # Issue #8: Check for user interrupts before execution
             if self.enable_interrupt_queue and self.interrupt_handler:
-                current_step = getattr(self, '_current_step', 0)
+                current_step = getattr(self, "_current_step", 0)
                 interrupt_result = self.interrupt_handler.check_and_handle_interrupt(
                     current_step=current_step,
-                    current_context=f"About to execute tool: {get_function_name_from_tool_call(tool_call)}"
+                    current_context=f"About to execute tool: {get_function_name_from_tool_call(tool_call)}",
                 )
 
                 if interrupt_result:
@@ -1188,23 +1232,33 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                     # Handle abort - stop execution immediately
                     if action == "abort":
                         logger.warning(f"User aborted execution at step {current_step}")
-                        return json.dumps({
-                            "error": "Execution aborted by user",
-                            "interrupt_id": interrupt_result["interrupt_id"],
-                            "message": interrupt_result["message"]
-                        })
+                        return json.dumps(
+                            {
+                                "error": "Execution aborted by user",
+                                "interrupt_id": interrupt_result["interrupt_id"],
+                                "message": interrupt_result["message"],
+                            }
+                        )
 
                     # Handle steering/correction/clarification - inject into context
                     elif action in ["steering", "correction", "clarification"]:
-                        interrupt_context = self.interrupt_handler.format_interrupt_for_llm(interrupt_result)
-                        logger.info(f"User {action} at step {current_step}: {interrupt_result['message'][:100]}...")
+                        interrupt_context = (
+                            self.interrupt_handler.format_interrupt_for_llm(
+                                interrupt_result
+                            )
+                        )
+                        logger.info(
+                            f"User {action} at step {current_step}: {interrupt_result['message'][:100]}..."
+                        )
                         # FR-011: Store steering message for injection into the next LLM call.
                         # The wrapped llm_runner below will prepend this as a system message
                         # so the agent can act on the user guidance.
-                        self._pending_steering_messages.append({
-                            "role": "system",
-                            "content": f"[STEERING] {interrupt_result['message']}"
-                        })
+                        self._pending_steering_messages.append(
+                            {
+                                "role": "system",
+                                "content": f"[STEERING] {interrupt_result['message']}",
+                            }
+                        )
 
             # Poll inbox for high-priority messages (FR-016)
             if self.inbox:
@@ -1221,9 +1275,11 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                 current_index = self._tool_call_counter
                 self._save_micro_checkpoint(
                     checkpoint_id=f"tcp_{current_index}_{int(__import__('time').time())}",
-                    step_number=getattr(self, '_current_step', 0),
+                    step_number=getattr(self, "_current_step", 0),
                     tool_call_index=current_index,
-                    conversation_snapshot=list(getattr(self, 'conversation_history', [])),
+                    conversation_snapshot=list(
+                        getattr(self, "conversation_history", [])
+                    ),
                 )
                 self._tool_call_counter += 1
                 return result
@@ -1232,7 +1288,9 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             function_name = get_function_name_from_tool_call(tool_call)
             if not function_name:
                 # Unable to extract function name - use original executor
-                logger.warning("Could not extract function name from tool call, skipping verification")
+                logger.warning(
+                    "Could not extract function name from tool call, skipping verification"
+                )
                 return await original_executor(tool_call)
 
             # Pre-execution verification
@@ -1243,7 +1301,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                     objective=self.objective,
                     tool_name=function_name,
                     tool_args={},  # Could extract from tool_call
-                    context=getattr(self, '_internal_history', [])
+                    context=getattr(self, "_internal_history", []),
                 )
 
                 logger.info(
@@ -1261,14 +1319,16 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                         complexity = self._assess_decision_complexity(
                             self.objective,
                             function_name,
-                            getattr(self, '_internal_history', [])
+                            getattr(self, "_internal_history", []),
                         )
 
-                        augmentation = await self.gemini_augmentor.augment_decision_making(
-                            objective=self.objective,
-                            current_context=f"Considering tool: {function_name}",
-                            decision_point=f"Should we use {function_name}?",
-                            complexity=complexity
+                        augmentation = (
+                            await self.gemini_augmentor.augment_decision_making(
+                                objective=self.objective,
+                                current_context=f"Considering tool: {function_name}",
+                                decision_point=f"Should we use {function_name}?",
+                                complexity=complexity,
+                            )
                         )
 
                         logger.info(
@@ -1277,19 +1337,26 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
 
                         # Override if Gemini is more confident
                         if augmentation.confidence > verification.confidence:
-                            logger.info("Overriding RAG verification with Gemini recommendation")
+                            logger.info(
+                                "Overriding RAG verification with Gemini recommendation"
+                            )
                             self.verification_overrides += 1
                             verification.approved = True
 
                 # If still not approved, return error
-                if not verification.approved and verification.confidence < self.verification_threshold:
-                    return json.dumps({
-                        "error": "Tool verification failed",
-                        "tool": function_name,
-                        "confidence": verification.confidence,
-                        "warnings": verification.warnings,
-                        "alternatives": verification.alternatives
-                    })
+                if (
+                    not verification.approved
+                    and verification.confidence < self.verification_threshold
+                ):
+                    return json.dumps(
+                        {
+                            "error": "Tool verification failed",
+                            "tool": function_name,
+                            "confidence": verification.confidence,
+                            "warnings": verification.warnings,
+                            "alternatives": verification.alternatives,
+                        }
+                    )
 
             # Execute tool
             result = await original_executor(tool_call)
@@ -1300,9 +1367,9 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             current_index = self._tool_call_counter
             self._save_micro_checkpoint(
                 checkpoint_id=f"tcp_{current_index}_{int(__import__('time').time())}",
-                step_number=getattr(self, '_current_step', 0),
+                step_number=getattr(self, "_current_step", 0),
                 tool_call_index=current_index,
-                conversation_snapshot=list(getattr(self, 'conversation_history', [])),
+                conversation_snapshot=list(getattr(self, "conversation_history", [])),
             )
             self._tool_call_counter += 1
 
@@ -1311,11 +1378,13 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                 result_verification = await self.gemini_augmentor.verify_tool_result(
                     tool_name=function_name,
                     tool_result=result,
-                    expected_outcome=self.objective
+                    expected_outcome=self.objective,
                 )
 
                 if not result_verification.approved:
-                    result += f"\n\n⚠️ Verification Warning: {result_verification.reasoning}"
+                    result += (
+                        f"\n\n⚠️ Verification Warning: {result_verification.reasoning}"
+                    )
 
             return result
 
@@ -1334,7 +1403,9 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                 logger.info(
                     f"[Steering] Injected {len(injected)} steering message(s) into LLM context"
                 )
-            raw_response = await original_llm_runner(messages, tools=tools, tool_choice=tool_choice)
+            raw_response = await original_llm_runner(
+                messages, tools=tools, tool_choice=tool_choice
+            )
 
             # Normalize non-dict responses into a plain dict so the parent's
             # run_async can safely call json.dumps() during debug logging
@@ -1357,22 +1428,34 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                             func_obj = getattr(tc, "function", None)
                             # Safely extract str values; MagicMock attributes are
                             # truthy non-strings, so we guard with isinstance.
-                            raw_name = getattr(func_obj, "name", None) if func_obj else None
+                            raw_name = (
+                                getattr(func_obj, "name", None) if func_obj else None
+                            )
                             tc_name = raw_name if isinstance(raw_name, str) else ""
-                            raw_args = getattr(func_obj, "arguments", None) if func_obj else None
+                            raw_args = (
+                                getattr(func_obj, "arguments", None)
+                                if func_obj
+                                else None
+                            )
                             tc_args = raw_args if isinstance(raw_args, str) else "{}"
                             raw_id = getattr(tc, "id", None)
-                            tc_id = raw_id if isinstance(raw_id, str) else f"call_{tc_name}"
-                            normalised_tcs.append({
-                                "id": tc_id,
-                                "type": "function",
-                                "function": {"name": tc_name, "arguments": tc_args},
-                            })
+                            tc_id = (
+                                raw_id if isinstance(raw_id, str) else f"call_{tc_name}"
+                            )
+                            normalised_tcs.append(
+                                {
+                                    "id": tc_id,
+                                    "type": "function",
+                                    "function": {"name": tc_name, "arguments": tc_args},
+                                }
+                            )
                     tool_calls_raw = normalised_tcs
 
                 # Safely extract content; guard against MagicMock values.
                 raw_content = content
-                safe_content = raw_content if isinstance(raw_content, (str, type(None))) else ""
+                safe_content = (
+                    raw_content if isinstance(raw_content, (str, type(None))) else ""
+                )
 
                 raw_response = {
                     "role": "assistant",
@@ -1388,7 +1471,7 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
             available_tools=available_tools,
             llm_runner=steering_aware_llm_runner,
             tool_executor=verified_tool_executor,
-            **kwargs
+            **kwargs,
         )
 
         # Issue #7: Store successful execution as a memo for future learning
@@ -1409,20 +1492,24 @@ class EnhancedAgenticStepProcessor(AgenticStepProcessor):
                             "augmentation_count": self.augmentation_count,
                             "memos_retrieved": self.memos_retrieved,
                             "interrupts_processed": self.interrupts_processed,
-                            "max_internal_steps": self.max_internal_steps
-                        }
+                            "max_internal_steps": self.max_internal_steps,
+                        },
                     )
                     self.memos_stored += 1
-                    logger.info(f"Stored successful execution as memo for objective: {self.objective[:50]}...")
+                    logger.info(
+                        f"Stored successful execution as memo for objective: {self.objective[:50]}..."
+                    )
                 else:
                     # Store as failure for future learning
                     self.memo_store.store_memo(
                         task_description=self.objective,
                         solution=str(result)[:1000],
                         outcome="failure",
-                        metadata={"error_type": "execution_failed"}
+                        metadata={"error_type": "execution_failed"},
                     )
-                    logger.info(f"Stored failed execution as memo for objective: {self.objective[:50]}...")
+                    logger.info(
+                        f"Stored failed execution as memo for objective: {self.objective[:50]}..."
+                    )
             except Exception as e:
                 logger.error(f"Failed to store memo: {e}", exc_info=True)
 

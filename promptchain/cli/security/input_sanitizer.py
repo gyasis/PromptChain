@@ -326,7 +326,7 @@ class InputSanitizer:
 
             elif isinstance(instruction, dict):
                 # Validate dict instruction (agentic steps, etc.)
-                validated_instruction = self._validate_instruction_dict(
+                validated_instruction = self._validate_instruction_dict(  # type: ignore[assignment]
                     instruction, f"instruction[{i}]"
                 )
                 validated.append(validated_instruction)
