@@ -10,17 +10,19 @@ Shows real-time task tracking during complex multi-step operations:
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+from rich.markup import escape as escape_markup
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
-from textual.widgets import Static
 from textual.message import Message as TextualMessage
-from rich.markup import escape as escape_markup
+from textual.widgets import Static
 
 
 @dataclass
 class TaskInternalStep:
     """Internal step within a task (LLM call, tool call, etc.)."""
+
     step_type: str  # "thinking", "tool_call", "tool_result", "llm_call", "error"
     content: str
     timestamp: str = ""
@@ -29,6 +31,7 @@ class TaskInternalStep:
 @dataclass
 class ExpandableTask:
     """Task with internal steps and subtasks."""
+
     task_id: str
     content: str
     active_form: str
@@ -141,6 +144,7 @@ class TaskListWidget(Container):
 
     class TaskToggled(TextualMessage):
         """Event when task expand/collapse is toggled."""
+
         def __init__(self, task_id: str, expanded: bool):
             super().__init__()
             self.task_id = task_id
@@ -155,7 +159,7 @@ class TaskListWidget(Container):
         # Track which task is currently in_progress for step tracking
         self._current_task_id: Optional[str] = None
         # Refresh timer to update task counts in real-time
-        self._refresh_timer = None
+        self._refresh_timer: Optional[Any] = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -213,7 +217,9 @@ class TaskListWidget(Container):
             if task.status.value == "in_progress":
                 self._current_task_id = task_id
 
-    def add_internal_step(self, step_type: str, content: str, task_id: Optional[str] = None) -> None:
+    def add_internal_step(
+        self, step_type: str, content: str, task_id: Optional[str] = None
+    ) -> None:
         """Add an internal step to a task.
 
         Args:
@@ -238,15 +244,14 @@ class TaskListWidget(Container):
             self._current_task_id = target_id
 
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%H:%M:%S")
 
         # Truncate content for display
         display_content = content[:80] + "..." if len(content) > 80 else content
 
         step = TaskInternalStep(
-            step_type=step_type,
-            content=display_content,
-            timestamp=timestamp
+            step_type=step_type, content=display_content, timestamp=timestamp
         )
 
         self._expandable_tasks[target_id].internal_steps.append(step)
@@ -264,8 +269,12 @@ class TaskListWidget(Container):
             task_id: ID of task to toggle
         """
         if task_id in self._expandable_tasks:
-            self._expandable_tasks[task_id].expanded = not self._expandable_tasks[task_id].expanded
-            self.post_message(self.TaskToggled(task_id, self._expandable_tasks[task_id].expanded))
+            self._expandable_tasks[task_id].expanded = not self._expandable_tasks[
+                task_id
+            ].expanded
+            self.post_message(
+                self.TaskToggled(task_id, self._expandable_tasks[task_id].expanded)
+            )
             self.refresh_display()
 
     def expand_current_task(self) -> None:
@@ -303,22 +312,42 @@ class TaskListWidget(Container):
             header = self.query_one("#task-header", Static)
             completed = task_list.completed_count
             total = task_list.total_count
-            header.update(f"[bold]Tasks ({completed}/{total})[/bold] [dim](click to expand)[/dim]")
+            header.update(
+                f"[bold]Tasks ({completed}/{total})[/bold] [dim](click to expand)[/dim]"
+            )
 
             for i, task in enumerate(task_list.tasks):
                 task_id = f"task_{i}"
                 expandable = self._expandable_tasks.get(task_id)
-                self._render_task(task_container, task_id, expandable, task.status.value, task.content, task.active_form)
+                self._render_task(
+                    task_container,
+                    task_id,
+                    expandable,
+                    task.status.value,
+                    task.content,
+                    task.active_form,
+                )
         else:
             # Display from expandable tasks (streaming mode without task manager)
             header = self.query_one("#task-header", Static)
-            in_progress_count = sum(1 for t in self._expandable_tasks.values() if t.status == "in_progress")
-            completed_count = sum(1 for t in self._expandable_tasks.values() if t.status == "completed")
+            in_progress_count = sum(
+                1 for t in self._expandable_tasks.values() if t.status == "in_progress"
+            )
+            completed_count = sum(
+                1 for t in self._expandable_tasks.values() if t.status == "completed"
+            )
             total = len(self._expandable_tasks)
             header.update(f"[bold]Agent Activity ({completed_count}/{total})[/bold]")
 
             for expandable in self._expandable_tasks.values():
-                self._render_task(task_container, expandable.task_id, expandable, expandable.status, expandable.content, expandable.active_form)
+                self._render_task(
+                    task_container,
+                    expandable.task_id,
+                    expandable,
+                    expandable.status,
+                    expandable.content,
+                    expandable.active_form,
+                )
 
         # Update progress bar
         self._update_progress_bar()
@@ -327,7 +356,15 @@ class TaskListWidget(Container):
         task_container.scroll_end(animate=False)
         self.show_task_list()
 
-    def _render_task(self, container: ScrollableContainer, task_id: str, expandable: Optional[ExpandableTask], status: str, content: str, active_form: str) -> None:
+    def _render_task(
+        self,
+        container: ScrollableContainer,
+        task_id: str,
+        expandable: Optional[ExpandableTask],
+        status: str,
+        content: str,
+        active_form: str,
+    ) -> None:
         """Render a single task with its internal steps.
 
         Args:
@@ -350,7 +387,7 @@ class TaskListWidget(Container):
             expand_icon = "v" if is_expanded else ">"
             prefix = f"[bold]{expand_icon}[/bold]"
             text = f"[bold]{active_form}[/bold]"
-            if has_steps:
+            if has_steps and expandable is not None:
                 text += f" [dim]({len(expandable.internal_steps)} steps)[/dim]"
             css_class = "in-progress"
         elif status == "skipped":
@@ -370,9 +407,9 @@ class TaskListWidget(Container):
         container.mount(task_static)
 
         # Show internal steps if expanded
-        if is_expanded and has_steps:
+        if is_expanded and has_steps and expandable is not None:
             # Show last N steps
-            visible_steps = expandable.internal_steps[-expandable.max_visible_steps:]
+            visible_steps = expandable.internal_steps[-expandable.max_visible_steps :]
 
             for step in visible_steps:
                 step_prefix = self._get_step_prefix(step.step_type)
@@ -389,7 +426,9 @@ class TaskListWidget(Container):
 
             # Show "more steps" indicator if truncated
             if len(expandable.internal_steps) > expandable.max_visible_steps:
-                hidden_count = len(expandable.internal_steps) - expandable.max_visible_steps
+                hidden_count = (
+                    len(expandable.internal_steps) - expandable.max_visible_steps
+                )
                 more_static = Static(f"    [dim]... {hidden_count} more steps[/dim]")
                 more_static.add_class("internal-step")
                 container.mount(more_static)
@@ -419,7 +458,11 @@ class TaskListWidget(Container):
             progress_bar.update(f"  {bar} {progress_pct:.0f}%")
         elif self._expandable_tasks:
             # For streaming mode: show step count instead of misleading percentage
-            current_task = self._expandable_tasks.get(self._current_task_id)
+            current_task = (
+                self._expandable_tasks.get(self._current_task_id)
+                if self._current_task_id
+                else None
+            )
             if current_task and current_task.internal_steps:
                 step_count = len(current_task.internal_steps)
                 # Animated progress indicator based on step count

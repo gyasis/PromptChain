@@ -418,7 +418,7 @@ class PromptChain:
                 # Use global config if no explicit config provided
                 self.model_management_enabled = True
                 try:
-                    provider_config = global_config.provider_configs.get(
+                    provider_config = (global_config.provider_configs or {}).get(
                         global_config.default_provider, {}
                     )
                     provider_config["provider"] = global_config.default_provider.value

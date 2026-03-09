@@ -5,13 +5,15 @@ Combines AgenticStepProcessor's multi-hop reasoning with supervisory control,
 logging, event emissions, and decision tracking.
 """
 
-from typing import Dict, List, Any, Optional, Callable
-from datetime import datetime
-from promptchain.utils.agentic_step_processor import AgenticStepProcessor
-from promptchain.utils.promptchaining import PromptChain
-from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 import json
 import logging
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
+
+from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+from promptchain.utils.execution_events import (ExecutionEvent,
+                                                ExecutionEventType)
+from promptchain.utils.promptchaining import PromptChain
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ class OrchestratorSupervisor:
         dev_print_callback: Optional[Callable] = None,
         max_reasoning_steps: int = 8,
         model_name: str = "openai/gpt-4.1-mini",
-        strategy_preference: str = "adaptive"  # ✅ NEW: Strategy guidance
+        strategy_preference: str = "adaptive",  # ✅ NEW: Strategy guidance
     ):
         """
         Initialize the orchestrator supervisor.
@@ -61,14 +63,14 @@ class OrchestratorSupervisor:
         self.strategy_preference = strategy_preference  # ✅ Store preference
 
         # Oversight metrics
-        self.metrics = {
+        self.metrics: Dict[str, Any] = {
             "total_decisions": 0,
             "single_agent_dispatches": 0,
             "multi_agent_plans": 0,
             "total_reasoning_steps": 0,
             "total_tools_called": 0,
             "average_plan_length": 0.0,
-            "decision_history": []
+            "decision_history": [],
         }
 
         # Build objective with multi-hop reasoning guidance
@@ -79,7 +81,7 @@ class OrchestratorSupervisor:
             objective=objective,
             max_internal_steps=max_reasoning_steps,
             model_name=model_name,
-            history_mode="progressive"  # Critical for multi-hop reasoning
+            history_mode="progressive",  # Critical for multi-hop reasoning
         )
 
         # Wrap in PromptChain for execution (PromptChain handles tool registration)
@@ -87,11 +89,13 @@ class OrchestratorSupervisor:
             models=[],  # AgenticStepProcessor has its own model
             instructions=[self.reasoning_engine],
             verbose=False,
-            store_steps=True
+            store_steps=True,
         )
 
         # Register reasoning step tool to enable visible multi-step analysis
-        def output_reasoning_step(step_number: int, step_name: str, analysis: str) -> str:
+        def output_reasoning_step(
+            step_number: int, step_name: str, analysis: str
+        ) -> str:
             """Output a reasoning step during multi-hop analysis. Use this to show your thinking process.
 
             Args:
@@ -104,18 +108,24 @@ class OrchestratorSupervisor:
             """
             # Display in terminal for real-time observability
             if self.dev_print_callback:
-                self.dev_print_callback(f"🧠 Orchestrator Step {step_number}: {step_name}", "")
+                self.dev_print_callback(
+                    f"🧠 Orchestrator Step {step_number}: {step_name}", ""
+                )
                 # Show analysis with indentation (no truncation - user wants full output)
-                for line in analysis.split('\n'):
+                for line in analysis.split("\n"):
                     self.dev_print_callback(f"   {line}", "")
 
             # Log the reasoning step for observability
             if self.log_event_callback:
-                self.log_event_callback("orchestrator_reasoning_step", {
-                    "step_number": step_number,
-                    "step_name": step_name,
-                    "analysis": analysis[:500]  # Truncate for logging
-                }, level="INFO")
+                self.log_event_callback(
+                    "orchestrator_reasoning_step",
+                    {
+                        "step_number": step_number,
+                        "step_name": step_name,
+                        "analysis": analysis[:500],  # Truncate for logging
+                    },
+                    level="INFO",
+                )
 
             # Provide step-specific guidance to enforce sequential execution
             if step_number == 1:
@@ -124,7 +134,11 @@ class OrchestratorSupervisor:
                 return "✅ Step 2 (IDENTIFY CAPABILITIES) recorded. REQUIRED: Now call output_reasoning_step with step_number=3 (CHECK SUFFICIENCY)."
             elif step_number == 3:
                 # Check if analysis indicates multi-agent is needed
-                if "NEED_MULTI" in analysis.upper() or "INSUFFICIENT" in analysis.upper() or "MULTI-AGENT" in analysis.upper():
+                if (
+                    "NEED_MULTI" in analysis.upper()
+                    or "INSUFFICIENT" in analysis.upper()
+                    or "MULTI-AGENT" in analysis.upper()
+                ):
                     return "✅ Step 3 (CHECK SUFFICIENCY) recorded. Multi-agent needed. REQUIRED: Now call output_reasoning_step with step_number=4 (DESIGN COMBINATION)."
                 else:
                     return "✅ Step 3 (CHECK SUFFICIENCY) recorded. Single agent sufficient. You may now provide the final plan JSON."
@@ -135,36 +149,42 @@ class OrchestratorSupervisor:
 
         # Register tool on the PromptChain (not AgenticStepProcessor)
         self.orchestrator_chain.register_tool_function(output_reasoning_step)
-        self.orchestrator_chain.add_tools([{
-            "type": "function",
-            "function": {
-                "name": "output_reasoning_step",
-                "description": "Output a reasoning step during multi-hop analysis to show your thinking process explicitly. Call this for STEP 1, STEP 2, STEP 3, STEP 4, and STEP 5 (if needed) before providing the final plan JSON.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "step_number": {
-                            "type": "integer",
-                            "description": "The step number (1 for CLASSIFY, 2 for KNOWLEDGE_VS_EXECUTION, 3 for IDENTIFY, 4 for CHECK, 5 for DESIGN)"
+        self.orchestrator_chain.add_tools(
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "output_reasoning_step",
+                        "description": "Output a reasoning step during multi-hop analysis to show your thinking process explicitly. Call this for STEP 1, STEP 2, STEP 3, STEP 4, and STEP 5 (if needed) before providing the final plan JSON.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "step_number": {
+                                    "type": "integer",
+                                    "description": "The step number (1 for CLASSIFY, 2 for KNOWLEDGE_VS_EXECUTION, 3 for IDENTIFY, 4 for CHECK, 5 for DESIGN)",
+                                },
+                                "step_name": {
+                                    "type": "string",
+                                    "description": "Name of the step (e.g., 'CLASSIFY TASK', 'IDENTIFY CAPABILITIES', 'CHECK SUFFICIENCY', 'DESIGN COMBINATION')",
+                                },
+                                "analysis": {
+                                    "type": "string",
+                                    "description": "Your detailed analysis for this reasoning step",
+                                },
+                            },
+                            "required": ["step_number", "step_name", "analysis"],
                         },
-                        "step_name": {
-                            "type": "string",
-                            "description": "Name of the step (e.g., 'CLASSIFY TASK', 'IDENTIFY CAPABILITIES', 'CHECK SUFFICIENCY', 'DESIGN COMBINATION')"
-                        },
-                        "analysis": {
-                            "type": "string",
-                            "description": "Your detailed analysis for this reasoning step"
-                        }
                     },
-                    "required": ["step_number", "step_name", "analysis"]
                 }
-            }
-        }])
+            ]
+        )
 
         # Register event callback to capture reasoning metadata
         self.orchestrator_chain.register_callback(self._orchestrator_event_callback)
 
-        logger.info(f"OrchestratorSupervisor initialized with {len(agent_descriptions)} agents, max_steps={max_reasoning_steps}, strategy={strategy_preference}")
+        logger.info(
+            f"OrchestratorSupervisor initialized with {len(agent_descriptions)} agents, max_steps={max_reasoning_steps}, strategy={strategy_preference}"
+        )
 
     def _get_strategy_guidance(self) -> str:
         """Get strategy-specific prompting guidance"""
@@ -176,7 +196,6 @@ class OrchestratorSupervisor:
 - Choose multi-agent when beneficial
 - No bias - let reasoning determine optimal approach
             """,
-
             "prefer_single": """
 ⚡ PREFERENCE: Single-agent dispatch when possible
 - Default to single agent unless task CLEARLY needs multiple capabilities
@@ -185,7 +204,6 @@ class OrchestratorSupervisor:
   - "What is X? Give examples" → Try single agent first (research can handle both)
   - "Create and test script" → Must use multi-agent (coding → terminal)
             """,
-
             "prefer_multi": """
 🔀 PREFERENCE: Multi-agent plans for thorough results
 - Break complex tasks into specialized agent subtasks
@@ -195,7 +213,6 @@ class OrchestratorSupervisor:
   - "What is X?" → Use ["research", "documentation"] for thorough coverage
   - "Explain Y" → Use ["analysis", "documentation"] for deeper insight
             """,
-
             "always_research_first": """
 🔍 PREFERENCE: Research-first for unknown topics
 - ANY query about tech/libraries/events → Start with research
@@ -205,7 +222,6 @@ class OrchestratorSupervisor:
   - "What is Zig?" → ["research", "documentation"]
   - "Explain neural networks" → Can use ["documentation"] (well-known)
             """,
-
             "conservative": """
 💼 PREFERENCE: Conservative multi-agent usage
 - Use single agent unless task has MULTIPLE distinct phases
@@ -216,7 +232,6 @@ class OrchestratorSupervisor:
 - Examples of when single agent suffices:
   - "What is X? Give examples" → ["research"] (one phase)
             """,
-
             "aggressive": """
 🚀 PREFERENCE: Aggressive multi-agent orchestration
 - Liberally use multi-agent plans for quality
@@ -225,14 +240,16 @@ class OrchestratorSupervisor:
 - Examples:
   - "What is X?" → ["research", "analysis", "documentation"]
   - "Create script" → ["research", "coding", "terminal"]
-            """
+            """,
         }
 
         return strategies.get(self.strategy_preference, strategies["adaptive"])
 
     def _build_multi_hop_objective(self) -> str:
         """Build comprehensive objective with multi-hop reasoning guidance"""
-        agents_formatted = "\n".join([f"- {name}: {desc}" for name, desc in self.agent_descriptions.items()])
+        agents_formatted = "\n".join(
+            [f"- {name}: {desc}" for name, desc in self.agent_descriptions.items()]
+        )
 
         # ✅ Strategy preference guidance
         strategy_guidance = self._get_strategy_guidance()
@@ -625,7 +642,9 @@ FINAL RESPONSE - Return ONLY the JSON plan (no tool call this time):
         if event.event_type == ExecutionEventType.AGENTIC_STEP_END:
             # Update metrics from AgenticStepProcessor
             # NOTE: PromptChain emits "steps_executed", not "total_steps"
-            steps = event.metadata.get("steps_executed", event.metadata.get("total_steps", 0))
+            steps = event.metadata.get(
+                "steps_executed", event.metadata.get("total_steps", 0)
+            )
             tools = event.metadata.get("total_tools_called", 0)
 
             self.metrics["total_reasoning_steps"] += steps if steps else 0
@@ -637,19 +656,27 @@ FINAL RESPONSE - Return ONLY the JSON plan (no tool call this time):
 
             # Log detailed agentic step metadata
             if self.log_event_callback:
-                self.log_event_callback("orchestrator_agentic_step", {
-                    "total_steps": steps,
-                    "tools_called": tools,
-                    "execution_time_ms": event.metadata.get("execution_time_ms", 0),
-                    "objective_achieved": event.metadata.get("objective_achieved", False),
-                    "max_steps_reached": event.metadata.get("max_steps_reached", False)
-                }, level="DEBUG")
+                self.log_event_callback(
+                    "orchestrator_agentic_step",
+                    {
+                        "total_steps": steps,
+                        "tools_called": tools,
+                        "execution_time_ms": event.metadata.get("execution_time_ms", 0),
+                        "objective_achieved": event.metadata.get(
+                            "objective_achieved", False
+                        ),
+                        "max_steps_reached": event.metadata.get(
+                            "max_steps_reached", False
+                        ),
+                    },
+                    level="DEBUG",
+                )
 
     async def supervise_and_route(
         self,
         user_input: str,
         history: List[Dict[str, str]],
-        agent_descriptions: Dict[str, str]
+        agent_descriptions: Dict[str, str],
     ) -> str:
         """
         Supervise the routing decision using multi-hop reasoning.
@@ -667,11 +694,15 @@ FINAL RESPONSE - Return ONLY the JSON plan (no tool call this time):
 
         # Log input
         if self.log_event_callback:
-            self.log_event_callback("orchestrator_input", {
-                "user_query": user_input,
-                "history_length": len(history),
-                "current_date": current_date
-            }, level="DEBUG")
+            self.log_event_callback(
+                "orchestrator_input",
+                {
+                    "user_query": user_input,
+                    "history_length": len(history),
+                    "current_date": current_date,
+                },
+                level="DEBUG",
+            )
 
         # ✅ ENHANCED (v0.4.2): Format conversation history for orchestrator planning context
         # The orchestrator needs SOME history to make intelligent routing decisions,
@@ -688,17 +719,24 @@ FINAL RESPONSE - Return ONLY the JSON plan (no tool call this time):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
                 # Truncate long messages to avoid overwhelming the orchestrator
-                content_preview = content[:orchestrator_history_max_chars_per_msg] + "..." if len(content) > orchestrator_history_max_chars_per_msg else content
+                content_preview = (
+                    content[:orchestrator_history_max_chars_per_msg] + "..."
+                    if len(content) > orchestrator_history_max_chars_per_msg
+                    else content
+                )
                 history_lines.append(f"{role.upper()}: {content_preview}")
             history_context = "\n".join(history_lines)
 
             # Log orchestrator history injection
             if self.log_event_callback:
-                self.log_event_callback("orchestrator_history_injected", {
-                    "entries_count": len(recent_history),
-                    "total_history_available": len(history),
-                    "truncated": len(history) > orchestrator_history_max_entries
-                })
+                self.log_event_callback(
+                    "orchestrator_history_injected",
+                    {
+                        "entries_count": len(recent_history),
+                        "total_history_available": len(history),
+                        "truncated": len(history) > orchestrator_history_max_entries,
+                    },
+                )
 
         # Build full prompt with history context
         full_prompt = f"""CONVERSATION HISTORY (last exchanges):
@@ -727,9 +765,13 @@ Now analyze this input considering the conversation history above. Check STEP 0 
                 self.metrics["single_agent_dispatches"] += 1
 
             # Update average plan length
-            total_agents = sum([len(d.get("plan", [])) for d in self.metrics["decision_history"]])
+            total_agents = sum(
+                [len(d.get("plan", [])) for d in self.metrics["decision_history"]]
+            )
             total_agents += len(plan)
-            self.metrics["average_plan_length"] = total_agents / self.metrics["total_decisions"]
+            self.metrics["average_plan_length"] = (
+                total_agents / self.metrics["total_decisions"]
+            )
 
             # Track decision
             decision_record = {
@@ -737,48 +779,71 @@ Now analyze this input considering the conversation history above. Check STEP 0 
                 "user_input": user_input[:100],
                 "plan": plan,
                 "reasoning": reasoning,
-                "plan_length": len(plan)
+                "plan_length": len(plan),
             }
             self.metrics["decision_history"].append(decision_record)
 
             # Keep only last 100 decisions
             if len(self.metrics["decision_history"]) > 100:
-                self.metrics["decision_history"] = self.metrics["decision_history"][-100:]
+                self.metrics["decision_history"] = self.metrics["decision_history"][
+                    -100:
+                ]
 
             # ✅ NEW (v0.4.2): Store plan metrics for retrieval by AgentChain
             self._last_execution_plan_length = len(plan)
-            self._last_execution_decision_type = "multi_agent" if len(plan) > 1 else "single_agent"
+            self._last_execution_decision_type = (
+                "multi_agent" if len(plan) > 1 else "single_agent"
+            )
 
             # Log decision with oversight metadata
             if self.log_event_callback:
-                self.log_event_callback("orchestrator_decision", {
-                    "plan": plan,
-                    "reasoning": reasoning,
-                    "plan_length": len(plan),
-                    "decision_type": "multi_agent" if len(plan) > 1 else "single_agent",
-                    **self.get_oversight_summary()
-                }, level="INFO")
+                self.log_event_callback(
+                    "orchestrator_decision",
+                    {
+                        "plan": plan,
+                        "reasoning": reasoning,
+                        "plan_length": len(plan),
+                        "decision_type": (
+                            "multi_agent" if len(plan) > 1 else "single_agent"
+                        ),
+                        **self.get_oversight_summary(),
+                    },
+                    level="INFO",
+                )
 
             # Dev print output
             if self.dev_print_callback:
-                self.dev_print_callback(f"\n🎯 Orchestrator Decision (Multi-hop Reasoning):", "")
+                self.dev_print_callback(
+                    f"\n🎯 Orchestrator Decision (Multi-hop Reasoning):", ""
+                )
                 if len(plan) == 1:
                     self.dev_print_callback(f"   Agent chosen: {plan[0]}", "")
                 else:
-                    self.dev_print_callback(f"   Multi-agent plan: {' → '.join(plan)}", "")
+                    self.dev_print_callback(
+                        f"   Multi-agent plan: {' → '.join(plan)}", ""
+                    )
                 self.dev_print_callback(f"   Reasoning: {reasoning}", "")
-                self.dev_print_callback(f"   Steps used: {self.metrics['total_reasoning_steps']}", "")
+                self.dev_print_callback(
+                    f"   Steps used: {self.metrics['total_reasoning_steps']}", ""
+                )
                 self.dev_print_callback("", "")
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse orchestrator decision: {e}")
             if self.log_event_callback:
-                self.log_event_callback("orchestrator_parse_error", {
-                    "error": str(e),
-                    "raw_output": decision_json
-                }, level="ERROR")
+                self.log_event_callback(
+                    "orchestrator_parse_error",
+                    {"error": str(e), "raw_output": decision_json},
+                    level="ERROR",
+                )
             # Fallback to single agent
-            decision_json = json.dumps({"plan": ["research"], "initial_input": user_input, "reasoning": "Parse error, defaulting to research"})
+            decision_json = json.dumps(
+                {
+                    "plan": ["research"],
+                    "initial_input": user_input,
+                    "reasoning": "Parse error, defaulting to research",
+                }
+            )
 
         return decision_json
 
@@ -791,9 +856,16 @@ Now analyze this input considering the conversation history above. Check STEP 0 
         Returns:
             Async function with signature: (user_input, history, agent_descriptions) -> str
         """
-        async def router_wrapper(user_input: str, history: List[Dict[str, str]], agent_descriptions: Dict[str, str]) -> str:
+
+        async def router_wrapper(
+            user_input: str,
+            history: List[Dict[str, str]],
+            agent_descriptions: Dict[str, str],
+        ) -> str:
             """Wrapper function that calls supervise_and_route"""
-            return await self.supervise_and_route(user_input, history, agent_descriptions)
+            return await self.supervise_and_route(
+                user_input, history, agent_descriptions
+            )
 
         return router_wrapper
 
@@ -801,11 +873,17 @@ Now analyze this input considering the conversation history above. Check STEP 0 
         """Get summary of oversight metrics"""
         return {
             "total_decisions": self.metrics["total_decisions"],
-            "single_agent_rate": self.metrics["single_agent_dispatches"] / max(self.metrics["total_decisions"], 1),
-            "multi_agent_rate": self.metrics["multi_agent_plans"] / max(self.metrics["total_decisions"], 1),
+            "single_agent_rate": self.metrics["single_agent_dispatches"]
+            / max(self.metrics["total_decisions"], 1),
+            "multi_agent_rate": self.metrics["multi_agent_plans"]
+            / max(self.metrics["total_decisions"], 1),
             "average_plan_length": round(self.metrics["average_plan_length"], 2),
             "total_reasoning_steps": self.metrics["total_reasoning_steps"],
-            "average_reasoning_steps": round(self.metrics["total_reasoning_steps"] / max(self.metrics["total_decisions"], 1), 2)
+            "average_reasoning_steps": round(
+                self.metrics["total_reasoning_steps"]
+                / max(self.metrics["total_decisions"], 1),
+                2,
+            ),
         }
 
     def get_last_execution_metrics(self) -> Dict[str, Any]:
@@ -818,20 +896,20 @@ Now analyze this input considering the conversation history above. Check STEP 0 
         - plan_length: Number of agents in last plan
         - decision_type: 'single_agent' or 'multi_agent'
         """
-        if not hasattr(self, '_last_execution_reasoning_steps'):
+        if not hasattr(self, "_last_execution_reasoning_steps"):
             # First execution hasn't happened yet
             return {
                 "reasoning_steps": 0,
                 "tools_called": 0,
                 "plan_length": 0,
-                "decision_type": None
+                "decision_type": None,
             }
 
         return {
             "reasoning_steps": self._last_execution_reasoning_steps,
             "tools_called": self._last_execution_tools_called,
             "plan_length": self._last_execution_plan_length,
-            "decision_type": self._last_execution_decision_type
+            "decision_type": self._last_execution_decision_type,
         }
 
     def print_oversight_report(self):
@@ -842,10 +920,16 @@ Now analyze this input considering the conversation history above. Check STEP 0 
         print("📊 ORCHESTRATOR OVERSIGHT REPORT")
         print("━" * 80)
         print(f"Total Decisions: {summary['total_decisions']}")
-        print(f"Single Agent Dispatches: {self.metrics['single_agent_dispatches']} ({summary['single_agent_rate']:.1%})")
-        print(f"Multi-Agent Plans: {self.metrics['multi_agent_plans']} ({summary['multi_agent_rate']:.1%})")
+        print(
+            f"Single Agent Dispatches: {self.metrics['single_agent_dispatches']} ({summary['single_agent_rate']:.1%})"
+        )
+        print(
+            f"Multi-Agent Plans: {self.metrics['multi_agent_plans']} ({summary['multi_agent_rate']:.1%})"
+        )
         print(f"Average Plan Length: {summary['average_plan_length']:.2f} agents")
-        print(f"Average Reasoning Steps: {summary['average_reasoning_steps']:.2f} steps")
+        print(
+            f"Average Reasoning Steps: {summary['average_reasoning_steps']:.2f} steps"
+        )
         print(f"Total Tools Called: {self.metrics['total_tools_called']}")
         print("━" * 80)
 

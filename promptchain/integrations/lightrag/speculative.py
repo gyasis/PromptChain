@@ -4,14 +4,14 @@ Predicts and pre-executes likely LightRAG queries based on conversation patterns
 caching results to reduce latency.
 """
 
-from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import asyncio
 import hashlib
 import logging
 import time
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 
@@ -38,6 +38,7 @@ class ToolPrediction:
         pattern_matched: Name of the pattern that triggered this prediction.
         context_hash: Hash of the context used for prediction.
     """
+
     prediction_id: str
     query: str
     mode: str
@@ -58,6 +59,7 @@ class SpeculativeResult:
         ttl_seconds: Time-to-live for this cached result.
         hit: Whether this result was used (cache hit).
     """
+
     prediction_id: str
     query: str
     result: Any
@@ -82,6 +84,7 @@ class SpeculativeConfig(PatternConfig):
         prediction_model: Model to use for predictions ("frequency", "pattern").
         history_window: Number of recent queries to consider for predictions.
     """
+
     min_confidence: float = 0.7
     max_concurrent: int = 3
     default_ttl: float = 60.0
@@ -101,6 +104,7 @@ class SpeculativeExecutionResult(PatternResult):
         hit: Whether the actual query was found in cache.
         latency_saved_ms: Estimated latency saved by cache hit.
     """
+
     predictions: List[ToolPrediction] = field(default_factory=list)
     executed: List[ToolPrediction] = field(default_factory=list)
     cached_results: List[SpeculativeResult] = field(default_factory=list)
@@ -127,7 +131,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
     def __init__(
         self,
         lightrag_core: "LightRAGIntegration",
-        config: Optional[SpeculativeConfig] = None
+        config: Optional[SpeculativeConfig] = None,
     ):
         """Initialize the speculative executor.
 
@@ -149,9 +153,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
         self.lightrag_core = lightrag_core
 
         # Query history tracking
-        self.history: deque = deque(
-            maxlen=self.config.history_window
-        )
+        self.history: deque = deque(maxlen=self.config.history_window)
 
         # Result cache
         self.cache: Dict[str, SpeculativeResult] = {}
@@ -169,11 +171,9 @@ class LightRAGSpeculativeExecutor(BasePattern):
             query: The query text.
             mode: The query mode ("local", "global", "hybrid").
         """
-        self.history.append({
-            "query": query,
-            "mode": mode,
-            "timestamp": datetime.utcnow()
-        })
+        self.history.append(
+            {"query": query, "mode": mode, "timestamp": datetime.utcnow()}
+        )
         logger.debug(f"Recorded query: {query[:50]}... (mode={mode})")
 
     def _compute_context_hash(self, context: str) -> str:
@@ -205,7 +205,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
                     "query": entry["query"],
                     "mode": mode,
                     "count": 0,
-                    "last_seen": entry["timestamp"]
+                    "last_seen": entry["timestamp"],
                 }
 
             patterns[key]["count"] += 1
@@ -250,7 +250,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
                         mode=stats["mode"],
                         confidence=confidence,
                         pattern_matched="frequency",
-                        context_hash=context_hash
+                        context_hash=context_hash,
                     )
                     predictions.append(prediction)
 
@@ -271,7 +271,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
                         mode=mode,
                         confidence=0.8,
                         pattern_matched="mode_continuation",
-                        context_hash=context_hash
+                        context_hash=context_hash,
                     )
                     predictions.append(prediction)
 
@@ -279,7 +279,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
         predictions.sort(key=lambda p: p.confidence, reverse=True)
 
         # Limit to max_concurrent
-        predictions = predictions[:self.config.max_concurrent]
+        predictions = predictions[: self.config.max_concurrent]
 
         self._total_predictions += len(predictions)
         logger.info(f"Generated {len(predictions)} predictions")
@@ -315,7 +315,9 @@ class LightRAGSpeculativeExecutor(BasePattern):
         logger.debug(f"Cache miss for query: {query[:50]}...")
         return None
 
-    async def _execute_prediction(self, prediction: ToolPrediction) -> SpeculativeResult:
+    async def _execute_prediction(
+        self, prediction: ToolPrediction
+    ) -> SpeculativeResult:
         """Execute a prediction and cache the result.
 
         Args:
@@ -343,7 +345,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
                 result=result,
                 cached_at=datetime.utcnow(),
                 ttl_seconds=self.config.default_ttl,
-                hit=False
+                hit=False,
             )
 
             cache_key = f"{prediction.query}_{prediction.mode}"
@@ -360,7 +362,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
             logger.error(f"Failed to execute prediction: {e}")
             raise
 
-    async def execute(self, context: str, **kwargs) -> SpeculativeExecutionResult:
+    async def execute(self, context: str, **kwargs) -> SpeculativeExecutionResult:  # type: ignore[override]
         """Execute speculative execution pattern.
 
         Generates predictions based on context, executes high-confidence
@@ -381,10 +383,17 @@ class LightRAGSpeculativeExecutor(BasePattern):
             # Generate predictions
             predictions = self.predict_next_queries(context)
 
-            self.emit_event("pattern.speculative.predicted", {
-                "num_predictions": len(predictions),
-                "avg_confidence": sum(p.confidence for p in predictions) / len(predictions) if predictions else 0.0
-            })
+            self.emit_event(
+                "pattern.speculative.predicted",
+                {
+                    "num_predictions": len(predictions),
+                    "avg_confidence": (
+                        sum(p.confidence for p in predictions) / len(predictions)
+                        if predictions
+                        else 0.0
+                    ),
+                },
+            )
 
             # Execute predictions concurrently
             executed_predictions: List[ToolPrediction] = []
@@ -400,16 +409,18 @@ class LightRAGSpeculativeExecutor(BasePattern):
 
                 # Filter out exceptions
                 valid_results = [
-                    r for r in cached_results
-                    if isinstance(r, SpeculativeResult)
+                    r for r in cached_results if isinstance(r, SpeculativeResult)
                 ]
 
                 self._total_executions += len(valid_results)
 
-                self.emit_event("pattern.speculative.executed", {
-                    "num_executed": len(valid_results),
-                    "num_failed": len(cached_results) - len(valid_results)
-                })
+                self.emit_event(
+                    "pattern.speculative.executed",
+                    {
+                        "num_executed": len(valid_results),
+                        "num_failed": len(cached_results) - len(valid_results),
+                    },
+                )
             else:
                 valid_results = []
 
@@ -435,15 +446,19 @@ class LightRAGSpeculativeExecutor(BasePattern):
                     "cache_misses": self._cache_misses,
                     "cache_hit_rate": (
                         self._cache_hits / (self._cache_hits + self._cache_misses)
-                        if (self._cache_hits + self._cache_misses) > 0 else 0.0
-                    )
-                }
+                        if (self._cache_hits + self._cache_misses) > 0
+                        else 0.0
+                    ),
+                },
             )
 
-            self.emit_event("pattern.speculative.completed", {
-                "execution_time_ms": execution_time_ms,
-                "num_cached": len(valid_results)
-            })
+            self.emit_event(
+                "pattern.speculative.completed",
+                {
+                    "execution_time_ms": execution_time_ms,
+                    "num_cached": len(valid_results),
+                },
+            )
 
             return result
 
@@ -456,14 +471,13 @@ class LightRAGSpeculativeExecutor(BasePattern):
                 success=False,
                 result=None,
                 execution_time_ms=execution_time_ms,
-                errors=[str(e)]
+                errors=[str(e)],
             )
 
     def cleanup(self) -> None:
         """Remove expired cache entries."""
         expired_keys = [
-            key for key, result in self.cache.items()
-            if result.is_expired()
+            key for key, result in self.cache.items() if result.is_expired()
         ]
 
         for key in expired_keys:
@@ -482,7 +496,8 @@ class LightRAGSpeculativeExecutor(BasePattern):
 
         cache_hit_rate = (
             self._cache_hits / (self._cache_hits + self._cache_misses)
-            if (self._cache_hits + self._cache_misses) > 0 else 0.0
+            if (self._cache_hits + self._cache_misses) > 0
+            else 0.0
         )
 
         return {
@@ -493,5 +508,5 @@ class LightRAGSpeculativeExecutor(BasePattern):
             "cache_misses": self._cache_misses,
             "cache_hit_rate": cache_hit_rate,
             "cache_size": len(self.cache),
-            "history_size": len(self.history)
+            "history_size": len(self.history),
         }

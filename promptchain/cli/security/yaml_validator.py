@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 class ValidationError(Exception):
@@ -318,9 +318,7 @@ class YAMLValidator:
                     severity="critical",
                 )
 
-    def _validate_keys(
-        self, config: Dict, path: str, allowed_keys: Set[str]
-    ) -> None:
+    def _validate_keys(self, config: Dict, path: str, allowed_keys: Set[str]) -> None:
         """Validate dictionary keys against whitelist.
 
         Args:
@@ -379,8 +377,15 @@ class YAMLValidator:
         # Allow extra keys in agent config (extensibility)
         # But validate required fields if this is the agent config itself
         # (not nested dicts like history_config or instruction_chain items)
-        if not any(path.endswith(suffix) for suffix in [".history_config", ".instruction_chain"]):
-            if isinstance(config, dict) and "type" not in config and "model" not in config:
+        if not any(
+            path.endswith(suffix)
+            for suffix in [".history_config", ".instruction_chain"]
+        ):
+            if (
+                isinstance(config, dict)
+                and "type" not in config
+                and "model" not in config
+            ):
                 # This looks like an agent config without required field
                 # But only validate if it's at the right level
                 path_parts = path.split(".")

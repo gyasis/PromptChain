@@ -5,17 +5,18 @@ implementations. Patterns integrate with the 003-multi-agent-communication
 infrastructure (MessageBus, Blackboard).
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 import asyncio
 import logging
 import time
 import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from promptchain.cli.models import MessageBus, Blackboard
+    from promptchain.cli.models import (  # type: ignore[attr-defined]
+        Blackboard, MessageBus)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class PatternConfig:
         emit_events: Whether to emit events to MessageBus.
         use_blackboard: Whether to use Blackboard for state sharing.
     """
+
     pattern_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     enabled: bool = True
     timeout_seconds: float = 30.0
@@ -51,6 +53,7 @@ class PatternResult:
         errors: List of error messages if any.
         timestamp: When the result was generated.
     """
+
     pattern_id: str
     success: bool
     result: Any
@@ -154,16 +157,18 @@ class BasePattern(ABC):
 
         try:
             result = await asyncio.wait_for(
-                self.execute(**kwargs),
-                timeout=self.config.timeout_seconds
+                self.execute(**kwargs), timeout=self.config.timeout_seconds
             )
             self._execution_count += 1
             self._total_execution_time_ms += result.execution_time_ms
 
-            self.emit_event(f"pattern.{self._pattern_name}.completed", {
-                "success": result.success,
-                "execution_time_ms": result.execution_time_ms,
-            })
+            self.emit_event(
+                f"pattern.{self._pattern_name}.completed",
+                {
+                    "success": result.success,
+                    "execution_time_ms": result.execution_time_ms,
+                },
+            )
 
             return result
 
@@ -172,9 +177,12 @@ class BasePattern(ABC):
             logger.error(
                 f"Pattern {self.config.pattern_id} timed out after {elapsed_ms:.2f}ms"
             )
-            self.emit_event(f"pattern.{self._pattern_name}.timeout", {
-                "elapsed_ms": elapsed_ms,
-            })
+            self.emit_event(
+                f"pattern.{self._pattern_name}.timeout",
+                {
+                    "elapsed_ms": elapsed_ms,
+                },
+            )
             return PatternResult(
                 pattern_id=self.config.pattern_id,
                 success=False,
@@ -186,10 +194,13 @@ class BasePattern(ABC):
         except Exception as e:
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             logger.exception(f"Pattern {self.config.pattern_id} failed: {e}")
-            self.emit_event(f"pattern.{self._pattern_name}.error", {
-                "error": str(e),
-                "elapsed_ms": elapsed_ms,
-            })
+            self.emit_event(
+                f"pattern.{self._pattern_name}.error",
+                {
+                    "error": str(e),
+                    "elapsed_ms": elapsed_ms,
+                },
+            )
             return PatternResult(
                 pattern_id=self.config.pattern_id,
                 success=False,
@@ -201,7 +212,11 @@ class BasePattern(ABC):
     @property
     def _pattern_name(self) -> str:
         """Get the pattern name for event emission."""
-        return self.__class__.__name__.lower().replace("lightrag", "").replace("pattern", "")
+        return (
+            self.__class__.__name__.lower()
+            .replace("lightrag", "")
+            .replace("pattern", "")
+        )
 
     # MessageBus integration (003 infrastructure)
 
@@ -244,10 +259,7 @@ class BasePattern(ABC):
             except Exception as e:
                 logger.warning(f"MessageBus publish error: {e}")
 
-    def add_event_handler(
-        self,
-        handler: Callable[[str, Dict[str, Any]], None]
-    ) -> None:
+    def add_event_handler(self, handler: Callable[[str, Dict[str, Any]], None]) -> None:
         """Add a local event handler.
 
         Args:
@@ -342,7 +354,9 @@ class BasePattern(ABC):
 class PatternExecutionError(Exception):
     """Exception raised when pattern execution fails."""
 
-    def __init__(self, message: str, pattern_id: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self, message: str, pattern_id: str, details: Optional[Dict[str, Any]] = None
+    ):
         super().__init__(message)
         self.pattern_id = pattern_id
         self.details = details or {}

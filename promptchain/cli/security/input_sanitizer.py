@@ -315,7 +315,7 @@ class InputSanitizer:
                 severity="medium",
             )
 
-        validated = []
+        validated: List[Union[str, Dict]] = []
         for i, instruction in enumerate(instructions):
             if isinstance(instruction, str):
                 # Validate string instruction
@@ -326,7 +326,7 @@ class InputSanitizer:
 
             elif isinstance(instruction, dict):
                 # Validate dict instruction (agentic steps, etc.)
-                validated_instruction = self._validate_instruction_dict(
+                validated_instruction = self._validate_instruction_dict(  # type: ignore[assignment]
                     instruction, f"instruction[{i}]"
                 )
                 validated.append(validated_instruction)
@@ -339,9 +339,7 @@ class InputSanitizer:
 
         return validated
 
-    def _validate_instruction_string(
-        self, instruction: str, context: str
-    ) -> str:
+    def _validate_instruction_string(self, instruction: str, context: str) -> str:
         """Validate string instruction.
 
         Args:
@@ -371,9 +369,7 @@ class InputSanitizer:
 
         return instruction
 
-    def _validate_instruction_dict(
-        self, instruction: Dict, context: str
-    ) -> Dict:
+    def _validate_instruction_dict(self, instruction: Dict, context: str) -> Dict:
         """Validate dict instruction (agentic step, etc.).
 
         Args:

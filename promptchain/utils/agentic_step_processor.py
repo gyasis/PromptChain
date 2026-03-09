@@ -1,11 +1,13 @@
-from typing import List, Dict, Any, Callable, Awaitable, Optional, Union, TYPE_CHECKING
+import asyncio
+import json
 import logging
 import warnings
-import json
-import asyncio
-from enum import Enum
 from datetime import datetime
-from .agentic_step_result import StepExecutionMetadata, AgenticStepResult
+from enum import Enum
+from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Dict, List,
+                    Optional, Union)
+
+from .agentic_step_result import AgenticStepResult, StepExecutionMetadata
 
 if TYPE_CHECKING:
     from .history_summarizer import HistorySummarizer
@@ -171,8 +173,8 @@ class AgenticStepProcessor:
         self,
         objective: str,
         max_internal_steps: int = 5,
-        model_name: str = None,
-        model_params: Dict[str, Any] = None,
+        model_name: Optional[str] = None,
+        model_params: Optional[Dict[str, Any]] = None,
         history_mode: str = "minimal",
         max_context_tokens: Optional[int] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
@@ -281,9 +283,9 @@ class AgenticStepProcessor:
         )
         self.streaming_callback = streaming_callback  # Real-time streaming of reasoning
         self.step_timeout = step_timeout  # Timeout for each LLM call
-        self.conversation_history: List[
-            Dict[str, Any]
-        ] = []  # Accumulated history for progressive/kitchen_sink modes
+        self.conversation_history: List[Dict[str, Any]] = (
+            []
+        )  # Accumulated history for progressive/kitchen_sink modes
         self._interrupt_requested = False  # Flag for graceful interruption
 
         # Token tracking for real-time display
@@ -334,7 +336,7 @@ class AgenticStepProcessor:
         # Chain of Verification (Phase 3: Safety & Reliability - 40-50% error reduction)
         self.enable_cove = enable_cove
         self.cove_confidence_threshold = cove_confidence_threshold
-        self.cove_verifier = None  # Lazy init - created on first use
+        self.cove_verifier: Optional[Any] = None  # Lazy init - created on first use
         if self.enable_cove:
             logger.info(
                 f"✅ Chain of Verification enabled (threshold={cove_confidence_threshold:.2f}). "
@@ -356,7 +358,7 @@ class AgenticStepProcessor:
         # TAO Loop + Dry Runs (Phase 4: Transparent Reasoning)
         self.enable_tao_loop = enable_tao_loop
         self.enable_dry_run = enable_dry_run
-        self.dry_run_predictor = None  # Lazy init - created on first use
+        self.dry_run_predictor: Optional[Any] = None  # Lazy init - created on first use
         if self.enable_tao_loop:
             logger.info(
                 "✅ TAO Loop enabled (explicit Think-Act-Observe phases). "
@@ -374,7 +376,7 @@ class AgenticStepProcessor:
                 "Using 'minimal' history mode (default). This mode may be deprecated in future versions. "
                 "Consider using 'progressive' mode for better multi-hop reasoning capabilities.",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
         logger.debug(
@@ -824,7 +826,7 @@ class AgenticStepProcessor:
             # Use fallback model for verification (cheaper/faster) or primary if not available
             verification_model = (
                 self.fallback_model if self.fallback_model else self.model_name
-            )
+            ) or ""
             self.cove_verifier = CoVeVerifier(llm_runner, verification_model)
             logger.info(f"[CoVe] Initialized verifier with model: {verification_model}")
 
@@ -899,9 +901,9 @@ class AgenticStepProcessor:
         execution_warnings: List[str] = []
 
         # Full internal history for debugging/tracking (not sent to LLM)
-        internal_history = []
+        internal_history: List[Dict[str, Any]] = []
         # Minimal valid LLM message history (sent to LLM)
-        llm_history = []
+        llm_history: List[Dict[str, Any]] = []
 
         # Start with the objective and initial input
         system_prompt = f"""Your goal is to achieve the following objective: {self.objective}
@@ -1028,7 +1030,7 @@ FINAL ANSWER REQUIREMENTS:
 
         final_answer = None
         last_tool_call_assistant_msg = None
-        last_tool_msgs = []
+        last_tool_msgs: List[Dict[str, Any]] = []
         clarification_attempts = 0
         max_clarification_attempts = 3
 
@@ -1283,9 +1285,11 @@ FINAL ANSWER REQUIREMENTS:
                             self.progress_callback(
                                 step_num + 1,
                                 self.max_internal_steps,
-                                f"Calling: {tool_names_str}"
-                                if tool_names_str
-                                else f"Calling {len(tool_calls)} tool(s)",
+                                (
+                                    f"Calling: {tool_names_str}"
+                                    if tool_names_str
+                                    else f"Calling {len(tool_calls)} tool(s)"
+                                ),
                             )
 
                         # Prepare new minimal LLM history: system, user, assistant (with tool_calls), tool(s)
@@ -1300,6 +1304,9 @@ FINAL ANSWER REQUIREMENTS:
                         if self.enable_cove:
                             # Lazy init CoVe verifier
                             self._ensure_cove_verifier(llm_runner)
+                            assert (
+                                self.cove_verifier is not None
+                            )  # guaranteed by _ensure_cove_verifier
 
                             verified_tool_calls = []
                             for tool_call in tool_calls:
@@ -1889,7 +1896,8 @@ FINAL ANSWER REQUIREMENTS:
                 and hasattr(callback_manager, "has_callbacks")
                 and callback_manager.has_callbacks()
             ):
-                from .execution_events import ExecutionEvent, ExecutionEventType
+                from .execution_events import (ExecutionEvent,
+                                               ExecutionEventType)
 
                 # Get the assistant's thought/decision from this iteration
                 assistant_thought = None
@@ -1898,7 +1906,7 @@ FINAL ANSWER REQUIREMENTS:
                         assistant_thought = msg.get("content", "")
                         if not assistant_thought and msg.get("tool_calls"):
                             assistant_thought = (
-                                f"[Called {len(msg.get('tool_calls'))} tool(s)]"
+                                f"[Called {len(msg.get('tool_calls') or [])} tool(s)]"
                             )
                         break
 
@@ -2190,7 +2198,7 @@ FINAL ANSWER REQUIREMENTS:
                 # Use fallback model for predictions if available (cheaper/faster)
                 prediction_model = (
                     self.fallback_model if self.fallback_model else self.model_name
-                )
+                ) or ""
                 self.dry_run_predictor = DryRunPredictor(llm_runner, prediction_model)
                 logger.info(
                     f"[DryRun] Initialized predictor with model: {prediction_model}"

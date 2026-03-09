@@ -132,9 +132,11 @@ class LightRAGMultiHop(BasePattern):
 
         super().__init__(config or MultiHopConfig())
         self.search_interface = search_interface
-        self.multi_hop_config = self.config if isinstance(self.config, MultiHopConfig) else MultiHopConfig()
+        self.multi_hop_config = (
+            self.config if isinstance(self.config, MultiHopConfig) else MultiHopConfig()
+        )
 
-    async def execute(self, question: str, **kwargs) -> MultiHopResult:
+    async def execute(self, question: str, **kwargs) -> MultiHopResult:  # type: ignore[override]
         """Execute multi-hop retrieval for a complex question.
 
         Args:
@@ -146,20 +148,26 @@ class LightRAGMultiHop(BasePattern):
         """
         start_time = time.perf_counter()
 
-        self.emit_event("pattern.multi_hop.started", {
-            "question": question,
-            "decompose_first": self.multi_hop_config.decompose_first,
-        })
+        self.emit_event(
+            "pattern.multi_hop.started",
+            {
+                "question": question,
+                "decompose_first": self.multi_hop_config.decompose_first,
+            },
+        )
 
         try:
             # Step 1: Optionally decompose question into sub-questions
             sub_questions = []
             if self.multi_hop_config.decompose_first:
                 sub_questions = await self._decompose_question(question)
-                self.emit_event("pattern.multi_hop.decomposed", {
-                    "num_sub_questions": len(sub_questions),
-                    "sub_questions": [sq.question_text for sq in sub_questions],
-                })
+                self.emit_event(
+                    "pattern.multi_hop.decomposed",
+                    {
+                        "num_sub_questions": len(sub_questions),
+                        "sub_questions": [sq.question_text for sq in sub_questions],
+                    },
+                )
 
             # Step 2: Execute multi-hop retrieval via agentic_search
             max_hops = kwargs.get("max_hops", self.multi_hop_config.max_hops)
@@ -173,15 +181,21 @@ class LightRAGMultiHop(BasePattern):
             hops_executed = agentic_result.get("hops_executed", 0)
             sub_answers = agentic_result.get("sub_answers", {})
 
-            self.emit_event("pattern.multi_hop.hop_completed", {
-                "hops_executed": hops_executed,
-                "num_sub_answers": len(sub_answers),
-            })
+            self.emit_event(
+                "pattern.multi_hop.hop_completed",
+                {
+                    "hops_executed": hops_executed,
+                    "num_sub_answers": len(sub_answers),
+                },
+            )
 
             # Step 4: Synthesize unified answer
-            self.emit_event("pattern.multi_hop.synthesizing", {
-                "num_sub_answers": len(sub_answers),
-            })
+            self.emit_event(
+                "pattern.multi_hop.synthesizing",
+                {
+                    "num_sub_answers": len(sub_answers),
+                },
+            )
 
             unified_answer = await self._synthesize_answer(
                 question=question,
@@ -202,11 +216,14 @@ class LightRAGMultiHop(BasePattern):
 
             execution_time_ms = (time.perf_counter() - start_time) * 1000
 
-            self.emit_event("pattern.multi_hop.completed", {
-                "hops_executed": hops_executed,
-                "num_unanswered": len(unanswered_aspects),
-                "execution_time_ms": execution_time_ms,
-            })
+            self.emit_event(
+                "pattern.multi_hop.completed",
+                {
+                    "hops_executed": hops_executed,
+                    "num_unanswered": len(unanswered_aspects),
+                    "execution_time_ms": execution_time_ms,
+                },
+            )
 
             result = MultiHopResult(
                 pattern_id=self.config.pattern_id,
@@ -245,8 +262,7 @@ class LightRAGMultiHop(BasePattern):
             )
 
     @track_llm_call(
-        model_param="model_name",
-        extract_args=["temperature", "max_tokens"]
+        model_param="model_name", extract_args=["temperature", "max_tokens"]
     )
     async def _decompose_question(self, question: str) -> List[SubQuestion]:
         """Decompose a complex question into sub-questions using LLM.
@@ -293,6 +309,7 @@ Return the sub-questions in JSON format:
             )
 
             import json
+
             sub_questions_data = json.loads(response.choices[0].message.content)
 
             # Handle both list and dict with "sub_questions" key
@@ -300,7 +317,9 @@ Return the sub-questions in JSON format:
                 sub_questions_data = sub_questions_data.get("sub_questions", [])
 
             sub_questions = []
-            for idx, sq_data in enumerate(sub_questions_data[:self.multi_hop_config.max_sub_questions]):
+            for idx, sq_data in enumerate(
+                sub_questions_data[: self.multi_hop_config.max_sub_questions]
+            ):
                 sub_questions.append(
                     SubQuestion(
                         question_id=sq_data.get("question_id", f"sq{idx+1}"),
@@ -314,7 +333,9 @@ Return the sub-questions in JSON format:
             return sub_questions
 
         except Exception as e:
-            logger.warning(f"Question decomposition failed: {e}, proceeding without decomposition")
+            logger.warning(
+                f"Question decomposition failed: {e}, proceeding without decomposition"
+            )
             return []
 
     async def _execute_agentic_search(
@@ -418,9 +439,13 @@ Sub-answers:
 """
         for sq in sub_questions:
             if sq.question_id in sub_answers:
-                synthesis_prompt += f"\nQ: {sq.question_text}\nA: {sub_answers[sq.question_id]}\n"
+                synthesis_prompt += (
+                    f"\nQ: {sq.question_text}\nA: {sub_answers[sq.question_id]}\n"
+                )
 
-        synthesis_prompt += "\nProvide a unified, coherent answer that integrates all sub-answers:"
+        synthesis_prompt += (
+            "\nProvide a unified, coherent answer that integrates all sub-answers:"
+        )
 
         try:
             model = self.multi_hop_config.synthesizer_model or "openai/gpt-4o-mini"
@@ -451,7 +476,10 @@ Sub-answers:
         """
         unanswered = []
         for sq in sub_questions:
-            if sq.question_id not in sub_answers or not sub_answers[sq.question_id].strip():
+            if (
+                sq.question_id not in sub_answers
+                or not sub_answers[sq.question_id].strip()
+            ):
                 unanswered.append(sq.question_text)
 
         return unanswered

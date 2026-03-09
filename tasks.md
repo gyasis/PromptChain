@@ -1,1 +1,0 @@
-specs/008-type-safety-debt-pt2/tasks.md

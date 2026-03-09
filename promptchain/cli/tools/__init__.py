@@ -7,26 +7,14 @@ Also provides an extensible tool registration and discovery system for CLI comma
 and agent interactions.
 """
 
+from .executor import ToolExecutionError, ToolExecutor
+from .filesystem_tools import (filesystem_registry, find_paths, get_cwd,
+                               is_within_working_dir, path_info, resolve_path)
+from .models import ExecutionMetrics, ToolExecutionContext, ToolResult
+from .registry import (ParameterSchema, ToolCategory, ToolMetadata,
+                       ToolNotFoundError, ToolRegistrationError, ToolRegistry,
+                       ToolValidationError)
 from .safety import SafetyValidator, SecurityError
-from .registry import (
-    ToolRegistry,
-    ToolMetadata,
-    ToolCategory,
-    ParameterSchema,
-    ToolRegistrationError,
-    ToolValidationError,
-    ToolNotFoundError
-)
-from .executor import ToolExecutor, ToolExecutionError
-from .models import ToolResult, ExecutionMetrics, ToolExecutionContext
-from .filesystem_tools import (
-    filesystem_registry,
-    resolve_path,
-    find_paths,
-    get_cwd,
-    path_info,
-    is_within_working_dir
-)
 
 # Create global registry instance
 registry = ToolRegistry()
@@ -37,7 +25,7 @@ for tool_name in filesystem_registry.list_tools():
     if tool_meta and tool_name not in registry.list_tools():
         # Re-register the tool in the global registry
         registry._tools[tool_name] = tool_meta
-        registry._category_index[tool_meta.category].add(tool_name)
+        registry._category_index[tool_meta.category].add(tool_name)  # type: ignore[index]
         for tag in tool_meta.tags:
             if tag not in registry._tag_index:
                 registry._tag_index[tag] = set()
@@ -65,5 +53,5 @@ __all__ = [
     "find_paths",
     "get_cwd",
     "path_info",
-    "is_within_working_dir"
+    "is_within_working_dir",
 ]

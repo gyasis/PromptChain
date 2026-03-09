@@ -454,9 +454,9 @@ class CommandHandler:
 
             for template_name, template in AGENT_TEMPLATES.items():
                 # Get category and complexity from metadata
-                category = template.metadata.get("category", "general")
-                complexity = template.metadata.get("complexity", "medium")
-                token_usage = template.metadata.get("token_usage", "moderate")
+                category = template.metadata.get("category", "general")  # type: ignore[union-attr]
+                complexity = template.metadata.get("complexity", "medium")  # type: ignore[union-attr]
+                token_usage = template.metadata.get("token_usage", "moderate")  # type: ignore[union-attr]
 
                 # Get history configuration details
                 history_status = (

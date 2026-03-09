@@ -8,15 +8,16 @@ This ensures consistent tool availability across all agents without manual
 registration in every script.
 """
 
-from typing import List, Dict, Any, Optional
-from promptchain.tools.file_operations import (
-    file_read, file_write, file_edit, file_append, file_delete,
-    list_directory, create_directory, read_file_range
-)
-from promptchain.tools.efficient_file_edit import (
-    insert_at_line, replace_lines, insert_after_pattern, insert_before_pattern
-)
+from typing import Any, Dict, List, Optional
 
+from promptchain.tools.efficient_file_edit import (insert_after_pattern,
+                                                   insert_at_line,
+                                                   insert_before_pattern,
+                                                   replace_lines)
+from promptchain.tools.file_operations import (create_directory, file_append,
+                                               file_delete, file_edit,
+                                               file_read, file_write,
+                                               list_directory, read_file_range)
 
 # Complete tool function list
 ALL_FILE_TOOLS = [
@@ -31,7 +32,7 @@ ALL_FILE_TOOLS = [
     insert_at_line,
     replace_lines,
     insert_after_pattern,
-    insert_before_pattern
+    insert_before_pattern,
 ]
 
 # Tool schemas for LLM (JSON format for OpenAI-style tool calling)
@@ -44,11 +45,14 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to read"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to read",
+                    }
                 },
-                "required": ["path"]
-            }
-        }
+                "required": ["path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -58,12 +62,18 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to write"},
-                    "content": {"type": "string", "description": "Content to write to the file"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to write",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write to the file",
+                    },
                 },
-                "required": ["path", "content"]
-            }
-        }
+                "required": ["path", "content"],
+            },
+        },
     },
     {
         "type": "function",
@@ -73,13 +83,22 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to edit"},
-                    "old_text": {"type": "string", "description": "Text to find and replace"},
-                    "new_text": {"type": "string", "description": "Text to replace with"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "old_text": {
+                        "type": "string",
+                        "description": "Text to find and replace",
+                    },
+                    "new_text": {
+                        "type": "string",
+                        "description": "Text to replace with",
+                    },
                 },
-                "required": ["path", "old_text", "new_text"]
-            }
-        }
+                "required": ["path", "old_text", "new_text"],
+            },
+        },
     },
     {
         "type": "function",
@@ -89,12 +108,15 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to append to"},
-                    "content": {"type": "string", "description": "Content to append"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to append to",
+                    },
+                    "content": {"type": "string", "description": "Content to append"},
                 },
-                "required": ["path", "content"]
-            }
-        }
+                "required": ["path", "content"],
+            },
+        },
     },
     {
         "type": "function",
@@ -104,11 +126,14 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to delete"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to delete",
+                    }
                 },
-                "required": ["path"]
-            }
-        }
+                "required": ["path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -118,11 +143,14 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to directory to list (defaults to current directory)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to directory to list (defaults to current directory)",
+                    }
                 },
-                "required": []
-            }
-        }
+                "required": [],
+            },
+        },
     },
     {
         "type": "function",
@@ -132,11 +160,14 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to directory to create"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to directory to create",
+                    }
                 },
-                "required": ["path"]
-            }
-        }
+                "required": ["path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -146,13 +177,22 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to read"},
-                    "start_line": {"type": "integer", "description": "First line to read (1-indexed)"},
-                    "end_line": {"type": "integer", "description": "Last line to read (inclusive)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to read",
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "First line to read (1-indexed)",
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Last line to read (inclusive)",
+                    },
                 },
-                "required": ["path", "start_line", "end_line"]
-            }
-        }
+                "required": ["path", "start_line", "end_line"],
+            },
+        },
     },
     {
         "type": "function",
@@ -162,13 +202,22 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to edit"},
-                    "line_number": {"type": "integer", "description": "Line number to insert at (1-indexed, content goes BEFORE this line)"},
-                    "content": {"type": "string", "description": "Content to insert (can be multi-line, preserves tabs/spaces)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "line_number": {
+                        "type": "integer",
+                        "description": "Line number to insert at (1-indexed, content goes BEFORE this line)",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to insert (can be multi-line, preserves tabs/spaces)",
+                    },
                 },
-                "required": ["path", "line_number", "content"]
-            }
-        }
+                "required": ["path", "line_number", "content"],
+            },
+        },
     },
     {
         "type": "function",
@@ -178,14 +227,26 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to edit"},
-                    "start_line": {"type": "integer", "description": "First line to replace (1-indexed, inclusive)"},
-                    "end_line": {"type": "integer", "description": "Last line to replace (1-indexed, inclusive)"},
-                    "new_content": {"type": "string", "description": "New content to replace the lines with (can be multi-line)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "First line to replace (1-indexed, inclusive)",
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Last line to replace (1-indexed, inclusive)",
+                    },
+                    "new_content": {
+                        "type": "string",
+                        "description": "New content to replace the lines with (can be multi-line)",
+                    },
                 },
-                "required": ["path", "start_line", "end_line", "new_content"]
-            }
-        }
+                "required": ["path", "start_line", "end_line", "new_content"],
+            },
+        },
     },
     {
         "type": "function",
@@ -195,14 +256,26 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to edit"},
-                    "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^def main', '^import os')"},
-                    "content": {"type": "string", "description": "Content to insert after the pattern (can be multi-line)"},
-                    "first_match": {"type": "boolean", "description": "If True, only insert after first match; if False, after all matches (default: True)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regex pattern to search for (e.g., '^def main', '^import os')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to insert after the pattern (can be multi-line)",
+                    },
+                    "first_match": {
+                        "type": "boolean",
+                        "description": "If True, only insert after first match; if False, after all matches (default: True)",
+                    },
                 },
-                "required": ["path", "pattern", "content"]
-            }
-        }
+                "required": ["path", "pattern", "content"],
+            },
+        },
     },
     {
         "type": "function",
@@ -212,15 +285,27 @@ FILE_TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path to the file to edit"},
-                    "pattern": {"type": "string", "description": "Regex pattern to search for (e.g., '^if __name__', '^class MyClass')"},
-                    "content": {"type": "string", "description": "Content to insert before the pattern (can be multi-line)"},
-                    "first_match": {"type": "boolean", "description": "If True, only insert before first match; if False, before all matches (default: True)"}
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regex pattern to search for (e.g., '^if __name__', '^class MyClass')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to insert before the pattern (can be multi-line)",
+                    },
+                    "first_match": {
+                        "type": "boolean",
+                        "description": "If True, only insert before first match; if False, before all matches (default: True)",
+                    },
                 },
-                "required": ["path", "pattern", "content"]
-            }
-        }
-    }
+                "required": ["path", "pattern", "content"],
+            },
+        },
+    },
 ]
 
 
@@ -331,8 +416,10 @@ Benefits:
 
 # --- Auto-registration for common patterns ---
 
-def create_agent_with_file_tools(models: List[str], instructions: List[Any],
-                                 include_efficient: bool = True, **kwargs):
+
+def create_agent_with_file_tools(
+    models: List[str], instructions: List[Any], include_efficient: bool = True, **kwargs
+):
     """
     Create a PromptChain agent with file tools automatically registered.
 
@@ -361,7 +448,7 @@ def create_agent_with_file_tools(models: List[str], instructions: List[Any],
     from promptchain import PromptChain
 
     # Create agent
-    agent = PromptChain(models=models, instructions=instructions, **kwargs)
+    agent = PromptChain(models=models, instructions=instructions, **kwargs)  # type: ignore[arg-type]
 
     # Register file tools
     register_file_tools(agent, include_efficient=include_efficient)
@@ -382,7 +469,9 @@ if __name__ == "__main__":
     print("   register_file_tools(agent)  # Adds all 12 file tools")
 
     print("\n2. Factory Function:")
-    print("   from promptchain.tools.file_tool_registry import create_agent_with_file_tools")
+    print(
+        "   from promptchain.tools.file_tool_registry import create_agent_with_file_tools"
+    )
     print("")
     print("   agent = create_agent_with_file_tools(")
     print("       models=['openai/gpt-4'],")
@@ -390,7 +479,9 @@ if __name__ == "__main__":
     print("   )")
 
     print("\n3. Get Prompt Guidance:")
-    print("   from promptchain.tools.file_tool_registry import get_file_tool_prompt_guidance")
+    print(
+        "   from promptchain.tools.file_tool_registry import get_file_tool_prompt_guidance"
+    )
     print("")
     print("   guidance = get_file_tool_prompt_guidance()")
     print("   agent_objective = f'''")

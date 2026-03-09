@@ -1,5 +1,7 @@
 """TokenBar widget for displaying real-time token usage."""
 
+from typing import Optional
+
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -71,7 +73,9 @@ class TokenBar(Static):
             indicator = "[white]o[/white]"
         else:
             # Normal - white
-            ctx_display = f"[white]{self.history_tokens}/{self.max_history_tokens}[/white]"
+            ctx_display = (
+                f"[white]{self.history_tokens}/{self.max_history_tokens}[/white]"
+            )
             indicator = "[white].[/white]"
 
         parts.append(f"{indicator} [white]Context:[/white] {ctx_display}")
@@ -83,10 +87,10 @@ class TokenBar(Static):
 
     def update_tokens(
         self,
-        api_prompt_tokens: int = None,
-        api_completion_tokens: int = None,
-        history_tokens: int = None,
-        max_history_tokens: int = None,
+        api_prompt_tokens: Optional[int] = None,
+        api_completion_tokens: Optional[int] = None,
+        history_tokens: Optional[int] = None,
+        max_history_tokens: Optional[int] = None,
     ) -> None:
         """Update token values.
 

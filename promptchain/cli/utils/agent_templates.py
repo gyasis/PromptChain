@@ -21,32 +21,22 @@ Templates can be instantiated via `create_from_template()`.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 from ..models.agent_config import Agent, HistoryConfig
-from .prompt_templates import (
-    build_instruction_chain,
-    get_default_mandatory_tools,
-    get_default_tool_registry,
-    SUPER_AGENT_PROMPT,
-    IDENTITY_BLOCK,
-    TOOL_CALLING_BLOCK,
-    MAKING_CODE_CHANGES_BLOCK,
-    SEARCHING_AND_READING_BLOCK,
-    DEBUGGING_BLOCK,
-    TERMINAL_EXECUTION_BLOCK,
-    SANDBOX_EXECUTION_BLOCK,
-    SAFETY_SECURITY_BLOCK,
-    COMMUNICATION_BLOCK,
-    CODER_SPECIALIZATION_BLOCK,
-    LINUX_EXPERT_BLOCK,
-    SECURITY_AUDITOR_BLOCK,
-    RESEARCHER_BLOCK,
-    AGENTIC_LOOP_BLOCK,
-    WEB_SEARCH_BLOCK,
-)
+from .prompt_templates import (AGENTIC_LOOP_BLOCK, CODER_SPECIALIZATION_BLOCK,
+                               COMMUNICATION_BLOCK, DEBUGGING_BLOCK,
+                               IDENTITY_BLOCK, LINUX_EXPERT_BLOCK,
+                               MAKING_CODE_CHANGES_BLOCK, RESEARCHER_BLOCK,
+                               SAFETY_SECURITY_BLOCK, SANDBOX_EXECUTION_BLOCK,
+                               SEARCHING_AND_READING_BLOCK,
+                               SECURITY_AUDITOR_BLOCK, SUPER_AGENT_PROMPT,
+                               TERMINAL_EXECUTION_BLOCK, TOOL_CALLING_BLOCK,
+                               WEB_SEARCH_BLOCK, build_instruction_chain,
+                               get_default_mandatory_tools,
+                               get_default_tool_registry)
 
 
 @dataclass
@@ -71,7 +61,7 @@ class AgentTemplate:
     instruction_chain: List[Union[str, Dict]]
     tools: List[str]
     history_config: HistoryConfig
-    metadata: Dict = None
+    metadata: Optional[Dict] = None
 
 
 # T023: Researcher Template with AgenticStepProcessor
@@ -92,7 +82,9 @@ RESEARCHER_TEMPLATE = AgentTemplate(
         "Synthesize findings into comprehensive report: {input}",
     ],
     tools=["web_search"],
-    history_config=HistoryConfig.for_agent_type("researcher"),  # T076: Use factory method
+    history_config=HistoryConfig.for_agent_type(
+        "researcher"
+    ),  # T076: Use factory method
     metadata={
         "category": "research",
         "complexity": "high",
@@ -159,11 +151,11 @@ TERMINAL_TEMPLATE = AgentTemplate(
     "History disabled for maximum token efficiency (~60% savings). "
     "Uses fast model (gpt-3.5-turbo) for sub-second responses.",
     model="openai/gpt-3.5-turbo",  # Fast, cost-effective model
-    instruction_chain=[
-        "{input}"  # Direct pass-through, no additional processing
-    ],
+    instruction_chain=["{input}"],  # Direct pass-through, no additional processing
     tools=["execute_shell", "mcp_filesystem_read", "mcp_filesystem_write"],
-    history_config=HistoryConfig.for_agent_type("terminal"),  # T076: Use factory method (~60% token savings)
+    history_config=HistoryConfig.for_agent_type(
+        "terminal"
+    ),  # T076: Use factory method (~60% token savings)
     metadata={
         "category": "execution",
         "complexity": "low",
@@ -189,18 +181,39 @@ SUPER_CODER_TEMPLATE = AgentTemplate(
         # Build comprehensive instruction using prompt_templates
         IDENTITY_BLOCK.format(
             agent_name="Super Coder",
-            agent_description="Elite code generation specialist with execution-first philosophy"
-        ) + "\n\n" + TOOL_CALLING_BLOCK + "\n\n" + MAKING_CODE_CHANGES_BLOCK + "\n\n" +
-        SEARCHING_AND_READING_BLOCK + "\n\n" + DEBUGGING_BLOCK + "\n\n" +
-        SANDBOX_EXECUTION_BLOCK + "\n\n" + CODER_SPECIALIZATION_BLOCK + "\n\n" +
-        "Now process this request:\n{input}",
+            agent_description="Elite code generation specialist with execution-first philosophy",
+        )
+        + "\n\n"
+        + TOOL_CALLING_BLOCK
+        + "\n\n"
+        + MAKING_CODE_CHANGES_BLOCK
+        + "\n\n"
+        + SEARCHING_AND_READING_BLOCK
+        + "\n\n"
+        + DEBUGGING_BLOCK
+        + "\n\n"
+        + SANDBOX_EXECUTION_BLOCK
+        + "\n\n"
+        + CODER_SPECIALIZATION_BLOCK
+        + "\n\n"
+        + "Now process this request:\n{input}",
     ],
     tools=[
-        "file_read", "file_write", "file_edit", "file_append",
-        "read_file_range", "insert_at_line", "replace_lines",
-        "insert_after_pattern", "insert_before_pattern",
-        "ripgrep_search", "list_directory", "create_directory",
-        "sandbox_provision_uv", "sandbox_execute", "sandbox_cleanup",
+        "file_read",
+        "file_write",
+        "file_edit",
+        "file_append",
+        "read_file_range",
+        "insert_at_line",
+        "replace_lines",
+        "insert_after_pattern",
+        "insert_before_pattern",
+        "ripgrep_search",
+        "list_directory",
+        "create_directory",
+        "sandbox_provision_uv",
+        "sandbox_execute",
+        "sandbox_cleanup",
         "terminal_execute",
     ],
     history_config=HistoryConfig.for_agent_type("coder"),
@@ -223,14 +236,27 @@ LINUX_EXPERT_TEMPLATE = AgentTemplate(
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Linux Expert",
-            agent_description="System administration and shell mastery specialist"
-        ) + "\n\n" + TOOL_CALLING_BLOCK + "\n\n" + TERMINAL_EXECUTION_BLOCK + "\n\n" +
-        LINUX_EXPERT_BLOCK + "\n\n" + SAFETY_SECURITY_BLOCK + "\n\n" +
-        "Now process this request:\n{input}",
+            agent_description="System administration and shell mastery specialist",
+        )
+        + "\n\n"
+        + TOOL_CALLING_BLOCK
+        + "\n\n"
+        + TERMINAL_EXECUTION_BLOCK
+        + "\n\n"
+        + LINUX_EXPERT_BLOCK
+        + "\n\n"
+        + SAFETY_SECURITY_BLOCK
+        + "\n\n"
+        + "Now process this request:\n{input}",
     ],
     tools=[
-        "terminal_execute", "file_read", "file_write", "file_edit",
-        "list_directory", "create_directory", "ripgrep_search",
+        "terminal_execute",
+        "file_read",
+        "file_write",
+        "file_edit",
+        "list_directory",
+        "create_directory",
+        "ripgrep_search",
     ],
     history_config=HistoryConfig.for_agent_type("terminal"),
     metadata={
@@ -252,10 +278,18 @@ SUPER_DEBUGGER_TEMPLATE = AgentTemplate(
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Super Debugger",
-            agent_description="Root cause analysis specialist with systematic debugging methodology"
-        ) + "\n\n" + TOOL_CALLING_BLOCK + "\n\n" + DEBUGGING_BLOCK + "\n\n" +
-        SEARCHING_AND_READING_BLOCK + "\n\n" + MAKING_CODE_CHANGES_BLOCK + "\n\n" +
-        """
+            agent_description="Root cause analysis specialist with systematic debugging methodology",
+        )
+        + "\n\n"
+        + TOOL_CALLING_BLOCK
+        + "\n\n"
+        + DEBUGGING_BLOCK
+        + "\n\n"
+        + SEARCHING_AND_READING_BLOCK
+        + "\n\n"
+        + MAKING_CODE_CHANGES_BLOCK
+        + "\n\n"
+        + """
 DEBUGGING WORKFLOW:
 1. REPRODUCE: First, reproduce the issue to confirm it exists
 2. ISOLATE: Use ripgrep_search to find relevant code paths
@@ -273,11 +307,19 @@ Now debug this issue:
 {input}""",
     ],
     tools=[
-        "file_read", "file_edit", "read_file_range", "ripgrep_search",
-        "sandbox_provision_uv", "sandbox_execute", "sandbox_cleanup",
-        "terminal_execute", "list_directory",
+        "file_read",
+        "file_edit",
+        "read_file_range",
+        "ripgrep_search",
+        "sandbox_provision_uv",
+        "sandbox_execute",
+        "sandbox_cleanup",
+        "terminal_execute",
+        "list_directory",
     ],
-    history_config=HistoryConfig.for_agent_type("researcher"),  # Full history for debugging context
+    history_config=HistoryConfig.for_agent_type(
+        "researcher"
+    ),  # Full history for debugging context
     metadata={
         "category": "debugging",
         "complexity": "expert",
@@ -297,10 +339,18 @@ SUPER_RESEARCHER_TEMPLATE = AgentTemplate(
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Super Researcher",
-            agent_description="Advanced research specialist with multi-hop reasoning and synthesis"
-        ) + "\n\n" + TOOL_CALLING_BLOCK + "\n\n" + WEB_SEARCH_BLOCK + "\n\n" +
-        RESEARCHER_BLOCK + "\n\n" + SEARCHING_AND_READING_BLOCK + "\n\n" +
-        """
+            agent_description="Advanced research specialist with multi-hop reasoning and synthesis",
+        )
+        + "\n\n"
+        + TOOL_CALLING_BLOCK
+        + "\n\n"
+        + WEB_SEARCH_BLOCK
+        + "\n\n"
+        + RESEARCHER_BLOCK
+        + "\n\n"
+        + SEARCHING_AND_READING_BLOCK
+        + "\n\n"
+        + """
 RESEARCH METHODOLOGY (8-Step Workflow):
 
 STEP 1 - QUERY ANALYSIS:
@@ -347,10 +397,14 @@ Now research this topic:
 {input}""",
     ],
     tools=[
-        "ripgrep_search", "file_read", "read_file_range",
-        "list_directory", "terminal_execute",
+        "ripgrep_search",
+        "file_read",
+        "read_file_range",
+        "list_directory",
+        "terminal_execute",
         # MCP Gemini tools for web research
-        "mcp_gemini_gemini_research", "mcp_gemini_ask_gemini",
+        "mcp_gemini_gemini_research",
+        "mcp_gemini_ask_gemini",
     ],
     history_config=HistoryConfig.for_agent_type("researcher"),
     metadata={
@@ -373,10 +427,18 @@ SECURITY_AUDITOR_TEMPLATE = AgentTemplate(
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Security Auditor",
-            agent_description="OWASP-aligned defensive security review specialist"
-        ) + "\n\n" + TOOL_CALLING_BLOCK + "\n\n" + SECURITY_AUDITOR_BLOCK + "\n\n" +
-        SAFETY_SECURITY_BLOCK + "\n\n" + SEARCHING_AND_READING_BLOCK + "\n\n" +
-        """
+            agent_description="OWASP-aligned defensive security review specialist",
+        )
+        + "\n\n"
+        + TOOL_CALLING_BLOCK
+        + "\n\n"
+        + SECURITY_AUDITOR_BLOCK
+        + "\n\n"
+        + SAFETY_SECURITY_BLOCK
+        + "\n\n"
+        + SEARCHING_AND_READING_BLOCK
+        + "\n\n"
+        + """
 SECURITY AUDIT WORKFLOW:
 
 1. THREAT MODELING:
@@ -421,8 +483,11 @@ Now audit this:
 {input}""",
     ],
     tools=[
-        "ripgrep_search", "file_read", "read_file_range",
-        "list_directory", "terminal_execute",
+        "ripgrep_search",
+        "file_read",
+        "read_file_range",
+        "list_directory",
+        "terminal_execute",
     ],
     history_config=HistoryConfig.for_agent_type("researcher"),
     metadata={
@@ -442,20 +507,37 @@ DEFAULT_ENHANCED_TEMPLATE = AgentTemplate(
     "Suitable for any coding, file manipulation, research, or Linux task.",
     model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
-        SUPER_AGENT_PROMPT + "\n\n" + WEB_SEARCH_BLOCK + "\n\nNow process this request:\n{input}",
+        SUPER_AGENT_PROMPT
+        + "\n\n"
+        + WEB_SEARCH_BLOCK
+        + "\n\nNow process this request:\n{input}",
     ],
     tools=[
         # All 19 local tools available
-        "sandbox_provision_uv", "sandbox_provision_docker", "sandbox_execute",
-        "sandbox_list", "sandbox_cleanup",
-        "file_read", "file_write", "file_edit", "file_append", "file_delete",
-        "list_directory", "create_directory",
-        "read_file_range", "insert_at_line", "replace_lines",
-        "insert_after_pattern", "insert_before_pattern",
-        "ripgrep_search", "terminal_execute",
+        "sandbox_provision_uv",
+        "sandbox_provision_docker",
+        "sandbox_execute",
+        "sandbox_list",
+        "sandbox_cleanup",
+        "file_read",
+        "file_write",
+        "file_edit",
+        "file_append",
+        "file_delete",
+        "list_directory",
+        "create_directory",
+        "read_file_range",
+        "insert_at_line",
+        "replace_lines",
+        "insert_after_pattern",
+        "insert_before_pattern",
+        "ripgrep_search",
+        "terminal_execute",
         # MCP Gemini tools for web research (auto-connected)
-        "mcp_gemini_gemini_research", "mcp_gemini_ask_gemini",
-        "mcp_gemini_gemini_code_review", "mcp_gemini_gemini_brainstorm",
+        "mcp_gemini_gemini_research",
+        "mcp_gemini_ask_gemini",
+        "mcp_gemini_gemini_code_review",
+        "mcp_gemini_gemini_brainstorm",
     ],
     history_config=HistoryConfig.for_agent_type("coder"),
     metadata={
@@ -552,8 +634,8 @@ def list_templates() -> List[Dict[str, str]]:
             "display_name": template.display_name,
             "description": template.description,
             "model": template.model,
-            "complexity": template.metadata.get("complexity", "unknown"),
-            "token_usage": template.metadata.get("token_usage", "unknown"),
+            "complexity": template.metadata.get("complexity", "unknown"),  # type: ignore[union-attr]
+            "token_usage": template.metadata.get("token_usage", "unknown"),  # type: ignore[union-attr]
         }
         for template in AGENT_TEMPLATES.values()
     ]
@@ -630,7 +712,9 @@ STANDARD_TOOLS = {
 }
 
 
-def validate_template_tools(template_name: str, available_tools: Optional[List[str]] = None) -> Dict[str, any]:
+def validate_template_tools(
+    template_name: str, available_tools: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """Validate that all tools referenced in a template exist (T101).
 
     Args:
@@ -655,7 +739,7 @@ def validate_template_tools(template_name: str, available_tools: Optional[List[s
             "missing_tools": [],
             "available_tools": [],
             "warnings": [f"Template '{template_name}' not found"],
-            "error": f"Invalid template name: {template_name}"
+            "error": f"Invalid template name: {template_name}",
         }
 
     template = AGENT_TEMPLATES[template_name]
@@ -682,11 +766,13 @@ def validate_template_tools(template_name: str, available_tools: Optional[List[s
         "available_tools": available_tool_list,
         "warnings": warnings,
         "template_name": template_name,
-        "total_tools": len(template.tools)
+        "total_tools": len(template.tools),
     }
 
 
-def validate_all_templates(available_tools: Optional[List[str]] = None) -> Dict[str, Dict]:
+def validate_all_templates(
+    available_tools: Optional[List[str]] = None,
+) -> Dict[str, Dict]:
     """Validate all templates for tool availability (T101).
 
     Args:

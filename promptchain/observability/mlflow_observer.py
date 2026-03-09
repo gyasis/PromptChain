@@ -20,9 +20,9 @@ ARCHITECTURE:
 
 import logging
 import os
-from datetime import datetime
-from typing import Dict, Optional, Any
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from ..utils.execution_events import ExecutionEvent, ExecutionEventType
 
@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 _MLFLOW_AVAILABLE = False
 try:
     import mlflow
+
     _MLFLOW_AVAILABLE = True
 except ImportError:
     logger.debug("MLflow not installed - observer disabled")
@@ -65,7 +66,7 @@ class MLflowObserver:
         experiment_name: str = "promptchain-cli",
         tracking_uri: str = "http://localhost:5000",
         enabled_env_var: str = "PROMPTCHAIN_MLFLOW_ENABLED",
-        auto_log_artifacts: bool = True
+        auto_log_artifacts: bool = True,
     ):
         """Initialize MLflow observer with configuration.
 
@@ -79,15 +80,16 @@ class MLflowObserver:
         self.tracking_uri = tracking_uri
         self.auto_log_artifacts = auto_log_artifacts
         self._initialized = False
-        self._active_run = None
-        self._step_runs = {}  # Track nested runs for steps
-        self._run_start_times = {}  # Track timing for duration metrics
+        self._active_run: Optional[Any] = None
+        self._step_runs: Dict[int, Any] = {}  # Track nested runs for steps
+        self._run_start_times: Dict[str, datetime] = (
+            {}
+        )  # Track timing for duration metrics
 
         # Check if observer should be enabled
-        self._enabled = (
-            _MLFLOW_AVAILABLE and
-            os.environ.get(enabled_env_var, "false").lower() in ("true", "1", "yes")
-        )
+        self._enabled = _MLFLOW_AVAILABLE and os.environ.get(
+            enabled_env_var, "false"
+        ).lower() in ("true", "1", "yes")
 
         if not _MLFLOW_AVAILABLE:
             logger.debug("MLflow not available - install with: pip install mlflow")
@@ -193,7 +195,9 @@ class MLflowObserver:
     def _handle_chain_start(self, event: ExecutionEvent) -> None:
         """Handle chain execution start - creates parent MLflow run."""
         if self._active_run is not None:
-            logger.warning("Chain start event while run already active - ending previous")
+            logger.warning(
+                "Chain start event while run already active - ending previous"
+            )
             self._end_active_run(status="KILLED")
 
         # Start new MLflow run for chain
@@ -245,8 +249,7 @@ class MLflowObserver:
             if self.auto_log_artifacts and "messages" in event.metadata:
                 messages = event.metadata["messages"]
                 prompt_text = "\n\n".join(
-                    f"{m.get('role', 'user')}: {m.get('content', '')}"
-                    for m in messages
+                    f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
                 )
                 mlflow.log_text(prompt_text, f"prompts/{call_id}.txt")
 
@@ -268,11 +271,13 @@ class MLflowObserver:
         # Log token usage
         usage = event.metadata.get("usage", {})
         if usage:
-            mlflow.log_metrics({
-                f"tokens.prompt.{call_id}": usage.get("prompt_tokens", 0),
-                f"tokens.completion.{call_id}": usage.get("completion_tokens", 0),
-                f"tokens.total.{call_id}": usage.get("total_tokens", 0),
-            })
+            mlflow.log_metrics(
+                {
+                    f"tokens.prompt.{call_id}": usage.get("prompt_tokens", 0),
+                    f"tokens.completion.{call_id}": usage.get("completion_tokens", 0),
+                    f"tokens.total.{call_id}": usage.get("total_tokens", 0),
+                }
+            )
 
         # Log response as artifact if enabled
         if self.auto_log_artifacts and "response" in event.metadata:
@@ -336,10 +341,7 @@ class MLflowObserver:
             return
 
         # Create nested run for this step
-        step_run = mlflow.start_run(
-            run_name=f"step-{step_num}",
-            nested=True
-        )
+        step_run = mlflow.start_run(run_name=f"step-{step_num}", nested=True)
         self._step_runs[step_num] = step_run
 
         # Log step parameters

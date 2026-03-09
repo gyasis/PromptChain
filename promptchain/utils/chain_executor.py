@@ -7,28 +7,28 @@ execution tracking.
 """
 
 import asyncio
-import time
-import logging
-from typing import Optional, Dict, Any, List, Union, Callable
-from datetime import datetime
 import hashlib
+import logging
+import time
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from .chain_models import (
-    ChainDefinition,
-    ChainStepDefinition,
-    StepType,
-    ChainMode,
-    ChainExecutionRecord,
-    ValidationResult
-)
 from .chain_factory import ChainFactory, ChainFactoryError, ChainNotFoundError
+from .chain_models import (ChainDefinition, ChainExecutionRecord, ChainMode,
+                           ChainStepDefinition, StepType, ValidationResult)
 
 logger = logging.getLogger(__name__)
 
 
 class ChainExecutionError(Exception):
     """Error during chain execution."""
-    def __init__(self, message: str, step_id: Optional[str] = None, chain_vin: Optional[str] = None):
+
+    def __init__(
+        self,
+        message: str,
+        step_id: Optional[str] = None,
+        chain_vin: Optional[str] = None,
+    ):
         self.step_id = step_id
         self.chain_vin = chain_vin
         super().__init__(message)
@@ -36,11 +36,13 @@ class ChainExecutionError(Exception):
 
 class ChainTimeoutError(ChainExecutionError):
     """Chain execution timed out."""
+
     pass
 
 
 class ChainGuardFailure(ChainExecutionError):
     """Guardrail check failed during execution."""
+
     pass
 
 
@@ -68,7 +70,7 @@ class ChainExecutor:
         default_model: str = "openai/gpt-4.1-mini-2025-04-14",
         verbose: bool = False,
         track_executions: bool = True,
-        max_nested_depth: int = 5
+        max_nested_depth: int = 5,
     ):
         """Initialize ChainExecutor.
 
@@ -109,7 +111,7 @@ class ChainExecutor:
         self,
         chain: ChainDefinition,
         input_data: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Execute a chain asynchronously.
 
@@ -134,7 +136,7 @@ class ChainExecutor:
             self._current_depth -= 1
             raise ChainExecutionError(
                 f"Maximum nesting depth ({self.max_nested_depth}) exceeded",
-                chain_vin=chain.vin
+                chain_vin=chain.vin,
             )
 
         # Validate chain before execution
@@ -143,15 +145,14 @@ class ChainExecutor:
             self._current_depth -= 1
             errors = [i.message for i in validation.issues if i.severity == "error"]
             raise ChainGuardFailure(
-                f"Chain validation failed: {'; '.join(errors)}",
-                chain_vin=chain.vin
+                f"Chain validation failed: {'; '.join(errors)}", chain_vin=chain.vin
             )
 
         try:
             # Execute with timeout
             result = await asyncio.wait_for(
                 self._execute_chain_steps(chain, input_data, context),
-                timeout=chain.guardrails.timeout_seconds
+                timeout=chain.guardrails.timeout_seconds,
             )
 
             # Track execution
@@ -161,7 +162,7 @@ class ChainExecutor:
                     input_data=input_data,
                     output=result,
                     execution_time_ms=int((time.time() - start_time) * 1000),
-                    success=True
+                    success=True,
                 )
 
             return result
@@ -170,7 +171,7 @@ class ChainExecutor:
             self._current_depth -= 1
             raise ChainTimeoutError(
                 f"Chain execution timed out after {chain.guardrails.timeout_seconds}s",
-                chain_vin=chain.vin
+                chain_vin=chain.vin,
             )
         except Exception as e:
             self._current_depth -= 1
@@ -181,7 +182,7 @@ class ChainExecutor:
                     output=None,
                     execution_time_ms=int((time.time() - start_time) * 1000),
                     success=False,
-                    error=str(e)
+                    error=str(e),
                 )
             raise
         finally:
@@ -191,7 +192,7 @@ class ChainExecutor:
         self,
         chain: ChainDefinition,
         input_data: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Execute a chain synchronously.
 
@@ -209,7 +210,7 @@ class ChainExecutor:
         self,
         chain: ChainDefinition,
         input_data: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Execute chain steps sequentially.
 
@@ -223,24 +224,30 @@ class ChainExecutor:
         """
         current_input = input_data
         context = context or {}
-        context['input'] = input_data
+        context["input"] = input_data
 
         if self.verbose:
             logger.info(f"Executing chain: {chain.vin} ({len(chain.steps)} steps)")
 
         for i, step in enumerate(chain.steps):
             if self.verbose:
-                logger.debug(f"Step {i+1}/{len(chain.steps)}: {step.id} ({step.type.value})")
+                logger.debug(
+                    f"Step {i+1}/{len(chain.steps)}: {step.id} ({step.type.value})"
+                )
 
             # Check for forbidden patterns in current input
             self._check_forbidden_patterns(current_input, chain, step.id)
 
             # Execute step based on type
             if step.type == StepType.PROMPT:
-                current_input = await self._execute_prompt_step(step, current_input, chain, context)
+                current_input = await self._execute_prompt_step(
+                    step, current_input, chain, context
+                )
 
             elif step.type == StepType.CHAIN:
-                current_input = await self._execute_chain_step(step, current_input, context)
+                current_input = await self._execute_chain_step(
+                    step, current_input, context
+                )
 
             elif step.type == StepType.FUNCTION:
                 current_input = await self._execute_function_step(step, current_input)
@@ -250,13 +257,15 @@ class ChainExecutor:
                     raise ChainGuardFailure(
                         "Agentic steps not allowed in strict mode",
                         step_id=step.id,
-                        chain_vin=chain.vin
+                        chain_vin=chain.vin,
                     )
-                current_input = await self._execute_agentic_step(step, current_input, chain)
+                current_input = await self._execute_agentic_step(
+                    step, current_input, chain
+                )
 
             # Update context
-            context['input'] = current_input
-            context[f'step_{step.id}_output'] = current_input
+            context["input"] = current_input
+            context[f"step_{step.id}_output"] = current_input
 
         return current_input
 
@@ -269,7 +278,7 @@ class ChainExecutor:
         step: ChainStepDefinition,
         input_data: str,
         chain: ChainDefinition,
-        context: Dict[str, Any]
+        context: Dict[str, Any],
     ) -> str:
         """Execute a prompt step using LLM.
 
@@ -283,8 +292,8 @@ class ChainExecutor:
             LLM response
         """
         # Import here to avoid circular imports
-        from .promptchaining import PromptChain
         from .preprompt import PrePrompt
+        from .promptchaining import PromptChain
 
         # Get prompt content
         if step.prompt_id:
@@ -297,7 +306,7 @@ class ChainExecutor:
             raise ChainExecutionError(
                 "Prompt step has no prompt_id or content",
                 step_id=step.id,
-                chain_vin=chain.vin
+                chain_vin=chain.vin,
             )
 
         # Substitute variables
@@ -305,19 +314,14 @@ class ChainExecutor:
 
         # Create minimal PromptChain for single step
         mini_chain = PromptChain(
-            models=[chain.llm_model],
-            instructions=[prompt],
-            verbose=self.verbose
+            models=[chain.llm_model], instructions=[prompt], verbose=self.verbose
         )
 
         result = await mini_chain.process_prompt_async(input_data)
         return result
 
     async def _execute_chain_step(
-        self,
-        step: ChainStepDefinition,
-        input_data: str,
-        context: Dict[str, Any]
+        self, step: ChainStepDefinition, input_data: str, context: Dict[str, Any]
     ) -> str:
         """Execute a nested chain step.
 
@@ -330,17 +334,13 @@ class ChainExecutor:
             Nested chain output
         """
         if not step.chain_id:
-            raise ChainExecutionError(
-                "Chain step missing chain_id",
-                step_id=step.id
-            )
+            raise ChainExecutionError("Chain step missing chain_id", step_id=step.id)
 
         try:
             nested_chain = self.factory.resolve(step.chain_id)
         except ChainNotFoundError as e:
             raise ChainExecutionError(
-                f"Nested chain not found: {step.chain_id}",
-                step_id=step.id
+                f"Nested chain not found: {step.chain_id}", step_id=step.id
             ) from e
 
         # Recursive execution
@@ -348,9 +348,7 @@ class ChainExecutor:
         return result
 
     async def _execute_function_step(
-        self,
-        step: ChainStepDefinition,
-        input_data: str
+        self, step: ChainStepDefinition, input_data: str
     ) -> str:
         """Execute a registered function step.
 
@@ -363,14 +361,12 @@ class ChainExecutor:
         """
         if not step.function_name:
             raise ChainExecutionError(
-                "Function step missing function_name",
-                step_id=step.id
+                "Function step missing function_name", step_id=step.id
             )
 
         if step.function_name not in self._registered_functions:
             raise ChainExecutionError(
-                f"Function not registered: {step.function_name}",
-                step_id=step.id
+                f"Function not registered: {step.function_name}", step_id=step.id
             )
 
         func = self._registered_functions[step.function_name]
@@ -384,10 +380,7 @@ class ChainExecutor:
         return str(result)
 
     async def _execute_agentic_step(
-        self,
-        step: ChainStepDefinition,
-        input_data: str,
-        chain: ChainDefinition
+        self, step: ChainStepDefinition, input_data: str, chain: ChainDefinition
     ) -> str:
         """Execute an AgenticStepProcessor step (hybrid mode only).
 
@@ -403,24 +396,22 @@ class ChainExecutor:
 
         if not step.objective:
             raise ChainExecutionError(
-                "Agentic step missing objective",
-                step_id=step.id,
-                chain_vin=chain.vin
+                "Agentic step missing objective", step_id=step.id, chain_vin=chain.vin
             )
 
         # Create AgenticStepProcessor
-        processor = AgenticStepProcessor(
+        processor = AgenticStepProcessor(  # type: ignore[call-arg]
             objective=step.objective,
             max_internal_steps=step.max_steps or 5,
             model_name=chain.llm_model,
-            verbose=self.verbose
+            verbose=self.verbose,
         )
 
         # Run processor
-        result = await processor.run_async(input_data)
+        result = await processor.run_async(input_data)  # type: ignore[call-arg]
 
         # Extract output from result
-        if hasattr(result, 'final_output'):
+        if hasattr(result, "final_output"):
             return result.final_output
         return str(result)
 
@@ -429,10 +420,7 @@ class ChainExecutor:
     # =========================================================================
 
     def _check_forbidden_patterns(
-        self,
-        content: str,
-        chain: ChainDefinition,
-        step_id: Optional[str] = None
+        self, content: str, chain: ChainDefinition, step_id: Optional[str] = None
     ):
         """Check content for forbidden patterns.
 
@@ -449,7 +437,7 @@ class ChainExecutor:
                 raise ChainGuardFailure(
                     f"Forbidden pattern detected: '{pattern}'",
                     step_id=step_id,
-                    chain_vin=chain.vin
+                    chain_vin=chain.vin,
                 )
 
     # =========================================================================
@@ -463,7 +451,7 @@ class ChainExecutor:
         output: Optional[str],
         execution_time_ms: int,
         success: bool,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ):
         """Record chain execution for analytics.
 
@@ -484,7 +472,7 @@ class ChainExecutor:
             execution_time_ms=execution_time_ms,
             success=success,
             error_message=error,
-            steps_executed=len(chain.steps)
+            steps_executed=len(chain.steps),
         )
 
         self._execution_records.append(record)
@@ -506,10 +494,7 @@ class ChainExecutor:
     # =========================================================================
 
     async def execute_by_id_async(
-        self,
-        chain_ref: str,
-        input_data: str,
-        context: Optional[Dict[str, Any]] = None
+        self, chain_ref: str, input_data: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Execute a chain by reference (model:version or VIN).
 
@@ -525,10 +510,7 @@ class ChainExecutor:
         return await self.execute_async(chain, input_data, context)
 
     def execute_by_id(
-        self,
-        chain_ref: str,
-        input_data: str,
-        context: Optional[Dict[str, Any]] = None
+        self, chain_ref: str, input_data: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Execute a chain by reference synchronously."""
         return asyncio.run(self.execute_by_id_async(chain_ref, input_data, context))
@@ -538,9 +520,9 @@ class ChainExecutor:
 # Helper Functions
 # =========================================================================
 
+
 def create_executor(
-    factory: Optional[ChainFactory] = None,
-    verbose: bool = False
+    factory: Optional[ChainFactory] = None, verbose: bool = False
 ) -> ChainExecutor:
     """Create a ChainExecutor with sensible defaults.
 
@@ -551,7 +533,4 @@ def create_executor(
     Returns:
         Configured ChainExecutor
     """
-    return ChainExecutor(
-        factory=factory or ChainFactory(),
-        verbose=verbose
-    )
+    return ChainExecutor(factory=factory or ChainFactory(), verbose=verbose)

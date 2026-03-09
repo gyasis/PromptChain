@@ -44,6 +44,7 @@ class Memo:
         metadata: Additional contextual information
         relevance_score: Similarity score when retrieved (populated during search)
     """
+
     memo_id: int
     task_description: str
     solution: str
@@ -72,7 +73,7 @@ class MemoStore:
         db_path: Optional[str] = None,
         embedding_function: Optional[Any] = None,
         max_memos: int = 1000,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.7,
     ):
         """Initialize memo store.
 
@@ -106,7 +107,8 @@ class MemoStore:
     def _init_database(self) -> None:
         """Create database schema if not exists."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS memos (
                     memo_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     task_description TEXT NOT NULL,
@@ -116,12 +118,15 @@ class MemoStore:
                     timestamp REAL NOT NULL,
                     metadata TEXT
                 )
-            """)
+            """
+            )
 
             # Create index on timestamp for efficient cleanup
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_timestamp ON memos(timestamp DESC)
-            """)
+            """
+            )
 
             conn.commit()
             logger.debug("Database schema initialized")
@@ -143,7 +148,7 @@ class MemoStore:
 
         # Fallback: Simple bag-of-words with TF weighting
         words = text.lower().split()
-        word_counts = {}
+        word_counts: Dict[str, int] = {}
         for word in words:
             if len(word) > 3:  # Filter short words
                 word_counts[word] = word_counts.get(word, 0) + 1
@@ -186,7 +191,7 @@ class MemoStore:
         task_description: str,
         solution: str,
         outcome: str = "success",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> int:
         """Store a new memo with task/solution pair.
 
@@ -213,7 +218,14 @@ class MemoStore:
                 INSERT INTO memos (task_description, solution, outcome, embedding, timestamp, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (task_description, solution, outcome, embedding_bytes, timestamp, metadata_json)
+                (
+                    task_description,
+                    solution,
+                    outcome,
+                    embedding_bytes,
+                    timestamp,
+                    metadata_json,
+                ),
             )
             memo_id = cursor.lastrowid
             conn.commit()
@@ -222,7 +234,7 @@ class MemoStore:
         self._cleanup_old_memos()
 
         logger.info(f"Stored memo #{memo_id}: {task_description[:50]}...")
-        return memo_id
+        return memo_id or 0
 
     def _cleanup_old_memos(self) -> None:
         """Remove oldest memos if max_memos exceeded."""
@@ -243,16 +255,18 @@ class MemoStore:
                         LIMIT ?
                     )
                     """,
-                    (to_delete,)
+                    (to_delete,),
                 )
                 conn.commit()
-                logger.debug(f"Cleaned up {to_delete} old memos (limit: {self.max_memos})")
+                logger.debug(
+                    f"Cleaned up {to_delete} old memos (limit: {self.max_memos})"
+                )
 
     def retrieve_relevant_memos(
         self,
         task_description: str,
         top_k: int = 3,
-        outcome_filter: Optional[str] = None
+        outcome_filter: Optional[str] = None,
     ) -> List[Memo]:
         """Retrieve memos most relevant to the given task.
 
@@ -273,7 +287,7 @@ class MemoStore:
                 cursor = conn.execute(
                     "SELECT memo_id, task_description, solution, outcome, embedding, timestamp, metadata "
                     "FROM memos WHERE outcome = ?",
-                    (outcome_filter,)
+                    (outcome_filter,),
                 )
             else:
                 cursor = conn.execute(
@@ -286,7 +300,15 @@ class MemoStore:
         # Calculate similarities
         memo_scores = []
         for row in rows:
-            memo_id, task_desc, solution, outcome, embedding_bytes, timestamp, metadata_json = row
+            (
+                memo_id,
+                task_desc,
+                solution,
+                outcome,
+                embedding_bytes,
+                timestamp,
+                metadata_json,
+            ) = row
 
             # Reconstruct embedding
             if embedding_bytes:
@@ -304,7 +326,7 @@ class MemoStore:
                         embedding=embedding,
                         timestamp=timestamp,
                         metadata=metadata,
-                        relevance_score=similarity
+                        relevance_score=similarity,
                     )
                     memo_scores.append((similarity, memo))
 
@@ -336,14 +358,26 @@ class MemoStore:
                 ORDER BY timestamp DESC
                 LIMIT ?
                 """,
-                (limit,)
+                (limit,),
             )
             rows = cursor.fetchall()
 
         memos = []
         for row in rows:
-            memo_id, task_desc, solution, outcome, embedding_bytes, timestamp, metadata_json = row
-            embedding = np.frombuffer(embedding_bytes, dtype=np.float64) if embedding_bytes else None
+            (
+                memo_id,
+                task_desc,
+                solution,
+                outcome,
+                embedding_bytes,
+                timestamp,
+                metadata_json,
+            ) = row
+            embedding = (
+                np.frombuffer(embedding_bytes, dtype=np.float64)
+                if embedding_bytes
+                else None
+            )
             metadata = json.loads(metadata_json) if metadata_json else None
 
             memo = Memo(
@@ -353,7 +387,7 @@ class MemoStore:
                 outcome=outcome,
                 embedding=embedding,
                 timestamp=timestamp,
-                metadata=metadata
+                metadata=metadata,
             )
             memos.append(memo)
 
@@ -406,7 +440,9 @@ class MemoStore:
             total_count = cursor.fetchone()[0]
 
             # Count by outcome
-            cursor = conn.execute("SELECT outcome, COUNT(*) FROM memos GROUP BY outcome")
+            cursor = conn.execute(
+                "SELECT outcome, COUNT(*) FROM memos GROUP BY outcome"
+            )
             outcome_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
             # Oldest and newest timestamps
@@ -420,7 +456,7 @@ class MemoStore:
             "newest_timestamp": max_ts,
             "max_memos": self.max_memos,
             "similarity_threshold": self.similarity_threshold,
-            "db_path": self.db_path
+            "db_path": self.db_path,
         }
 
     def format_memos_for_context(self, memos: List[Memo], max_memos: int = 3) -> str:
@@ -438,7 +474,7 @@ class MemoStore:
 
         lines = [
             "=== Relevant Lessons Learned from Past Tasks ===\n",
-            f"Found {len(memos[:max_memos])} relevant memo(s) that may help:\n"
+            f"Found {len(memos[:max_memos])} relevant memo(s) that may help:\n",
         ]
 
         for i, memo in enumerate(memos[:max_memos], 1):
@@ -459,11 +495,12 @@ class MemoStore:
 # Integration with AgenticStepProcessor
 # ============================================================================
 
+
 def inject_relevant_memos(
     memo_store: MemoStore,
     task_description: str,
     existing_context: str = "",
-    top_k: int = 3
+    top_k: int = 3,
 ) -> str:
     """Helper function to inject relevant memos into context.
 
@@ -481,7 +518,9 @@ def inject_relevant_memos(
     relevant_memos = memo_store.retrieve_relevant_memos(task_description, top_k=top_k)
 
     if relevant_memos:
-        memo_context = memo_store.format_memos_for_context(relevant_memos, max_memos=top_k)
+        memo_context = memo_store.format_memos_for_context(
+            relevant_memos, max_memos=top_k
+        )
         return f"{memo_context}\n\n{existing_context}"
 
     return existing_context

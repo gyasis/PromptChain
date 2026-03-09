@@ -24,43 +24,37 @@ except ImportError:
 
 # Import delegation tools
 try:
-    from .delegation_tools import (
-        delegate_task,
-        get_pending_tasks,
-        update_task_status,
-        set_session_manager as set_delegation_session_manager,
-    )
+    from .delegation_tools import delegate_task, get_pending_tasks
+    from .delegation_tools import \
+        set_session_manager as set_delegation_session_manager
+    from .delegation_tools import update_task_status
 except ImportError:
     delegate_task = None
     get_pending_tasks = None
     update_task_status = None
-    set_delegation_session_manager = None
+    set_delegation_session_manager = None  # type: ignore[assignment]
 
 # Import blackboard tools
 try:
-    from .blackboard_tools import (
-        write_to_blackboard,
-        read_from_blackboard,
-        list_blackboard_keys,
-        delete_blackboard_entry,
-        set_session_manager as set_blackboard_session_manager,
-    )
+    from .blackboard_tools import (delete_blackboard_entry,
+                                   list_blackboard_keys, read_from_blackboard)
+    from .blackboard_tools import \
+        set_session_manager as set_blackboard_session_manager
+    from .blackboard_tools import write_to_blackboard
 except ImportError:
     write_to_blackboard = None
     read_from_blackboard = None
     list_blackboard_keys = None
     delete_blackboard_entry = None
-    set_blackboard_session_manager = None
+    set_blackboard_session_manager = None  # type: ignore[assignment]
 
 # Import mental model tools
 try:
-    from .mental_model_tools import (
-        get_my_capabilities_tool,
-        discover_capable_agents_tool,
-        update_specialization_tool,
-        record_task_experience_tool,
-        share_capabilities_tool,
-    )
+    from .mental_model_tools import (discover_capable_agents_tool,
+                                     get_my_capabilities_tool,
+                                     record_task_experience_tool,
+                                     share_capabilities_tool,
+                                     update_specialization_tool)
 except ImportError:
     get_my_capabilities_tool = None
     discover_capable_agents_tool = None

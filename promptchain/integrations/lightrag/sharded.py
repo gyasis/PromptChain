@@ -9,10 +9,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 from promptchain.integrations.lightrag import LIGHTRAG_AVAILABLE
+from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
 
 if TYPE_CHECKING:
     from hybridrag.src.lightrag_core import HybridLightRAGCore
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ShardType(Enum):
     """Type of database shard."""
+
     LIGHTRAG = "lightrag"
     VECTOR_DB = "vector_db"
     DOCUMENT_DB = "document_db"
@@ -41,6 +42,7 @@ class ShardConfig:
         timeout_seconds: Maximum query time before timeout.
         enabled: Whether this shard is active.
     """
+
     shard_id: str
     shard_type: ShardType
     working_dir: str = ""
@@ -60,6 +62,7 @@ class ShardResult:
         query_time_ms: Time taken to query this shard in milliseconds.
         error: Error message if query failed, None otherwise.
     """
+
     shard_id: str
     results: List[Any]
     query_time_ms: float
@@ -83,6 +86,7 @@ class ShardedRetrievalConfig(PatternConfig):
         aggregate_top_k: Number of results to return after aggregation.
         normalize_scores: Whether to normalize scores across shards.
     """
+
     parallel: bool = True
     fail_partial: bool = True
     aggregate_top_k: int = 10
@@ -103,6 +107,7 @@ class ShardedRetrievalResult(PatternResult):
         shards_failed: Number of shards that failed.
         warnings: List of warning messages.
     """
+
     query: str = ""
     shard_results: List[ShardResult] = field(default_factory=list)
     aggregated_results: List[Any] = field(default_factory=list)
@@ -159,8 +164,7 @@ class LightRAGShardRegistry:
 
             # Create HybridLightRAGCore instance
             shard = HybridLightRAGCore(
-                working_dir=config.working_dir,
-                **(config.connection_config or {})
+                working_dir=config.working_dir, **(config.connection_config or {})
             )
             self._shards[config.shard_id] = shard
             logger.info(f"Registered LIGHTRAG shard: {config.shard_id}")
@@ -168,7 +172,9 @@ class LightRAGShardRegistry:
         else:
             # For non-LIGHTRAG shards, store config for custom implementation
             self._shards[config.shard_id] = config.connection_config or {}
-            logger.info(f"Registered {config.shard_type.value} shard: {config.shard_id}")
+            logger.info(
+                f"Registered {config.shard_type.value} shard: {config.shard_id}"
+            )
 
         self._configs[config.shard_id] = config
 
@@ -263,7 +269,7 @@ class LightRAGShardedRetriever(BasePattern):
     def __init__(
         self,
         registry: LightRAGShardRegistry,
-        config: Optional[ShardedRetrievalConfig] = None
+        config: Optional[ShardedRetrievalConfig] = None,
     ):
         """Initialize the sharded retriever.
 
@@ -275,11 +281,8 @@ class LightRAGShardedRetriever(BasePattern):
         self.registry = registry
         self.config: ShardedRetrievalConfig  # Type hint for IDE support
 
-    async def execute(
-        self,
-        query: str,
-        shard_ids: Optional[List[str]] = None,
-        **kwargs
+    async def execute(  # type: ignore[override]
+        self, query: str, shard_ids: Optional[List[str]] = None, **kwargs
     ) -> ShardedRetrievalResult:
         """Execute sharded retrieval.
 
@@ -300,7 +303,8 @@ class LightRAGShardedRetriever(BasePattern):
         # Determine which shards to query
         if shard_ids is None:
             shard_ids = [
-                sid for sid in self.registry.list_shards()
+                sid
+                for sid in self.registry.list_shards()
                 if self.registry.get_config(sid).enabled
             ]
 
@@ -314,11 +318,14 @@ class LightRAGShardedRetriever(BasePattern):
                 errors=["No enabled shards available"],
             )
 
-        self.emit_event("pattern.sharded.started", {
-            "query": query,
-            "shard_count": len(shard_ids),
-            "parallel": self.config.parallel,
-        })
+        self.emit_event(
+            "pattern.sharded.started",
+            {
+                "query": query,
+                "shard_count": len(shard_ids),
+                "parallel": self.config.parallel,
+            },
+        )
 
         # Query shards
         if self.config.parallel:
@@ -344,13 +351,16 @@ class LightRAGShardedRetriever(BasePattern):
         elif shards_failed > 0:
             warnings.append(f"{shards_failed} shard(s) failed but continuing")
 
-        self.emit_event("pattern.sharded.completed", {
-            "query": query,
-            "shards_queried": len(shard_ids),
-            "shards_failed": shards_failed,
-            "results_count": len(aggregated),
-            "execution_time_ms": execution_time_ms,
-        })
+        self.emit_event(
+            "pattern.sharded.completed",
+            {
+                "query": query,
+                "shards_queried": len(shard_ids),
+                "shards_failed": shards_failed,
+                "results_count": len(aggregated),
+                "execution_time_ms": execution_time_ms,
+            },
+        )
 
         return ShardedRetrievalResult(
             pattern_id=self.config.pattern_id,
@@ -367,10 +377,7 @@ class LightRAGShardedRetriever(BasePattern):
         )
 
     async def _query_parallel(
-        self,
-        query: str,
-        shard_ids: List[str],
-        **kwargs
+        self, query: str, shard_ids: List[str], **kwargs
     ) -> List[ShardResult]:
         """Query all shards in parallel.
 
@@ -389,10 +396,7 @@ class LightRAGShardedRetriever(BasePattern):
         return await asyncio.gather(*tasks)
 
     async def _query_sequential(
-        self,
-        query: str,
-        shard_ids: List[str],
-        **kwargs
+        self, query: str, shard_ids: List[str], **kwargs
     ) -> List[ShardResult]:
         """Query shards sequentially.
 
@@ -411,10 +415,7 @@ class LightRAGShardedRetriever(BasePattern):
         return results
 
     async def _query_single_shard(
-        self,
-        query: str,
-        shard_id: str,
-        **kwargs
+        self, query: str, shard_id: str, **kwargs
     ) -> ShardResult:
         """Query a single shard with timeout handling.
 
@@ -435,8 +436,7 @@ class LightRAGShardedRetriever(BasePattern):
             # Query with timeout
             if config.shard_type == ShardType.LIGHTRAG:
                 results = await asyncio.wait_for(
-                    shard.hybrid_query(query, **kwargs),
-                    timeout=config.timeout_seconds
+                    shard.hybrid_query(query, **kwargs), timeout=config.timeout_seconds
                 )
             else:
                 # For non-LIGHTRAG shards, return empty results
@@ -445,11 +445,14 @@ class LightRAGShardedRetriever(BasePattern):
 
             query_time_ms = (time.perf_counter() - start_time) * 1000
 
-            self.emit_event("pattern.sharded.shard_queried", {
-                "shard_id": shard_id,
-                "query_time_ms": query_time_ms,
-                "results_count": len(results) if isinstance(results, list) else 1,
-            })
+            self.emit_event(
+                "pattern.sharded.shard_queried",
+                {
+                    "shard_id": shard_id,
+                    "query_time_ms": query_time_ms,
+                    "results_count": len(results) if isinstance(results, list) else 1,
+                },
+            )
 
             # Normalize results to list format
             if not isinstance(results, list):
@@ -466,11 +469,14 @@ class LightRAGShardedRetriever(BasePattern):
             error_msg = f"Query timed out after {config.timeout_seconds}s"
             logger.warning(f"Shard {shard_id}: {error_msg}")
 
-            self.emit_event("pattern.sharded.shard_failed", {
-                "shard_id": shard_id,
-                "error": error_msg,
-                "query_time_ms": query_time_ms,
-            })
+            self.emit_event(
+                "pattern.sharded.shard_failed",
+                {
+                    "shard_id": shard_id,
+                    "error": error_msg,
+                    "query_time_ms": query_time_ms,
+                },
+            )
 
             return ShardResult(
                 shard_id=shard_id,
@@ -484,11 +490,14 @@ class LightRAGShardedRetriever(BasePattern):
             error_msg = f"Query failed: {str(e)}"
             logger.exception(f"Shard {shard_id}: {error_msg}")
 
-            self.emit_event("pattern.sharded.shard_failed", {
-                "shard_id": shard_id,
-                "error": error_msg,
-                "query_time_ms": query_time_ms,
-            })
+            self.emit_event(
+                "pattern.sharded.shard_failed",
+                {
+                    "shard_id": shard_id,
+                    "error": error_msg,
+                    "query_time_ms": query_time_ms,
+                },
+            )
 
             return ShardResult(
                 shard_id=shard_id,
@@ -525,12 +534,14 @@ class LightRAGShardedRetriever(BasePattern):
                 # Apply priority weighting
                 weighted_score = score * (1.0 + config.priority * 0.1)
 
-                all_results.append({
-                    "result": result,
-                    "shard_id": shard_result.shard_id,
-                    "score": weighted_score,
-                    "original_score": score,
-                })
+                all_results.append(
+                    {
+                        "result": result,
+                        "shard_id": shard_result.shard_id,
+                        "score": weighted_score,
+                        "original_score": score,
+                    }
+                )
 
         if not all_results:
             return []
@@ -541,7 +552,7 @@ class LightRAGShardedRetriever(BasePattern):
 
         # Sort by score and return top-k
         all_results.sort(key=lambda x: x["score"], reverse=True)
-        return [r["result"] for r in all_results[:self.config.aggregate_top_k]]
+        return [r["result"] for r in all_results[: self.config.aggregate_top_k]]
 
     def _extract_score(self, result: Any) -> float:
         """Extract score from a result object.

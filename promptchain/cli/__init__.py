@@ -16,7 +16,8 @@ except ImportError:
 # Import library tools to trigger CLI tool registration
 # This makes 14 core library tools available to agents (file ops, search, terminal)
 try:
-    from .tools.library import registration  # noqa: F401
+    from .tools.library import \
+        registration as _library_registration  # noqa: F401
 except ImportError:
     # Graceful fallback if dependencies are not available
     pass
