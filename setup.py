@@ -46,6 +46,7 @@ setup(
             "textual>=0.83.0",          # Terminal UI
             "click>=8.1.0",             # CLI framework
             "prompt_toolkit>=3.0.0",    # Input handling
+            "pyperclip>=1.8.0",         # Clipboard access for TUI
         ],
         "dev": [
             # Observability (optional)
@@ -71,6 +72,7 @@ setup(
             "textual>=0.83.0",
             "click>=8.1.0",
             "prompt_toolkit>=3.0.0",
+            "pyperclip>=1.8.0",
             "mlflow>=2.9.0",
             "pytest>=7.4.0",
             "pytest-asyncio>=0.21.0",
