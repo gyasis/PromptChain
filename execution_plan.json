@@ -1,86 +1,105 @@
 {
   "execution_plan": {
-    "phase_id": "008 Type Safety Debt Part 2",
+    "phase_id": "Feature Implementation",
     "waves": [
       {
         "wave_id": 1,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 1: 7 independent task(s) with no file conflicts",
+        "rationale": "Wave 1: 5 independent task(s) with no file conflicts",
         "tasks": [
           {
             "task_id": "T001",
             "agent_role": "Developer",
-            "instruction": "T001 Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt` and commit the output as the baseline snapshot for regression tracking",
+            "instruction": "T001 Capture legacy prompt snapshot from promptchain/utils/agentic_step_processor.py lines 909-1013 and write to tests/fixtures/legacy_tui_prompt.snapshot.txt",
             "file_locks": [
-              "python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt",
-              "specs/008-type-safety-debt-pt2/mypy-baseline.txt"
+              "promptchain/utils/agentic_step_processor.py",
+              "tests/fixtures/legacy_tui_prompt.snapshot.txt"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Run `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"error:\" | sort -u > specs/008-type-safety-debt-pt2/mypy-baseline.txt` and commit the output as the baseline snapshot for regression tracking' to [x]",
+            "testability": {
+              "isolated": true,
+              "has_upstream_deps": false,
+              "upstream_dep_ids": [],
+              "wave_position": 1,
+              "can_test_now": true,
+              "test_hint": "isolated-unit"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T001 Capture legacy prompt snapshot from promptchain/utils/agentic_step_processor.py lines 909-1013 and write to tests/fixtures/legacy_tui_prompt.snapshot.txt' to [x]",
             "dependencies": []
           },
           {
             "task_id": "T002",
             "agent_role": "Developer",
-            "instruction": "T002 [US1] Fix `max_entries` implicit Optional at line 1014: change `max_entries: int = None` to `max_entries: Optional[int] = None` in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T002 [P] Create package marker promptchain/prompts/__init__.py as an empty file",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "promptchain/prompts/__init__.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [US1] Fix `max_entries` implicit Optional at line 1014: change `max_entries: int = None` to `max_entries: Optional[int] = None` in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": true,
+              "has_upstream_deps": false,
+              "upstream_dep_ids": [],
+              "wave_position": 1,
+              "can_test_now": true,
+              "test_hint": "isolated-unit"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T002 [P] Create package marker promptchain/prompts/__init__.py as an empty file' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T009",
+            "task_id": "T003",
             "agent_role": "Developer",
-            "instruction": "T009 [P] [US2] Fix `Session | None` union-attr errors (lines 1027, 1326, 1328, 1637, 1645, 1664, 1681, 1709, 1720, 3691): at each line that accesses `.agents`, `.history_max_tokens`, `.history_manager`, `.mcp_servers`, or `.messages`, add an early-return guard `if self.session is None: return` (or `assert self.session is not None`) immediately before the access in `promptchain/cli/tui/app.py`",
-            "file_locks": [
-              "promptchain/cli/tui/app.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] [US2] Fix `Session | None` union-attr errors (lines 1027, 1326, 1328, 1637, 1645, 1664, 1681, 1709, 1720, 3691): at each line that accesses `.agents`, `.history_max_tokens`, `.history_manager`, `.mcp_servers`, or `.messages`, add an early-return guard `if self.session is None: return` (or `assert self.session is not None`) immediately before the access in `promptchain/cli/tui/app.py`' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T020",
-            "agent_role": "Developer",
-            "instruction": "T020 [P] [US3] Fix `ModelProvider`/`ModelManagementConfig` no-redef errors at lines 100 and 102: wrap the fallback class stubs inside the `except ImportError:` block in a `if not TYPE_CHECKING:` guard (or rename the fallback stubs to avoid collision with the real import names) in `promptchain/utils/promptchaining.py`",
-            "file_locks": [
-              "promptchain/utils/promptchaining.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T020 [P] [US3] Fix `ModelProvider`/`ModelManagementConfig` no-redef errors at lines 100 and 102: wrap the fallback class stubs inside the `except ImportError:` block in a `if not TYPE_CHECKING:` guard (or rename the fallback stubs to avoid collision with the real import names) in `promptchain/utils/promptchaining.py`' to [x]",
-            "dependencies": []
-          },
-          {
-            "task_id": "T036",
-            "agent_role": "Developer",
-            "instruction": "T036 [P] Run full project mypy check: `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"Found.*error\" | tail -1` \u2014 confirm total error count < 220 (down from 329); record result",
+            "instruction": "T003 [P] Create the tests/fixtures/ directory if it does not exist",
             "file_locks": [],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T036 [P] Run full project mypy check: `python -m mypy promptchain/ --ignore-missing-imports 2>&1 | grep \"Found.*error\" | tail -1` \u2014 confirm total error count < 220 (down from 329); record result' to [x]",
+            "testability": {
+              "isolated": true,
+              "has_upstream_deps": false,
+              "upstream_dep_ids": [],
+              "wave_position": 1,
+              "can_test_now": true,
+              "test_hint": "isolated-unit"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T003 [P] Create the tests/fixtures/ directory if it does not exist' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T039",
+            "task_id": "T051",
             "agent_role": "Developer",
-            "instruction": "T039 [P] Run `pytest --tb=short -q` \u2014 confirm no new test failures vs pre-sprint baseline; annotate any pre-existing failures as pre-existing in `specs/008-type-safety-debt-pt2/test-results.md`",
+            "instruction": "T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2",
             "file_locks": [
-              "specs/008-type-safety-debt-pt2/test-results.md"
+              "CHANGELOG.md"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T039 [P] Run `pytest --tb=short -q` \u2014 confirm no new test failures vs pre-sprint baseline; annotate any pre-existing failures as pre-existing in `specs/008-type-safety-debt-pt2/test-results.md`' to [x]",
+            "testability": {
+              "isolated": true,
+              "has_upstream_deps": false,
+              "upstream_dep_ids": [],
+              "wave_position": 1,
+              "can_test_now": true,
+              "test_hint": "isolated-unit"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2' to [x]",
             "dependencies": []
           },
           {
-            "task_id": "T041",
+            "task_id": "T059",
             "agent_role": "Developer",
-            "instruction": "T041 Update `CLAUDE.md` \"Recent Changes\" section to record 008-type-safety-debt-pt2 as complete with final error count",
+            "instruction": "T059 Bump version string in pyproject.toml and setup.py to 0.6.0",
             "file_locks": [
-              "CLAUDE.md"
+              "pyproject.toml",
+              "setup.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T041 Update `CLAUDE.md` \"Recent Changes\" section to record 008-type-safety-debt-pt2 as complete with final error count' to [x]",
+            "testability": {
+              "isolated": true,
+              "has_upstream_deps": false,
+              "upstream_dep_ids": [],
+              "wave_position": 1,
+              "can_test_now": true,
+              "test_hint": "isolated-unit"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T059 Bump version string in pyproject.toml and setup.py to 0.6.0' to [x]",
             "dependencies": []
           }
         ],
@@ -88,65 +107,60 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 1 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 2,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 2: 4 independent task(s) with no file conflicts",
+        "rationale": "Wave 2: 2 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T003",
+            "task_id": "T004",
             "agent_role": "Developer",
-            "instruction": "T003 [US1] Resolve `_validate_session_exists` attr-defined errors at lines 1112, 1425, 1563: search the StateAgent class body for the actual method name; add underscore prefix to the definition if missing, or add the method declaration if absent, in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T004 Write skeleton tests/test_prompt_builders.py with test_protocol_has_required_methods and test_protocol_structural_type_check asserting BasePromptBuilder has generate and get_token_estimate",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T003 [US1] Resolve `_validate_session_exists` attr-defined errors at lines 1112, 1425, 1563: search the StateAgent class body for the actual method name; add underscore prefix to the definition if missing, or add the method declaration if absent, in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T002",
+                "T003"
+              ],
+              "wave_position": 2,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T004 Write skeleton tests/test_prompt_builders.py with test_protocol_has_required_methods and test_protocol_structural_type_check asserting BasePromptBuilder has generate and get_token_estimate' to [x]",
+            "dependencies": [
+              "T002",
+              "T003"
+            ]
+          },
+          {
+            "task_id": "T005",
+            "agent_role": "Developer",
+            "instruction": "T005 Implement promptchain/prompts/base.py with BasePromptBuilder Protocol importing only from typing stdlib",
+            "file_locks": [
+              "promptchain/prompts/base.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T002"
+              ],
+              "wave_position": 2,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T005 Implement promptchain/prompts/base.py with BasePromptBuilder Protocol importing only from typing stdlib' to [x]",
             "dependencies": [
               "T002"
-            ]
-          },
-          {
-            "task_id": "T010",
-            "agent_role": "Developer",
-            "instruction": "T010 [P] [US2] Fix `MCPServerConfig` arg-type errors (lines 1613\u20131616): convert `Sequence[str]` values to scalar `str` for `id` and `type` fields (e.g., `id=str(val[0])`) and to `list[str]` for the `args` field (e.g., `args=list(val)`) before passing to `MCPServerConfig(...)` in `promptchain/cli/tui/app.py`",
-            "file_locks": [
-              "promptchain/cli/tui/app.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] [US2] Fix `MCPServerConfig` arg-type errors (lines 1613\u20131616): convert `Sequence[str]` values to scalar `str` for `id` and `type` fields (e.g., `id=str(val[0])`) and to `list[str]` for the `args` field (e.g., `args=list(val)`) before passing to `MCPServerConfig(...)` in `promptchain/cli/tui/app.py`' to [x]",
-            "dependencies": [
-              "T009"
-            ]
-          },
-          {
-            "task_id": "T021",
-            "agent_role": "Developer",
-            "instruction": "T021 [P] [US3] Fix `ClientSession`/`StdioServerParameters`/`stdio_client`/`experimental_mcp_client` None assignment errors at lines 120\u2013123: restructure the MCP import block to use `if TYPE_CHECKING:` for the type-level names and keep only runtime values (flags or sentinel objects) in the except branch; add `# type: ignore[assignment]` only where truly unavoidable in `promptchain/utils/promptchaining.py`",
-            "file_locks": [
-              "promptchain/utils/promptchaining.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T021 [P] [US3] Fix `ClientSession`/`StdioServerParameters`/`stdio_client`/`experimental_mcp_client` None assignment errors at lines 120\u2013123: restructure the MCP import block to use `if TYPE_CHECKING:` for the type-level names and keep only runtime values (flags or sentinel objects) in the except branch; add `# type: ignore[assignment]` only where truly unavoidable in `promptchain/utils/promptchaining.py`' to [x]",
-            "dependencies": [
-              "T020"
-            ]
-          },
-          {
-            "task_id": "T040",
-            "agent_role": "Developer",
-            "instruction": "T040 Write results to `specs/008-type-safety-debt-pt2/test-results.md` using the template from `specs/008-type-safety-debt-pt2/quickstart.md` \u2014 record before/after error counts per file, pytest pass/fail counts, and linting status",
-            "file_locks": [
-              "specs/008-type-safety-debt-pt2/test-results.md",
-              "specs/008-type-safety-debt-pt2/quickstart.md"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T040 Write results to `specs/008-type-safety-debt-pt2/test-results.md` using the template from `specs/008-type-safety-debt-pt2/quickstart.md` \u2014 record before/after error counts per file, pytest pass/fail counts, and linting status' to [x]",
-            "dependencies": [
-              "T039"
             ]
           }
         ],
@@ -154,55 +168,110 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 2 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 3,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 3: 3 independent task(s) with no file conflicts",
+        "rationale": "Wave 3: 4 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T004",
+            "task_id": "T006",
             "agent_role": "Developer",
-            "instruction": "T004 [US1] Fix `Collection[Any] | None` mutable usage errors (lines 1122, 1123, 1244, 1245, 1250, 1251, 1373, 1374, 1536, 1537, 1610, 1611): change all `Collection[Any] | None` field annotations to `Optional[list[Any]]`, then add `if field is not None:` guards before every `.append()`, `.remove()`, `in` operator, and `__delitem__` call in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T006 Add BasePromptBuilder re-export to promptchain/prompts/__init__.py",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "promptchain/prompts/__init__.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T004 [US1] Fix `Collection[Any] | None` mutable usage errors (lines 1122, 1123, 1244, 1245, 1250, 1251, 1373, 1374, 1536, 1537, 1610, 1611): change all `Collection[Any] | None` field annotations to `Optional[list[Any]]`, then add `if field is not None:` guards before every `.append()`, `.remove()`, `in` operator, and `__delitem__` call in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T002",
+                "T005"
+              ],
+              "wave_position": 3,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T006 Add BasePromptBuilder re-export to promptchain/prompts/__init__.py' to [x]",
             "dependencies": [
-              "T003",
-              "T002"
+              "T002",
+              "T005"
             ]
           },
           {
-            "task_id": "T011",
+            "task_id": "T007",
             "agent_role": "Developer",
-            "instruction": "T011 [P] [US2] Fix `execute_hybrid` wrong kwarg error at line 2268/2270: rename `fusion_method=` to `fusion=` (the actual parameter name in `promptchain/patterns/executors.py:execute_hybrid`) in `promptchain/cli/tui/app.py`",
+            "instruction": "T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header",
             "file_locks": [
-              "promptchain/cli/tui/app.py",
-              "promptchain/patterns/executors.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] [US2] Fix `execute_hybrid` wrong kwarg error at line 2268/2270: rename `fusion_method=` to `fusion=` (the actual parameter name in `promptchain/patterns/executors.py:execute_hybrid`) in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T005"
+              ],
+              "wave_position": 3,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header' to [x]",
             "dependencies": [
-              "T009",
-              "T010"
+              "T004",
+              "T005"
             ]
           },
           {
-            "task_id": "T022",
+            "task_id": "T018",
             "agent_role": "Developer",
-            "instruction": "T022 [P] [US3] Fix conditional function variant mismatched signatures at line 104: unify the two conditional definitions into a single signature (using `Optional` parameters) or add `@overload` declarations so mypy sees a consistent signature in `promptchain/utils/promptchaining.py`",
+            "instruction": "T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts",
             "file_locks": [
-              "promptchain/utils/promptchaining.py"
+              "promptchain/prompts/dynamic.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T022 [P] [US3] Fix conditional function variant mismatched signatures at line 104: unify the two conditional definitions into a single signature (using `Optional` parameters) or add `@overload` declarations so mypy sees a consistent signature in `promptchain/utils/promptchaining.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T005"
+              ],
+              "wave_position": 3,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts' to [x]",
             "dependencies": [
-              "T020",
-              "T021"
+              "T005"
+            ]
+          },
+          {
+            "task_id": "T033",
+            "agent_role": "Developer",
+            "instruction": "T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted",
+            "file_locks": [
+              "promptchain/prompts/legacy_tui.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T001",
+                "T005"
+              ],
+              "wave_position": 3,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted' to [x]",
+            "dependencies": [
+              "T001",
+              "T005"
             ]
           }
         ],
@@ -210,58 +279,139 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 3 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 4,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 4: 3 independent task(s) with no file conflicts",
+        "rationale": "Wave 4: 5 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T005",
+            "task_id": "T008",
             "agent_role": "Developer",
-            "instruction": "T005 [US1] Fix `sessions` var-annotated error at line 1367: change `sessions = {}` to `sessions: dict[str, Any] = {}` in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T005 [US1] Fix `sessions` var-annotated error at line 1367: change `sessions = {}` to `sessions: dict[str, Any] = {}` in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T005"
+              ],
+              "wave_position": 4,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear' to [x]",
             "dependencies": [
-              "T003",
+              "T004",
+              "T007",
+              "T005"
+            ]
+          },
+          {
+            "task_id": "T019",
+            "agent_role": "Developer",
+            "instruction": "T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py",
+            "file_locks": [
+              "promptchain/prompts/__init__.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T002",
+                "T006",
+                "T018"
+              ],
+              "wave_position": 4,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py' to [x]",
+            "dependencies": [
               "T002",
-              "T004"
+              "T006",
+              "T018"
             ]
           },
           {
-            "task_id": "T012",
+            "task_id": "T020",
             "agent_role": "Developer",
-            "instruction": "T012 [P] [US2] Fix `execute_sharded` wrong kwargs at lines 2363\u20132366: rename `shard_paths=` to `shards=` and `aggregation_method=` to `aggregation=` (the actual parameter names in `promptchain/patterns/executors.py:execute_sharded`) in `promptchain/cli/tui/app.py`",
+            "instruction": "T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator",
             "file_locks": [
-              "promptchain/cli/tui/app.py",
-              "promptchain/patterns/executors.py"
+              "promptchain/utils/agentic_step_processor.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] [US2] Fix `execute_sharded` wrong kwargs at lines 2363\u20132366: rename `shard_paths=` to `shards=` and `aggregation_method=` to `aggregation=` (the actual parameter names in `promptchain/patterns/executors.py:execute_sharded`) in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T018",
+                "T001",
+                "T005"
+              ],
+              "wave_position": 4,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator' to [x]",
             "dependencies": [
-              "T009",
-              "T011",
-              "T010"
+              "T018",
+              "T001",
+              "T005"
             ]
           },
           {
-            "task_id": "T023",
+            "task_id": "T052",
             "agent_role": "Developer",
-            "instruction": "T023 [P] [US3] Fix implicit Optional defaults at lines 148, 152, 1806, 1807, 1838, 1839: change `chainbreakers: list[Callable[..., Any]] = None` to `Optional[list[Callable[..., Any]]] = None`, `auto_unload_models: bool = None` to `Optional[bool] = None`, and similarly for `params`, `tool_choice`, `tools` in `promptchain/utils/promptchaining.py`",
+            "instruction": "T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist",
             "file_locks": [
-              "promptchain/utils/promptchaining.py"
+              "promptchain/prompts/dynamic.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T023 [P] [US3] Fix implicit Optional defaults at lines 148, 152, 1806, 1807, 1838, 1839: change `chainbreakers: list[Callable[..., Any]] = None` to `Optional[list[Callable[..., Any]]] = None`, `auto_unload_models: bool = None` to `Optional[bool] = None`, and similarly for `params`, `tool_choice`, `tools` in `promptchain/utils/promptchaining.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T018"
+              ],
+              "wave_position": 4,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist' to [x]",
             "dependencies": [
-              "T022",
-              "T020",
-              "T021"
+              "T018"
+            ]
+          },
+          {
+            "task_id": "T064",
+            "agent_role": "Developer",
+            "instruction": "T064 [P] [US1] Parameterize test_dynamic_renders_registered_tools over N in 0 1 4 10 for SC-001 full verification",
+            "file_locks": [],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T018"
+              ],
+              "wave_position": 4,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T064 [P] [US1] Parameterize test_dynamic_renders_registered_tools over N in 0 1 4 10 for SC-001 full verification' to [x]",
+            "dependencies": [
+              "T004",
+              "T018"
             ]
           }
         ],
@@ -269,7 +419,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 4 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -278,68 +428,111 @@
         "rationale": "Wave 5: 4 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T006",
+            "task_id": "T009",
             "agent_role": "Developer",
-            "instruction": "T006 [US1] Fix `None.cursor` attr-defined errors at lines 1430 and 1584: add `if self._db_conn is None: raise RuntimeError(\"Database connection not initialized\")` (or `assert self._db_conn is not None`) immediately before each `.cursor()` call in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line",
             "file_locks": [
-              "None.cursor",
-              "promptchain/utils/strategies/state_agent.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T006 [US1] Fix `None.cursor` attr-defined errors at lines 1430 and 1584: add `if self._db_conn is None: raise RuntimeError(\"Database connection not initialized\")` (or `assert self._db_conn is not None`) immediately before each `.cursor()` call in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T005"
+              ],
+              "wave_position": 5,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line' to [x]",
             "dependencies": [
-              "T003",
-              "T002",
               "T004",
+              "T007",
+              "T008",
               "T005"
             ]
           },
           {
-            "task_id": "T013",
+            "task_id": "T021",
             "agent_role": "Developer",
-            "instruction": "T013 [P] [US2] Fix `Widget` missing `start_spinner`/`stop_spinner` attr-defined errors (lines 2598, 2613, 2637, 3071, 3359, 3446, 3534, 3589, 3670): at each `last_item = chat_view.children[-1]` site, replace the `hasattr(last_item, \"is_processing\")` guard with `isinstance(last_item, MessageItem)` narrowing, importing `MessageItem` from `promptchain.cli.tui.chat_view` at the top of `promptchain/cli/tui/app.py`",
+            "instruction": "T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call",
             "file_locks": [
-              "promptchain.cli.tui",
-              "promptchain/cli/tui/app.py"
+              "promptchain/utils/agentic_step_processor.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] [US2] Fix `Widget` missing `start_spinner`/`stop_spinner` attr-defined errors (lines 2598, 2613, 2637, 3071, 3359, 3446, 3534, 3589, 3670): at each `last_item = chat_view.children[-1]` site, replace the `hasattr(last_item, \"is_processing\")` guard with `isinstance(last_item, MessageItem)` narrowing, importing `MessageItem` from `promptchain.cli.tui.chat_view` at the top of `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T001",
+                "T020"
+              ],
+              "wave_position": 5,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call' to [x]",
             "dependencies": [
-              "T009",
-              "T011",
-              "T010",
-              "T012"
+              "T001",
+              "T020"
             ]
           },
           {
-            "task_id": "T024",
+            "task_id": "T034",
             "agent_role": "Developer",
-            "instruction": "T024 [P] [US3] Fix union-attr `.objective` on `str | Callable | AgenticStepProcessor` at line 1619: add `if isinstance(instruction, AgenticStepProcessor):` check before the `.objective` access; handle the other union members explicitly in `promptchain/utils/promptchaining.py`",
+            "instruction": "T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py",
             "file_locks": [
-              "promptchain/utils/promptchaining.py"
+              "promptchain/prompts/__init__.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T024 [P] [US3] Fix union-attr `.objective` on `str | Callable | AgenticStepProcessor` at line 1619: add `if isinstance(instruction, AgenticStepProcessor):` check before the `.objective` access; handle the other union members explicitly in `promptchain/utils/promptchaining.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T002",
+                "T019",
+                "T006",
+                "T033"
+              ],
+              "wave_position": 5,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py' to [x]",
             "dependencies": [
-              "T022",
-              "T020",
-              "T021",
-              "T023"
+              "T002",
+              "T019",
+              "T006",
+              "T033"
             ]
           },
           {
-            "task_id": "T027",
+            "task_id": "T035",
             "agent_role": "Developer",
-            "instruction": "T027 [P] [US4] Fix `Blackboard`/`MessageBus` attr-defined import errors at line 21: remove the invalid import `from promptchain.cli.models import Blackboard, MessageBus` (these names do not exist; the forward-reference strings `\"Blackboard\"` and `\"MessageBus\"` in function signatures require no live import) in `promptchain/patterns/executors.py`",
+            "instruction": "T035 [US2] Implement TUIAgenticStepProcessor subclass in promptchain/cli/tui_processor.py baking LegacyTUIPromptGenerator and rejecting prompt_builder or instructions kwargs",
             "file_locks": [
-              "promptchain.cli",
-              "promptchain/patterns/executors.py"
+              "promptchain/cli/tui_processor.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T027 [P] [US4] Fix `Blackboard`/`MessageBus` attr-defined import errors at line 21: remove the invalid import `from promptchain.cli.models import Blackboard, MessageBus` (these names do not exist; the forward-reference strings `\"Blackboard\"` and `\"MessageBus\"` in function signatures require no live import) in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T033",
+                "T020"
+              ],
+              "wave_position": 5,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T035 [US2] Implement TUIAgenticStepProcessor subclass in promptchain/cli/tui_processor.py baking LegacyTUIPromptGenerator and rejecting prompt_builder or instructions kwargs' to [x]",
             "dependencies": [
-              "T011",
-              "T012"
+              "T033",
+              "T020"
             ]
           }
         ],
@@ -347,79 +540,195 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 5 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 6,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 6: 4 independent task(s) with no file conflicts",
+        "rationale": "Wave 6: 7 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T007",
+            "task_id": "T010",
             "agent_role": "Developer",
-            "instruction": "T007 [US1] Fix `dict` assigned to `str` variable errors at lines 1631\u20131634: change the variable declaration from `str` to `dict[str, Any]` (or rename the variable to avoid the type clash), then fix any downstream string-index accesses to use dict-key lookups in `promptchain/utils/strategies/state_agent.py`",
+            "instruction": "T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T007 [US1] Fix `dict` assigned to `str` variable errors at lines 1631\u20131634: change the variable declaration from `str` to `dict[str, Any]` (or rename the variable to avoid the type clash), then fix any downstream string-index accesses to use dict-key lookups in `promptchain/utils/strategies/state_agent.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T005",
+                "T009"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold' to [x]",
             "dependencies": [
-              "T003",
               "T004",
-              "T002",
-              "T006",
-              "T005"
+              "T007",
+              "T008",
+              "T005",
+              "T009"
             ]
           },
           {
-            "task_id": "T014",
+            "task_id": "T022",
             "agent_role": "Developer",
-            "instruction": "T014 [P] [US2] Fix `PromptChainApp` missing `command_handler` attr-defined at line 1892: declare `command_handler: CommandHandler` (or appropriate type) as a class-level attribute or add it to `__init__` with the correct type in `promptchain/cli/tui/app.py`",
+            "instruction": "T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM",
+            "file_locks": [
+              "tests/integration/test_011_library_consumer_flow.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T021",
+                "T018",
+                "T019",
+                "T020"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM' to [x]",
+            "dependencies": [
+              "T021",
+              "T018",
+              "T019",
+              "T020"
+            ]
+          },
+          {
+            "task_id": "T036",
+            "agent_role": "Developer",
+            "instruction": "T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor",
             "file_locks": [
               "promptchain/cli/tui/app.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] [US2] Fix `PromptChainApp` missing `command_handler` attr-defined at line 1892: declare `command_handler: CommandHandler` (or appropriate type) as a class-level attribute or add it to `__init__` with the correct type in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T035"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor' to [x]",
             "dependencies": [
-              "T011",
-              "T010",
-              "T012",
-              "T009",
-              "T013"
+              "T035"
             ]
           },
           {
-            "task_id": "T025",
+            "task_id": "T037",
             "agent_role": "Developer",
-            "instruction": "T025 [P] [US3] Fix `step_outputs` var-annotated error at line 220: change `step_outputs = {}` to `step_outputs: dict[str, Any] = {}` in `promptchain/utils/promptchaining.py`",
+            "instruction": "T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor",
             "file_locks": [
-              "promptchain/utils/promptchaining.py"
+              "promptchain/cli/config/yaml_translator.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T025 [P] [US3] Fix `step_outputs` var-annotated error at line 220: change `step_outputs = {}` to `step_outputs: dict[str, Any] = {}` in `promptchain/utils/promptchaining.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T035"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor' to [x]",
+            "dependencies": [
+              "T035"
+            ]
+          },
+          {
+            "task_id": "T038",
+            "agent_role": "Developer",
+            "instruction": "T038 [P] [US2] Migrate the 7 call sites in agentic_chat/agentic_team_chat.py default-path sites to TUIAgenticStepProcessor and annotate any sub-agent spawners with the whitelist comment",
+            "file_locks": [
+              "agentic_chat/agentic_team_chat.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T035"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T038 [P] [US2] Migrate the 7 call sites in agentic_chat/agentic_team_chat.py default-path sites to TUIAgenticStepProcessor and annotate any sub-agent spawners with the whitelist comment' to [x]",
+            "dependencies": [
+              "T035"
+            ]
+          },
+          {
+            "task_id": "T043",
+            "agent_role": "Developer",
+            "instruction": "T043 [US3] Extend promptchain/utils/agentic_step_processor.py __init__ with the instructions kwarg handling the mutual-exclusion ValueError and the DeprecationWarning shim path",
+            "file_locks": [
+              "promptchain/utils/agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T021",
+                "T018",
+                "T001",
+                "T020"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T043 [US3] Extend promptchain/utils/agentic_step_processor.py __init__ with the instructions kwarg handling the mutual-exclusion ValueError and the DeprecationWarning shim path' to [x]",
             "dependencies": [
               "T021",
-              "T020",
-              "T023",
-              "T022",
-              "T024"
+              "T018",
+              "T001",
+              "T020"
             ]
           },
           {
-            "task_id": "T028",
+            "task_id": "T056",
             "agent_role": "Developer",
-            "instruction": "T028 [P] [US4] Fix `LightRAGBranchingThoughts` wrong kwargs at line 82 (execute_branch function): update the constructor call to use `lightrag_core=<integration_instance>` and wrap settings in `BranchingConfig(...)` matching the actual `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/branching.py` for exact config fields in `promptchain/patterns/executors.py`",
-            "file_locks": [
-              "promptchain/integrations/lightrag/branching.py",
-              "promptchain/patterns/executors.py"
-            ],
+            "instruction": "T056 [P] Run black and isort over the new and modified files",
+            "file_locks": [],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T028 [P] [US4] Fix `LightRAGBranchingThoughts` wrong kwargs at line 82 (execute_branch function): update the constructor call to use `lightrag_core=<integration_instance>` and wrap settings in `BranchingConfig(...)` matching the actual `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/branching.py` for exact config fields in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T035",
+                "T033",
+                "T018"
+              ],
+              "wave_position": 6,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T056 [P] Run black and isort over the new and modified files' to [x]",
             "dependencies": [
-              "T011",
-              "T027",
-              "T012"
+              "T035",
+              "T033",
+              "T018"
             ]
           }
         ],
@@ -427,84 +736,170 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 6 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 7,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 7: 4 independent task(s) with no file conflicts",
+        "rationale": "Wave 7: 6 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T008",
+            "task_id": "T011",
             "agent_role": "Developer",
-            "instruction": "T008 [US1] Verify US1 complete: run `python -m mypy promptchain/utils/strategies/state_agent.py --ignore-missing-imports 2>&1 | grep \"error:\"` and confirm empty output (0 errors)",
+            "instruction": "T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold",
             "file_locks": [
-              "promptchain/utils/strategies/state_agent.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T008 [US1] Verify US1 complete: run `python -m mypy promptchain/utils/strategies/state_agent.py --ignore-missing-imports 2>&1 | grep \"error:\"` and confirm empty output (0 errors)' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T010",
+                "T005",
+                "T009"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold' to [x]",
             "dependencies": [
-              "T003",
               "T004",
-              "T002",
-              "T006",
               "T007",
-              "T005"
-            ]
-          },
-          {
-            "task_id": "T015",
-            "agent_role": "Developer",
-            "instruction": "T015 [P] [US2] Fix `list[str]` assigned to `float` variable errors at lines 1978 and 1980: correct the type annotation of the affected variable from `float` to `list[str] | str | float` (or split into separate variables with appropriate types) in `promptchain/cli/tui/app.py`",
-            "file_locks": [
-              "promptchain/cli/tui/app.py"
-            ],
-            "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] [US2] Fix `list[str]` assigned to `float` variable errors at lines 1978 and 1980: correct the type annotation of the affected variable from `float` to `list[str] | str | float` (or split into separate variables with appropriate types) in `promptchain/cli/tui/app.py`' to [x]",
-            "dependencies": [
-              "T011",
+              "T008",
               "T010",
-              "T012",
-              "T009",
-              "T013",
-              "T014"
+              "T005",
+              "T009"
             ]
           },
           {
-            "task_id": "T026",
+            "task_id": "T044",
             "agent_role": "Developer",
-            "instruction": "T026 [US3] Verify US3 complete: run `python -m mypy promptchain/utils/promptchaining.py --ignore-missing-imports 2>&1 | grep \"promptchaining.py.*error:\"` and confirm empty output (0 errors)",
+            "instruction": "T044 [P] [US3] Update tests/test_tao_loop.py replacing old-prompt substring assertions with dynamic-render or legacy-snapshot assertions per FR-019",
             "file_locks": [
-              "promptchaining.py",
-              "promptchain/utils/promptchaining.py"
+              "tests/test_tao_loop.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T026 [US3] Verify US3 complete: run `python -m mypy promptchain/utils/promptchaining.py --ignore-missing-imports 2>&1 | grep \"promptchaining.py.*error:\"` and confirm empty output (0 errors)' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T043"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T044 [P] [US3] Update tests/test_tao_loop.py replacing old-prompt substring assertions with dynamic-render or legacy-snapshot assertions per FR-019' to [x]",
+            "dependencies": [
+              "T043"
+            ]
+          },
+          {
+            "task_id": "T045",
+            "agent_role": "Developer",
+            "instruction": "T045 [P] [US3] Update tests/test_verification_integration.py with the same migration per FR-019",
+            "file_locks": [
+              "tests/test_verification_integration.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T043"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T045 [P] [US3] Update tests/test_verification_integration.py with the same migration per FR-019' to [x]",
+            "dependencies": [
+              "T043"
+            ]
+          },
+          {
+            "task_id": "T046",
+            "agent_role": "Developer",
+            "instruction": "T046 [P] [US3] Update tests/cli/integration/test_agentic_reasoning.py with the same migration per FR-019",
+            "file_locks": [
+              "tests/cli/integration/test_agentic_reasoning.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T043"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T046 [P] [US3] Update tests/cli/integration/test_agentic_reasoning.py with the same migration per FR-019' to [x]",
+            "dependencies": [
+              "T043"
+            ]
+          },
+          {
+            "task_id": "T050",
+            "agent_role": "Developer",
+            "instruction": "T050 [US4] Extend promptchain/utils/agentic_step_processor.py __init__ prompt_builder-alone branch with the workflow_pattern-ignored warning",
+            "file_locks": [
+              "promptchain/utils/agentic_step_processor.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T021",
+                "T043",
+                "T001",
+                "T020"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T050 [US4] Extend promptchain/utils/agentic_step_processor.py __init__ prompt_builder-alone branch with the workflow_pattern-ignored warning' to [x]",
             "dependencies": [
               "T021",
-              "T025",
-              "T020",
-              "T023",
-              "T022",
-              "T024"
+              "T043",
+              "T001",
+              "T020"
             ]
           },
           {
-            "task_id": "T029",
+            "task_id": "T057",
             "agent_role": "Developer",
-            "instruction": "T029 [P] [US4] Fix `LightRAGQueryExpander` wrong kwargs at line 162 (execute_expand function): update constructor call to use `lightrag_integration=<integration_instance>` and `config=QueryExpansionConfig(strategies=..., ...)` matching `__init__(self, search_interface=None, lightrag_integration=None, config=None)` signature; inspect `promptchain/integrations/lightrag/query_expansion.py` for QueryExpansionConfig fields in `promptchain/patterns/executors.py`",
+            "instruction": "T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain",
             "file_locks": [
-              "promptchain/patterns/executors.py",
-              "promptchain/integrations/lightrag/query_expansion.py"
+              "quickstart.md"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T029 [P] [US4] Fix `LightRAGQueryExpander` wrong kwargs at line 162 (execute_expand function): update constructor call to use `lightrag_integration=<integration_instance>` and `config=QueryExpansionConfig(strategies=..., ...)` matching `__init__(self, search_interface=None, lightrag_integration=None, config=None)` signature; inspect `promptchain/integrations/lightrag/query_expansion.py` for QueryExpansionConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T043",
+                "T020",
+                "T018"
+              ],
+              "wave_position": 7,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain' to [x]",
             "dependencies": [
-              "T011",
-              "T027",
-              "T028",
-              "T012"
+              "T043",
+              "T020",
+              "T018"
             ]
           }
         ],
@@ -512,49 +907,109 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 7 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 8,
         "strategy": "PARALLEL_SWARM",
-        "rationale": "Wave 8: 2 independent task(s) with no file conflicts",
+        "rationale": "Wave 8: 3 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T016",
+            "task_id": "T012",
             "agent_role": "Developer",
-            "instruction": "T016 [P] [US2] Fix `name message_text not defined` error at line 3146: trace the enclosing scope to find where `message_text` should be assigned; add the assignment before line 3146 or correct the variable reference in `promptchain/cli/tui/app.py`",
+            "instruction": "T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback",
             "file_locks": [
-              "promptchain/cli/tui/app.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] [US2] Fix `name message_text not defined` error at line 3146: trace the enclosing scope to find where `message_text` should be assigned; add the assignment before line 3146 or correct the variable reference in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T011",
+                "T010",
+                "T005",
+                "T009"
+              ],
+              "wave_position": 8,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback' to [x]",
             "dependencies": [
+              "T004",
+              "T007",
+              "T008",
               "T011",
               "T010",
-              "T012",
-              "T015",
-              "T009",
-              "T013",
-              "T014"
+              "T005",
+              "T009"
             ]
           },
           {
-            "task_id": "T030",
+            "task_id": "T053",
             "agent_role": "Developer",
-            "instruction": "T030 [P] [US4] Fix `LightRAGMultiHop` wrong kwargs at lines 202/241 (execute_multihop function): update constructor call to use `search_interface=<interface>` and `config=MultiHopConfig(...)` matching `__init__(self, search_interface, config=None)` signature; inspect `promptchain/integrations/lightrag/multi_hop.py` for MultiHopConfig fields in `promptchain/patterns/executors.py`",
+            "instruction": "T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors",
             "file_locks": [
-              "promptchain/integrations/lightrag/multi_hop.py",
-              "promptchain/patterns/executors.py"
+              "promptchain/utils/agentic_step_processor.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T030 [P] [US4] Fix `LightRAGMultiHop` wrong kwargs at lines 202/241 (execute_multihop function): update constructor call to use `search_interface=<interface>` and `config=MultiHopConfig(...)` matching `__init__(self, search_interface, config=None)` signature; inspect `promptchain/integrations/lightrag/multi_hop.py` for MultiHopConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T021",
+                "T050",
+                "T001",
+                "T043",
+                "T020"
+              ],
+              "wave_position": 8,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors' to [x]",
             "dependencies": [
-              "T011",
-              "T028",
-              "T012",
-              "T027",
-              "T029"
+              "T021",
+              "T050",
+              "T001",
+              "T043",
+              "T020"
+            ]
+          },
+          {
+            "task_id": "T058",
+            "agent_role": "Developer",
+            "instruction": "T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn",
+            "file_locks": [
+              "quickstart.md"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T038",
+                "T057",
+                "T035",
+                "T036",
+                "T037"
+              ],
+              "wave_position": 8,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn' to [x]",
+            "dependencies": [
+              "T038",
+              "T057",
+              "T035",
+              "T036",
+              "T037"
             ]
           }
         ],
@@ -562,32 +1017,91 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 8 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 9,
-        "strategy": "SEQUENTIAL_MERGE",
-        "rationale": "Wave 9: 1 independent task(s) with no file conflicts",
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 9: 2 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T017",
+            "task_id": "T013",
             "agent_role": "Developer",
-            "instruction": "T017 [P] [US2] Fix `ToolMetadata | None` union-attr `.function` errors at lines 2893 and 2911: add `if tool_meta is not None:` guard before each `.function` access in `promptchain/cli/tui/app.py`",
+            "instruction": "T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines",
             "file_locks": [
-              "promptchain/cli/tui/app.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] [US2] Fix `ToolMetadata | None` union-attr `.function` errors at lines 2893 and 2911: add `if tool_meta is not None:` guard before each `.function` access in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T005",
+                "T009"
+              ],
+              "wave_position": 9,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines' to [x]",
             "dependencies": [
+              "T004",
+              "T007",
+              "T008",
               "T011",
-              "T016",
-              "T010",
               "T012",
-              "T015",
-              "T009",
-              "T013",
-              "T014"
+              "T010",
+              "T005",
+              "T009"
+            ]
+          },
+          {
+            "task_id": "T055",
+            "agent_role": "Developer",
+            "instruction": "T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py",
+            "file_locks": [
+              "promptchain/utils/agentic_step_processor.py",
+              "promptchain/cli/tui_processor.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T035",
+                "T033",
+                "T021",
+                "T050",
+                "T001",
+                "T005",
+                "T043",
+                "T020",
+                "T018",
+                "T053"
+              ],
+              "wave_position": 9,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py' to [x]",
+            "dependencies": [
+              "T035",
+              "T033",
+              "T021",
+              "T050",
+              "T001",
+              "T005",
+              "T043",
+              "T020",
+              "T018",
+              "T053"
             ]
           }
         ],
@@ -595,7 +1109,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 9 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -604,24 +1118,42 @@
         "rationale": "Wave 10: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T018",
+            "task_id": "T014",
             "agent_role": "Developer",
-            "instruction": "T018 [P] [US2] Fix `Argument 2 to next has incompatible type None` error at line 1664: change the `next(iter(...), None)` default to a proper `MCPServerConfig` sentinel or change the variable type to `Optional[MCPServerConfig]` and handle the None downstream in `promptchain/cli/tui/app.py`",
+            "instruction": "T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate",
             "file_locks": [
-              "promptchain/cli/tui/app.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T018 [P] [US2] Fix `Argument 2 to next has incompatible type None` error at line 1664: change the `next(iter(...), None)` default to a proper `MCPServerConfig` sentinel or change the variable type to `Optional[MCPServerConfig]` and handle the None downstream in `promptchain/cli/tui/app.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T005",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 10,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate' to [x]",
             "dependencies": [
+              "T004",
+              "T007",
+              "T008",
               "T011",
-              "T016",
-              "T010",
-              "T017",
               "T012",
-              "T015",
-              "T009",
+              "T010",
+              "T005",
               "T013",
-              "T014"
+              "T009"
             ]
           }
         ],
@@ -629,7 +1161,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 10 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -638,26 +1170,44 @@
         "rationale": "Wave 11: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T019",
+            "task_id": "T015",
             "agent_role": "Developer",
-            "instruction": "T019 [US2] Verify US2 complete: run `python -m mypy promptchain/cli/tui/app.py --ignore-missing-imports 2>&1 | grep \"app.py.*error:\"` and confirm empty output (0 errors); also manually test TUI starts without errors with `promptchain --help`",
+            "instruction": "T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed",
             "file_locks": [
-              "app.py",
-              "promptchain/cli/tui/app.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T019 [US2] Verify US2 complete: run `python -m mypy promptchain/cli/tui/app.py --ignore-missing-imports 2>&1 | grep \"app.py.*error:\"` and confirm empty output (0 errors); also manually test TUI starts without errors with `promptchain --help`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T005",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 11,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed' to [x]",
             "dependencies": [
+              "T004",
+              "T007",
+              "T008",
               "T011",
-              "T016",
-              "T010",
-              "T017",
               "T012",
-              "T015",
-              "T009",
-              "T018",
+              "T010",
+              "T005",
+              "T014",
               "T013",
-              "T014"
+              "T009"
             ]
           }
         ],
@@ -665,7 +1215,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 11 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -674,24 +1224,46 @@
         "rationale": "Wave 12: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T031",
+            "task_id": "T016",
             "agent_role": "Developer",
-            "instruction": "T031 [P] [US4] Fix `execute_hybrid` wrong kwarg `fusion_method` at app.py-facing call in executors.py and/or the execute_hybrid function body: confirm the internal call at line 284 area uses `fusion=` not `fusion_method=`; if the error is in a nested call within execute_hybrid, rename to `fusion=` in `promptchain/patterns/executors.py`",
+            "instruction": "T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode",
             "file_locks": [
-              "app.py",
-              "promptchain/patterns/executors.py",
-              "executors.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T031 [P] [US4] Fix `execute_hybrid` wrong kwarg `fusion_method` at app.py-facing call in executors.py and/or the execute_hybrid function body: confirm the internal call at line 284 area uses `fusion=` not `fusion_method=`; if the error is in a nested call within execute_hybrid, rename to `fusion=` in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T015",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T005",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 12,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode' to [x]",
             "dependencies": [
+              "T004",
+              "T015",
+              "T007",
+              "T008",
               "T011",
-              "T019",
-              "T030",
               "T012",
-              "T028",
-              "T027",
-              "T029"
+              "T010",
+              "T005",
+              "T014",
+              "T013",
+              "T009"
             ]
           }
         ],
@@ -699,7 +1271,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 12 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -708,23 +1280,48 @@
         "rationale": "Wave 13: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T032",
+            "task_id": "T017",
             "agent_role": "Developer",
-            "instruction": "T032 [P] [US4] Fix `LightRAGHybridSearcher` wrong kwargs at line 323 (execute_hybrid function): update constructor call to use `lightrag_integration=<integration>` and `config=HybridSearchConfig(...)` matching `__init__(self, lightrag_integration, config=None)` signature; inspect `promptchain/integrations/lightrag/hybrid_search.py` for HybridSearchConfig fields in `promptchain/patterns/executors.py`",
+            "instruction": "T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction",
             "file_locks": [
-              "promptchain/integrations/lightrag/hybrid_search.py",
-              "promptchain/patterns/executors.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T032 [P] [US4] Fix `LightRAGHybridSearcher` wrong kwargs at line 323 (execute_hybrid function): update constructor call to use `lightrag_integration=<integration>` and `config=HybridSearchConfig(...)` matching `__init__(self, lightrag_integration, config=None)` signature; inspect `promptchain/integrations/lightrag/hybrid_search.py` for HybridSearchConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T015",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T005",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 13,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction' to [x]",
             "dependencies": [
+              "T004",
+              "T015",
+              "T016",
+              "T007",
+              "T008",
               "T011",
-              "T031",
-              "T030",
-              "T028",
               "T012",
-              "T027",
-              "T029"
+              "T010",
+              "T005",
+              "T014",
+              "T013",
+              "T009"
             ]
           }
         ],
@@ -732,32 +1329,110 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 13 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
         "wave_id": 14,
-        "strategy": "SEQUENTIAL_MERGE",
-        "rationale": "Wave 14: 1 independent task(s) with no file conflicts",
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 14: 2 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T033",
+            "task_id": "T023",
             "agent_role": "Developer",
-            "instruction": "T033 [P] [US4] Fix `execute_sharded` wrong kwarg names and `LightRAGShardedRetriever` wrong kwargs at lines 365/404: rename `aggregation_method=` \u2192 `aggregation=` and `shard_paths=` \u2192 `shards=` in the execute_sharded call site; update `LightRAGShardedRetriever` constructor to use `registry=LightRAGShardRegistry(...)` (instantiate registry first, populate shards, then pass) in `promptchain/patterns/executors.py`",
+            "instruction": "T023 [US1] Run the US1 pytest subset and confirm all pass",
+            "file_locks": [],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T022",
+                "T015",
+                "T021",
+                "T016",
+                "T007",
+                "T011",
+                "T008",
+                "T012",
+                "T010",
+                "T017",
+                "T014",
+                "T019",
+                "T013",
+                "T020",
+                "T009",
+                "T018"
+              ],
+              "wave_position": 14,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T023 [US1] Run the US1 pytest subset and confirm all pass' to [x]",
+            "dependencies": [
+              "T022",
+              "T015",
+              "T021",
+              "T016",
+              "T007",
+              "T011",
+              "T008",
+              "T012",
+              "T010",
+              "T017",
+              "T014",
+              "T019",
+              "T013",
+              "T020",
+              "T009",
+              "T018"
+            ]
+          },
+          {
+            "task_id": "T024",
+            "agent_role": "Developer",
+            "instruction": "T024 [P] [US2] Add test_legacy_snapshot_byte_identical to tests/test_prompt_builders.py verifying LegacyTUIPromptGenerator output byte-equals fixture",
             "file_locks": [
-              "promptchain/patterns/executors.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T033 [P] [US4] Fix `execute_sharded` wrong kwarg names and `LightRAGShardedRetriever` wrong kwargs at lines 365/404: rename `aggregation_method=` \u2192 `aggregation=` and `shard_paths=` \u2192 `shards=` in the execute_sharded call site; update `LightRAGShardedRetriever` constructor to use `registry=LightRAGShardRegistry(...)` (instantiate registry first, populate shards, then pass) in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T015",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T001",
+                "T012",
+                "T010",
+                "T017",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 14,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T024 [P] [US2] Add test_legacy_snapshot_byte_identical to tests/test_prompt_builders.py verifying LegacyTUIPromptGenerator output byte-equals fixture' to [x]",
             "dependencies": [
+              "T004",
+              "T015",
+              "T016",
+              "T007",
+              "T008",
               "T011",
-              "T031",
-              "T030",
-              "T028",
+              "T001",
               "T012",
-              "T027",
-              "T032",
-              "T029"
+              "T010",
+              "T017",
+              "T014",
+              "T013",
+              "T009"
             ]
           }
         ],
@@ -765,7 +1440,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 14 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -774,25 +1449,50 @@
         "rationale": "Wave 15: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T034",
+            "task_id": "T025",
             "agent_role": "Developer",
-            "instruction": "T034 [P] [US4] Fix `LightRAGSpeculativeExecutor` wrong kwargs at line 486 (execute_speculate function): update constructor call to use `lightrag_core=<integration>` and `config=SpeculativeConfig(...)` matching `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/speculative.py` for SpeculativeConfig fields in `promptchain/patterns/executors.py`",
+            "instruction": "T025 [P] [US2] Add test_legacy_ignores_tools_for_content to tests/test_prompt_builders.py verifying tool-list argument does not alter output",
             "file_locks": [
-              "promptchain/patterns/executors.py",
-              "promptchain/integrations/lightrag/speculative.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T034 [P] [US4] Fix `LightRAGSpeculativeExecutor` wrong kwargs at line 486 (execute_speculate function): update constructor call to use `lightrag_core=<integration>` and `config=SpeculativeConfig(...)` matching `__init__(self, lightrag_core, config=None)` signature; inspect `promptchain/integrations/lightrag/speculative.py` for SpeculativeConfig fields in `promptchain/patterns/executors.py`' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T024",
+                "T015",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T017",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 15,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T025 [P] [US2] Add test_legacy_ignores_tools_for_content to tests/test_prompt_builders.py verifying tool-list argument does not alter output' to [x]",
             "dependencies": [
+              "T004",
+              "T024",
+              "T015",
+              "T016",
+              "T007",
+              "T008",
               "T011",
-              "T031",
-              "T030",
-              "T028",
               "T012",
-              "T027",
-              "T032",
-              "T029",
-              "T033"
+              "T010",
+              "T017",
+              "T014",
+              "T013",
+              "T009"
             ]
           }
         ],
@@ -800,7 +1500,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 15 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -809,26 +1509,52 @@
         "rationale": "Wave 16: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T035",
+            "task_id": "T026",
             "agent_role": "Developer",
-            "instruction": "T035 [US4] Verify US4 complete: run `python -m mypy promptchain/patterns/executors.py --ignore-missing-imports 2>&1 | grep \"executors.py.*error:\"` and confirm empty output (0 errors)",
+            "instruction": "T026 [P] [US2] Add test_legacy_drift_warning_on_unexpected_tools to tests/test_prompt_builders.py verifying logger.warning on tool-name set mismatch",
             "file_locks": [
-              "promptchain/patterns/executors.py",
-              "executors.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T035 [US4] Verify US4 complete: run `python -m mypy promptchain/patterns/executors.py --ignore-missing-imports 2>&1 | grep \"executors.py.*error:\"` and confirm empty output (0 errors)' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T024",
+                "T015",
+                "T025",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T017",
+                "T014",
+                "T013",
+                "T009"
+              ],
+              "wave_position": 16,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T026 [P] [US2] Add test_legacy_drift_warning_on_unexpected_tools to tests/test_prompt_builders.py verifying logger.warning on tool-name set mismatch' to [x]",
             "dependencies": [
+              "T004",
+              "T024",
+              "T015",
+              "T025",
+              "T016",
+              "T007",
+              "T008",
               "T011",
-              "T031",
-              "T030",
-              "T028",
               "T012",
-              "T027",
-              "T032",
-              "T034",
-              "T029",
-              "T033"
+              "T010",
+              "T017",
+              "T014",
+              "T013",
+              "T009"
             ]
           }
         ],
@@ -836,7 +1562,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 16 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -845,53 +1571,54 @@
         "rationale": "Wave 17: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T037",
+            "task_id": "T027",
             "agent_role": "Developer",
-            "instruction": "T037 [P] Run `black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any formatting issues introduced by annotation changes in the 4 modified files",
+            "instruction": "T027 [P] [US2] Add test_tui_subclass_bakes_legacy_builder to tests/test_prompt_builders.py verifying TUIAgenticStepProcessor prompt_builder is LegacyTUIPromptGenerator instance",
             "file_locks": [
-              "black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py",
-              "promptchain/cli/tui/app.py",
-              "promptchain/utils/strategies/state_agent.py",
-              "promptchain/patterns/executors.py",
-              "promptchain/utils/promptchaining.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T037 [P] Run `black promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any formatting issues introduced by annotation changes in the 4 modified files' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T024",
+                "T015",
+                "T025",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T017",
+                "T014",
+                "T013",
+                "T009",
+                "T026"
+              ],
+              "wave_position": 17,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T027 [P] [US2] Add test_tui_subclass_bakes_legacy_builder to tests/test_prompt_builders.py verifying TUIAgenticStepProcessor prompt_builder is LegacyTUIPromptGenerator instance' to [x]",
             "dependencies": [
-              "T026",
-              "T016",
-              "T003",
-              "T020",
-              "T006",
-              "T032",
-              "T018",
-              "T013",
-              "T033",
-              "T022",
-              "T024",
-              "T011",
-              "T010",
-              "T028",
-              "T009",
-              "T027",
-              "T021",
-              "T031",
-              "T030",
-              "T008",
-              "T015",
-              "T002",
-              "T023",
-              "T034",
-              "T007",
-              "T005",
-              "T025",
-              "T017",
-              "T019",
               "T004",
-              "T035",
+              "T024",
+              "T015",
+              "T025",
+              "T016",
+              "T007",
+              "T008",
+              "T011",
               "T012",
-              "T029",
-              "T014"
+              "T010",
+              "T017",
+              "T014",
+              "T013",
+              "T009",
+              "T026"
             ]
           }
         ],
@@ -899,7 +1626,7 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 17 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
         }
       },
       {
@@ -908,54 +1635,56 @@
         "rationale": "Wave 18: 1 independent task(s) with no file conflicts",
         "tasks": [
           {
-            "task_id": "T038",
+            "task_id": "T028",
             "agent_role": "Developer",
-            "instruction": "T038 [P] Run `isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any import ordering issues (e.g., `Optional`, `TYPE_CHECKING` import additions)",
+            "instruction": "T028 [P] [US2] Add test_tui_subclass_rejects_prompt_builder_kwarg to tests/test_prompt_builders.py verifying TypeError",
             "file_locks": [
-              "promptchain/cli/tui/app.py",
-              "promptchain/utils/strategies/state_agent.py",
-              "isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py",
-              "promptchain/patterns/executors.py",
-              "promptchain/utils/promptchaining.py"
+              "tests/test_prompt_builders.py"
             ],
             "constitution_rules": [],
-            "completion_handshake": "Upon success, update tasks.md line containing 'T038 [P] Run `isort promptchain/utils/strategies/state_agent.py promptchain/cli/tui/app.py promptchain/utils/promptchaining.py promptchain/patterns/executors.py` \u2014 fix any import ordering issues (e.g., `Optional`, `TYPE_CHECKING` import additions)' to [x]",
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T024",
+                "T015",
+                "T025",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T027",
+                "T017",
+                "T014",
+                "T013",
+                "T009",
+                "T026"
+              ],
+              "wave_position": 18,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T028 [P] [US2] Add test_tui_subclass_rejects_prompt_builder_kwarg to tests/test_prompt_builders.py verifying TypeError' to [x]",
             "dependencies": [
-              "T026",
-              "T016",
-              "T003",
-              "T020",
-              "T006",
-              "T032",
-              "T018",
-              "T013",
-              "T033",
-              "T022",
-              "T024",
-              "T011",
-              "T010",
-              "T037",
-              "T028",
-              "T009",
-              "T027",
-              "T021",
-              "T031",
-              "T030",
-              "T008",
-              "T015",
-              "T002",
-              "T023",
-              "T034",
-              "T007",
-              "T005",
-              "T025",
-              "T017",
-              "T019",
               "T004",
-              "T035",
+              "T024",
+              "T015",
+              "T025",
+              "T016",
+              "T007",
+              "T008",
+              "T011",
               "T012",
-              "T029",
-              "T014"
+              "T010",
+              "T027",
+              "T017",
+              "T014",
+              "T013",
+              "T009",
+              "T026"
             ]
           }
         ],
@@ -963,7 +1692,1278 @@
           "enabled": true,
           "verification_criteria": "Verify all Wave 18 tasks are marked [x] in tasks.md",
           "git_agent": "git-version-manager",
-          "memory_bank_agent": "memory-bank-keeper"
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 19,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 19: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T029",
+            "agent_role": "Developer",
+            "instruction": "T029 [P] [US2] Add test_tui_subclass_rejects_instructions_kwarg to tests/test_prompt_builders.py verifying TypeError",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T004",
+                "T024",
+                "T015",
+                "T025",
+                "T016",
+                "T007",
+                "T008",
+                "T011",
+                "T012",
+                "T010",
+                "T027",
+                "T017",
+                "T014",
+                "T013",
+                "T009",
+                "T026",
+                "T028"
+              ],
+              "wave_position": 19,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T029 [P] [US2] Add test_tui_subclass_rejects_instructions_kwarg to tests/test_prompt_builders.py verifying TypeError' to [x]",
+            "dependencies": [
+              "T004",
+              "T024",
+              "T015",
+              "T025",
+              "T016",
+              "T007",
+              "T008",
+              "T011",
+              "T012",
+              "T010",
+              "T027",
+              "T017",
+              "T014",
+              "T013",
+              "T009",
+              "T026",
+              "T028"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 19 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 20,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 20: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T030",
+            "agent_role": "Developer",
+            "instruction": "T030 [P] [US2] Add test_subclass_inheritance_enhanced_sees_custom_tools to tests/test_prompt_builders.py verifying EnhancedAgenticStepProcessor propagates the fix",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T005",
+                "T013",
+                "T004",
+                "T011",
+                "T027",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T017"
+              ],
+              "wave_position": 20,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T030 [P] [US2] Add test_subclass_inheritance_enhanced_sees_custom_tools to tests/test_prompt_builders.py verifying EnhancedAgenticStepProcessor propagates the fix' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T005",
+              "T013",
+              "T004",
+              "T011",
+              "T027",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 20 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 21,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 21: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T031",
+            "agent_role": "Developer",
+            "instruction": "T031 [P] [US2] Add test_subclass_inheritance_state_agent_sees_custom_tools to tests/test_prompt_builders.py verifying StateAgent propagates the fix",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T005",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T027",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T017"
+              ],
+              "wave_position": 21,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T031 [P] [US2] Add test_subclass_inheritance_state_agent_sees_custom_tools to tests/test_prompt_builders.py verifying StateAgent propagates the fix' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T005",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T027",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 21 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 22,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 22: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T032",
+            "agent_role": "Developer",
+            "instruction": "T032 [P] [US2] Add test_callsite_compliance_tui_grep to tests/test_prompt_builders.py verifying no bare AgenticStepProcessor calls remain in promptchain/cli/ or agentic_chat/",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T017"
+              ],
+              "wave_position": 22,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T032 [P] [US2] Add test_callsite_compliance_tui_grep to tests/test_prompt_builders.py verifying no bare AgenticStepProcessor calls remain in promptchain/cli/ or agentic_chat/' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 22 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 23,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 23: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T039",
+            "agent_role": "Developer",
+            "instruction": "T039 [US2] Run the US2 pytest subset and confirm all pass including the grep-compliance check",
+            "file_locks": [],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T031",
+                "T024",
+                "T034",
+                "T038",
+                "T035",
+                "T025",
+                "T030",
+                "T033",
+                "T036",
+                "T027",
+                "T029",
+                "T037",
+                "T032",
+                "T026",
+                "T028"
+              ],
+              "wave_position": 23,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T039 [US2] Run the US2 pytest subset and confirm all pass including the grep-compliance check' to [x]",
+            "dependencies": [
+              "T031",
+              "T024",
+              "T034",
+              "T038",
+              "T035",
+              "T025",
+              "T030",
+              "T033",
+              "T036",
+              "T027",
+              "T029",
+              "T037",
+              "T032",
+              "T026",
+              "T028"
+            ]
+          },
+          {
+            "task_id": "T040",
+            "agent_role": "Developer",
+            "instruction": "T040 [P] [US3] Add test_dispatch_mutually_exclusive_raises_value_error to tests/test_prompt_builders.py verifying ValueError when both kwargs supplied",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T032",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T017"
+              ],
+              "wave_position": 23,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T040 [P] [US3] Add test_dispatch_mutually_exclusive_raises_value_error to tests/test_prompt_builders.py verifying ValueError when both kwargs supplied' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T032",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 23 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 24,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 24: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T041",
+            "agent_role": "Developer",
+            "instruction": "T041 [P] [US3] Add test_dispatch_instructions_emits_single_deprecation_warning to tests/test_prompt_builders.py verifying one DeprecationWarning naming the replacement API",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T032",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 24,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T041 [P] [US3] Add test_dispatch_instructions_emits_single_deprecation_warning to tests/test_prompt_builders.py verifying one DeprecationWarning naming the replacement API' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T032",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 24 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 25,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 25: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T042",
+            "agent_role": "Developer",
+            "instruction": "T042 [P] [US3] Add test_dispatch_instructions_renders_as_extra_instructions_block to tests/test_prompt_builders.py verifying supplied instructions appear under ADDITIONAL INSTRUCTIONS header",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 25,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T042 [P] [US3] Add test_dispatch_instructions_renders_as_extra_instructions_block to tests/test_prompt_builders.py verifying supplied instructions appear under ADDITIONAL INSTRUCTIONS header' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 25 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 26,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 26: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T047",
+            "agent_role": "Developer",
+            "instruction": "T047 [US3] Run the US3 pytest subset and confirm all pass",
+            "file_locks": [],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T044",
+                "T046",
+                "T042",
+                "T041",
+                "T040",
+                "T043",
+                "T045"
+              ],
+              "wave_position": 26,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T047 [US3] Run the US3 pytest subset and confirm all pass' to [x]",
+            "dependencies": [
+              "T044",
+              "T046",
+              "T042",
+              "T041",
+              "T040",
+              "T043",
+              "T045"
+            ]
+          },
+          {
+            "task_id": "T048",
+            "agent_role": "Developer",
+            "instruction": "T048 [P] [US4] Add test_dispatch_accepts_custom_builder to tests/test_prompt_builders.py verifying processor delegates to the injected builder",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T042",
+                "T005",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 26,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T048 [P] [US4] Add test_dispatch_accepts_custom_builder to tests/test_prompt_builders.py verifying processor delegates to the injected builder' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T042",
+              "T005",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 26 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 27,
+        "strategy": "PARALLEL_SWARM",
+        "rationale": "Wave 27: 2 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T049",
+            "agent_role": "Developer",
+            "instruction": "T049 [P] [US4] Add test_dispatch_custom_builder_with_non_default_workflow_hint_warns to tests/test_prompt_builders.py verifying logger.warning on the ignored hint",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T025",
+                "T007",
+                "T042",
+                "T005",
+                "T048",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 27,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T049 [P] [US4] Add test_dispatch_custom_builder_with_non_default_workflow_hint_warns to tests/test_prompt_builders.py verifying logger.warning on the ignored hint' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T025",
+              "T007",
+              "T042",
+              "T005",
+              "T048",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          },
+          {
+            "task_id": "T054",
+            "agent_role": "Developer",
+            "instruction": "T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046",
+            "file_locks": [],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T023",
+                "T039",
+                "T047",
+                "T050"
+              ],
+              "wave_position": 27,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046' to [x]",
+            "dependencies": [
+              "T023",
+              "T039",
+              "T047",
+              "T050"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 27 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 28,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 28: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T060",
+            "agent_role": "Developer",
+            "instruction": "T060 [P] [US1] Add test_dynamic_extra_instructions_renders_block to tests/test_prompt_builders.py verifying FR-005 direct-path behavior",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T028",
+                "T018",
+                "T025",
+                "T007",
+                "T042",
+                "T048",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T049",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 28,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T060 [P] [US1] Add test_dynamic_extra_instructions_renders_block to tests/test_prompt_builders.py verifying FR-005 direct-path behavior' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T028",
+              "T018",
+              "T025",
+              "T007",
+              "T042",
+              "T048",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T049",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 28 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 29,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 29: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T061",
+            "agent_role": "Developer",
+            "instruction": "T061 [P] [US1] Add test_dynamic_final_answer_block_conditional_on_flag to tests/test_prompt_builders.py verifying FR-007 both True and False cases",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T060",
+                "T028",
+                "T018",
+                "T025",
+                "T007",
+                "T042",
+                "T048",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T049",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 29,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T061 [P] [US1] Add test_dynamic_final_answer_block_conditional_on_flag to tests/test_prompt_builders.py verifying FR-007 both True and False cases' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T060",
+              "T028",
+              "T018",
+              "T025",
+              "T007",
+              "T042",
+              "T048",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T049",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 29 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 30,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 30: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T062",
+            "agent_role": "Developer",
+            "instruction": "T062 [P] Add test_no_process_global_state_in_prompts_module to tests/test_prompt_builders.py performing AST static check for FR-017 and SC-008 verification",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T060",
+                "T028",
+                "T018",
+                "T025",
+                "T007",
+                "T042",
+                "T005",
+                "T048",
+                "T043",
+                "T013",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T049",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T061",
+                "T033",
+                "T016",
+                "T008",
+                "T040",
+                "T017",
+                "T020"
+              ],
+              "wave_position": 30,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T062 [P] Add test_no_process_global_state_in_prompts_module to tests/test_prompt_builders.py performing AST static check for FR-017 and SC-008 verification' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T060",
+              "T028",
+              "T018",
+              "T025",
+              "T007",
+              "T042",
+              "T005",
+              "T048",
+              "T043",
+              "T013",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T049",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T061",
+              "T033",
+              "T016",
+              "T008",
+              "T040",
+              "T017",
+              "T020"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 30 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 31,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 31: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T063",
+            "agent_role": "Developer",
+            "instruction": "T063 [P] Add test_base_module_has_no_internal_imports to tests/test_prompt_builders.py performing AST import audit for FR-018 verification",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T060",
+                "T028",
+                "T025",
+                "T007",
+                "T042",
+                "T005",
+                "T048",
+                "T013",
+                "T062",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T049",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T061",
+                "T016",
+                "T008",
+                "T040",
+                "T017"
+              ],
+              "wave_position": 31,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T063 [P] Add test_base_module_has_no_internal_imports to tests/test_prompt_builders.py performing AST import audit for FR-018 verification' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T060",
+              "T028",
+              "T025",
+              "T007",
+              "T042",
+              "T005",
+              "T048",
+              "T013",
+              "T062",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T049",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T061",
+              "T016",
+              "T008",
+              "T040",
+              "T017"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 31 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
+        }
+      },
+      {
+        "wave_id": 32,
+        "strategy": "SEQUENTIAL_MERGE",
+        "rationale": "Wave 32: 1 independent task(s) with no file conflicts",
+        "tasks": [
+          {
+            "task_id": "T065",
+            "agent_role": "Developer",
+            "instruction": "T065 [P] [US2] Add test_tui_sub_agent_spawn_uses_custom_instructions to tests/test_prompt_builders.py using DynamicPromptGenerator directly to avoid the instructions shim dependency",
+            "file_locks": [
+              "tests/test_prompt_builders.py"
+            ],
+            "constitution_rules": [],
+            "testability": {
+              "isolated": false,
+              "has_upstream_deps": true,
+              "upstream_dep_ids": [
+                "T012",
+                "T010",
+                "T029",
+                "T014",
+                "T009",
+                "T026",
+                "T060",
+                "T028",
+                "T018",
+                "T025",
+                "T007",
+                "T042",
+                "T048",
+                "T013",
+                "T062",
+                "T030",
+                "T004",
+                "T011",
+                "T041",
+                "T032",
+                "T049",
+                "T027",
+                "T031",
+                "T024",
+                "T015",
+                "T063",
+                "T061",
+                "T016",
+                "T008",
+                "T040",
+                "T017",
+                "T020"
+              ],
+              "wave_position": 32,
+              "can_test_now": true,
+              "test_hint": "integration-post-deps"
+            },
+            "completion_handshake": "Upon success, update tasks.md line containing 'T065 [P] [US2] Add test_tui_sub_agent_spawn_uses_custom_instructions to tests/test_prompt_builders.py using DynamicPromptGenerator directly to avoid the instructions shim dependency' to [x]",
+            "dependencies": [
+              "T012",
+              "T010",
+              "T029",
+              "T014",
+              "T009",
+              "T026",
+              "T060",
+              "T028",
+              "T018",
+              "T025",
+              "T007",
+              "T042",
+              "T048",
+              "T013",
+              "T062",
+              "T030",
+              "T004",
+              "T011",
+              "T041",
+              "T032",
+              "T049",
+              "T027",
+              "T031",
+              "T024",
+              "T015",
+              "T063",
+              "T061",
+              "T016",
+              "T008",
+              "T040",
+              "T017",
+              "T020"
+            ]
+          }
+        ],
+        "checkpoint_after": {
+          "enabled": true,
+          "verification_criteria": "Verify all Wave 32 tasks are marked [x] in tasks.md",
+          "git_agent": "git-version-manager",
+          "memory_bank_agent": "project-bank-keeper"
         }
       }
     ]

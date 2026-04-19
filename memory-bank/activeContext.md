@@ -1700,3 +1700,27 @@ The project continues to focus on building a flexible prompt engineering library
    - Preventing infinite loops in tool calls
    - Supporting different model providers' tool calling formats
    - Optimizing tool execution performance 
+---
+
+## Current Focus: 011-agentic-prompt-builder (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Wave status**: Wave 2 complete — 7/65 tasks done
+**Next wave**: Wave 3 — DynamicPromptGenerator implementation + US1 tests
+
+### What was just completed
+
+Wave 1 (setup): created `promptchain/prompts/__init__.py`, `tests/fixtures/`, captured legacy TUI snapshot, bumped version to 0.6.0, added CHANGELOG entry.
+
+Wave 2 (foundation): wrote `tests/test_prompt_builders.py` skeleton (protocol structural tests); implemented `promptchain/prompts/base.py` with `BasePromptBuilder` Protocol (stdlib only).
+
+### Active Decisions
+
+- **Sentinel disabled**: `dev-kid.yml` sentinel entry disabled due to micro-agent v0.1.5 TTY crash (`uv_tty_init EINVAL`). Validation runs manually until sentinel infra is fixed.
+- **pytest blocker deferred**: Pre-existing `textual ModuleNotFoundError` blocks full pytest collection. Deferred to T054 or env install; Wave 3 `prompts/` tests are isolated and unaffected.
+
+### Next Steps (Wave 3)
+
+1. Implement `promptchain/prompts/dynamic.py` — `DynamicPromptGenerator` class
+2. Write US1 tests covering DynamicPromptGenerator behavior
+3. Verify `tests/test_prompt_builders.py` passes against the new implementation

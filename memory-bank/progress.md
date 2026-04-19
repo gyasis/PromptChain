@@ -2142,3 +2142,29 @@ The project continues to evolve toward a comprehensive framework for building co
   - Verified implementation through Playwright visual testing
   - Unblocked entire frontend development pipeline for advanced features
 - 🎉 Added simple agent-user chat loop feature with PromptChain and Memory Bank integration (June 2024) 
+---
+
+## 011-agentic-prompt-builder — Wave Execution Log
+
+### Wave 1 Complete (2026-04-19) — Setup (T001, T002, T003, T051, T059)
+
+:white_check_mark: **T001** — Created `promptchain/prompts/__init__.py` (empty package init)
+:white_check_mark: **T002** — Created `tests/fixtures/` directory
+:white_check_mark: **T003** — Captured legacy TUI prompt snapshot to `tests/fixtures/legacy_tui_prompt.snapshot.txt`
+:white_check_mark: **T051** — Bumped version to `0.6.0` in `setup.py` + `pyproject.toml` fallback_version
+:white_check_mark: **T059** — Added v0.6.0 CHANGELOG entry with Added/Restored/Changed BREAKING sections referencing issue #2
+
+Tasks complete: 5/65
+
+### Wave 2 Complete (2026-04-19) — Foundation (T004, T005)
+
+:white_check_mark: **T004** — Wrote `tests/test_prompt_builders.py` skeleton with:
+  - `test_protocol_has_required_methods`
+  - `test_protocol_structural_type_check`
+:white_check_mark: **T005** — Implemented `promptchain/prompts/base.py` with `BasePromptBuilder` Protocol (stdlib `typing` only, no external imports)
+
+Tasks complete: 7/65
+
+### Known Blocker (as of Wave 2)
+
+:warning: Pre-existing `textual` ModuleNotFoundError blocks full pytest collection. Deferred to T054 or env install. Does not block Wave 3 unit tests for `prompts/` package since those tests avoid TUI imports.

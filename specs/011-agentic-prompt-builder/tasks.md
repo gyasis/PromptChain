@@ -28,16 +28,16 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 ## Phase 1: Setup
 
-- [ ] T001 Capture legacy prompt snapshot from promptchain/utils/agentic_step_processor.py lines 909-1013 and write to tests/fixtures/legacy_tui_prompt.snapshot.txt
-- [ ] T002 [P] Create package marker promptchain/prompts/__init__.py as an empty file
-- [ ] T003 [P] Create the tests/fixtures/ directory if it does not exist
+- [x] T001 Capture legacy prompt snapshot from promptchain/utils/agentic_step_processor.py lines 909-1013 and write to tests/fixtures/legacy_tui_prompt.snapshot.txt
+- [x] T002 [P] Create package marker promptchain/prompts/__init__.py as an empty file
+- [x] T003 [P] Create the tests/fixtures/ directory if it does not exist
 
 ---
 
 ## Phase 2: Foundational
 
-- [ ] T004 Write skeleton tests/test_prompt_builders.py with test_protocol_has_required_methods and test_protocol_structural_type_check asserting BasePromptBuilder has generate and get_token_estimate
-- [ ] T005 Implement promptchain/prompts/base.py with BasePromptBuilder Protocol importing only from typing stdlib
+- [x] T004 Write skeleton tests/test_prompt_builders.py with test_protocol_has_required_methods and test_protocol_structural_type_check asserting BasePromptBuilder has generate and get_token_estimate
+- [x] T005 Implement promptchain/prompts/base.py with BasePromptBuilder Protocol importing only from typing stdlib
 - [ ] T006 Add BasePromptBuilder re-export to promptchain/prompts/__init__.py
 
 ---
@@ -108,7 +108,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 ## Phase 7: Polish
 
-- [ ] T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2
+- [x] T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2
 - [ ] T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist
 - [ ] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
 - [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
@@ -116,7 +116,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T056 [P] Run black and isort over the new and modified files
 - [ ] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
 - [ ] T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn
-- [ ] T059 Bump version string in pyproject.toml and setup.py to 0.6.0
+- [x] T059 Bump version string in pyproject.toml and setup.py to 0.6.0
 
 ---
 
