@@ -8,7 +8,28 @@ tags: []
 
 ## Current Work Focus
 
-**🎉 MAJOR MILESTONE: Research-Based Improvements Complete - Phases 2-4 Delivered (January 2026)**
+### 011-agentic-prompt-builder — Wave 3 Complete (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 13/65 tasks complete
+**Wave 3 status**: :white_check_mark: Complete (6 tasks)
+
+**Immediate state:**
+- Wave 3 done: T006, T007, T018, T019, T033, T034
+- Wave 4 is next: T008, T020 (agentic_step_processor __init__ re-export), T052, T064 — T019 already done (parked from Wave 3)
+- All 3 tests in `tests/test_prompt_builders.py` green
+
+**Environment:**
+- Venv: `source /home/gyasisutton/dev/projects/PromptChain/.venv/bin/activate`
+- Latent issue: `pyperclip` not declared in `setup.py [cli]` extras — follow-up out of scope for 011
+
+**Patterns that worked:**
+- Spawn one python-pro agent per substantive implementation task with exclusive/read-only/forbidden file-ownership labels; zero merge conflicts across 2 parallel agents
+- Pull dependent re-exports into the same wave as the class that needs them (avoids false-RED TDD checkpoints)
+
+---
+
+**PREVIOUS MAJOR MILESTONE: Research-Based Improvements Complete - Phases 2-4 Delivered (January 2026)**
 
 ### Research-Based AgenticStepProcessor Improvements - ALL PHASES COMPLETE
 

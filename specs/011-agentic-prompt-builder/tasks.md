@@ -38,13 +38,13 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 - [x] T004 Write skeleton tests/test_prompt_builders.py with test_protocol_has_required_methods and test_protocol_structural_type_check asserting BasePromptBuilder has generate and get_token_estimate
 - [x] T005 Implement promptchain/prompts/base.py with BasePromptBuilder Protocol importing only from typing stdlib
-- [ ] T006 Add BasePromptBuilder re-export to promptchain/prompts/__init__.py
+- [x] T006 Add BasePromptBuilder re-export to promptchain/prompts/__init__.py
 
 ---
 
 ## Phase 3: User Story 1 — Library consumer truthful default (Priority P1, MVP)
 
-- [ ] T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header
+- [x] T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header
 - [ ] T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear
 - [ ] T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line
 - [ ] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
@@ -55,8 +55,8 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed
 - [ ] T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode
 - [ ] T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction
-- [ ] T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts
-- [ ] T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py
+- [x] T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts
+- [x] T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py
 - [ ] T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator
 - [ ] T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call
 - [ ] T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM
@@ -75,8 +75,8 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T030 [P] [US2] Add test_subclass_inheritance_enhanced_sees_custom_tools to tests/test_prompt_builders.py verifying EnhancedAgenticStepProcessor propagates the fix
 - [ ] T031 [P] [US2] Add test_subclass_inheritance_state_agent_sees_custom_tools to tests/test_prompt_builders.py verifying StateAgent propagates the fix
 - [ ] T032 [P] [US2] Add test_callsite_compliance_tui_grep to tests/test_prompt_builders.py verifying no bare AgenticStepProcessor calls remain in promptchain/cli/ or agentic_chat/
-- [ ] T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted
-- [ ] T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py
+- [x] T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted
+- [x] T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py
 - [ ] T035 [US2] Implement TUIAgenticStepProcessor subclass in promptchain/cli/tui_processor.py baking LegacyTUIPromptGenerator and rejecting prompt_builder or instructions kwargs
 - [ ] T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor
 - [ ] T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor

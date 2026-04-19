@@ -1603,6 +1603,35 @@ tags: []
     - **Simple Stateful Mode (`auto_include_history=True`)**: The agent will use its default internal list to track conversation history. This is the existing behavior of `True`.
     - **Managed Stateful Mode (`auto_include_history=Dict`)**: The agent will instantiate and use the advanced `ExecutionHistoryManager`. The dictionary passed will serve as the configuration for the manager (e.g., `{'max_tokens': 4000, 'max_entries': 100}`).
 
+---
+
+### 011-agentic-prompt-builder: Wave 3 Complete (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 13/65 tasks complete
+
+**Tasks completed this wave (6):**
+
+| Task | File | Notes |
+|------|------|-------|
+| T006 | `promptchain/prompts/__init__.py` | Re-export BasePromptBuilder |
+| T007 [US1] | `tests/test_prompt_builders.py` | TDD test: verifies 4 custom tool names appear under AVAILABLE TOOLS header |
+| T018 [US1] | `promptchain/prompts/dynamic.py` | DynamicPromptGenerator — 319 lines; ReAct scaffold, task-list detection, tiktoken token estimation; 9 non-blank lines in standard-mode 3-tool output |
+| T019 [US1] | `promptchain/prompts/__init__.py` | Re-export DynamicPromptGenerator — pulled into Wave 3 atomically (T007 required importability) |
+| T033 [US2] | `promptchain/prompts/legacy_tui.py` | LegacyTUIPromptGenerator — 254 lines; byte-identical to snapshot after {self.objective} substitution; drift-warning on unexpected tools |
+| T034 [US2] | `promptchain/prompts/__init__.py` | Re-export LegacyTUIPromptGenerator — pulled in with T019 atomically |
+
+**Test status**: 3/3 pass in `tests/test_prompt_builders.py` (TDD RED->GREEN confirmed for T018).
+
+**Key decisions:**
+- T019 and T034 pulled from their scheduled Wave 4/5 positions into Wave 3 because the TDD test (T007) requires `DynamicPromptGenerator` importable from `promptchain.prompts`; bundling avoided a false-RED checkpoint.
+- Project-local `.venv` created with `uv` (environment-provisioner agent); 7 missing packages installed; latent `pyperclip` manifest bug flagged (out of scope for 011).
+- Parallel python-pro agents used for T018/T033 with explicit file-ownership lockdown — zero conflicts.
+
+**Wave 4 next**: T008, T020 (mod `agentic_step_processor` `__init__`), T052, T064. T019 already done.
+
+---
+
 ## Current Status
 
 **PromptChain CLI Development (January 2025):**
