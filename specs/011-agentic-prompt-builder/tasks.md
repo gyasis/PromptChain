@@ -45,7 +45,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 ## Phase 3: User Story 1 — Library consumer truthful default (Priority P1, MVP)
 
 - [x] T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header
-- [ ] T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear
+- [x] T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear
 - [ ] T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line
 - [ ] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
 - [ ] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
@@ -57,7 +57,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction
 - [x] T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts
 - [x] T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py
-- [ ] T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator
+- [x] T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator
 - [ ] T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call
 - [ ] T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM
 - [ ] T023 [US1] Run the US1 pytest subset and confirm all pass
@@ -109,7 +109,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 ## Phase 7: Polish
 
 - [x] T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2
-- [ ] T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist
+- [x] T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist
 - [ ] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
 - [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
 - [ ] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
@@ -126,7 +126,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T061 [P] [US1] Add test_dynamic_final_answer_block_conditional_on_flag to tests/test_prompt_builders.py verifying FR-007 both True and False cases
 - [ ] T062 [P] Add test_no_process_global_state_in_prompts_module to tests/test_prompt_builders.py performing AST static check for FR-017 and SC-008 verification
 - [ ] T063 [P] Add test_base_module_has_no_internal_imports to tests/test_prompt_builders.py performing AST import audit for FR-018 verification
-- [ ] T064 [P] [US1] Parameterize test_dynamic_renders_registered_tools over N in 0 1 4 10 for SC-001 full verification
+- [x] T064 [P] [US1] Parameterize test_dynamic_renders_registered_tools over N in 0 1 4 10 for SC-001 full verification
 - [ ] T065 [P] [US2] Add test_tui_sub_agent_spawn_uses_custom_instructions to tests/test_prompt_builders.py using DynamicPromptGenerator directly to avoid the instructions shim dependency
 
 ---

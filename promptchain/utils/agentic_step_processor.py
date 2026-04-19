@@ -5,7 +5,10 @@ import warnings
 from datetime import datetime
 from enum import Enum
 from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Dict, List,
-                    Optional, Union)
+                    Literal, Optional, Union)
+
+from promptchain.prompts.base import BasePromptBuilder
+from promptchain.prompts.dynamic import DynamicPromptGenerator
 
 from .agentic_step_result import AgenticStepResult, StepExecutionMetadata
 
@@ -203,6 +206,9 @@ class AgenticStepProcessor:
         # TAO Loop + Dry Runs parameters (Phase 4: Transparent Reasoning - explicit Think-Act-Observe)
         enable_tao_loop: bool = False,  # Enable explicit Think-Act-Observe loop (default: off, uses implicit ReAct)
         enable_dry_run: bool = False,  # Enable tool outcome prediction before execution (transparent reasoning)
+        # Prompt builder strategy (Spec 011: agentic-prompt-builder decoupling)
+        prompt_builder: Optional["BasePromptBuilder"] = None,
+        workflow_pattern: Literal["standard", "react"] = "standard",
     ):
         """
         Initializes the agentic step.
@@ -259,6 +265,8 @@ class AgenticStepProcessor:
                                      Tools with verification confidence below this threshold are skipped.
                                      Range: 0.0 (execute everything) to 1.0 (only execute very confident calls).
                                      Recommended: 0.7 for balance, 0.9 for critical operations.
+            prompt_builder: (Optional) BasePromptBuilder strategy. Default constructs a DynamicPromptGenerator reflecting actually-registered tools.
+            workflow_pattern: "standard" or "react". Forwarded to the default DynamicPromptGenerator. Ignored (with warning in T021) when prompt_builder is explicit.
         """
         if not objective or not isinstance(objective, str):
             raise ValueError("Objective must be a non-empty string.")
@@ -369,6 +377,15 @@ class AgenticStepProcessor:
                 "✅ Dry Run Prediction enabled. "
                 "Tool outcomes predicted before execution (~10-15% overhead)."
             )
+
+        # Prompt builder strategy (Spec 011: agentic-prompt-builder decoupling)
+        if prompt_builder is None:
+            self.prompt_builder: BasePromptBuilder = DynamicPromptGenerator(
+                workflow_pattern=workflow_pattern
+            )
+        else:
+            self.prompt_builder = prompt_builder
+        self.workflow_pattern: str = workflow_pattern
 
         # BUG-023 fix: Use warnings.warn() instead of logger.info() for deprecation warnings
         if self.history_mode == HistoryMode.MINIMAL.value:

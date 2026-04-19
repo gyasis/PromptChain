@@ -4,66 +4,38 @@ Wave 2 skeleton — protocol shape assertions only. Later waves extend this
 file with user-story specific tests.
 """
 
-from typing import get_type_hints
+from typing import Any, Dict, List, get_type_hints
+
+import pytest
 
 from promptchain.prompts.base import BasePromptBuilder
 
 
-def _custom_tools() -> list:
-    """Four non-TUI tool schemas used by US1 tests."""
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "customer_lookup",
-                "description": "Look up a customer record by ID.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                },
-            },
+_TUI_ONLY_TOOL_NAMES = (
+    "ripgrep_search",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "terminal_execute",
+    "list_directory",
+    "create_directory",
+)
+
+
+def _tool(name: str, description: str = "") -> Dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description or f"Tool named {name}.",
+            "parameters": {"type": "object", "properties": {}},
         },
-        {
-            "type": "function",
-            "function": {
-                "name": "invoice_totals",
-                "description": "Aggregate invoice totals for a customer.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "send_followup_email",
-                "description": "Send a templated follow-up email.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "to": {"type": "string"},
-                        "body": {"type": "string"},
-                    },
-                    "required": ["to", "body"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "log_audit_event",
-                "description": "Append an entry to the compliance audit log.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"event": {"type": "string"}},
-                    "required": ["event"],
-                },
-            },
-        },
-    ]
+    }
+
+
+def _make_tools(n: int) -> List[Dict[str, Any]]:
+    """Return ``n`` distinct custom tool schemas for parametrized tests."""
+    return [_tool(f"custom_tool_{i:02d}", f"Description for custom tool {i}.") for i in range(n)]
 
 
 def test_protocol_has_required_methods() -> None:
@@ -98,14 +70,33 @@ def test_protocol_structural_type_check() -> None:
     assert "return" in hints
 
 
-def test_dynamic_renders_registered_tools() -> None:
-    """DynamicPromptGenerator output must list every registered tool name."""
+@pytest.mark.parametrize("n", [0, 1, 4, 10])
+def test_dynamic_renders_registered_tools(n: int) -> None:
+    """DynamicPromptGenerator output must list every registered tool name (SC-001).
+
+    Parametrized (T064) over tool-count cases 0/1/4/10:
+    - n=0: empty inventory must still render AVAILABLE TOOLS header with sentinel
+    - n>=1: every registered tool name appears in the prompt body
+    """
     from promptchain.prompts import DynamicPromptGenerator
 
-    tools = _custom_tools()
+    tools = _make_tools(n)
     prompt = DynamicPromptGenerator().generate("ship the release", tools)
 
     assert "AVAILABLE TOOLS" in prompt
     for tool in tools:
         name = tool["function"]["name"]
         assert name in prompt, f"registered tool {name!r} missing from prompt"
+
+
+def test_dynamic_does_not_advertise_tui_only_tools() -> None:
+    """No TUI-only tool names may appear when only custom tools are registered (T008)."""
+    from promptchain.prompts import DynamicPromptGenerator
+
+    tools = _make_tools(4)
+    prompt = DynamicPromptGenerator().generate("ship the release", tools)
+
+    for name in _TUI_ONLY_TOOL_NAMES:
+        assert name not in prompt, (
+            f"TUI-only tool {name!r} leaked into prompt without being registered"
+        )

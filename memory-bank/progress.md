@@ -1632,6 +1632,32 @@ tags: []
 
 ---
 
+### 011-agentic-prompt-builder: Wave 4 Complete (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 18/65 tasks complete
+
+**Tasks completed this wave (5):**
+
+| Task | File | Notes |
+|------|------|-------|
+| T008 [US1] | `tests/test_prompt_builders.py` | Negative-assertion test: confirms `DynamicPromptGenerator` does NOT advertise TUI-only tool names (ripgrep_search, file_read, terminal_execute, etc.) when only custom tools are registered |
+| T020 [US3] | `promptchain/utils/agentic_step_processor.py` | Added `prompt_builder: Optional[BasePromptBuilder] = None` and `workflow_pattern: Literal["standard","react"] = "standard"` kwargs to `__init__`; default-branch dispatches `DynamicPromptGenerator`; explicit builders passed through unchanged |
+| T052 [US1] | `promptchain/prompts/dynamic.py` | Already satisfied — `_REACT_TASKLIST_TOOLS` allowlist documented in module docstring added in T018; no new change needed |
+| T064 [US1] | `tests/test_prompt_builders.py` | Parametrized `test_dynamic_renders_registered_tools` over N in [0, 1, 4, 10] for full SC-001 coverage; replaces the fixed 4-tool helper |
+| T019 [US1] | *(already done in Wave 3)* | Re-export of DynamicPromptGenerator was pulled atomically into Wave 3; counted here for wave accounting |
+
+**Test status**: 7 passing (4 parametrized + T008 + 2 protocol tests).
+
+**Key decisions:**
+- T052 required zero code changes — T018's module docstring on `dynamic.py` already documents the `_REACT_TASKLIST_TOOLS` allowlist. Counted as satisfied by prior wave's deliverable.
+- T019 was already complete from Wave 3 (atomic with T018); included in Wave 4 scope for accounting only.
+- Full dispatch table for `AgenticStepProcessor` (instructions kwarg, deprecation warning, mutually-exclusive check, react-warning-on-custom-builder) deferred to T021 in Wave 5.
+
+**Wave 5 next**: T009, T021, T034 (already done), T035.
+
+---
+
 ## Current Status
 
 **PromptChain CLI Development (January 2025):**
