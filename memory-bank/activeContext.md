@@ -8,25 +8,27 @@ tags: []
 
 ## Current Work Focus
 
-### 011-agentic-prompt-builder — Wave 4 Complete (2026-04-19)
+### 011-agentic-prompt-builder — Wave 5 Complete (2026-04-19)
 
 **Branch**: `011-agentic-prompt-builder`
-**Overall progress**: 18/65 tasks complete
-**Wave 4 status**: :white_check_mark: Complete (5 tasks — T008, T020, T064, T052 satisfied-by-T018, T019 already done)
+**Overall progress**: 22/65 tasks complete (34%)
+**Wave 5 status**: :white_check_mark: Complete (T009, T021, T034 [atomic], T035, T043 [bundled])
 
 **Immediate state:**
-- Wave 4 done: T008, T020, T064 (new code); T052 satisfied by T018 docstring; T019 counted from Wave 3
-- Wave 5 is next: T009, T021, T034 (already done), T035
-- Test suite: 7 passing (4 parametrized N=[0,1,4,10] + T008 negative-assertion + 2 protocol tests)
-- `AgenticStepProcessor.__init__` now accepts `prompt_builder` and `workflow_pattern` kwargs; full dispatch table (deprecation warning, mutually-exclusive guard, react-on-custom-builder warning) deferred to T021
+- Wave 5 done: T009 (sentinel test), T021 (run() delegation), T034 (already done from Wave 3), T035 (TUIAgenticStepProcessor), T043 (full dispatch table)
+- Wave 6 is next: T010, T022, T036, T037, T038, T056
+- Test suite: 8 passing in tests/test_prompt_builders.py
+- `run_async()` now delegates to `self.prompt_builder.generate()` — 105-line hardcoded f-string replaced by 7-line call
+- `TUIAgenticStepProcessor` in `promptchain/cli/tui_processor.py` (50 lines) bakes LegacyTUIPromptGenerator, rejects prompt_builder/instructions kwargs
+- Full dispatch table active on `AgenticStepProcessor.__init__`: instructions kwarg, ValueError on mutual exclusion, DeprecationWarning, react+custom-builder warning
 
 **Environment:**
 - Venv: `source /home/gyasisutton/dev/projects/PromptChain/.venv/bin/activate`
 - Latent issue: `pyperclip` not declared in `setup.py [cli]` extras — follow-up out of scope for 011
 
 **Patterns that worked:**
-- T052 needed zero net lines — always check if prior wave's docstring/comment already satisfies a documentation task before writing new code
-- Parametrizing over N=[0,1,4,10] in T064 cost one decorator line and removed the brittle fixed-4-tool helper
+- T043 bundled into Wave 5 for atomic correctness — dispatch table must be complete before T021 delegates through it
+- TUIAgenticStepProcessor uses TypeError (not ValueError) to signal "wrong class" rather than "bad argument"
 
 ---
 

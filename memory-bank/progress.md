@@ -2223,3 +2223,24 @@ Tasks complete: 7/65
 ### Known Blocker (as of Wave 2)
 
 :warning: Pre-existing `textual` ModuleNotFoundError blocks full pytest collection. Deferred to T054 or env install. Does not block Wave 3 unit tests for `prompts/` package since those tests avoid TUI imports.
+
+### 011-agentic-prompt-builder: Wave 5 Complete (2026-04-19)
+
+Tasks: T009, T021, T034 (atomic from Wave 3), T035, T043 (bundled)
+
+| Task | File(s) | Description |
+|------|---------|-------------|
+| T009 | `tests/test_prompt_builders.py` | Added `test_dynamic_empty_tools_renders_sentinel` — confirms empty tool inventory renders an explicit "(none)" sentinel instead of a blank AVAILABLE TOOLS block |
+| T021 | `promptchain/utils/agentic_step_processor.py` | `run_async()` now delegates to `self.prompt_builder.generate(objective, available_tools, context=None)`. Replaced 105-line hardcoded ReAct f-string (lines 958-1062) with a 7-line call |
+| T034 | *(already done in Wave 3)* | Re-export of `LegacyTUIPromptGenerator` from `promptchain.prompts` — landed atomically with T033 in Wave 3; counted here for wave accounting |
+| T035 | `promptchain/cli/tui_processor.py` (NEW) | Created `TUIAgenticStepProcessor` subclass (50 lines) — bakes in `LegacyTUIPromptGenerator`, rejects `prompt_builder=` and `instructions=` kwargs with `TypeError`, uses `*args` so positional objective forwards correctly via `super().__init__` |
+| T043 | `promptchain/utils/agentic_step_processor.py` | Full dispatch table on `AgenticStepProcessor.__init__` — `instructions=` kwarg, `ValueError` on mutual exclusion with `prompt_builder=`, `DeprecationWarning` on `instructions`-alone, `logger.warning` on `workflow_pattern="react"` + custom builder |
+
+**Key decisions:**
+- T021 makes the library consumer path tool-truthful by default (DynamicPromptGenerator); TUI consumers continue receiving byte-identical v0.5.0 output via TUIAgenticStepProcessor.
+- T035 uses TypeError (not ValueError) for rejected kwargs to signal "wrong class, use the base" rather than "bad argument".
+- T043 bundled into Wave 5 for atomic correctness — dispatch table must be complete before T021 delegates through it.
+
+Tasks complete: 22/65
+
+**Wave 6 next**: T010, T022, T036, T037, T038, T056.

@@ -100,3 +100,17 @@ def test_dynamic_does_not_advertise_tui_only_tools() -> None:
         assert name not in prompt, (
             f"TUI-only tool {name!r} leaked into prompt without being registered"
         )
+
+
+def test_dynamic_empty_tools_renders_sentinel() -> None:
+    """Empty tool inventory must render a sentinel line, not a blank block (T009)."""
+    from promptchain.prompts import DynamicPromptGenerator
+
+    prompt = DynamicPromptGenerator().generate("ship the release", [])
+
+    assert "AVAILABLE TOOLS" in prompt, "AVAILABLE TOOLS header missing"
+    # Sentinel must be an explicit "no tools" line, never a blank block.
+    lowered = prompt.lower()
+    assert ("no tools" in lowered) or ("(none)" in lowered) or ("no tools registered" in lowered), (
+        "empty inventory must render an explicit sentinel line, not a blank block"
+    )
