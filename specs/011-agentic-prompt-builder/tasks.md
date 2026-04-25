@@ -47,7 +47,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T007 [P] [US1] Add test_dynamic_renders_registered_tools to tests/test_prompt_builders.py verifying all 4 custom tool names appear under AVAILABLE TOOLS header
 - [x] T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear
 - [x] T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line
-- [ ] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
+- [x] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
 - [ ] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
 - [ ] T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback
 - [ ] T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines
@@ -59,7 +59,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py
 - [x] T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator
 - [x] T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call
-- [ ] T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM
+- [x] T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM
 - [ ] T023 [US1] Run the US1 pytest subset and confirm all pass
 
 ---
@@ -78,9 +78,9 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted
 - [x] T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py
 - [x] T035 [US2] Implement TUIAgenticStepProcessor subclass in promptchain/cli/tui_processor.py baking LegacyTUIPromptGenerator and rejecting prompt_builder or instructions kwargs
-- [ ] T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor
-- [ ] T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor
-- [ ] T038 [P] [US2] Migrate the 7 call sites in agentic_chat/agentic_team_chat.py default-path sites to TUIAgenticStepProcessor and annotate any sub-agent spawners with the whitelist comment
+- [x] T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor
+- [x] T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor
+- [x] T038 [P] [US2] Migrate the 7 call sites in agentic_chat/agentic_team_chat.py default-path sites to TUIAgenticStepProcessor and annotate any sub-agent spawners with the whitelist comment
 - [ ] T039 [US2] Run the US2 pytest subset and confirm all pass including the grep-compliance check
 
 ---
@@ -113,7 +113,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
 - [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
 - [ ] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
-- [ ] T056 [P] Run black and isort over the new and modified files
+- [x] T056 [P] Run black and isort over the new and modified files
 - [ ] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
 - [ ] T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn
 - [x] T059 Bump version string in pyproject.toml and setup.py to 0.6.0

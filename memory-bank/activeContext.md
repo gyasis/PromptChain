@@ -8,27 +8,30 @@ tags: []
 
 ## Current Work Focus
 
-### 011-agentic-prompt-builder — Wave 5 Complete (2026-04-19)
+### 011-agentic-prompt-builder — Wave 6 Complete (2026-04-25)
 
 **Branch**: `011-agentic-prompt-builder`
-**Overall progress**: 22/65 tasks complete (34%)
-**Wave 5 status**: :white_check_mark: Complete (T009, T021, T034 [atomic], T035, T043 [bundled])
+**Overall progress**: 28/65 tasks complete (43%)
+**Wave 6 status**: Complete (T010, T022, T036, T037, T038, T056)
 
-**Immediate state:**
-- Wave 5 done: T009 (sentinel test), T021 (run() delegation), T034 (already done from Wave 3), T035 (TUIAgenticStepProcessor), T043 (full dispatch table)
-- Wave 6 is next: T010, T022, T036, T037, T038, T056
-- Test suite: 8 passing in tests/test_prompt_builders.py
-- `run_async()` now delegates to `self.prompt_builder.generate()` — 105-line hardcoded f-string replaced by 7-line call
-- `TUIAgenticStepProcessor` in `promptchain/cli/tui_processor.py` (50 lines) bakes LegacyTUIPromptGenerator, rejects prompt_builder/instructions kwargs
-- Full dispatch table active on `AgenticStepProcessor.__init__`: instructions kwarg, ValueError on mutual exclusion, DeprecationWarning, react+custom-builder warning
+**Immediate state (Wave 6 complete):**
+- Wave 6 done: T010 (standard-mode omits ReAct), T022 (integration test — library-consumer default path), T036 (2 migrations in app.py), T037 (1 migration in yaml_translator.py), T038 (7 migrations in agentic_team_chat.py), T056 (isort applied)
+- Wave 7 is next (tasks per tasks.md — remaining 37 tasks)
+- Test suite: 11 passing (9 unit + 2 integration)
+- All 10 user-facing default-path call sites migrated to TUIAgenticStepProcessor
+- yaml_translator.py retains AgenticStepProcessor import for return-type annotations (subclass is type-correct)
+- isort applied to all new/modified files; black blocked by Python 3.12.5 AST safety bug — venv-level follow-up
+- Pre-existing SyntaxError in agentic_chat/agentic_team_chat.py:434 confirmed unrelated to spec 011
 
 **Environment:**
 - Venv: `source /home/gyasisutton/dev/projects/PromptChain/.venv/bin/activate`
 - Latent issue: `pyperclip` not declared in `setup.py [cli]` extras — follow-up out of scope for 011
+- Latent issue: Python 3.12.5 in venv — upgrade to 3.12.6+ to unblock black
 
 **Patterns that worked:**
 - T043 bundled into Wave 5 for atomic correctness — dispatch table must be complete before T021 delegates through it
 - TUIAgenticStepProcessor uses TypeError (not ValueError) to signal "wrong class" rather than "bad argument"
+- All 10 call-site migrations identified and verified: 2 in app.py, 1 in yaml_translator.py, 7 in agentic_team_chat.py
 
 ---
 

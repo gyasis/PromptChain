@@ -20,6 +20,7 @@ import yaml  # type: ignore[import-untyped]
 
 from promptchain import PromptChain
 from promptchain.utils.agent_chain import AgentChain
+from promptchain.cli.tui_processor import TUIAgenticStepProcessor
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 from ..models.agent_config import Agent, HistoryConfig
@@ -311,8 +312,9 @@ class YAMLConfigTranslator:
                 f"Valid modes: {', '.join(valid_modes)}"
             )
 
-        # Create AgenticStepProcessor instance with all Phase 1-4 features
-        processor = AgenticStepProcessor(
+        # Create TUIAgenticStepProcessor instance with all Phase 1-4 features
+        # (spec 011: legacy TUI prompt baked in for CLI/TUI default-path agents)
+        processor = TUIAgenticStepProcessor(
             objective=objective,
             max_internal_steps=max_internal_steps,
             model_name=model_name,  # type: ignore[arg-type]

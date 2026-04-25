@@ -10,7 +10,6 @@ import pytest
 
 from promptchain.prompts.base import BasePromptBuilder
 
-
 _TUI_ONLY_TOOL_NAMES = (
     "ripgrep_search",
     "file_read",
@@ -100,6 +99,19 @@ def test_dynamic_does_not_advertise_tui_only_tools() -> None:
         assert name not in prompt, (
             f"TUI-only tool {name!r} leaked into prompt without being registered"
         )
+
+
+def test_dynamic_standard_mode_omits_react_block() -> None:
+    """Standard workflow_pattern must not emit any ReAct scaffold sections (T010)."""
+    from promptchain.prompts import DynamicPromptGenerator
+
+    prompt = DynamicPromptGenerator(workflow_pattern="standard").generate(
+        "ship the release", _make_tools(3)
+    )
+    upper = prompt.upper()
+    forbidden = ("REACT WORKFLOW", "STEP 1 - THINK", "STEP 2 - PLAN", "STEP 3 - ACT", "STEP 4 - OBSERVE")
+    for marker in forbidden:
+        assert marker not in upper, f"standard mode leaked ReAct marker: {marker!r}"
 
 
 def test_dynamic_empty_tools_renders_sentinel() -> None:

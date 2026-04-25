@@ -29,7 +29,7 @@ from promptchain.utils.agent_chain import AgentChain
 from promptchain.utils.execution_history_manager import ExecutionHistoryManager
 from promptchain.utils.logging_utils import RunLogger
 from promptchain.utils.orchestrator_supervisor import OrchestratorSupervisor  # ✅ Import from library
-from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+from promptchain.cli.tui_processor import TUIAgenticStepProcessor
 
 # Import visual output system
 from visual_output import ChatVisualizer
@@ -57,7 +57,7 @@ def create_research_agent(mcp_config, verbose=False):
     Uses Gemini MCP for advanced search capabilities with AgenticStepProcessor
     """
     # Create agentic step processor with Gemini MCP access
-    research_step = AgenticStepProcessor(
+    research_step = TUIAgenticStepProcessor(
         objective="""You are the Research Agent with access to Gemini search capabilities.
 
 OBJECTIVE: Conduct comprehensive research using available Gemini search tools, verify information, and provide detailed findings with sources.
@@ -147,7 +147,7 @@ def create_analysis_agent(verbose=False):
     """
     Analysis Agent: Expert at analyzing data and extracting insights
     """
-    analysis_step = AgenticStepProcessor(
+    analysis_step = TUIAgenticStepProcessor(
         objective="""You are the Analysis Agent, an expert at analytical reasoning and insight extraction.
 
 OBJECTIVE: Perform deep analytical reasoning to extract insights, identify patterns, and provide evidence-based conclusions.
@@ -207,7 +207,7 @@ def create_terminal_agent(scripts_dir: Path = None, verbose=False):
 
     scripts_note = f"\n\nScripts workspace: {scripts_dir}\nYou can execute scripts written by the Coding Agent from this directory." if scripts_dir else ""
 
-    terminal_step = AgenticStepProcessor(
+    terminal_step = TUIAgenticStepProcessor(
         objective=f"""You are the Terminal Agent, an expert at system operations and command-line execution.
 
 OBJECTIVE: Execute terminal commands and scripts safely and efficiently to accomplish system tasks and gather information.
@@ -523,7 +523,7 @@ def create_documentation_agent(verbose=False):
     """
     Documentation Agent: Expert at creating clear, comprehensive documentation
     """
-    documentation_step = AgenticStepProcessor(
+    documentation_step = TUIAgenticStepProcessor(
         objective="""You are the Documentation Agent, an expert technical writer and educator.
 
 OBJECTIVE: Create clear, comprehensive, and user-friendly documentation that explains concepts effectively.
@@ -563,7 +563,7 @@ def create_synthesis_agent(verbose=False):
     """
     Synthesis Agent: Expert at combining insights and creating cohesive final outputs
     """
-    synthesis_step = AgenticStepProcessor(
+    synthesis_step = TUIAgenticStepProcessor(
         objective="""You are the Synthesis Agent, an expert at integrating diverse information into unified strategic outputs.
 
 OBJECTIVE: Synthesize insights from multiple sources into cohesive, actionable recommendations with strategic clarity.
@@ -644,7 +644,7 @@ def create_coding_agent(scripts_dir: Path, verbose=False):
         except Exception as e:
             return f"❌ Error writing script: {e}"
 
-    coding_step = AgenticStepProcessor(
+    coding_step = TUIAgenticStepProcessor(
         objective=f"""You are the Coding Agent, an expert at writing clean, efficient scripts and code.
 
 OBJECTIVE: Write scripts, automation code, and utilities that the Terminal agent can execute.
@@ -1246,7 +1246,7 @@ def create_agentic_orchestrator(agent_descriptions: dict, log_event_callback=Non
     }
 
     # Create the orchestrator PromptChain once (closure captures this)
-    orchestrator_step = AgenticStepProcessor(
+    orchestrator_step = TUIAgenticStepProcessor(
         objective=f"""You are the Master Orchestrator. Use multi-step reasoning to create the best execution plan.
 
 CURRENT DATE: {{current_date}}

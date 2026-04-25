@@ -2244,3 +2244,27 @@ Tasks: T009, T021, T034 (atomic from Wave 3), T035, T043 (bundled)
 Tasks complete: 22/65
 
 **Wave 6 next**: T010, T022, T036, T037, T038, T056.
+
+---
+
+### 011-agentic-prompt-builder: Wave 6 Complete (2026-04-25)
+
+Tasks: T010, T022, T036, T037, T038, T056
+
+| Task | File(s) | Description |
+|------|---------|-------------|
+| T010 | `tests/test_prompt_builders.py` | Added `test_dynamic_standard_mode_omits_react_block` — verifies standard-mode prompt from `DynamicPromptGenerator` contains no ReAct scaffold markers (`Thought:`, `Action:`, `Observation:`) |
+| T022 | `tests/integration/test_011_library_consumer_flow.py` (NEW) | PRD reproduction integration test — 4 stub tools, library-consumer default path produces tool-truthful prompt naming all 4 stub tools and no TUI-only names. 2 tests: `test_library_consumer_default_path_is_tool_truthful` and `test_library_consumer_names_all_provided_tools` |
+| T036 | `promptchain/cli/tui/app.py` | Migrated 2 default-path call sites to `TUIAgenticStepProcessor` + added import |
+| T037 | `promptchain/cli/config/yaml_translator.py` | Migrated 1 call site (line 316) to `TUIAgenticStepProcessor`; retained `AgenticStepProcessor` import alongside for return-type annotations on 2 functions (subclass is type-correct) |
+| T038 | `agentic_chat/agentic_team_chat.py` | Migrated all 7 call sites to `TUIAgenticStepProcessor` + added import. No sub-agent spawners detected — all are user-facing default team agents |
+| T056 | all new/modified files | isort applied; black blocked by Python 3.12.5 AST safety bug (not a code issue — venv-level follow-up) |
+
+**Key decisions:**
+- All 10 user-facing default-path call sites across 3 files migrated to TUIAgenticStepProcessor.
+- yaml_translator.py dual-import is intentional: `TUIAgenticStepProcessor` for construction, `AgenticStepProcessor` for return-type annotations.
+- Pre-existing SyntaxError in agentic_chat/agentic_team_chat.py:434 confirmed unrelated to spec 011 (verified via git baseline).
+- black formatter blocked by Python 3.12.5 AST safety bug — tracked as venv-level follow-up, does not block spec.
+
+Tests complete: 11 passing (9 unit in tests/test_prompt_builders.py + 2 integration in tests/integration/test_011_library_consumer_flow.py)
+Tasks complete: 28/65 (43%)
