@@ -51,57 +51,57 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
 - [x] T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback
 - [x] T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines
-- [ ] T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate
-- [ ] T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed
-- [ ] T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode
-- [ ] T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction
+- [x] T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate
+- [x] T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed
+- [x] T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode
+- [x] T017 [P] [US1] Add test_dynamic_tool_description_updates_reflected_on_regenerate to tests/test_prompt_builders.py verifying no caching at construction
 - [x] T018 [US1] Implement DynamicPromptGenerator in promptchain/prompts/dynamic.py with extra_instructions, workflow_pattern, include_response_format_hint constructor params and the full render logic from contracts
 - [x] T019 [US1] Re-export DynamicPromptGenerator from promptchain/prompts/__init__.py
 - [x] T020 [US1] Modify promptchain/utils/agentic_step_processor.py __init__ to add prompt_builder and workflow_pattern kwargs with default-branch dispatch constructing DynamicPromptGenerator
 - [x] T021 [US1] Modify promptchain/utils/agentic_step_processor.py run() replacing the hardcoded system-prompt f-string with a self.prompt_builder.generate call
 - [x] T022 [P] [US1] Write tests/integration/test_011_library_consumer_flow.py mirroring the PRD reproduction with 4 stub tools and a mocked LLM
-- [ ] T023 [US1] Run the US1 pytest subset and confirm all pass
+- [x] T023 [US1] Run the US1 pytest subset and confirm all pass
 
 ---
 
 ## Phase 4: User Story 2 — TUI preservation and swappable processor class (Priority P1)
 
-- [ ] T024 [P] [US2] Add test_legacy_snapshot_byte_identical to tests/test_prompt_builders.py verifying LegacyTUIPromptGenerator output byte-equals fixture
-- [ ] T025 [P] [US2] Add test_legacy_ignores_tools_for_content to tests/test_prompt_builders.py verifying tool-list argument does not alter output
-- [ ] T026 [P] [US2] Add test_legacy_drift_warning_on_unexpected_tools to tests/test_prompt_builders.py verifying logger.warning on tool-name set mismatch
-- [ ] T027 [P] [US2] Add test_tui_subclass_bakes_legacy_builder to tests/test_prompt_builders.py verifying TUIAgenticStepProcessor prompt_builder is LegacyTUIPromptGenerator instance
-- [ ] T028 [P] [US2] Add test_tui_subclass_rejects_prompt_builder_kwarg to tests/test_prompt_builders.py verifying TypeError
-- [ ] T029 [P] [US2] Add test_tui_subclass_rejects_instructions_kwarg to tests/test_prompt_builders.py verifying TypeError
-- [ ] T030 [P] [US2] Add test_subclass_inheritance_enhanced_sees_custom_tools to tests/test_prompt_builders.py verifying EnhancedAgenticStepProcessor propagates the fix
-- [ ] T031 [P] [US2] Add test_subclass_inheritance_state_agent_sees_custom_tools to tests/test_prompt_builders.py verifying StateAgent propagates the fix
-- [ ] T032 [P] [US2] Add test_callsite_compliance_tui_grep to tests/test_prompt_builders.py verifying no bare AgenticStepProcessor calls remain in promptchain/cli/ or agentic_chat/
+- [x] T024 [P] [US2] Add test_legacy_snapshot_byte_identical to tests/test_prompt_builders.py verifying LegacyTUIPromptGenerator output byte-equals fixture
+- [x] T025 [P] [US2] Add test_legacy_ignores_tools_for_content to tests/test_prompt_builders.py verifying tool-list argument does not alter output
+- [x] T026 [P] [US2] Add test_legacy_drift_warning_on_unexpected_tools to tests/test_prompt_builders.py verifying logger.warning on tool-name set mismatch
+- [x] T027 [P] [US2] Add test_tui_subclass_bakes_legacy_builder to tests/test_prompt_builders.py verifying TUIAgenticStepProcessor prompt_builder is LegacyTUIPromptGenerator instance
+- [x] T028 [P] [US2] Add test_tui_subclass_rejects_prompt_builder_kwarg to tests/test_prompt_builders.py verifying TypeError
+- [x] T029 [P] [US2] Add test_tui_subclass_rejects_instructions_kwarg to tests/test_prompt_builders.py verifying TypeError
+- [x] T030 [P] [US2] Add test_subclass_inheritance_enhanced_sees_custom_tools to tests/test_prompt_builders.py verifying EnhancedAgenticStepProcessor propagates the fix
+- [x] T031 [P] [US2] Add test_subclass_inheritance_state_agent_sees_custom_tools to tests/test_prompt_builders.py verifying StateAgent propagates the fix
+- [x] T032 [P] [US2] Add test_callsite_compliance_tui_grep to tests/test_prompt_builders.py verifying no bare AgenticStepProcessor calls remain in promptchain/cli/ or agentic_chat/
 - [x] T033 [US2] Implement LegacyTUIPromptGenerator in promptchain/prompts/legacy_tui.py returning the frozen v0.5.0 prompt with objective substituted
 - [x] T034 [US2] Re-export LegacyTUIPromptGenerator from promptchain/prompts/__init__.py
 - [x] T035 [US2] Implement TUIAgenticStepProcessor subclass in promptchain/cli/tui_processor.py baking LegacyTUIPromptGenerator and rejecting prompt_builder or instructions kwargs
 - [x] T036 [P] [US2] Migrate both default-path call sites in promptchain/cli/tui/app.py to TUIAgenticStepProcessor
 - [x] T037 [P] [US2] Migrate promptchain/cli/config/yaml_translator.py line 315 to TUIAgenticStepProcessor
 - [x] T038 [P] [US2] Migrate the 7 call sites in agentic_chat/agentic_team_chat.py default-path sites to TUIAgenticStepProcessor and annotate any sub-agent spawners with the whitelist comment
-- [ ] T039 [US2] Run the US2 pytest subset and confirm all pass including the grep-compliance check
+- [x] T039 [US2] Run the US2 pytest subset and confirm all pass including the grep-compliance check
 
 ---
 
 ## Phase 5: User Story 3 — instructions= deprecation shim (Priority P2)
 
-- [ ] T040 [P] [US3] Add test_dispatch_mutually_exclusive_raises_value_error to tests/test_prompt_builders.py verifying ValueError when both kwargs supplied
-- [ ] T041 [P] [US3] Add test_dispatch_instructions_emits_single_deprecation_warning to tests/test_prompt_builders.py verifying one DeprecationWarning naming the replacement API
-- [ ] T042 [P] [US3] Add test_dispatch_instructions_renders_as_extra_instructions_block to tests/test_prompt_builders.py verifying supplied instructions appear under ADDITIONAL INSTRUCTIONS header
+- [x] T040 [P] [US3] Add test_dispatch_mutually_exclusive_raises_value_error to tests/test_prompt_builders.py verifying ValueError when both kwargs supplied
+- [x] T041 [P] [US3] Add test_dispatch_instructions_emits_single_deprecation_warning to tests/test_prompt_builders.py verifying one DeprecationWarning naming the replacement API
+- [x] T042 [P] [US3] Add test_dispatch_instructions_renders_as_extra_instructions_block to tests/test_prompt_builders.py verifying supplied instructions appear under ADDITIONAL INSTRUCTIONS header
 - [x] T043 [US3] Extend promptchain/utils/agentic_step_processor.py __init__ with the instructions kwarg handling the mutual-exclusion ValueError and the DeprecationWarning shim path
 - [x] T044 [P] [US3] Update tests/test_tao_loop.py replacing old-prompt substring assertions with dynamic-render or legacy-snapshot assertions per FR-019
 - [x] T045 [P] [US3] Update tests/test_verification_integration.py with the same migration per FR-019
 - [x] T046 [P] [US3] Update tests/cli/integration/test_agentic_reasoning.py with the same migration per FR-019
-- [ ] T047 [US3] Run the US3 pytest subset and confirm all pass
+- [x] T047 [US3] Run the US3 pytest subset and confirm all pass
 
 ---
 
 ## Phase 6: User Story 4 — Custom prompt-builder injection (Priority P3)
 
-- [ ] T048 [P] [US4] Add test_dispatch_accepts_custom_builder to tests/test_prompt_builders.py verifying processor delegates to the injected builder
-- [ ] T049 [P] [US4] Add test_dispatch_custom_builder_with_non_default_workflow_hint_warns to tests/test_prompt_builders.py verifying logger.warning on the ignored hint
+- [x] T048 [P] [US4] Add test_dispatch_accepts_custom_builder to tests/test_prompt_builders.py verifying processor delegates to the injected builder
+- [x] T049 [P] [US4] Add test_dispatch_custom_builder_with_non_default_workflow_hint_warns to tests/test_prompt_builders.py verifying logger.warning on the ignored hint
 - [x] T050 [US4] Extend promptchain/utils/agentic_step_processor.py __init__ prompt_builder-alone branch with the workflow_pattern-ignored warning
 
 ---
@@ -111,7 +111,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2
 - [x] T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist
 - [x] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
-- [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
+- [x] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
 - [x] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
 - [x] T056 [P] Run black and isort over the new and modified files
 - [x] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
@@ -122,12 +122,12 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 ## Phase 8: Coverage-gap closure
 
-- [ ] T060 [P] [US1] Add test_dynamic_extra_instructions_renders_block to tests/test_prompt_builders.py verifying FR-005 direct-path behavior
-- [ ] T061 [P] [US1] Add test_dynamic_final_answer_block_conditional_on_flag to tests/test_prompt_builders.py verifying FR-007 both True and False cases
-- [ ] T062 [P] Add test_no_process_global_state_in_prompts_module to tests/test_prompt_builders.py performing AST static check for FR-017 and SC-008 verification
-- [ ] T063 [P] Add test_base_module_has_no_internal_imports to tests/test_prompt_builders.py performing AST import audit for FR-018 verification
+- [x] T060 [P] [US1] Add test_dynamic_extra_instructions_renders_block to tests/test_prompt_builders.py verifying FR-005 direct-path behavior
+- [x] T061 [P] [US1] Add test_dynamic_final_answer_block_conditional_on_flag to tests/test_prompt_builders.py verifying FR-007 both True and False cases
+- [x] T062 [P] Add test_no_process_global_state_in_prompts_module to tests/test_prompt_builders.py performing AST static check for FR-017 and SC-008 verification
+- [x] T063 [P] Add test_base_module_has_no_internal_imports to tests/test_prompt_builders.py performing AST import audit for FR-018 verification
 - [x] T064 [P] [US1] Parameterize test_dynamic_renders_registered_tools over N in 0 1 4 10 for SC-001 full verification
-- [ ] T065 [P] [US2] Add test_tui_sub_agent_spawn_uses_custom_instructions to tests/test_prompt_builders.py using DynamicPromptGenerator directly to avoid the instructions shim dependency
+- [x] T065 [P] [US2] Add test_tui_sub_agent_spawn_uses_custom_instructions to tests/test_prompt_builders.py using DynamicPromptGenerator directly to avoid the instructions shim dependency
 
 ---
 

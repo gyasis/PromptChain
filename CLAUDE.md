@@ -356,6 +356,22 @@ Track orchestration efficiency:
 - **Checkpoint Overhead**: Time spent on sync vs execution
 - **Conflict Rate**: File conflicts per phase (target: 0)
 
+### Wave Cadence (User-Facing Check-In Rhythm)
+
+When running `/devkid.execute` or any wave-based workflow, the agent decides when to interrupt the user. Interrupting on every wave is noise; never interrupting is risky. Default rhythm:
+
+| Wave size | Behavior |
+|-----------|----------|
+| **1-2 tasks** | Sprint mode — execute, commit per wave for git history, then proceed to the next wave WITHOUT checking in |
+| **3+ tasks** | Pause and check in with the user before spawning agents — confirm scope, file locks, and approach |
+| **Any wave that fails / halts / hits unexpected state** | Stop immediately and report — do not proceed to the next wave on a yellow signal |
+
+**Commit cadence:** one commit per wave, even in sprint mode. The commit is the durable checkpoint; agent-spawn-and-implement is ephemeral. Squash later if the user wants a flatter history.
+
+**Sprint termination:** the agent stops sprinting and checks in if (a) any wave fails or halts, (b) a wave exceeds the 2-task threshold, (c) the user sends any message during the sprint, or (d) cumulative uncommitted changes look risky (>500 LOC across >5 files).
+
+**User override:** the user can change the threshold per session ("sprint dual-and-triple-task waves through, only stop on 4+") — agent acknowledges and adjusts.
+
 ## Recent Changes
 - 011-agentic-prompt-builder: Added Python 3.10+ (Protocol requires 3.8+; repo CI runs 3.10 and 3.12; current active: 3.12.11) + litellm (LLM calls, unchanged), tiktoken (token estimation, already in use for `execution_history_manager.py`), Textual/Rich (TUI layer, unchanged), standard library `warnings` and `typing.Protocol` for the new module
 - 008-type-safety-debt-pt2: Complete (41/41 tasks). Fixed 4 high-error files to 0 mypy errors each: state_agent.py (94→0), app.py (63→0), promptchaining.py (32→0), executors.py (31→0). Project total: 421→213 errors (49% reduction). Zero new test regressions. All SC met.
