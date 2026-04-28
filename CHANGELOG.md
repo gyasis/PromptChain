@@ -5,6 +5,61 @@ All notable changes to PromptChain will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-04-28
+
+Library-consumer blocker fixes exposed during real-world testing of v0.6.0.
+The prompt-builder decoupling itself works as designed; these are pre-existing
+PromptChain bugs that v0.6.0 surfaced by routing real consumer tools through
+the system honestly.
+
+### Fixed
+- **Library import without TUI dependencies** (Bug 1): `import promptchain` no
+  longer transitively imports `textual`. The previous `from . import tui` in
+  `promptchain/cli/__init__.py` chained `promptchain → cli → tui →
+  textual.app`, breaking any consumer who installed the base package without
+  the optional TUI extras. TUI users must now `pip install "promptchain[tui]"`
+  and explicitly import `promptchain.cli.tui.app.PromptChainApp` (or use the
+  `promptchain` console-script entry point).
+- **Schema/function name-mismatch is now caught at registration** (Bug 2):
+  Both `PromptChain.add_tools()` and `PromptChain.register_tool_function()`
+  validate that every tool schema name has a matching function registered.
+  Validation fires whenever both sides are present at the call-site —
+  whichever method is called second. A mismatch (e.g. schema name
+  `"my_tool"` vs function `my_tool_func`) now raises a `ValueError` listing
+  both the offending schema name and the registered function names —
+  instead of failing silently and surfacing later as an opaque
+  `Missing parameter 'tool_call_id'` error from OpenAI. The earlier
+  "deferred to first run" wording was inaccurate; no run-time check exists,
+  the check fires symmetrically at registration on both methods.
+- **Tool execution body now runs INSIDE the per-tool for-loop** (Bug 3,
+  CRITICAL): in `agentic_step_processor.py`, the per-tool execution block
+  (function lookup, async call, tool-message construction, history append)
+  was incorrectly indented to the same column as `for tool_call in tool_calls:`
+  and so ran exactly ONCE per ACT phase regardless of how many tool_calls the
+  LLM emitted. A stray `for/else` clause additionally overwrote
+  `tool_call_id` with `None` whenever the last tool_call was a dict (because
+  `getattr(dict, "id", None)` returns `None`). Effects: only the LAST of N
+  parallel tool_calls was executed; subsequent assistant→tool message pairs
+  were malformed; OpenAI rejected the next turn. Now: every tool_call is
+  dispatched, tool_call_id round-trips correctly for both dict-style (OpenAI)
+  and object-style (LiteLLM) responses, and exceptions in one tool no longer
+  prevent the others from running.
+
+### Changed
+- `setup.py` adds an explicit `extras_require["tui"]` group with `textual`,
+  `rich`, `prompt_toolkit`, and `pyperclip`. The pre-existing `cli` extra is
+  preserved for backward compatibility (it bundles `click` on top of `tui`).
+  Library consumers do `pip install promptchain` (no textual). TUI users do
+  `pip install "promptchain[tui]"` (or `[cli]`).
+- `promptchain/cli/__init__.py` no longer eagerly does `from . import tui`.
+
+### Tests
+- New `tests/test_library_import_clean.py` runs `import promptchain` in a
+  subprocess with `textual` stubbed to `None` to prove the library path is
+  clean.
+- New `tests/test_tool_dispatch.py` covers all 5 dispatch scenarios from the
+  v0.6.1 PRD plus 2 tests for the schema/function name validation.
+
 ## [0.6.0] - 2026-04-19
 
 Implements spec 011-agentic-prompt-builder: decouple the legacy TUI-oriented

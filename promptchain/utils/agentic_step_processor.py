@@ -1399,6 +1399,14 @@ class AgenticStepProcessor:
                                 )
 
                             # Execute tools sequentially for simplicity
+                            # v0.6.1 (Bug 3): The ENTIRE per-tool execution body
+                            # MUST live inside this for-loop. Pre-0.6.1 the body
+                            # was dedented to the for-loop's column, so for N
+                            # parallel tool_calls only the LAST was executed,
+                            # and a `for/else` clause silently overwrote
+                            # tool_call_id with None (getattr(dict, "id", None))
+                            # → OpenAI rejected the next turn with
+                            # "Missing parameter 'tool_call_id'".
                             for tool_call in tool_calls:
                                 # Extract tool call ID and function name using the helper function
                                 if isinstance(tool_call, dict):
@@ -1406,163 +1414,164 @@ class AgenticStepProcessor:
                                     tool_call_args = tool_call.get("function", {}).get(
                                         "arguments", {}
                                     )
-                            else:
-                                tool_call_id = getattr(tool_call, "id", None)
-                                func_obj = getattr(tool_call, "function", None)
-                                tool_call_args = (
-                                    getattr(func_obj, "arguments", {})
-                                    if func_obj
-                                    else {}
-                                )
-
-                            function_name = get_function_name_from_tool_call(tool_call)
-
-                            if not function_name:
-                                logger.error(
-                                    f"Could not extract function name from tool call: {tool_call}"
-                                )
-                                tool_result_content = json.dumps(
-                                    {
-                                        "error": "Could not determine function name for tool execution"
-                                    }
-                                )
-                                tool_msg = {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call_id,
-                                    "name": "unknown_function",
-                                    "content": tool_result_content,
-                                }
-                                internal_history.append(tool_msg)
-                                last_tool_msgs.append(tool_msg)
-                                # Track failed tool call
-                                step_tool_calls.append(
-                                    {
-                                        "name": "unknown_function",
-                                        "args": {},
-                                        "result": tool_result_content,
-                                        "time_ms": 0,
-                                        "error": "Could not determine function name",
-                                    }
-                                )
-                                continue
-
-                            logger.info(
-                                f"Executing tool: {function_name} (ID: {tool_call_id})"
-                            )
-
-                            # Stream tool call event
-                            self._stream_event(
-                                "tool_call",
-                                f"{function_name}: {str(tool_call_args)[:200]}",
-                            )
-
-                            tool_exec_start = datetime.now()
-                            try:
-                                # Use the provided executor callback with timeout
-                                tool_coro = tool_executor(tool_call)
-                                if self.step_timeout:
-                                    try:
-                                        tool_result_content = await asyncio.wait_for(
-                                            tool_coro, timeout=self.step_timeout
-                                        )
-                                    except asyncio.TimeoutError:
-                                        tool_exec_time = (
-                                            datetime.now() - tool_exec_start
-                                        ).total_seconds() * 1000
-                                        timeout_msg = f"Tool {function_name} timed out after {self.step_timeout}s"
-                                        logger.error(timeout_msg)
-                                        self._stream_event("error", timeout_msg)
-                                        tool_result_content = f"Error: {timeout_msg}"
-                                        tool_msg = {
-                                            "role": "tool",
-                                            "tool_call_id": tool_call_id,
-                                            "name": function_name,
-                                            "content": tool_result_content,
-                                        }
-                                        internal_history.append(tool_msg)
-                                        last_tool_msgs.append(tool_msg)
-                                        step_tool_calls.append(
-                                            {
-                                                "name": function_name,
-                                                "args": tool_call_args,
-                                                "result": tool_result_content,
-                                                "time_ms": tool_exec_time,
-                                                "error": timeout_msg,
-                                            }
-                                        )
-                                        execution_errors.append(timeout_msg)
-                                        continue  # Skip to next tool
                                 else:
-                                    tool_result_content = await tool_coro
+                                    tool_call_id = getattr(tool_call, "id", None)
+                                    func_obj = getattr(tool_call, "function", None)
+                                    tool_call_args = (
+                                        getattr(func_obj, "arguments", {})
+                                        if func_obj
+                                        else {}
+                                    )
 
-                                tool_exec_time = (
-                                    datetime.now() - tool_exec_start
-                                ).total_seconds() * 1000
+                                function_name = get_function_name_from_tool_call(tool_call)
+
+                                if not function_name:
+                                    logger.error(
+                                        f"Could not extract function name from tool call: {tool_call}"
+                                    )
+                                    tool_result_content = json.dumps(
+                                        {
+                                            "error": "Could not determine function name for tool execution"
+                                        }
+                                    )
+                                    tool_msg = {
+                                        "role": "tool",
+                                        "tool_call_id": tool_call_id,
+                                        "name": "unknown_function",
+                                        "content": tool_result_content,
+                                    }
+                                    internal_history.append(tool_msg)
+                                    last_tool_msgs.append(tool_msg)
+                                    # Track failed tool call
+                                    step_tool_calls.append(
+                                        {
+                                            "name": "unknown_function",
+                                            "args": {},
+                                            "result": tool_result_content,
+                                            "time_ms": 0,
+                                            "error": "Could not determine function name",
+                                        }
+                                    )
+                                    continue
+
                                 logger.info(
-                                    f"Tool {function_name} executed successfully."
-                                )
-                                logger.debug(
-                                    f"Tool result content: {tool_result_content[:150]}..."
+                                    f"Executing tool: {function_name} (ID: {tool_call_id})"
                                 )
 
-                                # Stream tool result event
-                                result_preview = str(tool_result_content)[:500]
+                                # Stream tool call event
                                 self._stream_event(
-                                    "tool_result",
-                                    f"{function_name} completed: {result_preview}",
+                                    "tool_call",
+                                    f"{function_name}: {str(tool_call_args)[:200]}",
                                 )
 
-                                # Append tool result to internal history
-                                tool_msg = {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call_id,
-                                    "name": function_name,
-                                    "content": tool_result_content,
-                                }
-                                internal_history.append(tool_msg)
-                                last_tool_msgs.append(tool_msg)
-                                # Track successful tool call
-                                step_tool_calls.append(
-                                    {
+                                tool_exec_start = datetime.now()
+                                try:
+                                    # Use the provided executor callback with timeout
+                                    tool_coro = tool_executor(tool_call)
+                                    if self.step_timeout:
+                                        try:
+                                            tool_result_content = await asyncio.wait_for(
+                                                tool_coro, timeout=self.step_timeout
+                                            )
+                                        except asyncio.TimeoutError:
+                                            tool_exec_time = (
+                                                datetime.now() - tool_exec_start
+                                            ).total_seconds() * 1000
+                                            timeout_msg = f"Tool {function_name} timed out after {self.step_timeout}s"
+                                            logger.error(timeout_msg)
+                                            self._stream_event("error", timeout_msg)
+                                            tool_result_content = f"Error: {timeout_msg}"
+                                            tool_msg = {
+                                                "role": "tool",
+                                                "tool_call_id": tool_call_id,
+                                                "name": function_name,
+                                                "content": tool_result_content,
+                                            }
+                                            internal_history.append(tool_msg)
+                                            last_tool_msgs.append(tool_msg)
+                                            step_tool_calls.append(
+                                                {
+                                                    "name": function_name,
+                                                    "args": tool_call_args,
+                                                    "result": tool_result_content,
+                                                    "time_ms": tool_exec_time,
+                                                    "error": timeout_msg,
+                                                }
+                                            )
+                                            execution_errors.append(timeout_msg)
+                                            continue  # Skip to next tool
+                                    else:
+                                        tool_result_content = await tool_coro
+
+                                    tool_exec_time = (
+                                        datetime.now() - tool_exec_start
+                                    ).total_seconds() * 1000
+                                    logger.info(
+                                        f"Tool {function_name} executed successfully."
+                                    )
+                                    logger.debug(
+                                        f"Tool result content: {tool_result_content[:150]}..."
+                                    )
+
+                                    # Stream tool result event
+                                    result_preview = str(tool_result_content)[:500]
+                                    self._stream_event(
+                                        "tool_result",
+                                        f"{function_name} completed: {result_preview}",
+                                    )
+
+                                    # Append tool result to internal history
+                                    tool_msg = {
+                                        "role": "tool",
+                                        "tool_call_id": tool_call_id,
                                         "name": function_name,
-                                        "args": tool_call_args,
-                                        "result": tool_result_content,
-                                        "time_ms": tool_exec_time,
+                                        "content": tool_result_content,
                                     }
-                                )
-                                total_tools_called += 1
-                            except Exception as tool_exec_error:
-                                tool_exec_time = (
-                                    datetime.now() - tool_exec_start
-                                ).total_seconds() * 1000
-                                logger.error(
-                                    f"Error executing tool {function_name}: {tool_exec_error}",
-                                    exc_info=True,
-                                )
-                                error_msg = str(tool_exec_error)
-                                tool_msg = {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call_id,
-                                    "name": function_name,
-                                    "content": f"Error executing tool: {error_msg}",
-                                }
-                                internal_history.append(tool_msg)
-                                last_tool_msgs.append(tool_msg)
-                                # Track failed tool call
-                                step_tool_calls.append(
-                                    {
+                                    internal_history.append(tool_msg)
+                                    last_tool_msgs.append(tool_msg)
+                                    # Track successful tool call
+                                    step_tool_calls.append(
+                                        {
+                                            "name": function_name,
+                                            "args": tool_call_args,
+                                            "result": tool_result_content,
+                                            "time_ms": tool_exec_time,
+                                        }
+                                    )
+                                    total_tools_called += 1
+                                except Exception as tool_exec_error:
+                                    tool_exec_time = (
+                                        datetime.now() - tool_exec_start
+                                    ).total_seconds() * 1000
+                                    logger.error(
+                                        f"Error executing tool {function_name}: {tool_exec_error}",
+                                        exc_info=True,
+                                    )
+                                    error_msg = str(tool_exec_error)
+                                    tool_msg = {
+                                        "role": "tool",
+                                        "tool_call_id": tool_call_id,
                                         "name": function_name,
-                                        "args": tool_call_args,
-                                        "result": f"Error: {error_msg}",
-                                        "time_ms": tool_exec_time,
-                                        "error": error_msg,
+                                        "content": f"Error executing tool: {error_msg}",
                                     }
-                                )
-                                execution_errors.append(
-                                    f"Tool {function_name}: {error_msg}"
-                                )
+                                    internal_history.append(tool_msg)
+                                    last_tool_msgs.append(tool_msg)
+                                    # Track failed tool call
+                                    step_tool_calls.append(
+                                        {
+                                            "name": function_name,
+                                            "args": tool_call_args,
+                                            "result": f"Error: {error_msg}",
+                                            "time_ms": tool_exec_time,
+                                            "error": error_msg,
+                                        }
+                                    )
+                                    execution_errors.append(
+                                        f"Tool {function_name}: {error_msg}"
+                                    )
 
                             # Log ACT phase metrics to MLflow span
+                            # (aggregate — runs once per ACT phase, after all tools)
                             if self.enable_tao_loop and act_span:
                                 act_span.set_attribute("iteration", step_num)
                                 act_span.set_attribute(

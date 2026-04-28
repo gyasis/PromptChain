@@ -20,7 +20,7 @@ core_requirements = [
 
 setup(
     name="promptchain",
-    version="0.6.0",
+    version="0.6.1",
     author="Gyasi Sutton",
     author_email="gyasis@gmail.com",
     description="A flexible prompt engineering library for LLM applications and agent frameworks",
@@ -42,7 +42,16 @@ setup(
     python_requires=">=3.8",
     install_requires=core_requirements,
     extras_require={
+        "tui": [
+            # v0.6.1: TUI is opt-in. Library consumers do `pip install promptchain`
+            # (no textual). TUI users do `pip install "promptchain[tui]"`.
+            "textual>=0.83.0",          # Terminal UI
+            "rich>=13.0.0",             # Console rendering for TUI
+            "prompt_toolkit>=3.0.0",    # Input handling
+            "pyperclip>=1.8.0",         # Clipboard access for TUI
+        ],
         "cli": [
+            # Backward-compatible alias of `tui` plus CLI framework.
             "textual>=0.83.0",          # Terminal UI
             "click>=8.1.0",             # CLI framework
             "prompt_toolkit>=3.0.0",    # Input handling

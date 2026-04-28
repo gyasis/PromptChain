@@ -520,6 +520,41 @@ class PromptChain:
         if self.verbose:
             logger.debug(f"🛠️ Added {added_count} local tool schemas.")
 
+        # v0.6.1 (Bug 2): Validate now if any function has already been registered,
+        # so consumers see the mismatch at the call-site they got it wrong.
+        # If no functions are registered yet, defer validation to first run.
+        if self.local_tool_functions:
+            self._validate_tool_registry()
+
+    def _validate_tool_registry(self) -> None:
+        """Verify that every local tool schema has a matching registered function.
+
+        v0.6.1 (Bug 2): Previously a mismatch (e.g. schema name ``"my_tool"`` but
+        only ``my_tool_func`` registered) was accepted silently, then OpenAI
+        rejected the next-turn message list with a confusing
+        ``Missing parameter 'tool_call_id'`` error after the LLM tried to call
+        the schema name. We now fail fast with a clear, actionable message.
+
+        Raises:
+            ValueError: if any schema name has no matching registered function.
+        """
+        registered = sorted(self.local_tool_functions.keys())
+        missing: List[str] = []
+        for tool in self.local_tools:
+            schema_name = tool.get("function", {}).get("name")
+            if schema_name and schema_name not in self.local_tool_functions:
+                missing.append(schema_name)
+        if missing:
+            raise ValueError(
+                "Tool schema name(s) "
+                f"{missing!r} have no matching registered function. "
+                f"Registered functions: {registered!r}. "
+                "Did you mean to register a function with one of those names, "
+                "or rename the schema(s) to match an already-registered "
+                "function name? Schema 'function.name' MUST equal the "
+                "Python function's __name__."
+            )
+
     def register_tool_function(self, func: Callable):
         """
         Register the Python function that implements a LOCAL tool.
@@ -549,6 +584,14 @@ class PromptChain:
         self.local_tool_functions[tool_name] = func
         if self.verbose:
             logger.debug(f"🔧 Registered local function for tool: {tool_name}")
+
+        # v0.6.1 (Bug 2): Validate now if any tool schemas are already present,
+        # so a name mismatch surfaces at the point the consumer just registered
+        # a function (the natural moment to act on the error). Mirrors the
+        # symmetric guard in add_tools(): if no schemas yet, skip — validation
+        # will fire when add_tools() is called later.
+        if self.local_tools:
+            self._validate_tool_registry()
 
     # === Callback Registration Methods ===
 
