@@ -48,7 +48,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T008 [P] [US1] Add test_dynamic_does_not_advertise_tui_only_tools to tests/test_prompt_builders.py verifying no TUI-only tool names appear
 - [x] T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line
 - [x] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
-- [ ] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
+- [x] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
 - [ ] T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback
 - [ ] T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines
 - [ ] T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate
@@ -91,9 +91,9 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T041 [P] [US3] Add test_dispatch_instructions_emits_single_deprecation_warning to tests/test_prompt_builders.py verifying one DeprecationWarning naming the replacement API
 - [ ] T042 [P] [US3] Add test_dispatch_instructions_renders_as_extra_instructions_block to tests/test_prompt_builders.py verifying supplied instructions appear under ADDITIONAL INSTRUCTIONS header
 - [x] T043 [US3] Extend promptchain/utils/agentic_step_processor.py __init__ with the instructions kwarg handling the mutual-exclusion ValueError and the DeprecationWarning shim path
-- [ ] T044 [P] [US3] Update tests/test_tao_loop.py replacing old-prompt substring assertions with dynamic-render or legacy-snapshot assertions per FR-019
-- [ ] T045 [P] [US3] Update tests/test_verification_integration.py with the same migration per FR-019
-- [ ] T046 [P] [US3] Update tests/cli/integration/test_agentic_reasoning.py with the same migration per FR-019
+- [x] T044 [P] [US3] Update tests/test_tao_loop.py replacing old-prompt substring assertions with dynamic-render or legacy-snapshot assertions per FR-019
+- [x] T045 [P] [US3] Update tests/test_verification_integration.py with the same migration per FR-019
+- [x] T046 [P] [US3] Update tests/cli/integration/test_agentic_reasoning.py with the same migration per FR-019
 - [ ] T047 [US3] Run the US3 pytest subset and confirm all pass
 
 ---
@@ -102,7 +102,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 - [ ] T048 [P] [US4] Add test_dispatch_accepts_custom_builder to tests/test_prompt_builders.py verifying processor delegates to the injected builder
 - [ ] T049 [P] [US4] Add test_dispatch_custom_builder_with_non_default_workflow_hint_warns to tests/test_prompt_builders.py verifying logger.warning on the ignored hint
-- [ ] T050 [US4] Extend promptchain/utils/agentic_step_processor.py __init__ prompt_builder-alone branch with the workflow_pattern-ignored warning
+- [x] T050 [US4] Extend promptchain/utils/agentic_step_processor.py __init__ prompt_builder-alone branch with the workflow_pattern-ignored warning
 
 ---
 
@@ -114,7 +114,7 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
 - [ ] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
 - [x] T056 [P] Run black and isort over the new and modified files
-- [ ] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
+- [x] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
 - [ ] T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn
 - [x] T059 Bump version string in pyproject.toml and setup.py to 0.6.0
 

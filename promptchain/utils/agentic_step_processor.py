@@ -389,7 +389,7 @@ class AgenticStepProcessor:
         #   instructions + prompt_builder -> ValueError (mutually exclusive)
         #   instructions alone            -> DeprecationWarning + DynamicPromptGenerator(extra_instructions=...)
         #   prompt_builder alone          -> use it verbatim (no warning)
-        #   prompt_builder + "react"      -> logger.warning (workflow_pattern ignored), use builder verbatim
+        #   prompt_builder + "react"      -> UserWarning (workflow_pattern ignored), use builder verbatim
         #   neither                       -> default DynamicPromptGenerator(workflow_pattern=...)
         if instructions is not None and prompt_builder is not None:
             raise ValueError(
@@ -408,9 +408,11 @@ class AgenticStepProcessor:
             )
         elif prompt_builder is not None:
             if workflow_pattern != "standard":
-                logger.warning(
-                    "workflow_pattern=%r is ignored when a custom prompt_builder= is supplied.",
-                    workflow_pattern,
+                warnings.warn(
+                    "workflow_pattern is ignored when a custom prompt_builder is supplied; "
+                    "the builder controls rendering.",
+                    UserWarning,
+                    stacklevel=2,
                 )
             self.prompt_builder = prompt_builder
         else:

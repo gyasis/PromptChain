@@ -114,6 +114,22 @@ def test_dynamic_standard_mode_omits_react_block() -> None:
         assert marker not in upper, f"standard mode leaked ReAct marker: {marker!r}"
 
 
+def test_dynamic_react_with_tasklist_tool_renders_scaffold() -> None:
+    """ReAct mode with a task-list tool registered must render the full scaffold (T011)."""
+    from promptchain.prompts import DynamicPromptGenerator
+
+    tools = _make_tools(2) + [_tool("task_list_write_tool", "Write or update the task list.")]
+    prompt = DynamicPromptGenerator(workflow_pattern="react").generate("ship the release", tools)
+
+    upper = prompt.upper()
+    # Full scaffold should be present when a task-list tool is registered.
+    assert "THINK" in upper, "ReAct THINK step missing"
+    assert "ACT" in upper, "ReAct ACT step missing"
+    assert "OBSERVE" in upper, "ReAct OBSERVE step missing"
+    # task-list tool name appears in the AVAILABLE TOOLS block.
+    assert "task_list_write_tool" in prompt
+
+
 def test_dynamic_empty_tools_renders_sentinel() -> None:
     """Empty tool inventory must render a sentinel line, not a blank block (T009)."""
     from promptchain.prompts import DynamicPromptGenerator
