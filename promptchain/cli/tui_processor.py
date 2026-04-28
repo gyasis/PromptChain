@@ -47,4 +47,8 @@ class TUIAgenticStepProcessor(AgenticStepProcessor):
                 "TUIAgenticStepProcessor does not accept instructions=. "
                 "Use AgenticStepProcessor(instructions=...) directly."
             )
-        super().__init__(*args, prompt_builder=LegacyTUIPromptGenerator(), **kwargs)
+        super().__init__(  # type: ignore[misc]
+            *args,
+            prompt_builder=LegacyTUIPromptGenerator(),
+            **kwargs,
+        )

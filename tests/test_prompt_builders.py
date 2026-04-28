@@ -167,6 +167,24 @@ def test_dynamic_react_without_tasklist_warns_and_falls_back(
     assert "OBSERVE:" not in prompt, "full-scaffold OBSERVE step leaked into fallback"
 
 
+def test_dynamic_standard_mode_line_count_under_cap() -> None:
+    """Standard mode with 3 tools must stay under 15 lines (T013).
+
+    Protects the "minimal/honest by default" promise — library consumers
+    who don't opt into ReAct shouldn't get a long scaffold.
+    """
+    from promptchain.prompts import DynamicPromptGenerator
+
+    prompt = DynamicPromptGenerator(workflow_pattern="standard").generate(
+        "ship the release", _make_tools(3)
+    )
+    line_count = len(prompt.splitlines())
+    assert line_count < 15, (
+        f"standard-mode prompt with 3 tools rendered {line_count} lines; "
+        f"cap is <15. Rendered prompt:\n{prompt}"
+    )
+
+
 def test_dynamic_empty_tools_renders_sentinel() -> None:
     """Empty tool inventory must render a sentinel line, not a blank block (T009)."""
     from promptchain.prompts import DynamicPromptGenerator

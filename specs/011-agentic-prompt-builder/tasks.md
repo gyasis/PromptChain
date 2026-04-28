@@ -49,8 +49,8 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 - [x] T009 [P] [US1] Add test_dynamic_empty_tools_renders_sentinel to tests/test_prompt_builders.py verifying empty tools list produces sentinel line
 - [x] T010 [P] [US1] Add test_dynamic_standard_mode_omits_react_block to tests/test_prompt_builders.py verifying standard mode has no ReAct scaffold
 - [x] T011 [P] [US1] Add test_dynamic_react_with_tasklist_tool_renders_scaffold to tests/test_prompt_builders.py verifying ReAct mode with task-list tool renders full scaffold
-- [ ] T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback
-- [ ] T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines
+- [x] T012 [P] [US1] Add test_dynamic_react_without_tasklist_warns_and_falls_back to tests/test_prompt_builders.py verifying warning plus minimal scaffold fallback
+- [x] T013 [P] [US1] Add test_dynamic_standard_mode_line_count_under_cap to tests/test_prompt_builders.py verifying 3-tool standard output stays under 15 lines
 - [ ] T014 [P] [US1] Add test_dynamic_token_estimate_positive_and_monotonic to tests/test_prompt_builders.py verifying non-negative monotonic estimate
 - [ ] T015 [P] [US1] Add test_dynamic_context_block_renders_when_provided to tests/test_prompt_builders.py verifying PRIOR CONTEXT header appears when context argument passed
 - [ ] T016 [P] [US1] Add test_dispatch_default_is_dynamic_standard_mode to tests/test_prompt_builders.py verifying no-kwarg processor gets DynamicPromptGenerator in standard mode
@@ -110,12 +110,12 @@ Single Python library project. New module at promptchain/prompts/, new subclass 
 
 - [x] T051 [P] Update CHANGELOG.md with the v0.6.0 section naming Added, Restored, and Changed BREAKING entries and referencing issue 2
 - [x] T052 [P] Add module docstring to promptchain/prompts/dynamic.py documenting the ReAct task-list-tool heuristic allowlist
-- [ ] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
+- [x] T053 [P] Add cross-reference note at top of promptchain/utils/agentic_step_processor.py describing the prompt_builder delegation contract for subclass authors
 - [ ] T054 Run full pytest regression and verify zero pre-existing tests regress beyond the three files migrated in T044-T046
-- [ ] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
+- [x] T055 [P] Run mypy over promptchain/prompts/ promptchain/utils/agentic_step_processor.py promptchain/cli/tui_processor.py
 - [x] T056 [P] Run black and isort over the new and modified files
 - [x] T057 Run quickstart.md Part 1 library-consumer recipe manually end-to-end against a throwaway chain
-- [ ] T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn
+- [x] T058 Run quickstart.md Part 2 TUI maintainer recipe manually including a sub-agent spawn
 - [x] T059 Bump version string in pyproject.toml and setup.py to 0.6.0
 
 ---
