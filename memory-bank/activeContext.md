@@ -8,7 +8,34 @@ tags: []
 
 ## Current Work Focus
 
-**🎉 MAJOR MILESTONE: Research-Based Improvements Complete - Phases 2-4 Delivered (January 2026)**
+### 011-agentic-prompt-builder — Wave 6 Complete (2026-04-25)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 28/65 tasks complete (43%)
+**Wave 6 status**: Complete (T010, T022, T036, T037, T038, T056)
+
+**Immediate state (Wave 6 complete):**
+- Wave 6 done: T010 (standard-mode omits ReAct), T022 (integration test — library-consumer default path), T036 (2 migrations in app.py), T037 (1 migration in yaml_translator.py), T038 (7 migrations in agentic_team_chat.py), T056 (isort applied)
+- Wave 7 is next (tasks per tasks.md — remaining 37 tasks)
+- Test suite: 11 passing (9 unit + 2 integration)
+- All 10 user-facing default-path call sites migrated to TUIAgenticStepProcessor
+- yaml_translator.py retains AgenticStepProcessor import for return-type annotations (subclass is type-correct)
+- isort applied to all new/modified files; black blocked by Python 3.12.5 AST safety bug — venv-level follow-up
+- Pre-existing SyntaxError in agentic_chat/agentic_team_chat.py:434 confirmed unrelated to spec 011
+
+**Environment:**
+- Venv: `source /home/gyasisutton/dev/projects/PromptChain/.venv/bin/activate`
+- Latent issue: `pyperclip` not declared in `setup.py [cli]` extras — follow-up out of scope for 011
+- Latent issue: Python 3.12.5 in venv — upgrade to 3.12.6+ to unblock black
+
+**Patterns that worked:**
+- T043 bundled into Wave 5 for atomic correctness — dispatch table must be complete before T021 delegates through it
+- TUIAgenticStepProcessor uses TypeError (not ValueError) to signal "wrong class" rather than "bad argument"
+- All 10 call-site migrations identified and verified: 2 in app.py, 1 in yaml_translator.py, 7 in agentic_team_chat.py
+
+---
+
+**PREVIOUS MAJOR MILESTONE: Research-Based Improvements Complete - Phases 2-4 Delivered (January 2026)**
 
 ### Research-Based AgenticStepProcessor Improvements - ALL PHASES COMPLETE
 
@@ -1700,3 +1727,27 @@ The project continues to focus on building a flexible prompt engineering library
    - Preventing infinite loops in tool calls
    - Supporting different model providers' tool calling formats
    - Optimizing tool execution performance 
+---
+
+## Current Focus: 011-agentic-prompt-builder (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Wave status**: Wave 2 complete — 7/65 tasks done
+**Next wave**: Wave 3 — DynamicPromptGenerator implementation + US1 tests
+
+### What was just completed
+
+Wave 1 (setup): created `promptchain/prompts/__init__.py`, `tests/fixtures/`, captured legacy TUI snapshot, bumped version to 0.6.0, added CHANGELOG entry.
+
+Wave 2 (foundation): wrote `tests/test_prompt_builders.py` skeleton (protocol structural tests); implemented `promptchain/prompts/base.py` with `BasePromptBuilder` Protocol (stdlib only).
+
+### Active Decisions
+
+- **Sentinel disabled**: `dev-kid.yml` sentinel entry disabled due to micro-agent v0.1.5 TTY crash (`uv_tty_init EINVAL`). Validation runs manually until sentinel infra is fixed.
+- **pytest blocker deferred**: Pre-existing `textual ModuleNotFoundError` blocks full pytest collection. Deferred to T054 or env install; Wave 3 `prompts/` tests are isolated and unaffected.
+
+### Next Steps (Wave 3)
+
+1. Implement `promptchain/prompts/dynamic.py` — `DynamicPromptGenerator` class
+2. Write US1 tests covering DynamicPromptGenerator behavior
+3. Verify `tests/test_prompt_builders.py` passes against the new implementation

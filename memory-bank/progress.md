@@ -1603,6 +1603,61 @@ tags: []
     - **Simple Stateful Mode (`auto_include_history=True`)**: The agent will use its default internal list to track conversation history. This is the existing behavior of `True`.
     - **Managed Stateful Mode (`auto_include_history=Dict`)**: The agent will instantiate and use the advanced `ExecutionHistoryManager`. The dictionary passed will serve as the configuration for the manager (e.g., `{'max_tokens': 4000, 'max_entries': 100}`).
 
+---
+
+### 011-agentic-prompt-builder: Wave 3 Complete (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 13/65 tasks complete
+
+**Tasks completed this wave (6):**
+
+| Task | File | Notes |
+|------|------|-------|
+| T006 | `promptchain/prompts/__init__.py` | Re-export BasePromptBuilder |
+| T007 [US1] | `tests/test_prompt_builders.py` | TDD test: verifies 4 custom tool names appear under AVAILABLE TOOLS header |
+| T018 [US1] | `promptchain/prompts/dynamic.py` | DynamicPromptGenerator — 319 lines; ReAct scaffold, task-list detection, tiktoken token estimation; 9 non-blank lines in standard-mode 3-tool output |
+| T019 [US1] | `promptchain/prompts/__init__.py` | Re-export DynamicPromptGenerator — pulled into Wave 3 atomically (T007 required importability) |
+| T033 [US2] | `promptchain/prompts/legacy_tui.py` | LegacyTUIPromptGenerator — 254 lines; byte-identical to snapshot after {self.objective} substitution; drift-warning on unexpected tools |
+| T034 [US2] | `promptchain/prompts/__init__.py` | Re-export LegacyTUIPromptGenerator — pulled in with T019 atomically |
+
+**Test status**: 3/3 pass in `tests/test_prompt_builders.py` (TDD RED->GREEN confirmed for T018).
+
+**Key decisions:**
+- T019 and T034 pulled from their scheduled Wave 4/5 positions into Wave 3 because the TDD test (T007) requires `DynamicPromptGenerator` importable from `promptchain.prompts`; bundling avoided a false-RED checkpoint.
+- Project-local `.venv` created with `uv` (environment-provisioner agent); 7 missing packages installed; latent `pyperclip` manifest bug flagged (out of scope for 011).
+- Parallel python-pro agents used for T018/T033 with explicit file-ownership lockdown — zero conflicts.
+
+**Wave 4 next**: T008, T020 (mod `agentic_step_processor` `__init__`), T052, T064. T019 already done.
+
+---
+
+### 011-agentic-prompt-builder: Wave 4 Complete (2026-04-19)
+
+**Branch**: `011-agentic-prompt-builder`
+**Overall progress**: 18/65 tasks complete
+
+**Tasks completed this wave (5):**
+
+| Task | File | Notes |
+|------|------|-------|
+| T008 [US1] | `tests/test_prompt_builders.py` | Negative-assertion test: confirms `DynamicPromptGenerator` does NOT advertise TUI-only tool names (ripgrep_search, file_read, terminal_execute, etc.) when only custom tools are registered |
+| T020 [US3] | `promptchain/utils/agentic_step_processor.py` | Added `prompt_builder: Optional[BasePromptBuilder] = None` and `workflow_pattern: Literal["standard","react"] = "standard"` kwargs to `__init__`; default-branch dispatches `DynamicPromptGenerator`; explicit builders passed through unchanged |
+| T052 [US1] | `promptchain/prompts/dynamic.py` | Already satisfied — `_REACT_TASKLIST_TOOLS` allowlist documented in module docstring added in T018; no new change needed |
+| T064 [US1] | `tests/test_prompt_builders.py` | Parametrized `test_dynamic_renders_registered_tools` over N in [0, 1, 4, 10] for full SC-001 coverage; replaces the fixed 4-tool helper |
+| T019 [US1] | *(already done in Wave 3)* | Re-export of DynamicPromptGenerator was pulled atomically into Wave 3; counted here for wave accounting |
+
+**Test status**: 7 passing (4 parametrized + T008 + 2 protocol tests).
+
+**Key decisions:**
+- T052 required zero code changes — T018's module docstring on `dynamic.py` already documents the `_REACT_TASKLIST_TOOLS` allowlist. Counted as satisfied by prior wave's deliverable.
+- T019 was already complete from Wave 3 (atomic with T018); included in Wave 4 scope for accounting only.
+- Full dispatch table for `AgenticStepProcessor` (instructions kwarg, deprecation warning, mutually-exclusive check, react-warning-on-custom-builder) deferred to T021 in Wave 5.
+
+**Wave 5 next**: T009, T021, T034 (already done), T035.
+
+---
+
 ## Current Status
 
 **PromptChain CLI Development (January 2025):**
@@ -2142,3 +2197,74 @@ The project continues to evolve toward a comprehensive framework for building co
   - Verified implementation through Playwright visual testing
   - Unblocked entire frontend development pipeline for advanced features
 - 🎉 Added simple agent-user chat loop feature with PromptChain and Memory Bank integration (June 2024) 
+---
+
+## 011-agentic-prompt-builder — Wave Execution Log
+
+### Wave 1 Complete (2026-04-19) — Setup (T001, T002, T003, T051, T059)
+
+:white_check_mark: **T001** — Created `promptchain/prompts/__init__.py` (empty package init)
+:white_check_mark: **T002** — Created `tests/fixtures/` directory
+:white_check_mark: **T003** — Captured legacy TUI prompt snapshot to `tests/fixtures/legacy_tui_prompt.snapshot.txt`
+:white_check_mark: **T051** — Bumped version to `0.6.0` in `setup.py` + `pyproject.toml` fallback_version
+:white_check_mark: **T059** — Added v0.6.0 CHANGELOG entry with Added/Restored/Changed BREAKING sections referencing issue #2
+
+Tasks complete: 5/65
+
+### Wave 2 Complete (2026-04-19) — Foundation (T004, T005)
+
+:white_check_mark: **T004** — Wrote `tests/test_prompt_builders.py` skeleton with:
+  - `test_protocol_has_required_methods`
+  - `test_protocol_structural_type_check`
+:white_check_mark: **T005** — Implemented `promptchain/prompts/base.py` with `BasePromptBuilder` Protocol (stdlib `typing` only, no external imports)
+
+Tasks complete: 7/65
+
+### Known Blocker (as of Wave 2)
+
+:warning: Pre-existing `textual` ModuleNotFoundError blocks full pytest collection. Deferred to T054 or env install. Does not block Wave 3 unit tests for `prompts/` package since those tests avoid TUI imports.
+
+### 011-agentic-prompt-builder: Wave 5 Complete (2026-04-19)
+
+Tasks: T009, T021, T034 (atomic from Wave 3), T035, T043 (bundled)
+
+| Task | File(s) | Description |
+|------|---------|-------------|
+| T009 | `tests/test_prompt_builders.py` | Added `test_dynamic_empty_tools_renders_sentinel` — confirms empty tool inventory renders an explicit "(none)" sentinel instead of a blank AVAILABLE TOOLS block |
+| T021 | `promptchain/utils/agentic_step_processor.py` | `run_async()` now delegates to `self.prompt_builder.generate(objective, available_tools, context=None)`. Replaced 105-line hardcoded ReAct f-string (lines 958-1062) with a 7-line call |
+| T034 | *(already done in Wave 3)* | Re-export of `LegacyTUIPromptGenerator` from `promptchain.prompts` — landed atomically with T033 in Wave 3; counted here for wave accounting |
+| T035 | `promptchain/cli/tui_processor.py` (NEW) | Created `TUIAgenticStepProcessor` subclass (50 lines) — bakes in `LegacyTUIPromptGenerator`, rejects `prompt_builder=` and `instructions=` kwargs with `TypeError`, uses `*args` so positional objective forwards correctly via `super().__init__` |
+| T043 | `promptchain/utils/agentic_step_processor.py` | Full dispatch table on `AgenticStepProcessor.__init__` — `instructions=` kwarg, `ValueError` on mutual exclusion with `prompt_builder=`, `DeprecationWarning` on `instructions`-alone, `logger.warning` on `workflow_pattern="react"` + custom builder |
+
+**Key decisions:**
+- T021 makes the library consumer path tool-truthful by default (DynamicPromptGenerator); TUI consumers continue receiving byte-identical v0.5.0 output via TUIAgenticStepProcessor.
+- T035 uses TypeError (not ValueError) for rejected kwargs to signal "wrong class, use the base" rather than "bad argument".
+- T043 bundled into Wave 5 for atomic correctness — dispatch table must be complete before T021 delegates through it.
+
+Tasks complete: 22/65
+
+**Wave 6 next**: T010, T022, T036, T037, T038, T056.
+
+---
+
+### 011-agentic-prompt-builder: Wave 6 Complete (2026-04-25)
+
+Tasks: T010, T022, T036, T037, T038, T056
+
+| Task | File(s) | Description |
+|------|---------|-------------|
+| T010 | `tests/test_prompt_builders.py` | Added `test_dynamic_standard_mode_omits_react_block` — verifies standard-mode prompt from `DynamicPromptGenerator` contains no ReAct scaffold markers (`Thought:`, `Action:`, `Observation:`) |
+| T022 | `tests/integration/test_011_library_consumer_flow.py` (NEW) | PRD reproduction integration test — 4 stub tools, library-consumer default path produces tool-truthful prompt naming all 4 stub tools and no TUI-only names. 2 tests: `test_library_consumer_default_path_is_tool_truthful` and `test_library_consumer_names_all_provided_tools` |
+| T036 | `promptchain/cli/tui/app.py` | Migrated 2 default-path call sites to `TUIAgenticStepProcessor` + added import |
+| T037 | `promptchain/cli/config/yaml_translator.py` | Migrated 1 call site (line 316) to `TUIAgenticStepProcessor`; retained `AgenticStepProcessor` import alongside for return-type annotations on 2 functions (subclass is type-correct) |
+| T038 | `agentic_chat/agentic_team_chat.py` | Migrated all 7 call sites to `TUIAgenticStepProcessor` + added import. No sub-agent spawners detected — all are user-facing default team agents |
+| T056 | all new/modified files | isort applied; black blocked by Python 3.12.5 AST safety bug (not a code issue — venv-level follow-up) |
+
+**Key decisions:**
+- All 10 user-facing default-path call sites across 3 files migrated to TUIAgenticStepProcessor.
+- yaml_translator.py dual-import is intentional: `TUIAgenticStepProcessor` for construction, `AgenticStepProcessor` for return-type annotations.
+- Pre-existing SyntaxError in agentic_chat/agentic_team_chat.py:434 confirmed unrelated to spec 011 (verified via git baseline).
+- black formatter blocked by Python 3.12.5 AST safety bug — tracked as venv-level follow-up, does not block spec.
+
+Tests complete: 11 passing (9 unit in tests/test_prompt_builders.py + 2 integration in tests/integration/test_011_library_consumer_flow.py)
+Tasks complete: 28/65 (43%)

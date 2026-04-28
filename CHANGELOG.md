@@ -5,6 +5,35 @@ All notable changes to PromptChain will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-19
+
+Implements spec 011-agentic-prompt-builder: decouple the legacy TUI-oriented
+agentic prompt from `AgenticStepProcessor` so library consumers receive an
+honest, dynamically-rendered prompt built from their actually-registered tools.
+See issue #2.
+
+### Added
+- New `promptchain.prompts` package with `BasePromptBuilder` Protocol, a
+  truthful default `DynamicPromptGenerator`, and the preserved
+  `LegacyTUIPromptGenerator` for TUI/CLI maintainers.
+- `AgenticStepProcessor` now accepts `prompt_builder` and `workflow_pattern`
+  kwargs. Library consumers get a dynamic prompt referencing only their
+  registered tools; TUI consumers opt in via `TUIAgenticStepProcessor`.
+- `instructions=` kwarg on `AgenticStepProcessor` for consumers who want to
+  pass an already-rendered prompt instead of a builder.
+
+### Restored
+- Legacy ReAct scaffold is now a first-class, opt-in builder
+  (`LegacyTUIPromptGenerator`) and used by `TUIAgenticStepProcessor`. The
+  TUI/CLI rendering is byte-identical to pre-0.6.0 behavior.
+
+### Changed
+- BREAKING: The default prompt produced by `AgenticStepProcessor` no longer
+  advertises TUI-only tools (`ripgrep_search`, `file_read`, `terminal_execute`,
+  etc.) unless those tools are actually registered. Library consumers who
+  relied on the legacy ReAct scaffold must switch to `TUIAgenticStepProcessor`
+  or pass `prompt_builder=LegacyTUIPromptGenerator(...)` explicitly.
+
 ## [0.4.2] - 2025-10-07
 
 ### Added

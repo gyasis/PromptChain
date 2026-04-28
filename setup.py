@@ -20,7 +20,7 @@ core_requirements = [
 
 setup(
     name="promptchain",
-    version="0.5.0",
+    version="0.6.0",
     author="Gyasi Sutton",
     author_email="gyasis@gmail.com",
     description="A flexible prompt engineering library for LLM applications and agent frameworks",

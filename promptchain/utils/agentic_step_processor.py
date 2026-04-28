@@ -1,3 +1,29 @@
+"""
+AgenticStepProcessor — multi-step reasoning processor with pluggable prompt construction.
+
+Subclass authors
+----------------
+Prompt construction is delegated to a swappable strategy implementing the
+``BasePromptBuilder`` Protocol (see ``promptchain.prompts`` and the contract at
+``specs/011-agentic-prompt-builder/contracts/prompt_builder_protocol.md``).
+
+Three rules govern subclassing (see FR-019, FR-021, FR-023):
+
+1. Subclasses MUST call ``super().__init__(...)`` so the base constructor
+   installs a default builder (``DynamicPromptGenerator``) or honors the
+   caller-supplied ``prompt_builder=``. Bypassing super breaks the contract.
+2. Subclasses MUST NOT override prompt construction directly. Instead, inject
+   a ``BasePromptBuilder`` implementation via the ``prompt_builder=`` kwarg
+   (or ship a custom builder class). Do not monkey-patch internal prompt
+   methods — they may move or be removed.
+3. ``self.prompt_builder`` is the single delegation point. Treat it as
+   read-only post-construction; mutating it after ``__init__`` produces
+   undefined behavior.
+
+The legacy ``instructions=`` kwarg is preserved as a deprecated compat shim
+and emits a ``DeprecationWarning`` on use.
+"""
+
 import asyncio
 import json
 import logging
@@ -5,7 +31,10 @@ import warnings
 from datetime import datetime
 from enum import Enum
 from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Dict, List,
-                    Optional, Union)
+                    Literal, Optional, Union)
+
+from promptchain.prompts.base import BasePromptBuilder
+from promptchain.prompts.dynamic import DynamicPromptGenerator
 
 from .agentic_step_result import AgenticStepResult, StepExecutionMetadata
 
@@ -203,6 +232,10 @@ class AgenticStepProcessor:
         # TAO Loop + Dry Runs parameters (Phase 4: Transparent Reasoning - explicit Think-Act-Observe)
         enable_tao_loop: bool = False,  # Enable explicit Think-Act-Observe loop (default: off, uses implicit ReAct)
         enable_dry_run: bool = False,  # Enable tool outcome prediction before execution (transparent reasoning)
+        # Prompt builder strategy (Spec 011: agentic-prompt-builder decoupling)
+        instructions: Optional[List[str]] = None,
+        prompt_builder: Optional["BasePromptBuilder"] = None,
+        workflow_pattern: Literal["standard", "react"] = "standard",
     ):
         """
         Initializes the agentic step.
@@ -259,6 +292,13 @@ class AgenticStepProcessor:
                                      Tools with verification confidence below this threshold are skipped.
                                      Range: 0.0 (execute everything) to 1.0 (only execute very confident calls).
                                      Recommended: 0.7 for balance, 0.9 for critical operations.
+            instructions: (Deprecated) List of extra instruction strings. When supplied alone, a DeprecationWarning is emitted
+                          and the instructions are forwarded to the default DynamicPromptGenerator via extra_instructions.
+                          Passing both `instructions` and `prompt_builder` raises ValueError (mutually exclusive).
+                          Prefer constructing a prompt_builder explicitly.
+            prompt_builder: (Optional) BasePromptBuilder strategy. Default constructs a DynamicPromptGenerator reflecting actually-registered tools.
+            workflow_pattern: "standard" or "react". Forwarded to the default DynamicPromptGenerator. Ignored (with a logger.warning)
+                              when an explicit prompt_builder is supplied and workflow_pattern is non-default ("react").
         """
         if not objective or not isinstance(objective, str):
             raise ValueError("Objective must be a non-empty string.")
@@ -369,6 +409,43 @@ class AgenticStepProcessor:
                 "✅ Dry Run Prediction enabled. "
                 "Tool outcomes predicted before execution (~10-15% overhead)."
             )
+
+        # Prompt builder strategy (Spec 011: agentic-prompt-builder decoupling)
+        # Full dispatch table per contract section 4:
+        #   instructions + prompt_builder -> ValueError (mutually exclusive)
+        #   instructions alone            -> DeprecationWarning + DynamicPromptGenerator(extra_instructions=...)
+        #   prompt_builder alone          -> use it verbatim (no warning)
+        #   prompt_builder + "react"      -> UserWarning (workflow_pattern ignored), use builder verbatim
+        #   neither                       -> default DynamicPromptGenerator(workflow_pattern=...)
+        if instructions is not None and prompt_builder is not None:
+            raise ValueError(
+                "instructions= and prompt_builder= are mutually exclusive. "
+                "Pass one or the other."
+            )
+        if instructions is not None:
+            warnings.warn(
+                "instructions= is deprecated; pass a prompt_builder= instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.prompt_builder: BasePromptBuilder = DynamicPromptGenerator(
+                extra_instructions=instructions,
+                workflow_pattern=workflow_pattern,
+            )
+        elif prompt_builder is not None:
+            if workflow_pattern != "standard":
+                warnings.warn(
+                    "workflow_pattern is ignored when a custom prompt_builder is supplied; "
+                    "the builder controls rendering.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            self.prompt_builder = prompt_builder
+        else:
+            self.prompt_builder = DynamicPromptGenerator(
+                workflow_pattern=workflow_pattern
+            )
+        self.workflow_pattern: str = workflow_pattern
 
         # BUG-023 fix: Use warnings.warn() instead of logger.info() for deprecation warnings
         if self.history_mode == HistoryMode.MINIMAL.value:
@@ -905,112 +982,15 @@ class AgenticStepProcessor:
         # Minimal valid LLM message history (sent to LLM)
         llm_history: List[Dict[str, Any]] = []
 
-        # Start with the objective and initial input
-        system_prompt = f"""Your goal is to achieve the following objective: {self.objective}
-
-REACT WORKFLOW (Reason-Act-Observe):
-You MUST follow this pattern for EVERY request:
-
-STEP 1 - THINK: Analyze the request
-- What is the user actually asking for?
-- What type of task is this?
-- What information or actions are needed?
-
-STEP 2 - PLAN: Use task_list_write_tool to create your plan
-IMMEDIATELY call task_list_write_tool with your planned tasks:
-```
-task_list_write_tool([
-  {{"content": "Task description", "status": "pending", "activeForm": "Doing task..."}},
-  {{"content": "Second task", "status": "pending", "activeForm": "Doing second task..."}}
-])
-```
-This MUST be your FIRST tool call - always create a plan before executing.
-
-STEP 3 - ACT: Execute one task at a time
-- Mark task as "in_progress" when starting
-- Use the appropriate tool for the current task
-- Wait for the result
-
-STEP 4 - OBSERVE: Check result and update plan
-- Did it succeed? Mark task "completed"
-- Error? Add recovery tasks to the list
-- New information? Adjust remaining tasks
-
-STEP 5 - REPEAT: Continue until all tasks complete
-
-AVAILABLE TOOLS (choose correctly):
-- task_list_write_tool: REQUIRED first - create/update your task plan
-- ripgrep_search: Search LOCAL files and code (NOT for web searches!)
-- file_read/file_write/file_edit: File operations
-- terminal_execute: Run shell commands
-- list_directory/create_directory: Directory operations
-- sandbox_*: Safe code execution environment
-
-MCP TOOLS (external services via Model Context Protocol):
-- mcp_gemini_gemini_research: WEB SEARCH - Use this to search the internet for current information
-- mcp_gemini_ask_gemini: Ask Gemini general questions or get a second opinion
-- mcp_gemini_gemini_brainstorm: Creative brainstorming and idea generation
-- mcp_gemini_gemini_debug: Debug errors with Gemini's help
-- mcp_gemini_gemini_code_review: Get code review feedback
-
-IMPORTANT TOOL SELECTION:
-- "search the web/internet/online" -> USE mcp_gemini_gemini_research (NOT ripgrep!)
-- "find packages/libraries/docs online" -> USE mcp_gemini_gemini_research
-- "find in files/code locally" -> Use ripgrep_search
-- "read a file" -> Use file_read
-- "run a command" -> Use terminal_execute
-- "run a script" -> Use terminal_execute('python /path/to/script.py')
-
-EXECUTING SCRIPTS - ALWAYS RUN WHEN ASKED:
-When the user asks you to "run", "execute", or "create and run" a script:
-1. Create the script file with file_write
-2. THEN run it with terminal_execute('python /absolute/path/to/script.py')
-3. Show the actual OUTPUT from the script execution
-4. DO NOT just create the script and tell the user to run it themselves
-5. If the script generates files (HTML, images, etc.), report the output paths
-
-Example workflow for "create a Plotly chart":
-1. file_write('/path/to/chart.py', code_content)
-2. terminal_execute('python /path/to/chart.py')
-3. Show the script output AND confirm the generated file exists
-
-PATH HANDLING - ABSOLUTE PATHS REQUIRED:
-ALWAYS use and return FULL ABSOLUTE PATHS (e.g., /home/user/project/file.py), NEVER relative paths (e.g., ../file.py, ./src).
-
-Tools for path operations:
-- resolve_path: Convert ANY path to absolute path (use before reporting paths to user)
-- find_paths: Find files/dirs and get their absolute paths
-- get_cwd: Get current working directory
-- path_info: Check if path exists and get full info
-
-SECURITY MODES - Path boundary handling depends on session security mode:
-- STRICT: All outside-directory paths require explicit confirmation. Tool returns `requires_confirmation: true`.
-- DEFAULT: First access shows warning, then auto-allows subsequent access. Tool returns warning message once.
-- TRUSTED: No boundary warnings - all paths accessible without confirmation.
-
-When you receive a path warning or `requires_confirmation: true`:
-1. Inform user the path is outside working directory
-2. In STRICT mode: Wait for explicit confirmation before proceeding
-3. In DEFAULT/TRUSTED mode: Proceed but mention the location to user
-
-When reporting file/directory locations to the user:
-- WRONG: "Found it at ../hybridrag"
-- CORRECT: "Found it at /home/user/Documents/code/hybridrag"
-
-CRITICAL:
-- ALWAYS call task_list_write_tool FIRST to show your plan
-- Update task status as you work (pending -> in_progress -> completed)
-- If a task fails, add a recovery task and continue
-- Only give final answer after completing all tasks with real tool results
-
-FINAL ANSWER REQUIREMENTS:
-- Your final answer MUST include the FULL content/information from tool results
-- DO NOT just say "I have explained" or "I have provided" - actually SHOW the information
-- If a tool returns documentation, code examples, or explanations - include that content in your response
-- If you used mcp_gemini_ask_gemini or similar - include the actual answer Gemini gave, not a summary
-- The user cannot see tool results directly - they only see YOUR final response
-- WRONG: "I have explained how to add MCP servers" (user sees nothing useful)
-- CORRECT: Include the actual steps, code, and explanations from the tool response"""
+        # T021 (spec 011-agentic-prompt-builder): delegate prompt construction to
+        # the configured builder strategy. The default (DynamicPromptGenerator)
+        # renders only the actually-registered tools; TUI consumers get the
+        # legacy v0.5.0 scaffold via TUIAgenticStepProcessor.
+        system_prompt = self.prompt_builder.generate(
+            objective=self.objective,
+            tools=available_tools,
+            context=None,
+        )
         system_message = {"role": "system", "content": system_prompt}
         user_message = (
             {

@@ -117,6 +117,8 @@ ingestors/
 extras/
 notebooks/
 prompts
+# Un-ignore the source package — the bare `prompts` rule above catches it otherwise
+!promptchain/prompts/
 
 CLAUDE.md
 

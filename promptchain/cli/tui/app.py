@@ -3033,9 +3033,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         for agent_name, agent in self.session.agents.items():
             # Determine agent type: AgenticStepProcessor or simple PromptChain
             if agent.instruction_chain and len(agent.instruction_chain) > 0:
-                # Import AgenticStepProcessor for complex reasoning agents
-                from promptchain.utils.agentic_step_processor import \
-                    AgenticStepProcessor
+                # Import TUIAgenticStepProcessor for complex reasoning agents
+                # (spec 011: legacy TUI prompt baked in via subclass)
+                from promptchain.cli.tui_processor import \
+                    TUIAgenticStepProcessor
 
                 objective = (
                     agent.instruction_chain[0]
@@ -3059,7 +3060,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                         }
                     ],
                     instructions=[
-                        AgenticStepProcessor(
+                        TUIAgenticStepProcessor(
                             objective=objective,
                             max_internal_steps=self.config.agentic.default_max_internal_steps,
                             model_name=agent.model_name,
@@ -3702,8 +3703,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             content: User message with file context injected
             workflow: Active workflow state
         """
-        from promptchain.utils.agentic_step_processor import \
-            AgenticStepProcessor
+        from promptchain.cli.tui_processor import \
+            TUIAgenticStepProcessor
 
         from ..models import Message
 
@@ -3773,7 +3774,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # The objective is derived from the current workflow step, not the overall workflow
             # Use agentic config for max_internal_steps (default: 15)
             max_steps = self.config.agentic.default_max_internal_steps
-            agentic_processor = AgenticStepProcessor(
+            agentic_processor = TUIAgenticStepProcessor(
                 objective=current_step.description,
                 max_internal_steps=max_steps,
                 model_name=model_name,
