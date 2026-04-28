@@ -22,7 +22,14 @@ except ImportError:
     # Graceful fallback if dependencies are not available
     pass
 
-from . import tui
+# NOTE (v0.6.1): The TUI subpackage is NOT eagerly imported here. Importing it
+# pulls in `textual`, which is an optional dependency declared under
+# `extras_require["tui"]`. Library consumers (`pip install promptchain`) must
+# be able to `import promptchain` and use programmatic APIs (PromptChain,
+# PubSubBus, etc.) without textual installed. TUI users should:
+#   - install `pip install "promptchain[tui]"`
+#   - explicitly `from promptchain.cli.tui.app import PromptChainApp`
+#   - or use the `promptchain` console script entry point.
 from .command_handler import CommandHandler, CommandResult, ParsedCommand
 from .file_reference_parser import FileReference, FileReferenceParser
 from .models import Agent, Message, Session
@@ -46,8 +53,6 @@ __all__ = [
     # Data models
     "Agent",
     "Message",
-    # TUI
-    "tui",
 ]
 
 __version__ = "0.5.0"
