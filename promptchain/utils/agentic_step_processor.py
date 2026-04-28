@@ -1,3 +1,29 @@
+"""
+AgenticStepProcessor — multi-step reasoning processor with pluggable prompt construction.
+
+Subclass authors
+----------------
+Prompt construction is delegated to a swappable strategy implementing the
+``BasePromptBuilder`` Protocol (see ``promptchain.prompts`` and the contract at
+``specs/011-agentic-prompt-builder/contracts/prompt_builder_protocol.md``).
+
+Three rules govern subclassing (see FR-019, FR-021, FR-023):
+
+1. Subclasses MUST call ``super().__init__(...)`` so the base constructor
+   installs a default builder (``DynamicPromptGenerator``) or honors the
+   caller-supplied ``prompt_builder=``. Bypassing super breaks the contract.
+2. Subclasses MUST NOT override prompt construction directly. Instead, inject
+   a ``BasePromptBuilder`` implementation via the ``prompt_builder=`` kwarg
+   (or ship a custom builder class). Do not monkey-patch internal prompt
+   methods — they may move or be removed.
+3. ``self.prompt_builder`` is the single delegation point. Treat it as
+   read-only post-construction; mutating it after ``__init__`` produces
+   undefined behavior.
+
+The legacy ``instructions=`` kwarg is preserved as a deprecated compat shim
+and emits a ``DeprecationWarning`` on use.
+"""
+
 import asyncio
 import json
 import logging

@@ -130,6 +130,43 @@ def test_dynamic_react_with_tasklist_tool_renders_scaffold() -> None:
     assert "task_list_write_tool" in prompt
 
 
+def test_dynamic_react_without_tasklist_warns_and_falls_back(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """ReAct mode WITHOUT a task-list tool must log a warning and emit the
+    minimal thought/action scaffold instead of the full ReAct scaffold (T012).
+    """
+    from promptchain.prompts import DynamicPromptGenerator
+
+    tools = _make_tools(3)  # no task-list-writer in inventory
+    with caplog.at_level("WARNING", logger="promptchain.prompts.dynamic"):
+        prompt = DynamicPromptGenerator(workflow_pattern="react").generate(
+            "ship the release", tools
+        )
+
+    # (a) A warning must have fired naming the trigger and the fallback.
+    matching = [
+        rec for rec in caplog.records
+        if rec.levelname == "WARNING"
+        and "react" in rec.getMessage().lower()
+        and "task" in rec.getMessage().lower()
+        and "fall" in rec.getMessage().lower()  # "Falling back"
+    ]
+    assert len(matching) == 1, (
+        f"expected exactly 1 react/task-list/fallback warning, got "
+        f"{[r.getMessage() for r in caplog.records]}"
+    )
+
+    # (b) Rendered prompt must be the MINIMAL scaffold, not the full one.
+    assert "REASONING PATTERN (minimal)" in prompt, "minimal scaffold header missing"
+    assert "THOUGHT" in prompt, "minimal scaffold THOUGHT marker missing"
+    assert "ACTION" in prompt, "minimal scaffold ACTION marker missing"
+    # Full-scaffold-only markers must NOT appear.
+    assert "REASONING PATTERN (ReAct)" not in prompt, "full ReAct header leaked into fallback"
+    assert "PLAN:" not in prompt, "full-scaffold PLAN step leaked into fallback"
+    assert "OBSERVE:" not in prompt, "full-scaffold OBSERVE step leaked into fallback"
+
+
 def test_dynamic_empty_tools_renders_sentinel() -> None:
     """Empty tool inventory must render a sentinel line, not a blank block (T009)."""
     from promptchain.prompts import DynamicPromptGenerator
