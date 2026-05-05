@@ -2355,3 +2355,16 @@ User-driven gap audit revealed the v1 docs were a *map* but didn't walk all the 
 - `recipe-history-manager.md` (ExecutionHistoryManager).
 - `tests/test_recipes_runnable.py` CI guard.
 - North star: PromptChain writes its own PromptChain code via ChainBuilder (the recipe documents the API; building the actual self-writing demo is the next iteration).
+
+---
+
+## 2026-05-05 — Model selection cheat-sheet (recipe + §16 in PROMPTCHAIN_FOR_LLMS)
+
+User flagged a major hallucination surface: agents pick model strings (Gemini / OpenAI / Ollama / etc.) without knowing which support tool-calling. Ollama models silently degrade to plain prompting when used in agentic chains.
+
+**Built:**
+- `docs/llms/recipes/recipe-models-and-tool-calling.md` — provider/model string format (LiteLLM convention), tool-calling capability matrix (OpenAI ⭐⭐⭐ / Anthropic ⭐⭐⭐ / Gemini ⭐⭐ / Ollama ⭐ model-dependent / older models ❌), provable list of models the repo's own examples actually use, decision tree, two-tier-routing pairings (cost ratios), Ollama wiring with `ModelManagementConfig`, env-var table (incl. trap: Gemini wants `GOOGLE_API_KEY` not `GEMINI_API_KEY`).
+- `PROMPTCHAIN_FOR_LLMS.md §16` — condensed cheat-sheet pointing to the recipe.
+- Routing table updates in `~/.claude/skills/promptchain.md` and `llms.txt`.
+
+**Discovery:** No comprehensive tool-calling capability registry in the package itself. `ModelProvider` enum (`promptchain/utils/model_management.py:27`) only covers local-model lifecycle providers (Ollama / LocalAI / Llamacpp). The doc fills the gap; if it gets enough mileage, consider a Phase 2 issue: ship a `ModelCapability` registry in the package.

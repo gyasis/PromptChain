@@ -491,9 +491,40 @@ For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a sing
 | `recipe-mcp-tool.md` | External MCP server tool integration |
 | `recipe-observability-on.md` | Turn on MLflow tracking |
 | `recipe-chain-builder.md` | `ChainBuilder` fluent + tool API for self-writing chains |
+| `recipe-models-and-tool-calling.md` | Picking the right model — providers, tool-calling support, two-tier pairings |
 
 ---
 
 ## 15. Where agent-authored scripts go
 
 When the user asks the agent to **write and run** a PromptChain script, the script lands in `scripts/runs/<YYYY-MM-DD>_<short-name>/run.py` with a sibling `README.md`. See `scripts/README.md` for the convention. Run via `bash scripts/observe.sh runs/<folder>` to get MLflow tracking automatically.
+
+---
+
+## 16. Model selection (cheat-sheet)
+
+PromptChain delegates to LiteLLM; every model string is `"<provider>/<model>"`. The capability that matters most for chains and agentic steps is **tool-calling support** — without it, `register_tool_function`, MCP tools, and `AgenticStepProcessor` tools silently degrade to plain prompting.
+
+### Categorisation by tool-calling reliability
+
+| Tier | Providers / models | When to pick |
+|---|---|---|
+| ⭐⭐⭐ Strongest | `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/gpt-5-mini`, `openai/o4-mini`, `anthropic/claude-3-5-sonnet`, `anthropic/claude-3-5-haiku` | Default for tool-calling-heavy chains. The repo's own comment: "Using OpenAI for reliable tool calling". |
+| ⭐⭐ Good but variable | `gemini/gemini-2.5-pro`, `gemini/gemini-1.5-flash-8b`, `gemini/gemini-2.0-flash-exp` | Cost-savings (Gemini Flash-8B is 33x cheaper than 2.5-pro). Verify the specific model supports tools — experimental Gemini models often don't. |
+| ⭐ Model-dependent | Ollama: `llama3.1`, `qwen2.5`, `mistral-nemo`, `command-r` | Local / offline. Most other Ollama models do NOT support tool-calling — verify the model card. |
+| ❌ No tool-calling | older `ollama/llama2`, `phi:2b`, `gemma:2b`, most pre-2024 GGUFs | Plain prompting only. Don't use for agentic chains. |
+
+### Models actually used in this repo's `examples/`
+
+```
+openai/gpt-4o, openai/gpt-4o-mini, openai/gpt-4, openai/gpt-5-mini,
+openai/gpt-5-nano, openai/o4-mini, openai/gpt-4.1-mini-2025-04-14,
+gemini/gemini-2.0-flash-exp, gemini/gemini-2.5-pro, gemini/gemini-1.5-flash-8b
+```
+No Ollama models appear in canonical examples (despite `OllamaModelManager` being supported).
+
+### Required env vars
+
+`OPENAI_API_KEY` | `ANTHROPIC_API_KEY` | `GOOGLE_API_KEY` (Gemini — note: NOT `GEMINI_API_KEY`) | `OLLAMA_HOST` (optional)
+
+For full decision tree, two-tier-routing pairings, and Ollama-specific wiring, see `recipes/recipe-models-and-tool-calling.md`.
