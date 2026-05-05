@@ -61,3 +61,26 @@ scripts/
 - ❌ Putting them in `examples/` — that's for canonical, package-shipped examples, not agent experiments.
 - ❌ Skipping `init_mlflow()` — kills the observability signal that powers `sio scan`.
 - ❌ No README in the run folder — six weeks later, no one remembers what `run.py` was for.
+
+## Health probe — `check_keys.py`
+
+Before starting a session, run:
+
+```bash
+python scripts/check_keys.py                  # full probe (lists models per provider)
+python scripts/check_keys.py --no-probe       # env-presence only (free, no API calls)
+python scripts/check_keys.py --providers openai,gemini   # subset
+python scripts/check_keys.py --json           # machine-readable
+```
+
+What it does:
+- Reads env (incl. `.env` at repo root via tiny built-in parser; does NOT overwrite already-exported vars)
+- Masks every key to `****<last4>` — never prints the full value
+- Pings each configured provider with a minimal call to confirm the key actually works (use `--no-probe` to skip)
+- Lists sample available models so you know which strings are safe to pass to `PromptChain(models=[...])`
+- Writes report to `scripts/scratch/api-status.md` (gitignored — account-specific data stays local)
+- Exit 0 if at least one provider works, 1 if all fail
+
+Providers covered: `openai`, `anthropic`, `gemini`, `ollama`, `openrouter`, `groq`.
+
+The script itself is committed (no secrets in it). The output is gitignored. Re-run anytime an `ImportError`-style "model not found" or "API key not found" trips you up.

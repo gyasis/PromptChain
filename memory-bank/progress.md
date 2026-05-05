@@ -2368,3 +2368,27 @@ User flagged a major hallucination surface: agents pick model strings (Gemini / 
 - Routing table updates in `~/.claude/skills/promptchain.md` and `llms.txt`.
 
 **Discovery:** No comprehensive tool-calling capability registry in the package itself. `ModelProvider` enum (`promptchain/utils/model_management.py:27`) only covers local-model lifecycle providers (Ollama / LocalAI / Llamacpp). The doc fills the gap; if it gets enough mileage, consider a Phase 2 issue: ship a `ModelCapability` registry in the package.
+
+---
+
+## 2026-05-05 — API key + model availability probe (`scripts/check_keys.py`)
+
+Closes the "model not found" / "API key not set" trap that costs an agent 2-3 retry cycles per session. Now an explicit pre-flight: agent (or user) runs the probe, sees what works, picks accordingly.
+
+**Built:**
+- `scripts/check_keys.py` (committed, no secrets in source) — probes OpenAI / Anthropic / Gemini / Ollama / OpenRouter / Groq.
+  - Masks every key to `****<last4>` — never prints full value
+  - `--no-probe` for free env-presence check (no API quota use)
+  - `--json` for machine-readable output
+  - `--providers <list>` to limit
+  - Reads `.env` via tiny built-in parser (does NOT overwrite already-exported vars)
+  - Lists sample available models per provider (for OpenAI: list-models endpoint; Anthropic: minimal completion since no list-models; Gemini: `genai.list_models`; Ollama: `/api/tags`; OpenRouter/Groq: `/v1/models`)
+  - Output to `scripts/scratch/api-status.md` (gitignored — account-specific data stays local)
+  - Exit 0 if any provider works, 1 if all fail
+- `scripts/README.md` — added "Health probe" section.
+- `recipe-models-and-tool-calling.md` — added §G linking to the probe; updated source-of-truth list.
+- `~/.claude/skills/promptchain.md` — routing entry for "are my keys working" / "model not found".
+
+**Smoke test:** `--no-probe` against all 4 providers in user's actual env: all keys present, all masked correctly, output written to gitignored scratch path. No API calls made.
+
+**Discovery during build:** user's env has all four major providers configured (OpenAI / Anthropic / Gemini / Ollama-local). The dual `GOOGLE_API_KEY` vs `GEMINI_API_KEY` LiteLLM trap is handled — script checks both and warns if only the wrong one is set.

@@ -108,7 +108,13 @@ If the response is a structured tool call, you're good. If it's a plain English 
 
 Mixing providers in a two-tier setup works but requires both API keys present.
 
-## G. Required env vars per provider
+## G. Health-probe before you start
+
+Run **`python scripts/check_keys.py`** to verify every configured key works AND list which models your account actually has access to. Output lands in `scripts/scratch/api-status.md` (gitignored). Use `--no-probe` for a free env-presence check that doesn't burn quota.
+
+This is the fastest fix for "I picked `openai/gpt-5-mini` and got 'model not found'" — the probe lists what your key actually sees.
+
+## H. Required env vars per provider
 
 | Provider | Env vars |
 |---|---|
@@ -133,3 +139,4 @@ Mixing providers in a two-tier setup works but requires both API keys present.
 - `promptchain/utils/ollama_model_manager.py:22` — `OllamaModelManager`
 - `examples/two_tier_routing_demo.py` — measured cost numbers + working primary/fallback pairings
 - LiteLLM provider list — `https://docs.litellm.ai/docs/providers` (canonical capability data)
+- `scripts/check_keys.py` — probe every configured provider, list available models per your keys
