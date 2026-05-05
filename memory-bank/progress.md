@@ -2420,3 +2420,28 @@ Closes the "model not found" / "API key not set" trap that costs an agent 2-3 re
 - User should `pip install anthropic google-generativeai` to enable those probes (or the script already gives the exact instruction in the notes column)
 - Groq key needs rotation (403); script flags it
 - Consider running `--probe-ollama-models` (full 12-model sweep) when there's spare time — would build a per-model tool-calling capability table for the user's local stack
+
+---
+
+## 2026-05-05 — Two-modes framing + hybrid chain recipe + LIVE DEMO catches real bug
+
+User clarified that PromptChain has TWO operating modes that need to be presented as a *choice*: sequential prompts (chain identity) vs agentic step (agent identity), with mixing them being the typical answer.
+
+**Built:**
+- `PROMPTCHAIN_FOR_LLMS.md §4` — promoted to "Two Operating Modes" with comparison table + hybrid example. Old "Three Instruction Types" content moved to §4.5.
+- `docs/llms/recipes/recipe-hybrid-chain.md` — full pattern: agentic gpt-4o-mini retrieval step + sequential medgemma:4b synthesis step. Includes "full safety stack" variant wrapping synthesis in CoVe.
+- `scripts/runs/2026-05-05_medgemma-clinical-demo/{run.py, README.md}` — live runnable demo following the hybrid pattern. Mock get_labs / get_history tools. Real STEMI case.
+- llms.txt + PROMPTCHAIN_FOR_LLMS.md §14 recipes table extended.
+
+**Live-run result — closed loop working as designed:**
+
+The demo ran end-to-end via `bash scripts/observe.sh runs/2026-05-05_medgemma-clinical-demo`. Medgemma produced a clinically defensible STEMI report. BUT the agentic step (`openai/gpt-4o-mini`) returned a stub JSON (`{}` first run, `{"labs": null, "history": null}` second run with strengthened objective) WITHOUT EVER CALLING `get_labs` or `get_history`. The downstream medgemma report only looked correct because the case complaint was baked into step 2's prompt — the actual upstream retrieval was a no-op.
+
+**Hypothesis logged in FEEDBACK_LOG.md (FIRST real entry):** parent-chain `register_tool_function()` may not auto-propagate to the AgenticStepProcessor's internal LLM under the v0.6.0+ DynamicPromptGenerator default. To investigate next iteration:
+- Read `promptchain/utils/agentic_step_processor.py` for the tool-list propagation contract
+- Read `promptchain/prompts/dynamic.py` — does the dynamic prompt builder include parent-chain tool schemas?
+- If broken, file `gyasis/PromptChain` issue + update `recipe-agentic-step.md` and `recipe-hybrid-chain.md` with the workaround.
+
+**Anti-pattern #13 added to PROMPTCHAIN_FOR_LLMS.md §9:** "Assuming `chain.register_tool_function()` auto-propagates to an `AgenticStepProcessor` step inside the same chain — verify with `verbose=True`."
+
+This is the closed loop firing for the first time on a real failure: built a thing, ran it, found a bug, captured it in the audit trail. Exactly what the FEEDBACK_LOG / anti-pattern catalog were designed for.

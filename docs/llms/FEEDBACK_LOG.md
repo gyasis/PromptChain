@@ -16,6 +16,13 @@ Append entries newest-at-top.
 
 ---
 
+## 2026-05-05 — Agentic step in hybrid chain returns stub JSON instead of calling registered tools
+
+- **Symptom:** In the hybrid demo (`scripts/runs/2026-05-05_medgemma-clinical-demo/run.py`), the `AgenticStepProcessor` step's LLM (`openai/gpt-4o-mini`) returned `{}` (run 1) and then `{"labs": null, "history": null}` (run 2, after tightening the objective) without ever emitting `tool_calls`. The downstream medgemma synthesis still produced a plausible clinical report — but only because the case complaint was embedded in step 2's prompt; step 1's actual retrieval did nothing.
+- **Root cause:** UNCONFIRMED. Hypothesis: local tool functions registered via `chain.register_tool_function()` on the parent `PromptChain` may not automatically propagate to the `AgenticStepProcessor`'s internal LLM calls under the v0.6.0+ `DynamicPromptGenerator` default. The agentic loop may need an explicit tool list OR the dynamic prompt builder may not be reading the parent's `local_tool_functions`.
+- **Fix:** PARTIAL. Added anti-pattern #13 to `PROMPTCHAIN_FOR_LLMS.md` §9 ("don't assume parent-chain tools auto-propagate to AgenticStepProcessor"). Updated `recipe-hybrid-chain.md` with a "Known issue" callout. Real fix requires reading `agentic_step_processor.py` + `promptchain/prompts/dynamic.py` to confirm the propagation contract — pending follow-up. If confirmed broken, file a `gyasis/PromptChain` issue and update recipes with the workaround.
+- **Source signal:** Direct observation while running `bash scripts/observe.sh runs/2026-05-05_medgemma-clinical-demo` during 2026-05-05 conversation. Both run outputs preserved in the run dir.
+
 ## 2026-05-05 — Bootstrap entry (no real failures yet)
 
 - **Symptom:** None — this is the seed entry created when the LLM-usability layer was built.

@@ -26,6 +26,7 @@ PromptChain is the user's own library — not in any LLM training corpus. Read t
 - [Observability on](recipes/recipe-observability-on.md): Enable MLflow tracking.
 - [ChainBuilder](recipes/recipe-chain-builder.md): Fluent + tool API for agent-driven self-writing chains.
 - [Models & tool-calling](recipes/recipe-models-and-tool-calling.md): Provider/model string format, tool-calling capability matrix (OpenAI / Anthropic / Gemini / Ollama), two-tier routing pairings, env vars.
+- [Hybrid chain](recipes/recipe-hybrid-chain.md): Mix sequential prompts and agentic steps in ONE chain — agentic for open-ended retrieval, sequential prompt for deterministic synthesis.
 
 ## Source-of-truth files (when this doc and the code disagree, code wins)
 

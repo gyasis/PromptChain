@@ -99,9 +99,48 @@ output = await chain.process_prompt_async("Long article text here…")  # async
 
 ---
 
-## 4. The Three Instruction Types
+## 4. Two Operating Modes — Chain vs Agent (and how to mix them)
 
-`PromptChain.instructions` is a heterogeneous list. The dispatcher (in `promptchaining.py`) decides what to do per element:
+PromptChain has **two distinct operating modes**. They look the same from the outside (both are `PromptChain` instances with `instructions=[...]`) but the *kind* of work each instruction does is fundamentally different. Picking the right mode (or mixing them) is the single most important design choice.
+
+| | **Sequential prompts** (chain identity) | **Agentic step** (agent identity) |
+|---|---|---|
+| **How** | Ordered list of prompt/function/tool steps; each fires once; output → next step | A single step that *internally* runs an autonomous LLM loop until objective met |
+| **Determinism** | Deterministic — N steps, N LLM calls in fixed order | Non-deterministic — model decides what tools to call and when to stop |
+| **Tools** | Tools called inline by the LLM serving that step | Tools called by the loop iteratively |
+| **Model requirement** | Any model (tool-calling capable only if that step uses tools) | **MUST be tool-calling-capable** — the loop emits structured tool calls |
+| **Use when** | You know the steps in advance and want guarantees | You don't know the steps in advance — let the agent figure it out |
+| **Prompt is the…** | Instruction for *this single LLM call* | High-level *objective* for the loop to satisfy |
+
+**Critical:** an `AgenticStepProcessor` is itself just **one instruction** inside a parent chain. So you can mix modes — *that's the hybrid pattern, and it's usually the right answer*:
+
+```python
+chain = PromptChain(
+    models=["ollama/medgemma:4b"],   # one model for the one string instruction
+    instructions=[
+        # Step 1 — AGENTIC: gpt-4o-mini autonomously calls retrieval tools
+        AgenticStepProcessor(
+            objective="Gather labs/history/vitals for the case, return JSON.",
+            model_name="openai/gpt-4o-mini",
+        ),
+        # Step 2 — SEQUENTIAL: deterministic medgemma synthesis prompt
+        "Given JSON case data below, produce dx + management plan with doses. "
+        "Flag any dose you are uncertain about. Data: {input}",
+    ],
+)
+chain.register_tool_function(get_labs)
+chain.register_tool_function(get_history)
+```
+
+Use the **agentic** mode for the open-ended part (where you can't pre-script the steps) and **sequential** for the deterministic part (where you want guarantees).
+
+For a runnable hybrid example, see `recipes/recipe-hybrid-chain.md` and the live demo at `scripts/runs/2026-05-05_medgemma-clinical-demo/`.
+
+---
+
+## 4.5 The Three Instruction Types
+
+Below the two-modes framing above, the literal contract: `PromptChain.instructions` is a heterogeneous list. The dispatcher (in `promptchaining.py`) decides what to do per element:
 
 ### (a) `str` — template instruction
 The string is treated as a prompt template. `{input}` is substituted with the previous step's output. Sent to the model at the corresponding index in `self.models`.
@@ -356,6 +395,7 @@ This list is the closed-loop output: every Claude Code mistake observed via SIO 
 10. **`AgenticStepProcessor` with `objective="hello, please do X"`** — the objective is a *goal* statement, not a conversational prompt. Write `"Find X and return Y as JSON"`.
 11. **Setting `enable_blackboard=True` mid-development** — changes the tool-result format the LLM sees; re-validate prompts.
 12. **Forgetting `await` on `MCPHelper.connect_mcp_async()`** — silent no-op, tools won't appear in the schema.
+13. **Assuming `chain.register_tool_function(...)` auto-propagates to an `AgenticStepProcessor` step inside the same chain.** Observed 2026-05-05: in a hybrid chain, registering a tool on the parent `PromptChain` did NOT cause the agentic step's LLM (gpt-4o-mini) to see or call it. The agentic step returned a stub JSON (`{}` then `{"labs": null, "history": null}`) without any `tool_calls`. Workaround pending investigation — for now, if your agentic step needs tools, **verify with `verbose=True` that the LLM actually emits `tool_calls`**. If `tool_calls=None` consistently, the agentic step isn't seeing the tool schemas. See `FEEDBACK_LOG.md` for the audit trail.
 
 ---
 
@@ -492,6 +532,7 @@ For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a sing
 | `recipe-observability-on.md` | Turn on MLflow tracking |
 | `recipe-chain-builder.md` | `ChainBuilder` fluent + tool API for self-writing chains |
 | `recipe-models-and-tool-calling.md` | Picking the right model — providers, tool-calling support, two-tier pairings |
+| `recipe-hybrid-chain.md` | Mix sequential + agentic in ONE chain (agentic retrieval + sequential synthesis) |
 
 ---
 

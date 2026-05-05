@@ -1,0 +1,168 @@
+[observe.sh] Running /home/gyasisutton/dev/projects/PromptChain/scripts/runs/2026-05-05_medgemma-clinical-demo/run.py
+[observe.sh] MLFLOW_TRACKING_URI=file:///home/gyasisutton/dev/projects/PromptChain/mlruns
+[observe.sh] 2026-05-05T14:08:11+00:00
+---
+2026-05-05 14:08:17,486 - promptchain.utils.model_management - INFO - Registered ollama model manager: OllamaModelManager
+2026-05-05 14:08:17,487 - promptchain.utils.ollama_model_manager - INFO - Registered OllamaModelManager with ModelManagerFactory
+2026-05-05 14:08:17,601 - promptchain.observability.decorators - INFO - MLflow tracking disabled via environment variable
+2026-05-05 14:08:17,602 - promptchain.utils.preprompt - INFO - PrePrompt: Using standard prompts dir: /home/gyasisutton/dev/projects/PromptChain/prompts
+2026-05-05 14:08:17,602 - promptchain.utils.preprompt - INFO - PrePrompt: Using standard strategies dir: /home/gyasisutton/dev/projects/PromptChain/prompts/strategies
+2026-05-05 14:08:17,603 - promptchain.utils.preprompt - INFO - Scan complete. Found 0 unique prompt IDs.
+2026-05-05 14:08:17,603 - promptchain.utils.promptchaining - INFO - Ephemeral Tool Executor initialized for smart context management
+2026-05-05 14:08:17,603 - promptchain.utils.promptchaining - WARNING - Registering function 'get_labs' but no corresponding schema found in self.local_tools. Add schema via add_tools().
+2026-05-05 14:08:17,603 - promptchain.utils.promptchaining - DEBUG - 🔧 Registered local function for tool: get_labs
+2026-05-05 14:08:17,603 - promptchain.utils.promptchaining - WARNING - Registering function 'get_history' but no corresponding schema found in self.local_tools. Add schema via add_tools().
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - 🔧 Registered local function for tool: get_history
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - 
+==================================================
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - 🔄 Starting Prompt Chain
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - ==================================================
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - 
+📝 Initial Input:
+Patient_id=PT-1234 — pull labs and history, then produce a clinical reasoning report.
+
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - 
+--------------------------------------------------
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - Step 1:
+2026-05-05 14:08:17,604 - promptchain.utils.promptchaining - DEBUG - --------------------------------------------------
+2026-05-05 14:08:17,605 - promptchain.utils.promptchaining - DEBUG - 
+🤖 Executing Agentic Step: Objective = You have access to two tools: get_labs(patient_id) and get_history(patient_id). For the patient_id m...
+2026-05-05 14:08:17,605 - promptchain.utils.agentic_step_processor - INFO - [AgenticStepProcessor] Available tools at start: []
+2026-05-05 14:08:17,605 - promptchain.utils.agentic_step_processor - INFO - Starting agentic step. Objective: You have access to two tools: get_labs(patient_id) and get_history(patient_id). For the patient_id m...
+2026-05-05 14:08:17,605 - promptchain.utils.agentic_step_processor - INFO - Agentic step internal iteration 1/6
+2026-05-05 14:08:17,605 - promptchain.utils.promptchaining - DEBUG - [Agentic Callback] Running LLM: openai/gpt-4o-mini with 2 messages. Tools: 0
+2026-05-05 14:08:17,606 - promptchain.utils.promptchaining - DEBUG - Calling acompletion with params: {'model': 'openai/gpt-4o-mini', 'messages': '<2 messages>'}
+[92m14:08:17 - LiteLLM:INFO[0m: utils.py:3421 - 
+LiteLLM completion() model= gpt-4o-mini; provider = openai
+2026-05-05 14:08:17,617 - LiteLLM - INFO - 
+LiteLLM completion() model= gpt-4o-mini; provider = openai
+2026-05-05 14:08:19,394 - promptchain.utils.promptchaining - DEBUG - Token usage - Prompt: 193, Completion: 14, Cumulative: 193+14
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Message from LiteLLM (model_dump available): Message(content='{\n  "labs": null,\n  "history": null\n}', role='assistant', tool_calls=None, function_call=None, provider_specific_fields={'refusal': None}, annotations=[])
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Message dump: {'content': '{\n  "labs": null,\n  "history": null\n}', 'role': 'assistant', 'tool_calls': None, 'function_call': None, 'annotations': []}
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Message has tool_calls: False
+2026-05-05 14:08:19,395 - promptchain.utils.agentic_step_processor - INFO - LLM provided final answer for the step.
+2026-05-05 14:08:19,395 - promptchain.utils.agentic_step_processor - INFO - Agentic step finished. Final output: {
+  "labs": null,
+  "history": null
+}...
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Agentic step executed in 1.79 seconds.
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Output:
+{
+  "labs": null,
+  "history": null
+}
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - 
+--------------------------------------------------
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Step 2:
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - --------------------------------------------------
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - Treating instruction 'You are a clinical reasoning assistant. Given the structured case data (JSON) below and the original presenting complaint, produce a markdown report with EXACTLY these sections:
+
+1. **Primary diagnosis** — single sentence + 2-3 sentences of reasoning
+2. **Top 3 differentials** — bullet list, one line each
+3. **Immediate management plan** — numbered list with doses (mg, route, frequency)
+4. **Time-sensitive intervention** — one paragraph
+
+For ANY drug dose you list, append `[VERIFY]` if you are not 100% sure of the standard adult dose. This safety flag is required.
+
+Original complaint: 45 y/o M, crushing substernal chest pain radiating to left arm + jaw, diaphoresis, SOB, ECG ST-elevation in II/III/aVF.
+
+Structured case data (from upstream retrieval):' as literal template (not found via PrePrompt or as file path).
+2026-05-05 14:08:19,395 - promptchain.utils.promptchaining - DEBUG - 
+🤖 Using Model: ollama/medgemma:4b
+2026-05-05 14:08:19,396 - promptchain.utils.promptchaining - DEBUG - 
+Instruction Prompt (for model):
+You are a clinical reasoning assistant. Given the structured case data (JSON) below and the original presenting complaint, produce a markdown report with EXACTLY these sections:
+
+1. **Primary diagnosis** — single sentence + 2-3 sentences of reasoning
+2. **Top 3 differentials** — bullet list, one line each
+3. **Immediate management plan** — numbered list with doses (mg, route, frequency)
+4. **Time-sensitive intervention** — one paragraph
+
+For ANY drug dose you list, append `[VERIFY]` if you are not 100% sure of the standard adult dose. This safety flag is required.
+
+Original complaint: 45 y/o M, crushing substernal chest pain radiating to left arm + jaw, diaphoresis, SOB, ECG ST-elevation in II/III/aVF.
+
+Structured case data (from upstream retrieval):
+
+{
+  "labs": null,
+  "history": null
+}
+2026-05-05 14:08:19,396 - promptchain.utils.promptchaining - DEBUG - Calling acompletion with params: {'model': 'ollama/medgemma:4b', 'messages': '<1 messages>'}
+[92m14:08:19 - LiteLLM:INFO[0m: utils.py:3421 - 
+LiteLLM completion() model= medgemma:4b; provider = ollama
+2026-05-05 14:08:19,398 - LiteLLM - INFO - 
+LiteLLM completion() model= medgemma:4b; provider = ollama
+2026-05-05 14:10:24,237 - promptchain.utils.promptchaining - DEBUG - Token usage - Prompt: 216, Completion: 374, Cumulative: 409+388
+2026-05-05 14:10:24,262 - promptchain.utils.promptchaining - DEBUG - Message from LiteLLM (model_dump available): Message(content="1. **Primary diagnosis** — ST-elevation myocardial infarction (STEMI) of the inferior wall, likely caused by occlusion of the right coronary artery (RCA). The patient presents with classic symptoms of acute myocardial infarction, including crushing substernal chest pain radiating to the left arm and jaw, diaphoresis, shortness of breath, and ST-segment elevation on ECG in leads II, III, and aVF.\n\n2. **Top 3 differentials** —\n    *   Unstable angina\n    *   Pericarditis\n    *   Aortic dissection\n\n3. **Immediate management plan** —\n    1.  Aspirin 325 mg [VERIFY] PO, single dose\n    2.  Oxygen 4L NC [VERIFY]\n    3.  Nitroglycerin 0.4 mg [VERIFY] SL, q5min x 3 (or IV if systolic BP <90)\n    4.  Morphine 3-4 mg [VERIFY] IV, q3-4hr PRN (for pain)\n    5.  Obtain IV access\n    6.  Continuous ECG monitoring\n    7.  Stat cardiac biomarkers (Troponin)\n    8.  Consider Fibrinolytic therapy or percutaneous coronary intervention (PCI) depending on the hospital's capabilities and time since symptom onset.\n\n4. **Time-sensitive intervention** — The most time-sensitive intervention is to restore blood flow to the affected myocardium. This can be achieved through fibrinolytic therapy (if the patient presents within the appropriate time window and has no contraindications) or percutaneous coronary intervention (PCI), ideally within 90 minutes of arrival at a PCI-capable center. Rapid intervention is crucial to minimize myocardial damage and improve patient outcomes.\n", role='assistant', tool_calls=None, function_call=None, provider_specific_fields=None, reasoning_content=None)
+2026-05-05 14:10:24,262 - promptchain.utils.promptchaining - DEBUG - Message dump: {'content': "1. **Primary diagnosis** — ST-elevation myocardial infarction (STEMI) of the inferior wall, likely caused by occlusion of the right coronary artery (RCA). The patient presents with classic symptoms of acute myocardial infarction, including crushing substernal chest pain radiating to the left arm and jaw, diaphoresis, shortness of breath, and ST-segment elevation on ECG in leads II, III, and aVF.\n\n2. **Top 3 differentials** —\n    *   Unstable angina\n    *   Pericarditis\n    *   Aortic dissection\n\n3. **Immediate management plan** —\n    1.  Aspirin 325 mg [VERIFY] PO, single dose\n    2.  Oxygen 4L NC [VERIFY]\n    3.  Nitroglycerin 0.4 mg [VERIFY] SL, q5min x 3 (or IV if systolic BP <90)\n    4.  Morphine 3-4 mg [VERIFY] IV, q3-4hr PRN (for pain)\n    5.  Obtain IV access\n    6.  Continuous ECG monitoring\n    7.  Stat cardiac biomarkers (Troponin)\n    8.  Consider Fibrinolytic therapy or percutaneous coronary intervention (PCI) depending on the hospital's capabilities and time since symptom onset.\n\n4. **Time-sensitive intervention** — The most time-sensitive intervention is to restore blood flow to the affected myocardium. This can be achieved through fibrinolytic therapy (if the patient presents within the appropriate time window and has no contraindications) or percutaneous coronary intervention (PCI), ideally within 90 minutes of arrival at a PCI-capable center. Rapid intervention is crucial to minimize myocardial damage and improve patient outcomes.\n", 'role': 'assistant', 'tool_calls': None, 'function_call': None, 'reasoning_content': None}
+2026-05-05 14:10:24,262 - promptchain.utils.promptchaining - DEBUG - Message has tool_calls: False
+2026-05-05 14:10:24,263 - promptchain.utils.promptchaining - DEBUG - 
+Final Output for Step: 1. **Primary diagnosis** — ST-elevation myocardial infarction (STEMI) of the inferior wall, likely caused by occlusion of the right coronary artery (RCA). The patient presents with classic symptoms of acute myocardial infarction, including crushing substernal chest pain radiating to the left arm and jaw, diaphoresis, shortness of breath, and ST-segment elevation on ECG in leads II, III, and aVF.
+
+2. **Top 3 differentials** —
+    *   Unstable angina
+    *   Pericarditis
+    *   Aortic dissection
+
+3. **Immediate management plan** —
+    1.  Aspirin 325 mg [VERIFY] PO, single dose
+    2.  Oxygen 4L NC [VERIFY]
+    3.  Nitroglycerin 0.4 mg [VERIFY] SL, q5min x 3 (or IV if systolic BP <90)
+    4.  Morphine 3-4 mg [VERIFY] IV, q3-4hr PRN (for pain)
+    5.  Obtain IV access
+    6.  Continuous ECG monitoring
+    7.  Stat cardiac biomarkers (Troponin)
+    8.  Consider Fibrinolytic therapy or percutaneous coronary intervention (PCI) depending on the hospital's capabilities and time since symptom onset.
+
+4. **Time-sensitive intervention** — The most time-sensitive intervention is to restore blood flow to the affected myocardium. This can be achieved through fibrinolytic therapy (if the patient presents within the appropriate time window and has no contraindications) or percutaneous coronary intervention (PCI), ideally within 90 minutes of arrival at a PCI-capable center. Rapid intervention is crucial to minimize myocardial damage and improve patient outcomes.
+
+2026-05-05 14:10:24,264 - promptchain.utils.promptchaining - DEBUG - 
+==================================================
+2026-05-05 14:10:24,264 - promptchain.utils.promptchaining - DEBUG - ✅ Chain Completed
+2026-05-05 14:10:24,264 - promptchain.utils.promptchaining - DEBUG - ==================================================
+2026-05-05 14:10:24,264 - promptchain.utils.promptchaining - DEBUG - 
+📊 Final Output:
+2026-05-05 14:10:24,264 - promptchain.utils.promptchaining - DEBUG - 1. **Primary diagnosis** — ST-elevation myocardial infarction (STEMI) of the inferior wall, likely caused by occlusion of the right coronary artery (RCA). The patient presents with classic symptoms of acute myocardial infarction, including crushing substernal chest pain radiating to the left arm and jaw, diaphoresis, shortness of breath, and ST-segment elevation on ECG in leads II, III, and aVF.
+
+2. **Top 3 differentials** —
+    *   Unstable angina
+    *   Pericarditis
+    *   Aortic dissection
+
+3. **Immediate management plan** —
+    1.  Aspirin 325 mg [VERIFY] PO, single dose
+    2.  Oxygen 4L NC [VERIFY]
+    3.  Nitroglycerin 0.4 mg [VERIFY] SL, q5min x 3 (or IV if systolic BP <90)
+    4.  Morphine 3-4 mg [VERIFY] IV, q3-4hr PRN (for pain)
+    5.  Obtain IV access
+    6.  Continuous ECG monitoring
+    7.  Stat cardiac biomarkers (Troponin)
+    8.  Consider Fibrinolytic therapy or percutaneous coronary intervention (PCI) depending on the hospital's capabilities and time since symptom onset.
+
+4. **Time-sensitive intervention** — The most time-sensitive intervention is to restore blood flow to the affected myocardium. This can be achieved through fibrinolytic therapy (if the patient presents within the appropriate time window and has no contraindications) or percutaneous coronary intervention (PCI), ideally within 90 minutes of arrival at a PCI-capable center. Rapid intervention is crucial to minimize myocardial damage and improve patient outcomes.
+
+
+
+======================================================================
+FINAL OUTPUT
+======================================================================
+1. **Primary diagnosis** — ST-elevation myocardial infarction (STEMI) of the inferior wall, likely caused by occlusion of the right coronary artery (RCA). The patient presents with classic symptoms of acute myocardial infarction, including crushing substernal chest pain radiating to the left arm and jaw, diaphoresis, shortness of breath, and ST-segment elevation on ECG in leads II, III, and aVF.
+
+2. **Top 3 differentials** —
+    *   Unstable angina
+    *   Pericarditis
+    *   Aortic dissection
+
+3. **Immediate management plan** —
+    1.  Aspirin 325 mg [VERIFY] PO, single dose
+    2.  Oxygen 4L NC [VERIFY]
+    3.  Nitroglycerin 0.4 mg [VERIFY] SL, q5min x 3 (or IV if systolic BP <90)
+    4.  Morphine 3-4 mg [VERIFY] IV, q3-4hr PRN (for pain)
+    5.  Obtain IV access
+    6.  Continuous ECG monitoring
+    7.  Stat cardiac biomarkers (Troponin)
+    8.  Consider Fibrinolytic therapy or percutaneous coronary intervention (PCI) depending on the hospital's capabilities and time since symptom onset.
+
+4. **Time-sensitive intervention** — The most time-sensitive intervention is to restore blood flow to the affected myocardium. This can be achieved through fibrinolytic therapy (if the patient presents within the appropriate time window and has no contraindications) or percutaneous coronary intervention (PCI), ideally within 90 minutes of arrival at a PCI-capable center. Rapid intervention is crucial to minimize myocardial damage and improve patient outcomes.
+
