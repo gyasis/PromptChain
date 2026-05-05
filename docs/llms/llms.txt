@@ -1,0 +1,33 @@
+# PromptChain
+
+> Python library for building multi-step LLM pipelines and multi-agent systems. Wraps litellm for model access; supports MCP tool servers, structured event/callback system, and an optional MLflow observability layer.
+
+PromptChain is the user's own library — not in any LLM training corpus. Read the LLM-targeted reference and recipes below before writing PromptChain code; otherwise expect API hallucinations.
+
+## Docs
+
+- [PromptChain for LLMs](PROMPTCHAIN_FOR_LLMS.md): Canonical LLM-targeted reference. Public API, the 3 instruction types, AgenticStepProcessor, AgentChain, tool registration, observability, anti-pattern catalog, end-to-end example.
+- [README](../../README.md): Human-targeted overview and pitch.
+- [CHANGELOG](../../CHANGELOG.md): Version history, current = 0.6.1+.
+- [QUICKSTART](../../QUICKSTART.md): Human-targeted CLI quickstart.
+
+## Recipes (copy-paste, tested patterns)
+
+- [Basic chain](recipes/recipe-basic-chain.md): Single LLM step, string in / string out.
+- [Function step](recipes/recipe-function-step.md): Mix Python functions into a chain.
+- [Agentic step](recipes/recipe-agentic-step.md): Self-contained internal reasoning loop with tools.
+- [Multi-agent router](recipes/recipe-multi-agent-router.md): Specialist agents with dynamic routing.
+- [MCP tool](recipes/recipe-mcp-tool.md): External MCP server tool integration.
+- [Observability on](recipes/recipe-observability-on.md): Enable MLflow tracking.
+
+## Source-of-truth files (when this doc and the code disagree, code wins)
+
+- [promptchain/__init__.py](../../promptchain/__init__.py): Public API exports.
+- [promptchain/utils/promptchaining.py](../../promptchain/utils/promptchaining.py): PromptChain class, line 219.
+- [promptchain/utils/agent_chain.py](../../promptchain/utils/agent_chain.py): AgentChain class, line 36.
+- [promptchain/utils/agentic_step_processor.py](../../promptchain/utils/agentic_step_processor.py): AgenticStepProcessor, line 135. Read lines 142-199 for the multi-agent history-isolation contract.
+- [promptchain/observability/__init__.py](../../promptchain/observability/__init__.py): Observability decorator exports + no-op fallbacks.
+
+## Feedback loop
+
+- [FEEDBACK_LOG.md](FEEDBACK_LOG.md): Audit trail of every LLM mistake observed via SIO and the doc/recipe/package fix that followed.

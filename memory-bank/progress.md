@@ -2292,3 +2292,35 @@ Reduced root markdown clutter from 47 files to 8 (standard project files only).
 **Open follow-ups:**
 - Reconcile `QUICKSTART.md` (root) vs `docs/guides/QUICK_START.md` — content differs.
 - Reconcile `docs/dspy/DSPy_3.0_Custom_Evaluations_Guide.md` vs `..._ROOT.md` — content differs.
+
+---
+
+## 2026-05-05 — LLM-native PromptChain layer (Layers 1-3)
+
+**Goal:** Make Claude Code write working PromptChain code on the first try (PromptChain is not in any LLM training corpus). Iteration 1 of the watertight north-star ("PromptChain writes its own PromptChain code").
+
+**Built:**
+- `docs/llms/PROMPTCHAIN_FOR_LLMS.md` — long-form LLM-targeted reference (~3.5K words). Anchored to `promptchain/__init__.py:1-20`, `promptchaining.py:219`, `agent_chain.py:36`, `agentic_step_processor.py:135`. Pre-seeded with 12-item anti-pattern catalog.
+- `docs/llms/recipes/recipe-{basic-chain,function-step,agentic-step,multi-agent-router,mcp-tool,observability-on}.md` — 6 tested recipes with frontmatter + common failures + fix sections.
+- `docs/llms/llms.txt` — `/llms.txt`-spec compliant index.
+- `docs/llms/FEEDBACK_LOG.md` — closed-loop audit trail (bootstrap entry only; populated as agent makes real mistakes).
+- `~/.claude/skills/promptchain.md` — Claude Code skill that auto-routes to the right doc/recipe per task. Triggers: `promptchain`, `PromptChain`, `agent chain`, `agentic step`, `AgenticStepProcessor`, `MCPHelper`, `from promptchain`, `import promptchain`.
+
+**Drift caught while authoring (signals the docs were needed):**
+- Root `CLAUDE.md` lists example filenames (`examples/basic_chain.py`, etc.) that do NOT exist. Real names: `example_usage.py`, `tool_executor_demo.py`, `two_tier_routing_demo.py`, etc. Docs reference real names.
+- `AgentChain` and `AgenticStepProcessor` are NOT in `promptchain/__init__.py` `__all__` — must be imported via submodule paths. This is anti-pattern #1 and #2 in the catalog.
+- Observability decorators are 4 not 5 (`track_tool` not exported from `__init__.py`); a previous Explore agent's report had this wrong.
+
+**Closed loop (light, manual, user-driven):**
+- Claude writes PromptChain code → mistakes happen → user runs `sio scan` → user updates `PROMPTCHAIN_FOR_LLMS.md §9` or a recipe → logs to `FEEDBACK_LOG.md`.
+- No automation in this iteration (no auto-GitHub-issues, no webhooks). Per user: "SIO is just a light layer".
+
+**Out of scope, logged:**
+- HybridRAG indexing (defer until corpus > 15K tokens)
+- "Any LLM, any project" packaging — ship `llms.txt` + `PROMPTCHAIN_FOR_LLMS.md` with the pip package
+- North star: PromptChain writes its own PromptChain code (watertight)
+- `tests/test_recipes_runnable.py` to CI-guard recipe drift
+
+**Verification the user should run:**
+1. Pre-test baseline: in a fresh Claude Code session WITHOUT this skill, ask "Write a PromptChain that runs 3 steps where step 2 is a Python function." Capture tool-call count + retries. (Skill activates automatically when triggers are matched, so this baseline must be captured *before* the skill is committed if measuring rigorously.)
+2. Post-test: same prompt in a fresh session; the skill should auto-load. Goal: ≤ 50% of baseline tool calls, ≥ 95% first-run-correctness.
