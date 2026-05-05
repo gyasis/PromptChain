@@ -101,7 +101,10 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "promptchain": ["prompts/**/*.md"],
+        "promptchain": [
+            "prompts/**/*.md",
+            "data/skills/*.md",      # ships the Claude Code skill for `promptchain install-skill`
+        ],
         "promptchain.ingestors": ["**/*.py"],
         "promptchain.extras": ["**/*.py"],
     },

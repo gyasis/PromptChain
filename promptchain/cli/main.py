@@ -18,7 +18,9 @@ from promptchain.observability import (init_mlflow, shutdown_mlflow,
 
 from . import __version__
 from .models import Config
-from .tui.app import PromptChainApp
+# NOTE: PromptChainApp (TUI) is lazy-imported inside the launch path so that
+# subcommands like `install-skill` (which don't need the TUI) can run without
+# the optional `textual` dependency. See setup.py extras_require["tui"].
 
 # Global flag for dev mode (set by CLI)
 _DEV_MODE = False
@@ -266,7 +268,17 @@ def _launch_tui(
         elif yaml_config and yaml_config.session.working_directory:
             base_config.sessions_dir = yaml_config.session.working_directory
 
-        # Create and run the Textual app (T037)
+        # Create and run the Textual app (T037) — lazy import so non-TUI
+        # subcommands (install-skill, query) don't require `textual`.
+        try:
+            from .tui.app import PromptChainApp
+        except ImportError as e:
+            raise click.ClickException(
+                "TUI dependencies not installed. Run "
+                "`pip install \"promptchain[tui]\"` to use the interactive UI, "
+                "or use a non-TUI subcommand (e.g. `promptchain install-skill`)."
+            ) from e
+
         app = PromptChainApp(
             session_name=session,
             sessions_dir=(
@@ -282,6 +294,10 @@ def _launch_tui(
     finally:
         # Shutdown MLflow observability (flush background queue, close runs)
         shutdown_mlflow()
+
+
+from .install_skill import install_skill as _install_skill_cmd
+main.add_command(_install_skill_cmd)
 
 
 @main.command()

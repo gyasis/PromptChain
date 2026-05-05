@@ -1,4 +1,5 @@
 include README.md
 include LICENSE
 include requirements.txt
-recursive-include promptchain/prompts *.md 
+recursive-include promptchain/prompts *.md
+recursive-include promptchain/data/skills *.md

@@ -2527,3 +2527,39 @@ User-flagged drift: most of today's work was Claude Code harness-side (skill, ru
 - `FEEDBACK_LOG.md` stays in the repo (it doubles as a public audit trail).
 - `scripts/runs/2026-05-05_medgemma-clinical-demo/` stays in the repo (it's the canonical worked example for the hybrid recipe + the bug discovery audit trail).
 - Lazy migration of those two later if the public surface starts feeling personal.
+
+---
+
+## 2026-05-05 — `promptchain install-skill` CLI subcommand
+
+Final piece of the "any LLM, any project" delivery: a one-liner install path for the harness skill.
+
+**Built:**
+- `promptchain/cli/install_skill.py` — Click subcommand with `--target / --copy / --force / --dry-run` flags. Defaults to symlinking from `~/.claude/skills/promptchain.md` to the bundled file. Idempotent (detects existing correct symlink, exits clean). Backs up any existing target as `<path>.bak.<YYYY-MM-DD>` before overwrite.
+- Wired into `promptchain/cli/main.py` as a subcommand (`main.add_command(install_skill)`).
+- **Skill source restructured:** moved from `<repo>/.claude/skills/promptchain.md` into `promptchain/data/skills/promptchain.md` (package data) so it ships with `pip install promptchain`. The repo-root `.claude/skills/promptchain.md` is now a relative symlink to the package data file. User's `~/.claude/skills/promptchain.md` resolves through the chain.
+- `setup.py` `package_data` extended: `"promptchain": [..., "data/skills/*.md"]`.
+- `MANIFEST.in` extended: `recursive-include promptchain/data/skills *.md`.
+- `promptchain/data/__init__.py` added so it's recognised as a sub-package.
+- `main.py` TUI import made lazy — `install-skill` now works without `[tui]` extras (textual not required for the install path). Caught a real-world tripwire: previously, anyone trying `promptchain install-skill` without the TUI extras would hit `ModuleNotFoundError: textual`. Now graceful.
+- Skill content updated to document the new install path (`promptchain install-skill` instead of manual symlink).
+
+**Verification:**
+- `python -c "from promptchain.cli.main import main; main(['install-skill', '--dry-run'])"` → prints source/target/mode.
+- `python -c "... main(['install-skill'])"` on existing correct symlink → "✓ Already linked to the bundled skill — nothing to do."
+- User-side symlink `~/.claude/skills/promptchain.md` resolves through the chain to the package data file.
+
+**Install path for any future user (no repo clone needed):**
+```
+pip install promptchain
+promptchain install-skill           # symlink (default — package updates flow through)
+# or
+promptchain install-skill --copy    # hard copy
+```
+
+**Closes the architectural concern from earlier today:** the skill is now a first-class shipped artifact of the package, not a maintainer-only `~/.claude` file. Any LLM agent in any project can `pip install promptchain && promptchain install-skill` and get the same routing the maintainer has.
+
+**Open follow-ups:**
+- Test in `tests/test_install_skill.py` (basic dry-run + symlink + backup-existing scenarios)
+- Document the install command in README.md
+- Maybe add a `promptchain uninstall-skill` for symmetry
