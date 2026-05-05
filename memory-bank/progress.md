@@ -2268,3 +2268,27 @@ Tasks: T010, T022, T036, T037, T038, T056
 
 Tests complete: 11 passing (9 unit in tests/test_prompt_builders.py + 2 integration in tests/integration/test_011_library_consumer_flow.py)
 Tasks complete: 28/65 (43%)
+
+---
+
+## 2026-05-05 — Root .md cleanup
+
+Reduced root markdown clutter from 47 files to 8 (standard project files only).
+
+**Kept in root:** README, CLAUDE, CHANGELOG, INSTALLATION, QUICKSTART, USAGE, SECURITY, REFERENCES.
+
+**Moved into `docs/` subfolders via `git mv` (history preserved):**
+- `docs/architecture/` (2): ARCHITECTURE_VISION, HIERARCHICAL_STEPS_IMPLEMENTATION
+- `docs/observability/` (10): 8 OBSERVABILITY_*, MLFLOW_OBSERVER_IMPLEMENTATION, MLFLOW_OPTIONAL_SUMMARY
+- `docs/rag/` (8): 3 LIGHTRAG_*, COLPALI_VISION_RAG_ARTICLE, EXTENDING_HYBRIDRAG_TO_RETRIEVE_ANYTHING, GAP_ANALYSIS_HYBRIDRAG_VS_LIGHTRAG_RAGANYTHING, BRAND_GUIDELINE_RAG_IMPLEMENTATION_PLAN, HTML_MARKDOWN_IMAGE_EXTRACTION_ANALYSIS
+- `docs/dspy/` (1 + 1 ROOT-suffixed): Custom_Evaluations_Guide moved as `_ROOT.md` (differs from existing copy — needs reconciliation)
+- `docs/guides/` (3): CLAUDE_CODE_AGENTS_GUIDE, GITHUB_SPEC_KIT_CHEATSHEET, QUICK_START
+- `docs/diagnostics/` (8): ACTIVITY_LOGS_*, BUG_HUNTING_REPORT, CRITICAL_PERFORMANCE_FINDINGS, PERFORMANCE_ANALYSIS_SUMMARY, performance_analysis_enhanced_agentic, TUI_CRASH_FIX_2026-01-11, QUICK_FIX_GUIDE
+- `docs/implementation-summaries/` (6): IMPLEMENTATION_SUMMARY_T004/T006, T003/T005/T008_IMPLEMENTATION_SUMMARY, CODE_REVIEW_enhanced_agentic_step_processor
+- `docs/roadmap/` (1): IMPROVEMENT_ROADMAP
+
+**Deleted:** `DSPy_3.0_Comprehensive_Guide.md` (root copy was identical to `docs/dspy/` copy).
+
+**Open follow-ups:**
+- Reconcile `QUICKSTART.md` (root) vs `docs/guides/QUICK_START.md` — content differs.
+- Reconcile `docs/dspy/DSPy_3.0_Custom_Evaluations_Guide.md` vs `..._ROOT.md` — content differs.
