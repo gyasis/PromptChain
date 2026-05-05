@@ -95,7 +95,6 @@ plans/
 project_prompts/
 promptchain-a2a/
 promptchain/workdirs/
-scripts/
 ui_agent_project/
 shared/
 backend/
@@ -143,3 +142,9 @@ Research_agent/document_search_workspace/
 
 # Workbench folder for testing
 workbench/
+
+# Agent-authored scripts workspace
+scripts/scratch/*
+!scripts/scratch/.gitkeep
+scripts/runs/*/output.log
+scripts/runs/*/mlruns/

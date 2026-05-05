@@ -416,7 +416,65 @@ When you need ground truth (this doc may have drifted), read in this order:
 6. `examples/two_tier_routing_demo.py` — the cleanest end-to-end example using all 4 phases
 7. `tests/integration/test_011_library_consumer_flow.py` — the canonical "library consumer" pattern, kept current by CI
 
-## 12. Recipes
+## 12. `ChainBuilder` — the agent-facing self-writing-chains API
+
+**Source:** `promptchain/utils/chain_builder.py:40` (titled "Agent-Facing API for Self-Writing Chains").
+
+This is the bridge to the watertight north-star: the API designed so that **the LLM itself** can construct, validate, version, and persist `ChainDefinition` objects via tool calls.
+
+### Two surfaces
+
+- **Fluent builder** — for human / direct code use: `ChainBuilder("name").add_prompt(...).add_chain(...).build()`
+- **Static tool methods** — for LLM tool-call use: `ChainBuilder.create_chain(name, steps, ...)`, `.modify_chain(...)`, `.clone_chain(...)`. They return `dict` with `success`/`error` (no exceptions to recover from).
+
+### Auto-registerable tool surface
+
+```python
+from promptchain.utils.chain_builder import (
+    get_chain_builder_tools,        # OpenAI function-schema list
+    get_chain_builder_functions,    # name → callable mapping
+)
+# Hand these to PromptChain.add_tools(...) + register_tool_function(...) and the LLM can self-author chains.
+```
+
+### Step types — only 4
+
+`prompt` / `chain` / `function` / `agentic`. The `agentic` step REQUIRES `mode="hybrid"` (auto-switched by the builder if you forget).
+
+### Versioning + validation
+
+`modify_chain` auto-increments the patch version and re-validates via `ChainFactory.validate()` before save. New version is persisted; the old version stays intact.
+
+For a copy-paste recipe see `recipes/recipe-chain-builder.md`.
+
+---
+
+## 13. Recent changes (mine before writing v0.6.x code)
+
+When this doc was written the package was at **v0.6.1 (2026-04-28)**. The most recent two minor versions changed behaviour in ways that *will* trip up an agent if it works from older mental models. Read these before generating PromptChain code.
+
+### v0.6.1 (2026-04-28) — library-consumer blocker fixes
+
+1. **`import promptchain` no longer pulls in `textual`.** TUI users must `pip install "promptchain[tui]"` and explicitly import `promptchain.cli.tui.app.PromptChainApp` (or use the `promptchain` console-script). Plain library consumers do `pip install promptchain` (no textual).
+2. **Schema/function name validation at registration.** Both `chain.add_tools()` and `chain.register_tool_function()` now raise `ValueError` immediately if a registered tool name has no matching function (or vice-versa). Previously this surfaced later as an opaque `Missing parameter 'tool_call_id'` error from OpenAI.
+3. **Tool-dispatch loop bug fix (CRITICAL).** In `agentic_step_processor.py`, the per-tool execution block was wrongly indented to the same column as `for tool_call in tool_calls:` and ran ONCE per ACT phase regardless of how many `tool_calls` the LLM emitted. **If you're on `<0.6.1` and parallel tool calls behave weirdly, upgrade.** The fix also normalises `tool_call_id` extraction for both dict-style (OpenAI) and object-style (LiteLLM) responses.
+
+### v0.6.0 (2026-04-19) — spec 011 prompt-builder decoupling (BREAKING)
+
+1. **Default prompt is now dynamically built from the agent's actually-registered tools.** Previously `AgenticStepProcessor` shipped a hardcoded ReAct/TUI scaffold that advertised tools (`ripgrep_search`, `file_read`, `terminal_execute`) regardless of what was registered. Library consumers got a dishonest prompt. v0.6.0 ships `DynamicPromptGenerator` as the default; consumers see a prompt that references only their tools.
+2. **Legacy ReAct scaffold preserved as opt-in.** Use `LegacyTUIPromptGenerator()` (`promptchain.prompts.legacy_tui`) for the old behaviour, OR use `TUIAgenticStepProcessor` if you want the old behaviour with no kwargs.
+3. **New kwargs on `AgenticStepProcessor`:** `prompt_builder` (any `BasePromptBuilder` Protocol implementer) and `workflow_pattern` (`"standard"` or `"react"`). Library consumers who relied on the legacy scaffold MUST switch to one of the opt-in paths above.
+4. **`instructions=` kwarg on `AgenticStepProcessor`** — for consumers who want to pass an already-rendered prompt instead of a builder.
+
+### Earlier highlights
+
+- **v0.4.2 (2025-10-07)** — orchestrator metrics (`OrchestratorSupervisor.get_last_execution_metrics()`); accurate `router_steps`/`tools_called`/token counts in `AgentExecutionResult`. Internal field rename: `router_steps` → `orchestrator_reasoning_steps` (non-breaking).
+
+For the full log, read `CHANGELOG.md`.
+
+---
+
+## 14. Recipes
 
 For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a single-file pattern that has been tested against the current API.
 
@@ -424,7 +482,18 @@ For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a sing
 |---|---|
 | `recipe-basic-chain.md` | One LLM step, string in / string out |
 | `recipe-function-step.md` | Mix Python functions into a chain |
+| `recipe-static-chain.md` | Pure-Python chain, zero LLM calls |
+| `recipe-prompt-loader.md` | Load named prompts from disk via `PrePrompt` |
+| `recipe-tool-calling-local.md` | Multiple local tools, the LLM loop, schema generation |
 | `recipe-agentic-step.md` | Self-contained agentic loop with internal tools |
+| `recipe-advanced-agentic.md` | Phase 1-4 cost/token/safety/transparency knobs |
 | `recipe-multi-agent-router.md` | Multiple specialist agents, dynamic routing |
 | `recipe-mcp-tool.md` | External MCP server tool integration |
 | `recipe-observability-on.md` | Turn on MLflow tracking |
+| `recipe-chain-builder.md` | `ChainBuilder` fluent + tool API for self-writing chains |
+
+---
+
+## 15. Where agent-authored scripts go
+
+When the user asks the agent to **write and run** a PromptChain script, the script lands in `scripts/runs/<YYYY-MM-DD>_<short-name>/run.py` with a sibling `README.md`. See `scripts/README.md` for the convention. Run via `bash scripts/observe.sh runs/<folder>` to get MLflow tracking automatically.

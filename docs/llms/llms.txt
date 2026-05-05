@@ -1,31 +1,39 @@
 # PromptChain
 
-> Python library for building multi-step LLM pipelines and multi-agent systems. Wraps litellm for model access; supports MCP tool servers, structured event/callback system, and an optional MLflow observability layer.
+> Python library for building multi-step LLM pipelines and multi-agent systems. Wraps litellm for model access; supports MCP tool servers, structured event/callback system, an optional MLflow observability layer, and `ChainBuilder` — an agent-facing API for self-writing chains.
 
-PromptChain is the user's own library — not in any LLM training corpus. Read the LLM-targeted reference and recipes below before writing PromptChain code; otherwise expect API hallucinations.
+PromptChain is the user's own library — not in any LLM training corpus. Read the LLM-targeted reference and recipes below before writing PromptChain code; otherwise expect API hallucinations. Current version: 0.6.1+ (2026-04-28); see §13 of `PROMPTCHAIN_FOR_LLMS.md` for breaking changes in v0.6.0/0.6.1.
 
 ## Docs
 
-- [PromptChain for LLMs](PROMPTCHAIN_FOR_LLMS.md): Canonical LLM-targeted reference. Public API, the 3 instruction types, AgenticStepProcessor, AgentChain, tool registration, observability, anti-pattern catalog, end-to-end example.
+- [PromptChain for LLMs](PROMPTCHAIN_FOR_LLMS.md): Canonical LLM-targeted reference. Public API, the 3 instruction types, AgenticStepProcessor, AgentChain, tool registration, observability, ChainBuilder, recent v0.6.x changes, anti-pattern catalog, end-to-end example.
 - [README](../../README.md): Human-targeted overview and pitch.
 - [CHANGELOG](../../CHANGELOG.md): Version history, current = 0.6.1+.
 - [QUICKSTART](../../QUICKSTART.md): Human-targeted CLI quickstart.
+- [Scripts workspace README](../../scripts/README.md): Where agent-authored PromptChain scripts land for execution + observation.
 
 ## Recipes (copy-paste, tested patterns)
 
 - [Basic chain](recipes/recipe-basic-chain.md): Single LLM step, string in / string out.
 - [Function step](recipes/recipe-function-step.md): Mix Python functions into a chain.
+- [Static chain](recipes/recipe-static-chain.md): Pure-Python chain with zero LLM calls.
+- [Prompt loader](recipes/recipe-prompt-loader.md): Load named prompts from disk via `PrePrompt`.
+- [Local tool calling](recipes/recipe-tool-calling-local.md): Multiple local tools, the LLM loop, schema generation.
 - [Agentic step](recipes/recipe-agentic-step.md): Self-contained internal reasoning loop with tools.
+- [Advanced agentic step](recipes/recipe-advanced-agentic.md): Phase 1-4 cost / token / safety / transparency knobs.
 - [Multi-agent router](recipes/recipe-multi-agent-router.md): Specialist agents with dynamic routing.
 - [MCP tool](recipes/recipe-mcp-tool.md): External MCP server tool integration.
 - [Observability on](recipes/recipe-observability-on.md): Enable MLflow tracking.
+- [ChainBuilder](recipes/recipe-chain-builder.md): Fluent + tool API for agent-driven self-writing chains.
 
 ## Source-of-truth files (when this doc and the code disagree, code wins)
 
-- [promptchain/__init__.py](../../promptchain/__init__.py): Public API exports.
-- [promptchain/utils/promptchaining.py](../../promptchain/utils/promptchaining.py): PromptChain class, line 219.
-- [promptchain/utils/agent_chain.py](../../promptchain/utils/agent_chain.py): AgentChain class, line 36.
-- [promptchain/utils/agentic_step_processor.py](../../promptchain/utils/agentic_step_processor.py): AgenticStepProcessor, line 135. Read lines 142-199 for the multi-agent history-isolation contract.
+- [promptchain/__init__.py](../../promptchain/__init__.py): Public API exports (9).
+- [promptchain/utils/promptchaining.py](../../promptchain/utils/promptchaining.py): `PromptChain` class, line 219.
+- [promptchain/utils/agent_chain.py](../../promptchain/utils/agent_chain.py): `AgentChain` class, line 36.
+- [promptchain/utils/agentic_step_processor.py](../../promptchain/utils/agentic_step_processor.py): `AgenticStepProcessor`, line 135. Read lines 142-199 for the multi-agent history-isolation contract.
+- [promptchain/utils/chain_builder.py](../../promptchain/utils/chain_builder.py): `ChainBuilder` (agent-facing self-writing-chains API), line 40.
+- [promptchain/utils/chain_models.py](../../promptchain/utils/chain_models.py): `StepType`, `ChainMode`, `ChainDefinition`, `Guardrails`, `ValidationResult`.
 - [promptchain/observability/__init__.py](../../promptchain/observability/__init__.py): Observability decorator exports + no-op fallbacks.
 
 ## Feedback loop

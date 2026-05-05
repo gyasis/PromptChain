@@ -2324,3 +2324,34 @@ Reduced root markdown clutter from 47 files to 8 (standard project files only).
 **Verification the user should run:**
 1. Pre-test baseline: in a fresh Claude Code session WITHOUT this skill, ask "Write a PromptChain that runs 3 steps where step 2 is a Python function." Capture tool-call count + retries. (Skill activates automatically when triggers are matched, so this baseline must be captured *before* the skill is committed if measuring rigorously.)
 2. Post-test: same prompt in a fresh session; the skill should auto-load. Goal: ≤ 50% of baseline tool calls, ≥ 95% first-run-correctness.
+
+---
+
+## 2026-05-05 — LLM-native layer expansion (ChainBuilder, recent changes, scripts/, 5 recipes)
+
+User-driven gap audit revealed the v1 docs were a *map* but didn't walk all the territory. This iteration covers:
+
+**Discovered file (huge for the watertight north-star):**
+- `promptchain/utils/chain_builder.py:40` — `ChainBuilder` class titled "Agent-Facing API for Self-Writing Chains". Designed so an LLM can call `create_chain` / `modify_chain` / `clone_chain` as registered tools (returns `dict`, not exceptions). Has `get_chain_builder_tools()` + `get_chain_builder_functions()` for one-line agent registration. This is the **bridge** to the watertight north-star.
+
+**Built:**
+- `scripts/` workspace: `README.md` (convention), `observe.sh` (run-with-MLflow wrapper, chmod +x), `runs/.gitkeep`, `scratch/.gitkeep`. `.gitignore` updated to exclude `scratch/*` content + per-run `output.log` and `mlruns/`.
+- `docs/llms/PROMPTCHAIN_FOR_LLMS.md` — added §12 (`ChainBuilder`), §13 (Recent changes — v0.6.1 schema-validation + tool-dispatch loop fix + library-import-without-textual; v0.6.0 BREAKING prompt-builder default + spec 011), §14 (recipes table extended to 11), §15 (scripts/ pointer).
+- 5 new recipes (in `docs/llms/recipes/`):
+  - `recipe-chain-builder.md` — fluent + static tool API, the 4 step types, STRICT vs HYBRID mode, dict-returning errors
+  - `recipe-prompt-loader.md` — `load_prompts`, `get_prompt_by_name`, `additional_prompt_dirs`, `id:strategy` shorthand, default search paths
+  - `recipe-tool-calling-local.md` — multiple tool registration, schema generation from docstring/types, the multi-turn loop, **v0.6.1 critical bug context** (parallel tool calls now actually run all)
+  - `recipe-static-chain.md` — `models=[]` pattern for pure-Python chains, when to use vs plain function composition
+  - `recipe-advanced-agentic.md` — Phase 1-4 each in isolation + combined; spec 011 `prompt_builder` + `workflow_pattern` kwargs
+- `docs/llms/llms.txt` — extended index, version note (0.6.1+, see §13 for BREAKING).
+- `~/.claude/skills/promptchain.md` — routing table extended for new intents; added **BLOCKING** "where the script lands" section enforcing the `scripts/runs/` convention with required `init_mlflow()` first lines.
+
+**Closed-loop observability path now complete:**
+- Agent writes script → lands in `scripts/runs/<dir>/run.py` with MLflow init → user runs `bash scripts/observe.sh runs/<dir>` → MLflow captures + `output.log` tee'd → `sio scan` mines failures → fix lands in doc/recipe + `FEEDBACK_LOG.md` row.
+
+**Open follow-ups (still out of scope):**
+- HybridRAG indexing (still defer; corpus is now larger but still ~10K tokens — re-evaluate at 15K).
+- `recipe-message-bus.md` (PubSubBus / AsyncAgentInbox / MemoStore) — not built this iteration; the 5 less-used public exports remain undocumented.
+- `recipe-history-manager.md` (ExecutionHistoryManager).
+- `tests/test_recipes_runnable.py` CI guard.
+- North star: PromptChain writes its own PromptChain code via ChainBuilder (the recipe documents the API; building the actual self-writing demo is the next iteration).
