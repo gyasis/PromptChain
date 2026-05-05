@@ -2479,3 +2479,29 @@ After investigating the FEEDBACK_LOG entry from earlier today, the actual story 
 4. Only THEN investigate the library
 
 Today: 3 perceived bugs, 2 were mine (call-order + over-complex prompt), 1 was a real package gap. Ratio matches the meta-rule: when in doubt, suspect myself first.
+
+---
+
+## 2026-05-05 — SIO meta-lesson codified + GitHub issue draft
+
+User-flagged framing: "this is the kind of learning that we use SIO to improve our agent instructions."
+
+**Built:**
+- `~/.claude/rules/domains/library-vs-pipeline-bugs.md` — Tier-3 domain rule. BLOCKING gate before claiming a library bug: read source contract → check canonical examples → check verbose logs → check call-order/setup. Today's 2-of-3 score is the canonical case study referenced in the rule. Auto-injected by hooks when the agent is about to file an issue / write FEEDBACK_LOG / claim "library is broken."
+- `docs/llms/issues/PROPOSAL_per_step_tool_scoping.md` — full GitHub issue draft for the real package gap (per-step tool scoping). Three API sketches (tuple-based / Prompt class / agentic-only). Acceptance criteria. Relates back to the live demo. **Drafted locally because `gh` auth is broken (`GH_TOKEN` invalid) — user must paste into a real issue at github.com/gyasis/PromptChain/issues/new once auth is restored.**
+
+**SIO state captured:**
+- `sio status` — pipeline healthy. 48,186 error_records, 63,289 flow_events, 26 gold_standards, 3 optimized_modules.
+- `sio mine --since "1 day" --project PromptChain` — captured 21 errors from 4 newly-mined sessions.
+- `sio suggest --grep "register_tool_function,add_tools,AgenticStepProcessor,medgemma,tool_calls" --project PromptChain --preview` — clustered into 8 patterns, 33 errors. Mostly concrete framework-level (hook errors, exit codes). The abstract meta-pattern (pipeline-vs-library) didn't surface from the cluster — it's a reasoning-style rule, not a concrete recurring error. Codified manually instead.
+
+**Why the manual rule:**
+SIO's strength is catching concrete repeating errors (e.g. "you keep grepping for X without piping through Y"). The meta-lesson today is at a higher level of abstraction — "when you're about to claim a library bug, run a 4-step investigation first." That's a *posture* rule, not a *pattern* rule. Better suited to a hand-crafted Tier-3 rule than a DSPy-generated CLAUDE.md edit.
+
+Future SIO mining will likely add concrete sub-rules under this umbrella (e.g. "for PromptChain specifically, always read add_tools docstring before register_tool_function") as more sessions accumulate.
+
+**Open: GitHub issue file.**
+User needs to:
+1. Fix `GH_TOKEN` (current one is invalid per `gh auth status`)
+2. Run: `gh issue create --repo gyasis/PromptChain --title "Per-step tool scoping ..." --body-file docs/llms/issues/PROPOSAL_per_step_tool_scoping.md`
+3. Or paste into the GitHub web UI directly.
