@@ -2563,3 +2563,22 @@ promptchain install-skill --copy    # hard copy
 - Test in `tests/test_install_skill.py` (basic dry-run + symlink + backup-existing scenarios)
 - Document the install command in README.md
 - Maybe add a `promptchain uninstall-skill` for symmetry
+
+---
+
+## 2026-05-05 — install-skill tests + README mention
+
+Closed the two open follow-ups from the install-skill landing.
+
+**Built:**
+- `tests/test_install_skill.py` — 7 tests (all pass):
+  1. `test_bundled_skill_path_resolves` — bundled skill exists in package
+  2. `test_dry_run_creates_nothing` — --dry-run leaves filesystem untouched
+  3. `test_default_install_creates_symlink` — default mode creates a symlink to the bundled file
+  4. `test_copy_mode_creates_real_file` — --copy creates a real file (not symlink) with identical content
+  5. `test_existing_target_is_backed_up` — pre-existing target → renamed to `.bak.<YYYY-MM-DD>` before overwrite
+  6. `test_idempotent_when_already_linked` — re-running on correct symlink is no-op (no spurious backup)
+  7. `test_force_overwrites_without_backup` — --force skips the backup
+- README.md — new "Install the LLM-coding-agent skill" section under Installation. Documents `promptchain install-skill` with the three flag forms (default symlink / --copy / --dry-run).
+
+**Test run:** `7 passed, 1 warning in 6.56s` — clean.

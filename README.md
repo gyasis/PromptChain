@@ -107,6 +107,18 @@ cd promptchain
 pip install -e .
 ```
 
+### Install the LLM-coding-agent skill (Claude Code, Cursor, etc.)
+
+PromptChain ships with an LLM-targeted reference set (`docs/llms/`) and a Claude Code skill that auto-routes the agent to the right recipe per task. The skill lives in the package and is installed into your harness with one command:
+
+```bash
+promptchain install-skill              # symlinks ~/.claude/skills/promptchain.md to the bundled file
+promptchain install-skill --copy       # hard copy if you want to edit locally
+promptchain install-skill --dry-run    # preview without making changes
+```
+
+After install, any LLM coding agent that reads `~/.claude/skills/` (Claude Code, etc.) will pick up the skill and stop hallucinating PromptChain APIs. See `docs/llms/PROMPTCHAIN_FOR_LLMS.md` for the canonical LLM-targeted reference and `docs/llms/recipes/` for tested copy-paste patterns.
+
 ## Quick Start
 
 1. **Set up your environment:**
