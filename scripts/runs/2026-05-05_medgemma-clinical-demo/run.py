@@ -28,6 +28,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
+from litellm import acompletion
+
 from promptchain import PromptChain
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from promptchain.observability import init_mlflow
@@ -50,6 +52,44 @@ def get_labs(patient_id: str) -> str:
         }
     }
     return json.dumps(fixtures.get(patient_id, {"error": f"no labs for {patient_id}"}))
+
+
+def medgemma_synthesize(case_json: str) -> str:
+    """Synthesise a clinical assessment from structured case JSON.
+
+    NOTE: Implemented as a PYTHON STEP (not a string instruction with model)
+    so that medgemma:4b is invoked DIRECTLY via litellm WITHOUT exposure to
+    the chain's tool schemas. medgemma is tool-weak (specialist medical model)
+    — when it sees tool schemas in its prompt context it tries to emit
+    tool_calls inappropriately. Isolating it like this avoids that failure mode.
+    See docs/llms/FEEDBACK_LOG.md (2026-05-05) for the discovery trail.
+    """
+    import asyncio
+    prompt = (
+        "You are a clinical assistant. Patient: 45 y/o M, crushing substernal "
+        "chest pain radiating to left arm + jaw, diaphoresis, SOB. "
+        "ECG: ST-elevation in II/III/aVF.\n\n"
+        f"Labs and history (JSON): {case_json}\n\n"
+        "Provide a brief assessment with: diagnosis, key differentials, "
+        "immediate management, and time-sensitive intervention."
+    )
+    # Run inside the existing event loop if there is one (PromptChain steps
+    # already run in async context); otherwise create one.
+    async def _call():
+        resp = await acompletion(
+            model="ollama/medgemma:4b",
+            messages=[{"role": "user", "content": prompt}],
+            # NO tools= here — medgemma sees nothing tool-related.
+        )
+        return resp.choices[0].message.content or ""
+    try:
+        loop = asyncio.get_running_loop()
+        # Already in an async context — schedule and wait synchronously
+        future = asyncio.ensure_future(_call())
+        # Block until done (we're inside a sync wrapper called by the chain)
+        return loop.run_until_complete(future) if not loop.is_running() else asyncio.get_event_loop().run_until_complete(future)
+    except RuntimeError:
+        return asyncio.run(_call())
 
 
 def get_history(patient_id: str) -> str:
@@ -75,48 +115,65 @@ async def main() -> str:
         sys.exit(2)
 
     chain = PromptChain(
-        # ONE model slot — for the ONE string instruction in step 2.
-        # The AgenticStepProcessor brings its own model_name; no slot needed.
-        models=["ollama/medgemma:4b"],
+        # ZERO model slots — step 1 is agentic (carries own model), step 2 is a
+        # Python function (no model slot). Tools are still chain-scoped but the
+        # python step isn't an LLM call so they don't matter there.
+        models=[],
         instructions=[
-            # Step 1 — AGENTIC: open-ended retrieval
-            # NOTE: Objective is INTENTIONALLY explicit about MUST-call-tools because
-            # an earlier version with looser wording caused gpt-4o-mini to short-circuit
-            # to `{}` without calling either tool. See docs/llms/FEEDBACK_LOG.md.
+            # Step 1 — AGENTIC: open-ended retrieval via gpt-4o-mini
             AgenticStepProcessor(
                 objective=(
                     "You have access to two tools: get_labs(patient_id) and "
                     "get_history(patient_id). For the patient_id mentioned in the input, "
                     "you MUST call BOTH get_labs AND get_history. After both tool results "
                     "are in, combine them into ONE JSON object with the patient's labs and "
-                    "history merged. ONLY THEN return the combined JSON as your final answer. "
-                    "DO NOT produce a final answer before both tool calls have completed."
+                    "history merged. ONLY THEN return the combined JSON as your final answer."
                 ),
                 model_name="openai/gpt-4o-mini",   # tool-calling capable
                 max_internal_steps=6,
                 history_mode="progressive",
             ),
-            # Step 2 — SEQUENTIAL: deterministic clinical synthesis
-            (
-                "You are a clinical reasoning assistant. Given the structured case data "
-                "(JSON) below and the original presenting complaint, produce a markdown "
-                "report with EXACTLY these sections:\n\n"
-                "1. **Primary diagnosis** — single sentence + 2-3 sentences of reasoning\n"
-                "2. **Top 3 differentials** — bullet list, one line each\n"
-                "3. **Immediate management plan** — numbered list with doses (mg, route, frequency)\n"
-                "4. **Time-sensitive intervention** — one paragraph\n\n"
-                "For ANY drug dose you list, append `[VERIFY]` if you are not 100% sure of "
-                "the standard adult dose. This safety flag is required.\n\n"
-                "Original complaint: 45 y/o M, crushing substernal chest pain radiating to "
-                "left arm + jaw, diaphoresis, SOB, ECG ST-elevation in II/III/aVF.\n\n"
-                "Structured case data (from upstream retrieval): {input}"
-            ),
+            # Step 2 — PYTHON FUNCTION calling medgemma directly via litellm.
+            # Function steps don't see chain-scoped tools, so medgemma stays
+            # isolated from the tool schemas that confuse it.
+            medgemma_synthesize,
         ],
         verbose=True,
     )
 
+    # CRITICAL — register both the SCHEMA (so the LLM sees the tool exists) AND
+    # the IMPLEMENTATION (so the framework can dispatch the call). v0.6.1
+    # validates symmetrically on whichever method is called second, so register
+    # ALL functions first, then add_tools() with all schemas at once. See
+    # docs/llms/FEEDBACK_LOG.md (2026-05-05) for the discovery trail.
     chain.register_tool_function(get_labs)
     chain.register_tool_function(get_history)
+    chain.add_tools([
+        {
+            "type": "function",
+            "function": {
+                "name": "get_labs",
+                "description": "Fetch latest labs for a patient_id. Returns JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"patient_id": {"type": "string", "description": "Patient identifier, e.g. PT-1234"}},
+                    "required": ["patient_id"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_history",
+                "description": "Fetch relevant medical history for a patient_id. Returns JSON.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"patient_id": {"type": "string", "description": "Patient identifier, e.g. PT-1234"}},
+                    "required": ["patient_id"],
+                },
+            },
+        },
+    ])
 
     user_input = (
         "Patient_id=PT-1234 — pull labs and history, then produce a clinical reasoning report."

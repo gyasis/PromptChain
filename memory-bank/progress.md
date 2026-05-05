@@ -2445,3 +2445,37 @@ The demo ran end-to-end via `bash scripts/observe.sh runs/2026-05-05_medgemma-cl
 **Anti-pattern #13 added to PROMPTCHAIN_FOR_LLMS.md §9:** "Assuming `chain.register_tool_function()` auto-propagates to an `AgenticStepProcessor` step inside the same chain — verify with `verbose=True`."
 
 This is the closed loop firing for the first time on a real failure: built a thing, ran it, found a bug, captured it in the audit trail. Exactly what the FEEDBACK_LOG / anti-pattern catalog were designed for.
+
+---
+
+## 2026-05-05 — RESOLUTION of the "first closed-loop fire" + meta-lesson
+
+After investigating the FEEDBACK_LOG entry from earlier today, the actual story turned out to be different from my initial diagnosis.
+
+**What I claimed:** PromptChain has a tool-propagation bug — parent-chain `register_tool_function()` calls don't reach the AgenticStepProcessor's internal LLM.
+
+**What was actually true:**
+1. `register_tool_function()` only registers the IMPLEMENTATION; you ALSO need `chain.add_tools([schema_dict])` to register the SCHEMA (which is what the LLM sees).
+2. My recipes (multiple) said "just call `register_tool_function`" and skipped `add_tools`. **Doc bug, not library bug.**
+3. v0.6.1 validates the schema/function name match symmetrically — register all functions FIRST, then `add_tools()` ONCE at the end. Reversed order → `ValueError`.
+
+**Real library gap that DID surface:** PromptChain has NO per-step tool scoping. Tools registered via `add_tools()` are chain-scoped — visible to every LLM step. For mixed-capability chains (tool-strong agentic step + tool-weak specialist synthesis like medgemma:4b), the specialist tries to emit hallucinated tool calls. Workaround: implement that step as a Python function calling `litellm.acompletion(...)` directly without `tools=`. **This is a real follow-up issue worth filing on `gyasis/PromptChain`.**
+
+**Demo now runs clean end-to-end:**
+- Step 1: gpt-4o-mini agentic — calls `get_labs(PT-1234)` AND `get_history(PT-1234)` correctly
+- Step 2: medgemma_synthesize python function — calls medgemma:4b directly without tool exposure
+- Output: clean STEMI assessment with diagnosis, differentials, management, time-sensitive intervention
+
+**Documentation corrections:**
+- `FEEDBACK_LOG.md`: original "library bug" entry corrected; resolution + real library gap + meta-lesson added
+- `PROMPTCHAIN_FOR_LLMS.md §9`: anti-pattern #13 rewritten (was wrong); #14 added for specialist-model + chain-scoped-tools issue
+- `recipe-tool-calling-local.md`: now shows the BOTH-calls-required pattern with explicit warning
+- `recipe-hybrid-chain.md`: known-issues section corrected, points at the working demo
+
+**Meta-lesson logged in FEEDBACK_LOG.md and added to my own working memory:** before claiming a library bug, MUST rule out pipeline / syntax / call-order errors in MY code by:
+1. Reading the actual API contract in source
+2. Looking at canonical examples in `examples/`
+3. Checking verbose logs to see what the LLM was actually given
+4. Only THEN investigate the library
+
+Today: 3 perceived bugs, 2 were mine (call-order + over-complex prompt), 1 was a real package gap. Ratio matches the meta-rule: when in doubt, suspect myself first.

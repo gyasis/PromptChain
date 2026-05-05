@@ -9,7 +9,9 @@ api_version: 0.6.1+
 
 `PromptChain` (and `AgenticStepProcessor`) lets the LLM call locally-registered Python functions. The function's signature + docstring become the OpenAI-format tool schema sent to the model.
 
-## Minimal — register multiple tools
+## Minimal — register multiple tools (BOTH steps required)
+
+⚠️ **Two-call contract:** you MUST register BOTH the function (implementation) AND a schema dict (OpenAI tool format). If you skip the schema, the LLM has no idea the tool exists and silently ignores it. v0.6.1 catches the mismatch with a `ValueError` if call order is wrong — register all functions FIRST, then `add_tools()` once at the end with all schemas.
 
 ```python
 import asyncio
@@ -35,9 +37,36 @@ async def main():
         verbose=True,
     )
 
-    # Register both tools — the LLM sees both in the schema and picks
+    # 1. Register the IMPLEMENTATIONS first
     chain.register_tool_function(get_weather)
     chain.register_tool_function(list_cities)
+    # 2. Register the SCHEMAS in one batch — the LLM sees these
+    chain.add_tools([
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get current weather for a city.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string", "description": "City name"}},
+                    "required": ["city"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_cities",
+                "description": "List major cities in a country.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"country": {"type": "string", "description": "ISO code, e.g. FR"}},
+                    "required": ["country"],
+                },
+            },
+        },
+    ])
 
     # The LLM will:
     # 1. Call list_cities("FR") → ["Paris", "Lyon", "Marseille"]
@@ -48,6 +77,10 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## ⚠️ Don't skip `add_tools()`
+
+This was the bug behind the first FEEDBACK_LOG entry. If you only call `register_tool_function()` without `add_tools()`, the function is dispatchable BUT the LLM has no schema → it sees zero tools → it shortcuts to a stub answer (`{}` or similar). Symptom: `verbose=True` shows `tool_calls=None` consistently.
 
 ## How the schema is generated
 

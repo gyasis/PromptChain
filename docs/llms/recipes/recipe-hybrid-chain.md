@@ -111,9 +111,12 @@ bash scripts/observe.sh runs/2026-05-05_medgemma-clinical-demo
 
 MLflow captures: each LLM call, tool invocations, latency per step. SIO can mine the run log later to find recurring failure modes.
 
-## ⚠️ Known issue (2026-05-05, unresolved)
+## ⚠️ Two real gotchas surfaced by the live demo (2026-05-05)
 
-In the live demo at `scripts/runs/2026-05-05_medgemma-clinical-demo/`, the agentic step's LLM (`openai/gpt-4o-mini`) returned a stub JSON (`{}` and then `{"labs": null, "history": null}`) WITHOUT calling either registered tool. Hypothesis: parent-chain `register_tool_function(...)` calls may not propagate to the `AgenticStepProcessor`'s internal LLM under the v0.6.0+ `DynamicPromptGenerator` default. **Verify with `verbose=True` that your agentic step's LLM emits `tool_calls=`** — if `None`, the tools aren't reaching it. See `docs/llms/FEEDBACK_LOG.md` for the audit trail and `PROMPTCHAIN_FOR_LLMS.md §9` anti-pattern #13.
+1. **You MUST call `chain.add_tools([schemas])` AS WELL AS `chain.register_tool_function(func)`.** Without the schema, the LLM has no idea the tool exists → agentic step returns `{}` or `{"key": null}`. See `recipe-tool-calling-local.md` for the two-call pattern. v0.6.1's symmetric validator will raise if call order is wrong (register all funcs first, then add_tools once).
+2. **Tool-weak specialist models (medgemma, similar) in step 2 will hallucinate tool calls.** Tools are chain-scoped in PromptChain — visible to every LLM step. Specialist models try to use them inappropriately. Workaround: implement step 2 as a Python function that calls the specialist directly via `litellm.acompletion(...)` without a `tools=` parameter. See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for the working pattern.
+
+The original "tool propagation broken" claim in earlier FEEDBACK_LOG entries was a misdiagnosis — see the corrected entry there.
 
 ## Common failures + fix
 
