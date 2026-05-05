@@ -2392,3 +2392,31 @@ Closes the "model not found" / "API key not set" trap that costs an agent 2-3 re
 **Smoke test:** `--no-probe` against all 4 providers in user's actual env: all keys present, all masked correctly, output written to gitignored scratch path. No API calls made.
 
 **Discovery during build:** user's env has all four major providers configured (OpenAI / Anthropic / Gemini / Ollama-local). The dual `GOOGLE_API_KEY` vs `GEMINI_API_KEY` LiteLLM trap is handled — script checks both and warns if only the wrong one is set.
+
+---
+
+## 2026-05-05 — check_keys.py upgrades + real probe results
+
+### Real probe of user's env (gitignored output to scripts/scratch/api-status.md)
+- ✅ OpenAI working (key `****ZsMA`)
+- ⚠️ Anthropic — key set (`****kQAA`) but `anthropic` Python package not installed
+- ⚠️ Gemini — key set (`****vVQQ`) but `google-generativeai` not installed
+- ✅ Ollama working (12 models: deepseek-r1:32b, qwen3-coder:30b, gpt-oss:20b, medgemma:27b/4b, phi4:14b, devstral:24b, gemma4:26b, llama3.2-vision, llava, mistral, qwen3:30b)
+- ❌ OpenRouter — not configured
+- ❌ Groq — key set (`****f2VE`) but **403 Forbidden** (likely expired or invalid; rotate)
+
+### Code upgrades
+- Widened OpenAI list-models filter (was missing newer model families like o3/o4/chatgpt-)
+- New `--probe-ollama-models` flag: per-model load+generate test + tool-calling capability probe via `/api/chat` with a `tools=[...]` payload (detects whether model emits a structured `tool_call` vs plain text)
+- New `--ollama-smoke` flag: probe ONE model only — picks smallest by name suffix (`:4b` before `:7b` before `:32b`) using regex
+- Per-test timeout configurable (`--ollama-timeout`, default 90s)
+- Sample model list no longer truncated (was capped at 15)
+- Ollama section in markdown report shows per-model `load`, `latency`, `tool-calling`, notes
+
+### Smoke-test result against user's env
+- `ollama/medgemma:4b` — generate ✅ (16.31s, output "OK"), tool-calling ❌ (HTTP 400 — medgemma doesn't support function-calling). Confirms the probe's value: distinguishes "model runs" from "model can be used in agentic chains".
+
+### Open follow-ups
+- User should `pip install anthropic google-generativeai` to enable those probes (or the script already gives the exact instruction in the notes column)
+- Groq key needs rotation (403); script flags it
+- Consider running `--probe-ollama-models` (full 12-model sweep) when there's spare time — would build a per-model tool-calling capability table for the user's local stack
