@@ -2505,3 +2505,25 @@ User needs to:
 1. Fix `GH_TOKEN` (current one is invalid per `gh auth status`)
 2. Run: `gh issue create --repo gyasis/PromptChain --title "Per-step tool scoping ..." --body-file docs/llms/issues/PROPOSAL_per_step_tool_scoping.md`
 3. Or paste into the GitHub web UI directly.
+
+---
+
+## 2026-05-05 — Skill promoted into the repo (architectural fix)
+
+User-flagged drift: most of today's work was Claude Code harness-side (skill, rule), but the docs were committed to the repo while the SKILL itself lived only in `~/.claude/skills/`. That broke "any LLM, any project" — anyone else cloning the repo got the docs but not the harness-side routing.
+
+**Fixed:**
+- Skill source-of-truth promoted to `<repo>/.claude/skills/promptchain.md` (committed). Updated content:
+  - Path references switched from absolute `~/dev/projects/PromptChain/...` to repo-relative `docs/llms/...` so the file works for ANY consumer who clones the repo.
+  - §4 anti-pattern catalog updated to include #13 (need both register_tool_function + add_tools) and #14 (specialist + chain-scoped tools = hallucinated tool calls). Earlier version stopped at #8.
+  - Workflow §4 now explicitly invokes the meta-rule (`library-vs-pipeline-bugs.md`) before claiming a bug.
+  - Header note explains how to install: `ln -sf <repo>/.claude/skills/promptchain.md ~/.claude/skills/promptchain.md`.
+- User-side `~/.claude/skills/promptchain.md` replaced with a symlink to the repo file. Original backed up as `~/.claude/skills/promptchain.md.bak.2026-05-05`.
+- Verified: `readlink -f` resolves to the repo file; `head` via the symlink reads through correctly.
+
+**Result:** the skill is now a first-class part of the package. Anyone who clones the repo and runs `ln -sf <repo>/.claude/skills/promptchain.md ~/.claude/skills/promptchain.md` gets the same harness-side routing the maintainer has. Future iterations can ship a `promptchain install-skill` CLI command for non-symlink installs.
+
+**Decisions held:**
+- `FEEDBACK_LOG.md` stays in the repo (it doubles as a public audit trail).
+- `scripts/runs/2026-05-05_medgemma-clinical-demo/` stays in the repo (it's the canonical worked example for the hybrid recipe + the bug discovery audit trail).
+- Lazy migration of those two later if the public surface starts feeling personal.

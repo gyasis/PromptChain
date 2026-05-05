@@ -127,6 +127,14 @@ claude.md
 cursor.md
 **/.claude/
 
+# Exception: harness-side primitives that ship WITH the package belong in the repo.
+# These travel with `pip install promptchain` so any LLM agent (Claude Code, Cursor,
+# etc.) gets the same skill routing the maintainer uses. Personal session/memory
+# state stays gitignored at the broader pattern above.
+!.claude/
+!.claude/skills/
+!.claude/skills/*
+
 # Note: The following directories ARE tracked in the remote repository:
 # - docs/
 # - promptchain/
