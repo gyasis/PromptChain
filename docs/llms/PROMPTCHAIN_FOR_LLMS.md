@@ -396,7 +396,7 @@ This list is the closed-loop output: every Claude Code mistake observed via SIO 
 11. **Setting `enable_blackboard=True` mid-development** — changes the tool-result format the LLM sees; re-validate prompts.
 12. **Forgetting `await` on `MCPHelper.connect_mcp_async()`** — silent no-op, tools won't appear in the schema.
 13. **CORRECTED — calling `chain.register_tool_function(func)` WITHOUT also calling `chain.add_tools([schema_dict])`.** The function will be *dispatchable* but the LLM will *never see it* — the LLM only knows about tools whose SCHEMAS are in `chain.local_tools`, populated by `add_tools()`. v0.6.1 validates symmetrically: register all functions FIRST, then call `add_tools()` once with all schemas. If you reverse the order (add_tools first, then register one-at-a-time), v0.6.1 will raise `ValueError` on the first register call because the second schema lacks a matching function. Symptom of skipping `add_tools` entirely: agentic step returns `{}` or `{"key": null, ...}` without any `tool_calls=`. See `FEEDBACK_LOG.md` for the discovery trail (originally misdiagnosed as a library bug; was a missing `add_tools()` call in the demo + my own recipes).
-14. **Using a tool-weak specialist model (e.g. `medgemma:4b`) in a chain step that has chain-scoped tools registered.** PromptChain registers tools at chain scope — they're visible to EVERY LLM step. Specialist models like medgemma are tool-weak: when they see tool schemas in their prompt context, they try to emit `tool_calls` inappropriately (often hallucinating tool names like `assessment` or `generate_report`). Workaround: implement that step as a Python function that calls the specialist model directly via `litellm.acompletion(...)` without a `tools=` parameter. See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for the pattern. **Real fix** is per-step tool scoping in `PromptChain` itself — open follow-up issue.
+14. **Using a tool-weak specialist model (e.g. `medgemma:4b`) in a chain step that has chain-scoped tools registered.** PromptChain registers tools at chain scope — they're visible to EVERY LLM step. Specialist models like medgemma are tool-weak: when they see tool schemas in their prompt context, they try to emit `tool_calls` inappropriately (often hallucinating tool names like `assessment` or `generate_report`). **FIX (shipped 2026-05-06):** use the per-step tool scoping API — wrap the instruction in a tuple `(instruction, [allowed_tool_names])`. Empty list = no tools at all. See §17 below and `recipe-hybrid-chain.md`. The Python-function workaround mentioned in earlier versions of this doc is no longer needed.
 
 ---
 
@@ -540,6 +540,53 @@ For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a sing
 ## 15. Where agent-authored scripts go
 
 When the user asks the agent to **write and run** a PromptChain script, the script lands in `scripts/runs/<YYYY-MM-DD>_<short-name>/run.py` with a sibling `README.md`. See `scripts/README.md` for the convention. Run via `bash scripts/observe.sh runs/<folder>` to get MLflow tracking automatically.
+
+---
+
+## 17. Per-step tool scoping (shipped 2026-05-06)
+
+By default, every LLM step in a `PromptChain` sees all tools registered via `chain.add_tools()` and `chain.register_tool_function()`. For most chains that's what you want. For mixed-capability chains (tool-strong agentic + tool-weak specialist synthesis like medgemma), you need per-step scoping — and PromptChain now supports it via a tuple wrapper.
+
+### API
+
+```python
+chain = PromptChain(
+    models=["ollama/medgemma:4b"],
+    instructions=[
+        AgenticStepProcessor(objective="...", model_name="openai/gpt-4o-mini"),    # default → sees all chain tools
+        ("Synthesise: {input}", []),                                                 # explicit empty → ZERO tools
+        ("Verify {input}", ["validate_clinical"]),                                   # restricted → only this tool
+    ],
+)
+chain.register_tool_function(get_labs)
+chain.register_tool_function(get_history)
+chain.register_tool_function(validate_clinical)
+chain.add_tools([...schemas for all three...])
+```
+
+### Semantics
+
+| Form | What the step sees |
+|---|---|
+| Bare instruction (str / Callable / `AgenticStepProcessor`) | All chain-scoped tools (current default; backward-compatible) |
+| `(instruction, [])` | Zero tools — `tools=` is omitted from the LLM call |
+| `(instruction, ["a", "b"])` | Only the named tools whose `function.name` matches |
+
+When `verbose=True`, scoped steps log a line like `📎 Step 2 tool scope: [] (filtered 2 → 0)` so you can confirm filtering happened.
+
+### When to use it
+
+- Mixed-model chains where one step's model is tool-weak (medgemma, smaller specialist models)
+- Safety / hardening — keep destructive tools (file write, delete) scoped only to the step that explicitly needs them
+- Cost — tool schemas count toward prompt tokens; restricting scope reduces context per step
+
+### Backward compatibility
+
+100% — bare instructions behave exactly as before. Tuple form is opt-in.
+
+### Verified working pattern
+
+See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for a live demo: gpt-4o-mini agentic retrieval (sees both tools) + medgemma synthesis with `(prompt, [])` (sees zero tools, no hallucinated tool calls).
 
 ---
 

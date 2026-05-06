@@ -64,22 +64,29 @@ async def main():
                 history_mode="progressive",
             ),
 
-            # Step 2 — SEQUENTIAL: deterministic medgemma synthesis
+            # Step 2 — SEQUENTIAL: medgemma synthesis with EXPLICIT EMPTY TOOL SCOPE.
+            # The (instruction, []) tuple form tells PromptChain: this step
+            # gets ZERO tools. Isolates medgemma from tool schemas it would
+            # otherwise try to use inappropriately. See PROMPTCHAIN_FOR_LLMS.md §17.
             (
-                "You are a clinical reasoning assistant. Given the structured case data below, produce:\n"
-                "1. Primary diagnosis with reasoning.\n"
-                "2. Top 3 differentials.\n"
-                "3. Immediate management plan WITH doses (mg, route, frequency).\n"
-                "4. For every drug dose listed, append [VERIFY] if you are not 100% sure of the standard adult dose.\n\n"
-                "Case data (from upstream retrieval step): {input}"
+                (
+                    "You are a clinical reasoning assistant. Given the structured case data below, produce:\n"
+                    "1. Primary diagnosis with reasoning.\n"
+                    "2. Top 3 differentials.\n"
+                    "3. Immediate management plan WITH doses (mg, route, frequency).\n"
+                    "4. For every drug dose listed, append [VERIFY] if you are not 100% sure of the standard adult dose.\n\n"
+                    "Case data (from upstream retrieval step): {input}"
+                ),
+                [],   # ← EMPTY tool scope — medgemma sees zero tools
             ),
         ],
         verbose=True,
     )
 
-    # Tools available to the AGENTIC step's loop
+    # Register tools — both visible to step 1 (default scope), neither to step 2 (scoped empty)
     chain.register_tool_function(get_labs)
     chain.register_tool_function(get_history)
+    chain.add_tools([...])  # schemas for both — see recipe-tool-calling-local.md for the format
 
     # The user-facing question only mentions the patient_id and presentation;
     # the agentic step is responsible for fetching the rest.
@@ -111,12 +118,12 @@ bash scripts/observe.sh runs/2026-05-05_medgemma-clinical-demo
 
 MLflow captures: each LLM call, tool invocations, latency per step. SIO can mine the run log later to find recurring failure modes.
 
-## ⚠️ Two real gotchas surfaced by the live demo (2026-05-05)
+## Two gotchas surfaced by the live demo, both now resolved
 
 1. **You MUST call `chain.add_tools([schemas])` AS WELL AS `chain.register_tool_function(func)`.** Without the schema, the LLM has no idea the tool exists → agentic step returns `{}` or `{"key": null}`. See `recipe-tool-calling-local.md` for the two-call pattern. v0.6.1's symmetric validator will raise if call order is wrong (register all funcs first, then add_tools once).
-2. **Tool-weak specialist models (medgemma, similar) in step 2 will hallucinate tool calls.** Tools are chain-scoped in PromptChain — visible to every LLM step. Specialist models try to use them inappropriately. Workaround: implement step 2 as a Python function that calls the specialist directly via `litellm.acompletion(...)` without a `tools=` parameter. See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for the working pattern.
+2. **Tool-weak specialist models (medgemma, similar) in synthesis step would previously hallucinate tool calls because tools were chain-scoped.** **FIXED 2026-05-06**: per-step tool scoping landed. Wrap the synthesis instruction as `(prompt, [])` and the framework filters tools to an empty list before the LLM call — no Python-function workaround needed. See §17 in `PROMPTCHAIN_FOR_LLMS.md`.
 
-The original "tool propagation broken" claim in earlier FEEDBACK_LOG entries was a misdiagnosis — see the corrected entry there.
+Use the updated pattern below — the demo at `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` shows it working end-to-end.
 
 ## Common failures + fix
 

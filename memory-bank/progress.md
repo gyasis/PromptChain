@@ -2582,3 +2582,49 @@ Closed the two open follow-ups from the install-skill landing.
 - README.md — new "Install the LLM-coding-agent skill" section under Installation. Documents `promptchain install-skill` with the three flag forms (default symlink / --copy / --dry-run).
 
 **Test run:** `7 passed, 1 warning in 6.56s` — clean.
+
+---
+
+## 2026-05-06 — Per-step tool scoping IMPLEMENTED + GH_TOKEN unbroken
+
+User asked for two things:
+1. Remove the stale GH_TOKEN from .bashrc → done (was overriding the working keyring auth; line commented out, gh now resolves through ~/.config/gh/hosts.yml with `repo` scope).
+2. Implement per-step tool scoping → done.
+
+**Per-step tool scoping (the real library gap from yesterday's hybrid-demo work):**
+
+Implementation:
+- `_unwrap_instruction(item)` helper added to `promptchain/utils/promptchaining.py` (module level, just before `class PromptChain`).
+- `__init__` `model_instruction_count` now unwraps tuples before checking type — backward compatible model-slot validation.
+- Execution loop (`process_prompt_async`):
+  - Unwraps each instruction at the top of every iteration → `(instruction, step_scope)`.
+  - Computes `step_tools`: bare instruction (scope=None) → uses chain-wide `available_tools`; tuple form → filters by name (empty list → empty list).
+  - When verbose, logs `📎 Step N tool scope: <scope> (filtered M → K)` so users can see the filter happening.
+  - `step_tools` (not `available_tools`) is now passed to BOTH the agentic step's `run_async(available_tools=...)` AND the string-instruction LLM call's `tools=`/`tool_choice=`.
+
+API:
+```python
+PromptChain(instructions=[
+    AgenticStepProcessor(...),                  # bare → all chain tools (default)
+    ("Synthesise: {input}", []),                # explicit empty → zero tools
+    ("Verify {input}", ["validate_only"]),      # restricted → only one tool
+])
+```
+
+Tests (`tests/test_per_step_tool_scoping.py`, 9/9 pass):
+- Unit tests for `_unwrap_instruction` (bare str/callable/agentic, tuple forms, non-scope tuple passes through)
+- Construction tests: tuple form accepted, model-count validator unwraps correctly, agentic-in-tuple still doesn't consume model slot
+
+Demo updated:
+- `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` — Python-function workaround removed, replaced with `("...prompt...", [])` tuple. Re-ran end-to-end:
+  - Step 1 (gpt-4o-mini agentic): `Available tools at start: ['get_labs', 'get_history']` → both tools called → returned proper combined JSON
+  - Step 2 (medgemma:4b sequential): `📎 Step 2 tool scope: [] (filtered 2 → 0)` → medgemma got zero tools → produced clean STEMI assessment with all 4 sections + safety considerations, no hallucinated tool calls
+
+Docs updated:
+- `PROMPTCHAIN_FOR_LLMS.md §9` anti-pattern #14: updated to point at the fix
+- `PROMPTCHAIN_FOR_LLMS.md §17`: NEW section covering the API, semantics table, when-to-use, backward-compat note
+- `recipe-hybrid-chain.md`: pattern code rewritten to use the tuple form; gotchas section reframed as "now resolved"
+- `FEEDBACK_LOG.md`: RESOLVED entry prepended; original gap entry preserved for audit trail
+- `docs/llms/issues/PROPOSAL_per_step_tool_scoping.md`: status banner added — "IMPLEMENTED 2026-05-06"
+
+This was a real library improvement (Option A from the proposal — tuple-based, additive, backward compatible) — distinct from yesterday's misdiagnosed pipeline errors. The 4-step meta-rule (`~/.claude/rules/domains/library-vs-pipeline-bugs.md`) was applied: source contract was read, examples were checked, verbose logs proved the gap, only THEN was code changed. Worked as designed.

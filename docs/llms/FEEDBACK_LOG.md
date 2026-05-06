@@ -33,6 +33,22 @@ After the schema fix, the agentic step DID call both tools and returned proper s
 
 ---
 
+## 2026-05-06 — RESOLVED: per-step tool scoping shipped
+
+The library gap below ("PromptChain has no per-step tool scoping") was fixed in commit on 2026-05-06.
+
+**API:** wrap any instruction in a tuple `(instruction, [tool_names])`. Empty list = zero tools for that step. Bare instructions are unchanged (backward compatible).
+
+**Implementation:** `_unwrap_instruction()` helper in `promptchain/utils/promptchaining.py`. The execution loop unwraps each instruction and computes a per-step `step_tools` list (filtered from `available_tools` by name). `step_tools` is then passed to both the agentic step (`run_async`'s `available_tools=` kwarg) and the string-instruction LLM call (`tools=` kwarg).
+
+**Verified:** `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` — re-implemented to use the new tuple form (the Python-function workaround is removed). Verbose logs now show `📎 Step 2 tool scope: [] (filtered 2 → 0)` and medgemma produces a clean STEMI assessment with no hallucinated tool calls. Tests at `tests/test_per_step_tool_scoping.py` (9/9 pass).
+
+**Anti-pattern #14 in PROMPTCHAIN_FOR_LLMS.md §9 updated** to point at the fix instead of the workaround. New §17 added covering the API.
+
+The original gap entry below is preserved for the audit trail.
+
+---
+
 ## 2026-05-05 — Real library gap: PromptChain has no per-step tool scoping
 
 - **Symptom:** Once tools were correctly registered (see entry above), the hybrid chain progressed to step 2 (medgemma:4b synthesis). medgemma is a tool-WEAK specialist medical model. With chain-scoped tools still visible to its prompt, it tried to emit a hallucinated `assessment` tool call instead of producing a prose clinical report.

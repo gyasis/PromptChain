@@ -215,6 +215,24 @@ logging.basicConfig(level=logging.INFO)  # Configure basic logging
 logger = logging.getLogger(__name__)
 
 
+def _unwrap_instruction(item: Any) -> Tuple[Any, Optional[List[str]]]:
+    """Unwrap a possibly-scoped instruction into ``(instruction, tool_scope)``.
+
+    PromptChain instructions can be passed in two forms:
+
+    1. **Bare** — ``str | Callable | AgenticStepProcessor | ChainCall`` — the
+       step sees ALL chain-scoped tools (current default behaviour).
+    2. **Scoped tuple** — ``(instruction, [tool_name, ...])`` — the step sees
+       ONLY the named tools. An empty list ``[]`` means "no tools at all".
+
+    Returns ``(inner_instruction, scope_or_None)``. ``None`` means
+    "use chain-scoped default"; a list (possibly empty) means "filter".
+    """
+    if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], list):
+        return item[0], item[1]
+    return item, None
+
+
 # Python Class for Prompt Chaining
 class PromptChain:
     # CORRECTED: __init__ instead of init
@@ -268,13 +286,17 @@ class PromptChain:
         self.models = []
         self.model_params = []
 
-        # Count non-function/non-agentic/non-chain instructions to match with models
+        # Count non-function/non-agentic/non-chain instructions to match with models.
+        # Tuple-form scoped instructions (instruction, [tools]) are unwrapped first.
+        def _inner(item):
+            return _unwrap_instruction(item)[0]
+
         model_instruction_count = sum(
             1
             for instr in instructions
-            if not callable(instr)
-            and not isinstance(instr, AgenticStepProcessor)
-            and not isinstance(instr, ChainCall)
+            if not callable(_inner(instr))
+            and not isinstance(_inner(instr), AgenticStepProcessor)
+            and not isinstance(_inner(instr), ChainCall)
         )
 
         # Handle single model case
@@ -1016,7 +1038,30 @@ class PromptChain:
         available_tools = self.tools
 
         try:
-            for step, instruction in enumerate(self.instructions):
+            for step, instruction_raw in enumerate(self.instructions):
+                # Unwrap (instruction, [tool_scope]) tuple form.
+                # `instruction` below is the inner thing; `step_scope` is None
+                # (= use all chain-scoped tools, default) or a list of tool
+                # names to restrict this step to (possibly empty).
+                instruction, step_scope = _unwrap_instruction(instruction_raw)
+
+                # Compute per-step tool list. Default: use chain-scoped tools.
+                # Scoped: filter by name (empty list = no tools at all).
+                if step_scope is None:
+                    step_tools = available_tools
+                else:
+                    allowed = set(step_scope)
+                    step_tools = [
+                        t for t in available_tools
+                        if t.get("function", {}).get("name") in allowed
+                    ]
+                    if self.verbose:
+                        scope_repr = "[]" if not step_scope else ", ".join(step_scope)
+                        logger.debug(
+                            f"  📎 Step {step + 1} tool scope: {scope_repr} "
+                            f"(filtered {len(available_tools)} → {len(step_tools)})"
+                        )
+
                 step_num = step + 1
                 if self.verbose:
                     logger.debug("\n" + "-" * 50)
@@ -1241,7 +1286,7 @@ class PromptChain:
                         # REACT Loop: Pass queue/callback for mid-execution interaction (v0.4.3)
                         step_output = await instruction.run_async(
                             initial_input=step_input_content,  # Pass current content
-                            available_tools=available_tools,  # Pass all available tools (combined)
+                            available_tools=step_tools,  # Per-step tool scope (chain-scoped if none specified)
                             llm_runner=lambda messages, tools, tool_choice=None: llm_runner_callback(
                                 messages,
                                 tools,
@@ -1708,9 +1753,9 @@ class PromptChain:
                             messages=messages_for_llm,  # Pass appropriate history
                             params=step_model_params,
                             tools=(
-                                available_tools if available_tools else None
-                            ),  # Pass combined tools
-                            tool_choice="auto" if available_tools else None,
+                                step_tools if step_tools else None
+                            ),  # Per-step tool scope
+                            tool_choice="auto" if step_tools else None,
                         )
 
                         model_call_end_time = datetime.now()

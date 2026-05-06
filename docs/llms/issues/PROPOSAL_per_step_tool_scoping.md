@@ -1,9 +1,6 @@
 # Proposal: Per-step tool scoping in PromptChain
 
-> **Draft GitHub issue body.** `gh` CLI auth was broken when this was drafted (`GH_TOKEN` invalid), so the proposal was committed here for the user to paste into a real issue at `https://github.com/gyasis/PromptChain/issues/new` once auth is restored.
->
-> **Suggested title:** `Per-step tool scoping (so tool-weak specialist models can be used in mixed chains without seeing tools they shouldn't)`
-> **Suggested labels:** `enhancement`, `api-design`, `multi-model`
+> **STATUS: ✅ IMPLEMENTED 2026-05-06.** This proposal landed via the Option A tuple-based API in `promptchain/utils/promptchaining.py`. Tests at `tests/test_per_step_tool_scoping.py` (9/9 pass). Live verification at `scripts/runs/2026-05-05_medgemma-clinical-demo/`. Doc reference: `PROMPTCHAIN_FOR_LLMS.md §17`. The proposal is preserved below for the design audit trail.
 
 ---
 

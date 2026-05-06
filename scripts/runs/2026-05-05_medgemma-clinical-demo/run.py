@@ -28,8 +28,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
-from litellm import acompletion
-
 from promptchain import PromptChain
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from promptchain.observability import init_mlflow
@@ -52,44 +50,6 @@ def get_labs(patient_id: str) -> str:
         }
     }
     return json.dumps(fixtures.get(patient_id, {"error": f"no labs for {patient_id}"}))
-
-
-def medgemma_synthesize(case_json: str) -> str:
-    """Synthesise a clinical assessment from structured case JSON.
-
-    NOTE: Implemented as a PYTHON STEP (not a string instruction with model)
-    so that medgemma:4b is invoked DIRECTLY via litellm WITHOUT exposure to
-    the chain's tool schemas. medgemma is tool-weak (specialist medical model)
-    — when it sees tool schemas in its prompt context it tries to emit
-    tool_calls inappropriately. Isolating it like this avoids that failure mode.
-    See docs/llms/FEEDBACK_LOG.md (2026-05-05) for the discovery trail.
-    """
-    import asyncio
-    prompt = (
-        "You are a clinical assistant. Patient: 45 y/o M, crushing substernal "
-        "chest pain radiating to left arm + jaw, diaphoresis, SOB. "
-        "ECG: ST-elevation in II/III/aVF.\n\n"
-        f"Labs and history (JSON): {case_json}\n\n"
-        "Provide a brief assessment with: diagnosis, key differentials, "
-        "immediate management, and time-sensitive intervention."
-    )
-    # Run inside the existing event loop if there is one (PromptChain steps
-    # already run in async context); otherwise create one.
-    async def _call():
-        resp = await acompletion(
-            model="ollama/medgemma:4b",
-            messages=[{"role": "user", "content": prompt}],
-            # NO tools= here — medgemma sees nothing tool-related.
-        )
-        return resp.choices[0].message.content or ""
-    try:
-        loop = asyncio.get_running_loop()
-        # Already in an async context — schedule and wait synchronously
-        future = asyncio.ensure_future(_call())
-        # Block until done (we're inside a sync wrapper called by the chain)
-        return loop.run_until_complete(future) if not loop.is_running() else asyncio.get_event_loop().run_until_complete(future)
-    except RuntimeError:
-        return asyncio.run(_call())
 
 
 def get_history(patient_id: str) -> str:
@@ -115,12 +75,12 @@ async def main() -> str:
         sys.exit(2)
 
     chain = PromptChain(
-        # ZERO model slots — step 1 is agentic (carries own model), step 2 is a
-        # Python function (no model slot). Tools are still chain-scoped but the
-        # python step isn't an LLM call so they don't matter there.
-        models=[],
+        # ONE model slot — for the ONE string instruction in step 2.
+        # The AgenticStepProcessor carries its own model_name (no slot needed).
+        models=["ollama/medgemma:4b"],
         instructions=[
-            # Step 1 — AGENTIC: open-ended retrieval via gpt-4o-mini
+            # Step 1 — AGENTIC: open-ended retrieval via gpt-4o-mini.
+            # Default scope (no tuple) — sees ALL chain-scoped tools.
             AgenticStepProcessor(
                 objective=(
                     "You have access to two tools: get_labs(patient_id) and "
@@ -133,10 +93,24 @@ async def main() -> str:
                 max_internal_steps=6,
                 history_mode="progressive",
             ),
-            # Step 2 — PYTHON FUNCTION calling medgemma directly via litellm.
-            # Function steps don't see chain-scoped tools, so medgemma stays
-            # isolated from the tool schemas that confuse it.
-            medgemma_synthesize,
+
+            # Step 2 — SEQUENTIAL prompt with EXPLICIT EMPTY TOOL SCOPE.
+            # The (instruction, []) tuple form tells PromptChain: this step
+            # gets ZERO tools, regardless of what's registered on the chain.
+            # That's the whole point — medgemma is tool-weak; if it sees tool
+            # schemas it hallucinates tool calls. Per-step scoping isolates it
+            # cleanly without needing a Python-function wrapper.
+            (
+                (
+                    "You are a clinical assistant. Patient: 45 y/o M, crushing "
+                    "substernal chest pain radiating to left arm + jaw, diaphoresis, "
+                    "SOB. ECG: ST-elevation in II/III/aVF.\n\n"
+                    "Labs and history (JSON): {input}\n\n"
+                    "Provide a brief assessment with: diagnosis, key differentials, "
+                    "immediate management, and time-sensitive intervention."
+                ),
+                [],   # ← EMPTY tool scope — medgemma sees no tools
+            ),
         ],
         verbose=True,
     )
