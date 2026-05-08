@@ -4,6 +4,20 @@ Audit trail of LLM mistakes observed when an agent uses PromptChain, and the doc
 
 Append entries newest-at-top.
 
+---
+
+## 2026-05-08 — RESOLVED: CoVe verifier signature mismatch silently skipped every tool call
+
+- **Symptom:** Chains using `AgenticStepProcessor(enable_cove=True, ...)` ran end-to-end without error, but the agent did nothing — every tool call inside the agentic step was silently skipped. Surfaced in a downstream consumer (hh-stack) on 2026-05-08.
+- **Root cause:** Commit `639a47c` ("feat: per-step tool scoping — closes #3", v0.6.1) changed how `llm_runner` is wired into `AgenticStepProcessor.run_async`. It is now built as a lambda inside `promptchain/utils/promptchaining.py` (around line 1290). The original lambda signature was `lambda messages, tools, tool_choice=None: ...`. The CoVe verifier (`promptchain/utils/verification.py:137`) calls it with `(messages=[...], model=self.model_name)` — which the lambda did not accept (`model=` unknown kwarg, AND `tools` was required). CoVe's try/except swallowed every `TypeError`, confidence collapsed to the failure default `0.50` (below the default `cove_confidence_threshold=0.7`), and every tool call was rejected pre-execution. No visible error.
+- **Fix:** Two commits on `main`:
+  - `d2f6286` — added `model=None, **kwargs` to the lambda
+  - `05aae1f` — made `tools=None` and `tool_choice=None` optional (a second TypeError surfaced on live retest after only the first fix)
+  - Final lambda signature: `lambda messages, tools=None, tool_choice=None, model=None, **kwargs: llm_runner_callback(messages, tools, tool_choice, agentic_instruction=instruction)`
+  - Regression test: `tests/test_cove_per_step_scope_regression.py` (asserts the lambda accepts the actual CoVe call shape `(messages=, model=)` without TypeError, plus a static source check guarding against the lambda regressing).
+  - Anti-pattern #15 added to `PROMPTCHAIN_FOR_LLMS.md §9`; new sub-section in §17 ("Interaction with `enable_cove=True`") documents the bad-commit window and the fix commits.
+- **Source signal:** Live consumer failure (hh-stack, 2026-05-08). Full root-cause writeup at `~/dev/prd/scratch/promptchain_cove_verifier_signature_mismatch_2026-05-08.md`.
+
 ## Format
 
 ```

@@ -147,3 +147,5 @@ synthesis_with_cove = AgenticStepProcessor(
 ```
 
 Note: medgemma:4b doesn't support tool-calling, so the agentic loop here can't use external verification tools — but CoVe's *self-verification* sub-prompt still works (it just uses the same model to challenge its own output before commit).
+
+> **Version note (2026-05-08):** `enable_cove=True` requires PromptChain at commit `05aae1f` or later. In the window between `639a47c` (per-step tool scoping merge) and `05aae1f`, the CoVe verifier's call into the chain's `llm_runner` raised `TypeError` on every verification, confidence fell to `0.50`, and every tool call inside the agentic step was silently skipped. See `PROMPTCHAIN_FOR_LLMS.md` §17 ("Interaction with `enable_cove=True`") and `FEEDBACK_LOG.md` 2026-05-08 entry for the full trail. Regression-guarded by `tests/test_cove_per_step_scope_regression.py`.

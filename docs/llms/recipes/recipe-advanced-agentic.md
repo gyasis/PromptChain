@@ -62,6 +62,8 @@ agentic = AgenticStepProcessor(
 
 **Measured:** 80% error reduction (5 → 1) and 100% dangerous-operation prevention. Cost: ~5-10% overhead (CoVe issues 1 extra LLM call per tool, but uses the cheap model when two-tier routing is on, so it's ~5% of overall cost).
 
+> **Version requirement (2026-05-08):** `enable_cove=True` requires PromptChain at commit `05aae1f` or later. Commits in the window `639a47c..05aae1f` (exclusive of `05aae1f`) shipped a regression where the CoVe verifier's call into the chain's `llm_runner` raised `TypeError`, was swallowed by CoVe's try/except, dropped confidence to `0.50`, and silently skipped every tool call. The fix lands in two commits on `main`: `d2f6286` (added `model=None, **kwargs` to the lambda) and `05aae1f` (made `tools=`/`tool_choice=` optional). See `PROMPTCHAIN_FOR_LLMS.md` §17 and `FEEDBACK_LOG.md` 2026-05-08.
+
 ## Phase 4 — TAO Loop + Dry Runs (transparent reasoning)
 
 Make the implicit ReAct loop explicit: separate Think / Act / Observe phases, and predict tool outputs before execution.

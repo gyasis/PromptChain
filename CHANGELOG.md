@@ -5,6 +5,34 @@ All notable changes to PromptChain will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **CoVe verifier signature mismatch silently skipped every tool call**
+  (commits `d2f6286`, `05aae1f`): when `AgenticStepProcessor(enable_cove=True, ...)`
+  was used together with the per-step tool scoping introduced in `639a47c`,
+  the `llm_runner` lambda built inside `PromptChain.process_prompt_async`
+  (`promptchain/utils/promptchaining.py` around line 1290) did not accept
+  the `model=` kwarg the CoVe verifier (`promptchain/utils/verification.py:137`)
+  passes, nor the no-tools call shape. Every CoVe verification raised
+  `TypeError`, was swallowed by CoVe's try/except, confidence collapsed
+  to the failure default `0.50` (below the default
+  `cove_confidence_threshold=0.7`), and every tool call inside the agentic
+  step was silently skipped. The chain appeared to run normally and the
+  agent did nothing. The lambda now accepts
+  `messages, tools=None, tool_choice=None, model=None, **kwargs`. Two
+  commits land the fix: `d2f6286` (added `model=None, **kwargs`) and
+  `05aae1f` (made `tools=`/`tool_choice=` optional after a follow-on
+  TypeError surfaced on retest). **Affected window:** any commit between
+  `639a47c` (the per-step-scoping merge) and `05aae1f` exclusive.
+  Consumers pinned in that range should upgrade.
+
+### Tests
+- New `tests/test_cove_per_step_scope_regression.py`: asserts the lambda
+  accepts the actual CoVe call shape `(messages=, model=)` without
+  `TypeError`, plus a static source check guarding against the lambda
+  signature regressing.
+
 ## [0.6.1] - 2026-04-28
 
 Library-consumer blocker fixes exposed during real-world testing of v0.6.0.
