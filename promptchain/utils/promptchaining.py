@@ -1287,12 +1287,12 @@ class PromptChain:
                         step_output = await instruction.run_async(
                             initial_input=step_input_content,  # Pass current content
                             available_tools=step_tools,  # Per-step tool scope (chain-scoped if none specified)
-                            llm_runner=lambda messages, tools, tool_choice=None: llm_runner_callback(
+                            llm_runner=lambda messages, tools, tool_choice=None, model=None, **kwargs: llm_runner_callback(
                                 messages,
                                 tools,
                                 tool_choice,
                                 agentic_instruction=instruction,
-                            ),  # Pass the LLM runner helper with agentic_instruction
+                            ),  # Pass the LLM runner helper. Accepts (and ignores) `model` + arbitrary kwargs so internal verifiers (e.g. CoVe at verification.py:137 calling with model=self.model_name) don't TypeError. Routing is via agentic_instruction.model_name.
                             tool_executor=tool_executor_callback,  # Pass the revised tool executor helper
                             callback_manager=self.callback_manager,  # ✅ NEW (v0.4.2): Pass callback_manager for observability
                             user_input_queue=user_input_queue,  # ✅ REACT (v0.4.3): Mid-execution user input
