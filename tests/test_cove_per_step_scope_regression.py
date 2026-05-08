@@ -36,22 +36,32 @@ def test_llm_runner_lambda_accepts_model_kwarg():
     instruction = object()  # any sentinel
 
     # Reconstruct the lambda exactly as built at promptchaining.py:1290.
-    llm_runner = lambda messages, tools, tool_choice=None, model=None, **kwargs: llm_runner_callback(
+    llm_runner = lambda messages, tools=None, tool_choice=None, model=None, **kwargs: llm_runner_callback(
         messages, tools, tool_choice, agentic_instruction=instruction,
     )
 
-    # Old failing path: CoVe verifier calling with a `model` kwarg.
+    # The actual CoVe call shape (verification.py:137): messages= + model= ONLY.
+    # No tools, no tool_choice. This is the call that originally TypeErrored.
     out = llm_runner(messages=[{"role": "user", "content": "hi"}],
-                    tools=None, model="openai/gpt-4o-mini")
+                    model="openai/gpt-4o-mini")
     assert out["content"] == "ok"
 
-    # Forward-compat: arbitrary future kwargs must not break.
-    out2 = llm_runner(messages=[], tools=None, model="x", new_future_kwarg=True)
+    # Old failing path: model kwarg present.
+    out2 = llm_runner(messages=[{"role": "user", "content": "hi"}],
+                     tools=None, model="openai/gpt-4o-mini")
     assert out2["content"] == "ok"
 
-    # Backward-compat: original 3-arg form still works.
-    out3 = llm_runner(messages=[], tools=None, tool_choice="auto")
+    # Forward-compat: arbitrary future kwargs must not break.
+    out3 = llm_runner(messages=[], model="x", new_future_kwarg=True)
     assert out3["content"] == "ok"
+
+    # Backward-compat: original 3-arg form still works.
+    out4 = llm_runner(messages=[], tools=None, tool_choice="auto")
+    assert out4["content"] == "ok"
+
+    # Minimal call: just messages.
+    out5 = llm_runner(messages=[{"role": "user", "content": "hi"}])
+    assert out5["content"] == "ok"
 
 
 def test_actual_lambda_in_source_has_model_kwarg():
@@ -59,9 +69,11 @@ def test_actual_lambda_in_source_has_model_kwarg():
     being silently rewritten back to the broken signature."""
     import promptchain.utils.promptchaining as pcm
     src = inspect.getsource(pcm)
-    # The lambda must accept `model=None` AND `**kwargs` for forward-compat.
-    assert "lambda messages, tools, tool_choice=None, model=None, **kwargs:" in src, (
+    # The lambda must accept `tools=None`, `model=None`, AND `**kwargs`.
+    # CoVe verifier (verification.py:137) calls with messages= + model= only.
+    assert "lambda messages, tools=None, tool_choice=None, model=None, **kwargs:" in src, (
         "process_prompt_async's llm_runner lambda regressed. CoVe verifier "
-        "(verification.py:137) calls it with model=, which will TypeError "
-        "and skip every tool call at confidence 0.50."
+        "(verification.py:137) calls it with messages= + model= ONLY (no tools), "
+        "which will TypeError if `tools` is positional and skip every tool call "
+        "at confidence 0.50."
     )
