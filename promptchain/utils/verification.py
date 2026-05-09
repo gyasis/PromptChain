@@ -82,16 +82,29 @@ class CoVeVerifier:
     before they execute.
     """
 
-    def __init__(self, llm_runner: Callable, model_name: str):
+    def __init__(
+        self,
+        llm_runner: Callable,
+        model_name: str,
+        extra_context: Optional[str] = None,
+    ):
         """
         Initialize CoVe verifier.
 
         Args:
             llm_runner: Async function that calls LLM (same signature as AgenticStepProcessor.llm_runner)
             model_name: Model to use for verification (can be cheaper/faster than primary model)
+            extra_context: Optional step-specific context appended to the verification prompt
+                under a "## Step Context" heading. Lets chain authors hint to the verifier
+                why the curated tool list at this step is safe (e.g., "all fixes are
+                idempotent and pre-vetted"). Without this, on chains using v0.6.1 per-step
+                tool scoping the verifier — which only sees tool name + schema + args —
+                conservatively over-rejects legitimate calls. Empty default preserves
+                backward-compatible behavior.
         """
         self.llm_runner = llm_runner
         self.model_name = model_name
+        self.extra_context = extra_context
         logger.info(f"[CoVe] Initialized with model: {model_name}")
 
     async def verify_tool_call(
@@ -215,6 +228,9 @@ Think through each question carefully, then respond in valid JSON format:
 }}
 
 IMPORTANT: Respond ONLY with valid JSON, no additional text."""
+
+        if self.extra_context:
+            prompt += f"\n\n## Step Context\n{self.extra_context}\n"
 
         return prompt
 
