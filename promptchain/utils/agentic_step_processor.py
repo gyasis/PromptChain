@@ -229,6 +229,7 @@ class AgenticStepProcessor:
         enable_cove: bool = False,  # Enable Chain of Verification (pre-execution validation)
         enable_checkpointing: bool = False,  # Enable epistemic checkpointing (stuck state detection)
         cove_confidence_threshold: float = 0.7,  # Minimum confidence to execute tool (0.0 to 1.0)
+        verifier_context: Optional[str] = None,  # Step-specific context appended to CoVe verification prompt (Issue #4)
         # TAO Loop + Dry Runs parameters (Phase 4: Transparent Reasoning - explicit Think-Act-Observe)
         enable_tao_loop: bool = False,  # Enable explicit Think-Act-Observe loop (default: off, uses implicit ReAct)
         enable_dry_run: bool = False,  # Enable tool outcome prediction before execution (transparent reasoning)
@@ -292,6 +293,17 @@ class AgenticStepProcessor:
                                      Tools with verification confidence below this threshold are skipped.
                                      Range: 0.0 (execute everything) to 1.0 (only execute very confident calls).
                                      Recommended: 0.7 for balance, 0.9 for critical operations.
+            verifier_context: (Optional) Step-specific context appended to the CoVe verification prompt
+                            under a "## Step Context" heading. Use this on chains with v0.6.1 per-step
+                            tool scoping `(step, ["tool_a", "tool_b"])` where the verifier — which only
+                            sees tool name + schema + args — would otherwise over-reject legitimate,
+                            hand-vetted calls (issue #4). Example:
+                                verifier_context=(
+                                    "You are part of REMEDIATE_PRE in a self-healing pipeline. "
+                                    "All available fixes are idempotent, worktree-local operations "
+                                    "pre-vetted by the chain author. Approve unless args are obviously wrong."
+                                )
+                            Empty default preserves existing behaviour. Has no effect when enable_cove=False.
             instructions: (Deprecated) List of extra instruction strings. When supplied alone, a DeprecationWarning is emitted
                           and the instructions are forwarded to the default DynamicPromptGenerator via extra_instructions.
                           Passing both `instructions` and `prompt_builder` raises ValueError (mutually exclusive).
@@ -376,6 +388,7 @@ class AgenticStepProcessor:
         # Chain of Verification (Phase 3: Safety & Reliability - 40-50% error reduction)
         self.enable_cove = enable_cove
         self.cove_confidence_threshold = cove_confidence_threshold
+        self.verifier_context = verifier_context
         self.cove_verifier: Optional[Any] = None  # Lazy init - created on first use
         if self.enable_cove:
             logger.info(
@@ -904,7 +917,11 @@ class AgenticStepProcessor:
             verification_model = (
                 self.fallback_model if self.fallback_model else self.model_name
             ) or ""
-            self.cove_verifier = CoVeVerifier(llm_runner, verification_model)
+            self.cove_verifier = CoVeVerifier(
+                llm_runner,
+                verification_model,
+                extra_context=self.verifier_context,
+            )
             logger.info(f"[CoVe] Initialized verifier with model: {verification_model}")
 
     async def run_async(
