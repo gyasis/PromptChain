@@ -14,6 +14,11 @@ from textual.widgets import ListItem, ListView
 
 from ..models import Message
 
+# Event types that count as "thinking / tool detail" — these are the dim,
+# high-volume streaming breadcrumbs that can be toggled off to declutter chat.
+# Errors are intentionally NOT included: they always stay visible.
+DETAIL_EVENT_TYPES = {"thinking", "tool_call", "tool_result"}
+
 
 def _looks_like_markdown(text: str) -> bool:
     """Check if text appears to contain markdown formatting.
@@ -204,6 +209,16 @@ class ChatView(ListView):
         # Pagination for large conversations (T149)
         self.max_displayed_messages = 100  # Display last 100 messages for performance
         self.total_messages = 0  # Track total including hidden messages
+        # Whether thinking/tool-call detail messages are shown (toggled via Ctrl+T).
+        # Default True preserves existing behaviour; toggling hides the dim
+        # streaming breadcrumbs without removing them from history.
+        self.detail_visible = True
+
+    @staticmethod
+    def _is_detail(message: Message) -> bool:
+        """True if a message is a toggleable thinking/tool-call breadcrumb."""
+        metadata = getattr(message, "metadata", None) or {}
+        return metadata.get("event_type") in DETAIL_EVENT_TYPES
 
     def add_message(self, message: Message):
         """Add a message to the chat view.
@@ -217,8 +232,51 @@ class ChatView(ListView):
         item = MessageItem(message, index=len(self.messages) - 1)
         self.append(item)
 
+        # Respect the detail-visibility toggle (Ctrl+T): hide thinking/tool
+        # breadcrumbs on arrival when detail is collapsed, without dropping them.
+        if not self.detail_visible and self._is_detail(message):
+            item.display = False
+            return
+
         # Auto-scroll to latest message
         self.index = len(self.messages) - 1
+
+    def set_detail_visible(self, visible: bool) -> None:
+        """Show or hide all thinking/tool-call detail messages (Ctrl+T).
+
+        Toggles ``display`` on existing detail items so they collapse/expand
+        in place — this respects the ListView architecture (no nested
+        Collapsible widgets, which ListView does not support).
+        """
+        self.detail_visible = visible
+        for item in self.children:
+            if isinstance(item, MessageItem) and self._is_detail(item.message):
+                item.display = visible
+
+    def remove_message(self, message: Message) -> bool:
+        """Remove a specific message by IDENTITY from the view + backing list.
+
+        Reliable even when later messages were appended after ``message`` (e.g.
+        streaming thinking/tool breadcrumbs added during an await), where the
+        old index/``pop()``-based removal targeted the wrong item — leaving the
+        'Processing…' indicator stranded and silently dropping a real message.
+        Stops any spinner on the item. Returns True if the widget was found.
+        """
+        removed = False
+        for item in list(self.children):
+            if isinstance(item, MessageItem) and item.message is message:
+                try:
+                    item.stop_spinner()
+                except Exception:
+                    pass
+                item.remove()
+                removed = True
+                break
+        try:
+            self.messages.remove(message)
+        except ValueError:
+            pass
+        return removed
 
     def clear_messages(self):
         """Clear all messages from the view."""
@@ -244,10 +302,17 @@ class ChatView(ListView):
             display_messages = messages[-self.max_displayed_messages :]
             # Store all messages for get_all_text functionality
             self.messages = messages
-            # But only display recent ones in UI
-            for message in display_messages:
-                item = MessageItem(message, index=len(self) - 1)
+            # But only display recent ones in UI. index = the message's real
+            # position in the full list (offset + i), matching add_message's
+            # convention. Computing it from len(self) BEFORE append was off by
+            # one for every paginated item (audit F10). Also honour the
+            # detail-visibility toggle so a hidden state survives a reload.
+            offset = len(messages) - len(display_messages)
+            for i, message in enumerate(display_messages):
+                item = MessageItem(message, index=offset + i)
                 self.append(item)
+                if not self.detail_visible and self._is_detail(message):
+                    item.display = False
         else:
             # Display all messages normally
             for message in messages:

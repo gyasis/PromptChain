@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 import pyperclip
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Button, Footer, Header, Static
+from textual.widgets import Button, Footer, Header, Markdown, Static
 
 from promptchain import PromptChain
 from promptchain.utils.agent_chain import AgentChain
@@ -29,8 +29,10 @@ from ..shell_executor import ShellCommandParser, ShellExecutor
 from ..utils.file_context_manager import FileContextManager
 from ..utils.output_formatter import OutputFormatter
 from .activity_log_viewer import ActivityLogViewer
+from .approval_screen import ApprovalScreen
 from .autocomplete_popup import AutocompletePopup
 from .chat_view import ChatView, MessageItem
+from .command_provider import PromptChainCommands
 from .input_widget import InputWidget
 from .observe_panel import ObservePanel
 from .reasoning_progress_widget import ReasoningProgressWidget
@@ -104,6 +106,16 @@ class PromptChainApp(App):
         padding: 0;
     }
 
+    /* Live streaming answer area (2d) - shown only while streaming */
+    #live-response {
+        height: auto;
+        max-height: 16;
+        background: transparent;
+        color: #cccccc;
+        padding: 0 1;
+        display: none;
+    }
+
     StatusBar {
         dock: bottom;
         height: 1;
@@ -161,7 +173,12 @@ class PromptChainApp(App):
         ("ctrl+d", "quit", "Quit"),
         ("ctrl+l", "toggle_log_view", "Activity Logs"),
         ("ctrl+o", "toggle_observe", "Observe"),  # T118: Toggle observe panel
+        ("ctrl+t", "toggle_thinking", "Thinking"),  # Toggle thinking/tool detail
     ]
+
+    # App-level command palette (Ctrl+P). Complements inline '/' parsing in
+    # InputWidget; the set union preserves Textual's built-in system commands.
+    COMMANDS = App.COMMANDS | {PromptChainCommands}
 
     def __init__(
         self,
@@ -272,6 +289,10 @@ class PromptChainApp(App):
         # Store main thread ID for thread-safe UI updates
         self._main_thread_id = threading.get_ident()
 
+        # Live answer-streaming buffer (2d) — accumulates answer_delta pieces
+        # rendered into the #live-response Markdown area during a turn.
+        self._live_text = ""
+
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
 
@@ -306,6 +327,7 @@ class PromptChainApp(App):
             TaskListWidget(id="task-list-widget"),
             ReasoningProgressWidget(id="reasoning-progress"),
             ObservePanel(id="observe-panel"),  # T118: Verbose observability panel
+            Markdown("", id="live-response"),  # Live streaming answer (2d)
             InputWidget(id="input-widget"),
             TokenBar(id="token-bar"),  # Real-time token usage display
             AutocompletePopup(id="autocomplete-popup"),  # Slash command autocomplete
@@ -517,6 +539,40 @@ class PromptChainApp(App):
                     role="system", content="[dim]Observe Panel closed[/dim]"
                 )
             chat_view.add_message(feedback_msg)
+
+    def action_toggle_thinking(self) -> None:
+        """Toggle visibility of inline thinking / tool-call detail (Ctrl+T).
+
+        Hides/shows the dim streaming breadcrumbs (thinking, tool_call,
+        tool_result) in place. Errors and final answers are unaffected.
+        """
+        try:
+            chat_view = self.query_one("#chat-view", ChatView)
+        except Exception:
+            return
+        new_visible = not chat_view.detail_visible
+        chat_view.set_detail_visible(new_visible)
+        state = "shown" if new_visible else "hidden"
+        from ..models import Message
+
+        chat_view.add_message(
+            Message(
+                role="system",
+                content=f"[dim]Thinking/tool detail {state} (Ctrl+T to toggle)[/dim]",
+            )
+        )
+
+    def run_palette_command(self, command: str) -> None:
+        """Run a slash command chosen from the command palette.
+
+        Palette callbacks are synchronous while handle_command is async, so we
+        schedule it as a worker on the app event loop. exit_on_error=False so a
+        failing command surfaces an error instead of terminating the app (the
+        inline '/' path is an awaited handler and is already crash-safe).
+        """
+        self.run_worker(
+            self.handle_command(command), exclusive=False, exit_on_error=False
+        )
 
     def on_key(self, event) -> None:
         """Handle global key events (T147).
@@ -1323,6 +1379,20 @@ class PromptChainApp(App):
         except Exception:
             pass  # Silently ignore errors
 
+    def _reset_live_stream(self) -> None:
+        """Hide + clear the live streaming answer area (thread-safe)."""
+
+        def _reset():
+            try:
+                md = self.query_one("#live-response", Markdown)
+                md.display = False
+                md.update("")
+            except Exception:
+                pass
+            self._live_text = ""
+
+        self._safe_call_ui(_reset)
+
     # REACT Loop: Streaming callback for real-time agent output
     def _streaming_callback(self, event_type: str, content: str) -> None:
         """Handle streaming events from AgenticStepProcessor.
@@ -1336,6 +1406,11 @@ class PromptChainApp(App):
         try:
             chat_view = self.query_one("#chat-view", ChatView)
             from ..models import Message
+
+            # A new reasoning phase clears any in-progress live answer stream so
+            # successive LLM calls don't concatenate in the live area (2d).
+            if event_type in ("thinking", "tool_call", "tool_result"):
+                self._reset_live_stream()
 
             # Format based on event type + add to task internal steps
             if event_type == "thinking":
@@ -1455,9 +1530,31 @@ class PromptChainApp(App):
                 except Exception as e:
                     logger.debug(f"Token event processing failed: {e}")
                 return  # Don't add a chat message for token events
+            elif event_type == "answer_delta":
+                # Live token streaming of the final answer into the dedicated
+                # Markdown area above the input (2d). The committed MessageItem
+                # added when the turn completes is the permanent record.
+                def feed_delta():
+                    try:
+                        md = self.query_one("#live-response", Markdown)
+                        if not md.display:
+                            self._live_text = ""
+                            md.display = True
+                        self._live_text += content
+                        md.update(self._live_text)
+                    except Exception as e:
+                        logger.debug(f"answer_delta render failed: {e}")
+
+                self._safe_call_ui(feed_delta)
+                return
+            elif event_type == "answer":
+                # Finalize: clear the live area; the full answer is added as a
+                # normal MessageItem by the turn handler.
+                self._reset_live_stream()
+                return
             else:
-                # Default for other events (including "answer")
-                return  # Don't show answer here, it will be displayed normally
+                # Default for other events
+                return
 
             # Add message to chat view (thread-safe)
             self._safe_call_ui(lambda: chat_view.add_message(msg))
@@ -1603,6 +1700,17 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(role="system", content="No active session")
                 chat_view.add_message(error_msg)
+
+        elif command == "/clear":
+            # Clear the conversation view (session history is preserved).
+            # Previously advertised in /help but never implemented — fell
+            # through to "Unknown command".
+            chat_view.clear_messages()
+            from ..models import Message
+
+            chat_view.add_message(
+                Message(role="system", content="[dim]Chat view cleared.[/dim]")
+            )
 
         elif command.startswith("/cache"):
             # Handle cache commands (T-cache: Python pycache clearing)
@@ -2738,8 +2846,75 @@ Examples:
 
         chat_view.add_message(mode_msg)
 
+    def _shell_command_danger(self, command: str) -> Optional[str]:
+        """Return a danger reason if a shell command looks risky, else None.
+
+        Uses SafetyValidator's class-level danger lists as the policy source,
+        with token-awareness layered on so benign commands don't spuriously
+        trigger the approval modal (audit F11):
+          * read-only inspectors (man/which/...) are never dangerous
+          * bare single-token commands (e.g. 'mkfs') match by TOKEN, not
+            substring, so 'mkfs' inside another word doesn't fire
+          * '> /dev/null' and other safe devices are not flagged as device
+            writes (only real devices like /dev/sda are)
+        Over-matching remains the safe failure direction (it only adds an
+        approval prompt), so this stays conservative.
+        """
+        import re
+        import shlex
+
+        try:
+            tokens = shlex.split(command)
+        except Exception:
+            tokens = command.split()
+
+        # A lookup about a dangerous command is not itself dangerous.
+        inspectors = {
+            "man", "which", "type", "whatis", "info", "apropos", "help", "command",
+        }
+        if tokens and tokens[0] in inspectors:
+            return None
+        token_set = set(tokens)
+        # Long-form help/version flags mean the command prints and exits without
+        # acting (e.g. 'mkfs --help'). Long form only — never mask a real danger.
+        if {"--help", "--version", "--usage"} & token_set:
+            return None
+        safe_dev = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"}
+
+        try:
+            from ..tools.safety import SafetyValidator
+
+            for dangerous in getattr(SafetyValidator, "DANGEROUS_COMMANDS", set()):
+                if dangerous == "> /dev/":
+                    # Only a real device target is dangerous; skip safe devices.
+                    for m in re.finditer(r">\s*(/dev/\S+)", command):
+                        if m.group(1) not in safe_dev:
+                            return f"writes to device: {m.group(1)}"
+                    continue
+                if " " in dangerous or any(c in dangerous for c in "(){}:|&*"):
+                    # Specific multi-char entry — substring is safe enough.
+                    if dangerous in command:
+                        return f"matches dangerous command: {dangerous}"
+                elif dangerous in token_set:
+                    # Bare command token (e.g. 'mkfs') — exact token match only.
+                    return f"matches dangerous command: {dangerous}"
+
+            for pattern in getattr(SafetyValidator, "DANGEROUS_PATTERNS", []) or []:
+                try:
+                    if pattern.pattern == r">\s*/dev/":
+                        continue  # handled above with safe-device awareness
+                    if pattern.search(command):
+                        return f"matches dangerous pattern: {pattern.pattern}"
+                except Exception:
+                    continue
+        except Exception:
+            return None
+        return None
+
     async def handle_shell_command(self, content: str):
         """Handle shell command execution (User Story 5: T123-T124).
+
+        Risky commands are gated behind an approval modal before execution.
 
         Args:
             content: User input (with or without ! prefix)
@@ -2761,6 +2936,37 @@ Examples:
             content=f"!{command}" if not content.startswith("!") else content,
         )
         chat_view.add_message(user_msg)
+
+        # Gate risky commands behind an approval modal before executing (2c).
+        # push_screen(..., callback) does not require a worker context (unlike
+        # push_screen_wait), so it is safe to call from this async handler.
+        reason = self._shell_command_danger(command)
+        if reason is not None:
+            # No inline warning message: the ApprovalScreen already displays the
+            # reason. Adding one here left a stale notice in chat and caused a
+            # double-notification on reject (audit F3).
+            def _on_decision(approved: Optional[bool]) -> None:
+                if approved:
+                    self.run_worker(
+                        self._execute_shell(command), exclusive=False
+                    )
+                else:
+                    chat_view.add_message(
+                        Message(
+                            role="system",
+                            content="[dim]Command rejected — not executed.[/dim]",
+                        )
+                    )
+
+            self.push_screen(ApprovalScreen(command, reason), _on_decision)
+            return
+
+        await self._execute_shell(command)
+
+    async def _execute_shell(self, command: str) -> None:
+        """Run a shell command and render its output (after any approval)."""
+        chat_view = self.query_one("#chat-view", ChatView)
+        from ..models import Message
 
         # Show processing indicator with spinner
         processing_msg = Message(
@@ -2827,6 +3033,49 @@ Examples:
             # Use global error handler for user-friendly messages (T141-T142)
             error_msg = self._handle_error(e, context="executing shell command")
             chat_view.add_message(error_msg)
+
+    def _derive_max_context_tokens(self, model_name: str) -> int:
+        """Derive the context-window limit that history compaction anchors to.
+
+        Uses litellm's model registry to read the model's REAL input window
+        (Claude Code / Codex approach) so summarize_token_threshold has a
+        meaningful base. Prefers ``max_input_tokens`` (the context window) over
+        ``get_max_tokens`` (which returns max OUTPUT tokens — far too small a
+        base). Falls back to the configured history budget for unknown models.
+        """
+        fallback = self.config.performance.history_max_tokens
+        try:
+            from litellm import get_model_info
+
+            info = get_model_info(model_name) or {}
+            window = info.get("max_input_tokens") or info.get("max_tokens")
+            if window and int(window) > 0:
+                return int(window)
+        except Exception as e:
+            logger.debug(f"_derive_max_context_tokens fallback for {model_name}: {e}")
+        return fallback
+
+    def _summarization_kwargs(self, model_name: str) -> Dict[str, Any]:
+        """Context-management kwargs for (TUI)AgenticStepProcessor.
+
+        Wires the context_management config + a per-model context-window limit.
+        Previously the TUI built the processor without these, so
+        max_context_tokens defaulted to None and the token-based compaction
+        trigger never fired (only the blunt every-N-iterations trigger).
+        """
+        kwargs: Dict[str, Any] = {
+            "max_context_tokens": self._derive_max_context_tokens(model_name),
+        }
+        cm = getattr(self.config, "context_management", None)
+        if cm is not None:
+            kwargs.update(
+                enable_summarization=True,
+                summarize_every_n=cm.summarize_every_n_iterations,
+                summarize_token_threshold=cm.summarize_token_threshold,
+                summarizer_model=cm.summarizer_model,
+                preserve_last_n_turns=cm.preserve_last_n_turns,
+            )
+        return kwargs
 
     def _initialize_agent_chain(self):
         """Initialize PromptChain or AgentChain based on orchestration mode (T037, T058-T059).
@@ -3067,6 +3316,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             history_mode=history_mode
                             or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates
+                            # Wire context-management so token-based compaction
+                            # actually engages (max_context_tokens per model).
+                            **self._summarization_kwargs(agent.model_name),
                         )
                     ],
                     verbose=False,
@@ -3080,6 +3332,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 for tool_meta in all_tools:
                     if tool_meta is not None:
                         chain.register_tool_function(tool_meta.function)
+
+                # Opt into live answer streaming (2d): run_model_async will emit
+                # "answer_delta" events consumed by _streaming_callback.
+                chain._stream_responses = True
 
                 agents_dict[agent_name] = chain
             else:
@@ -3579,15 +3835,11 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                         metadata={"workflow_update": True},
                     )
 
-                # Stop spinner and remove processing message
-                if len(chat_view) > 0:
-                    last_item = chat_view.children[-1]
-                    if isinstance(last_item, MessageItem) and last_item.is_processing:
-                        last_item.stop_spinner()
-
-                chat_view.messages.pop()  # Remove the processing indicator
-                if len(chat_view) > 0:
-                    chat_view.pop()
+                # Remove the processing indicator by identity. Streaming
+                # callbacks append thinking/tool messages during the await, so
+                # the indicator is no longer last — the old pop() removed the
+                # wrong item and stranded the indicator (audit F9).
+                chat_view.remove_message(processing_msg)
 
                 # Add actual response
                 chat_view.add_message(response_msg)
@@ -3670,23 +3922,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 role="system", content=error_msg.content, metadata=error_msg.metadata
             )
 
-            # Stop spinner and remove processing indicator if it exists
-            if len(chat_view) > 0:
-                last_item = chat_view.children[-1]
-                if isinstance(last_item, MessageItem) and last_item.is_processing:
-                    last_item.stop_spinner()
-
-            if (
-                chat_view.messages
-                and chat_view.messages[-1].role == "system"
-                and (
-                    "Processing" in chat_view.messages[-1].content
-                    or "⏳" in chat_view.messages[-1].content
-                )
-            ):
-                chat_view.messages.pop()
-                if len(chat_view) > 0:
-                    chat_view.pop()
+            # Remove the processing indicator by identity (robust to streaming
+            # messages appended during the await — audit F9).
+            chat_view.remove_message(processing_msg)
 
             chat_view.add_message(error_msg)
 
@@ -3780,6 +4018,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 model_name=model_name,
                 history_mode=self.config.agentic.history_mode,  # Use config history mode
                 progress_callback=self._reasoning_progress_callback,  # T052: Progress updates
+                # Wire context-management (per-model context window limit).
+                **self._summarization_kwargs(model_name),
             )
 
             # Create workflow-aware PromptChain with AgenticStepProcessor
@@ -3794,6 +4034,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 ],
                 verbose=False,
             )
+            # Opt into live answer streaming (2d) for the workflow step chain.
+            workflow_chain._stream_responses = True
 
             # Show reasoning progress for workflow step
             self.show_reasoning_progress(
@@ -3820,15 +4062,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Hide reasoning progress
             self.hide_reasoning_progress()
 
-            # Stop spinner and remove processing indicator
-            if len(chat_view) > 0:
-                last_item = chat_view.children[-1]
-                if isinstance(last_item, MessageItem) and last_item.is_processing:
-                    last_item.stop_spinner()
-
-            chat_view.messages.pop()  # Remove processing indicator
-            if len(chat_view) > 0:
-                chat_view.pop()
+            # Remove the processing indicator by identity (robust to streaming
+            # messages appended during the await — audit F9).
+            chat_view.remove_message(processing_msg)
 
             # Create assistant response
             response_msg = Message(
@@ -3899,20 +4135,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # Hide reasoning progress on error
             self.hide_reasoning_progress()
 
-            # Stop spinner and remove processing indicator
-            if len(chat_view) > 0:
-                last_item = chat_view.children[-1]
-                if isinstance(last_item, MessageItem) and last_item.is_processing:
-                    last_item.stop_spinner()
-
-            if (
-                chat_view.messages
-                and chat_view.messages[-1].role == "system"
-                and "Processing" in chat_view.messages[-1].content
-            ):
-                chat_view.messages.pop()
-                if len(chat_view) > 0:
-                    chat_view.pop()
+            # Remove the processing indicator by identity (robust to streaming
+            # messages appended during the await — audit F9).
+            chat_view.remove_message(processing_msg)
 
             # Use global error handler
             error_msg = self._handle_error(e, context="executing workflow step")
