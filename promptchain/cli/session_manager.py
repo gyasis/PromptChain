@@ -85,6 +85,76 @@ class SessionManager:
         # 003-T008: Check if V3 migration is needed (multi-agent communication)
         self._check_and_migrate_v3()
 
+        # Repair partially initialized databases where schema_version was advanced
+        # before all V2/V3 objects existed. This keeps existing TUI sessions from
+        # crashing on missing columns/tables.
+        self._ensure_schema_compatibility()
+
+    def _ensure_schema_compatibility(self) -> None:
+        """Ensure required tables/columns exist regardless of recorded version."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute("PRAGMA foreign_keys = ON")
+
+            self._ensure_column(
+                conn, "sessions", "orchestration_config", "TEXT DEFAULT '{}'"
+            )
+            self._ensure_column(
+                conn, "sessions", "schema_version", "TEXT DEFAULT '2.0'"
+            )
+            self._ensure_column(
+                conn, "agents", "instruction_chain", "TEXT DEFAULT '[]'"
+            )
+            self._ensure_column(conn, "agents", "tools", "TEXT DEFAULT '[]'")
+            self._ensure_column(conn, "agents", "history_config", "TEXT DEFAULT NULL")
+
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS mcp_servers (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('stdio', 'http')),
+                    command TEXT,
+                    args TEXT DEFAULT '[]',
+                    url TEXT,
+                    auto_connect INTEGER NOT NULL DEFAULT 1,
+                    state TEXT NOT NULL DEFAULT 'disconnected' CHECK(state IN ('disconnected', 'connected', 'error')),
+                    discovered_tools TEXT DEFAULT '[]',
+                    error_message TEXT,
+                    connected_at REAL,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_mcp_servers_session
+                ON mcp_servers(session_id);
+
+                CREATE TABLE IF NOT EXISTS workflow_states (
+                    session_id TEXT PRIMARY KEY,
+                    objective TEXT NOT NULL,
+                    steps TEXT DEFAULT '[]',
+                    current_step_index INTEGER NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    completed_at REAL,
+                    metadata TEXT DEFAULT '{}',
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _ensure_column(
+        conn: sqlite3.Connection, table: str, column: str, definition: str
+    ) -> None:
+        """Add a column if it is missing from an existing SQLite table."""
+        cursor = conn.execute(f"PRAGMA table_info({table})")
+        columns = {row[1] for row in cursor.fetchall()}
+        if column not in columns:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
     def get_schema_version(self) -> int:
         """Get current database schema version.
 

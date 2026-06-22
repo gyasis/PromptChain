@@ -73,6 +73,17 @@ logs/
 rag_logs/
 *.log
 
+# Runtime/generated experiment artifacts
+mlruns/
+examples/mlruns/
+agentic_chat/agentic_team_logs/
+deep_research.db
+demos/deep_research.db
+
+# Generated benchmark/planning outputs
+benchmark_results.json
+execution_plan.json
+
 # Test results with potentially sensitive data
 **/mcp_test_results.json
 **/test_results*.json
