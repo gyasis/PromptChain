@@ -159,3 +159,4 @@ Run `handler(item, state)` once per item under an `ExternalLoop`. Returns `state
 - `docs/agentic_step_processor.md` — the internal-loop counterpart.
 - `examples/external_loop_example.py` — runnable (no API key needed for the default demo).
 - `tests/test_external_loop.py` — semantics, deterministic, no LLM.
+- `docs/external_loop_infographic.html` — one-page visual overview (open in a browser).
