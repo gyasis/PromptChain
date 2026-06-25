@@ -103,9 +103,19 @@ class Session:
         if not isinstance(self.working_directory, Path):
             self.working_directory = Path(self.working_directory)
 
-        # Validate working directory exists
+        # Validate working directory exists; fall back gracefully if it was
+        # moved/renamed/deleted (e.g. a renamed project dir) instead of
+        # hard-crashing session load on startup.
         if not self.working_directory.exists():
-            raise ValueError(f"Working directory does not exist: {self.working_directory}")
+            import logging
+
+            fallback = Path.cwd() if Path.cwd().exists() else Path.home()
+            logging.getLogger(__name__).warning(
+                "Session working_directory %s does not exist; falling back to %s",
+                self.working_directory,
+                fallback,
+            )
+            self.working_directory = fallback
 
         # Initialize auto-save tracking attributes (T085-T086)
         if not hasattr(self, "messages_since_save"):

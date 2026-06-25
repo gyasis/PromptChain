@@ -55,4 +55,9 @@ __all__ = [
     "Message",
 ]
 
-__version__ = "0.5.0"
+try:
+    from importlib.metadata import version
+
+    __version__ = version("promptchain")
+except Exception:
+    __version__ = "unknown"

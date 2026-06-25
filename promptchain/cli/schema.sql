@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     default_model TEXT NOT NULL DEFAULT 'openai/gpt-4.1-mini-2025-04-14',
     auto_save_enabled INTEGER NOT NULL DEFAULT 1,
     auto_save_interval INTEGER NOT NULL DEFAULT 120,
-    metadata_json TEXT NOT NULL DEFAULT '{}'
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    orchestration_config TEXT DEFAULT '{}',
+    schema_version TEXT DEFAULT '2.0'
 );
 
 -- Indexes for session queries
@@ -40,6 +42,9 @@ CREATE TABLE IF NOT EXISTS agents (
     last_used REAL,
     usage_count INTEGER NOT NULL DEFAULT 0,
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    instruction_chain TEXT DEFAULT '[]',
+    tools TEXT DEFAULT '[]',
+    history_config TEXT DEFAULT NULL,
     PRIMARY KEY (session_id, name),
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
@@ -47,6 +52,38 @@ CREATE TABLE IF NOT EXISTS agents (
 -- Index for agent queries
 CREATE INDEX IF NOT EXISTS idx_agents_session ON agents(session_id);
 CREATE INDEX IF NOT EXISTS idx_agents_last_used ON agents(session_id, last_used DESC);
+
+-- MCP server configuration (V2 orchestration support)
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('stdio', 'http')),
+    command TEXT,
+    args TEXT DEFAULT '[]',
+    url TEXT,
+    auto_connect INTEGER NOT NULL DEFAULT 1,
+    state TEXT NOT NULL DEFAULT 'disconnected' CHECK(state IN ('disconnected', 'connected', 'error')),
+    discovered_tools TEXT DEFAULT '[]',
+    error_message TEXT,
+    connected_at REAL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_session ON mcp_servers(session_id);
+
+-- Legacy workflow state table used by the TUI step workflow executor (T030).
+-- This is intentionally separate from the V3 multi-agent `workflow_state` table below.
+CREATE TABLE IF NOT EXISTS workflow_states (
+    session_id TEXT PRIMARY KEY,
+    objective TEXT NOT NULL,
+    steps TEXT DEFAULT '[]',
+    current_step_index INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    completed_at REAL,
+    metadata TEXT DEFAULT '{}',
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
 
 -- =============================================================================
 -- V3 Schema: Multi-Agent Communication Tables

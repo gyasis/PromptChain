@@ -12,7 +12,7 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set,
                     Tuple, Union)
 
 from dotenv import load_dotenv
-from litellm import acompletion, completion
+from litellm import acompletion, completion, stream_chunk_builder
 
 from promptchain.observability import track_llm_call
 
@@ -898,13 +898,17 @@ class PromptChain:
             logger.debug(
                 f"[Agentic Callback] Running LLM: {model_name} with {len(messages)} messages. Tools: {len(tools) if tools else 0}"
             )
-            # Use the instance method for consistent calling and token tracking
+            # Use the instance method for consistent calling and token tracking.
+            # Opt-in streaming: when the chain has _stream_responses set (e.g. the
+            # TUI), content deltas are emitted live as "answer_delta" events.
             result = await self.run_model_async(
                 model_name=model_name,
                 messages=messages,
                 params=params,
                 tools=tools,
                 tool_choice=tool_choice,
+                stream=getattr(self, "_stream_responses", False),
+                stream_callback=streaming_callback,
             )
 
             # Emit token update event if streaming callback is available (real-time token display)
@@ -2462,11 +2466,21 @@ class PromptChain:
         params: Optional[Dict[Any, Any]] = None,
         tools: Optional[List[Dict[Any, Any]]] = None,
         tool_choice: Optional[str] = None,
+        stream: bool = False,
+        stream_callback: Optional[Callable[[str, str], None]] = None,
     ) -> Dict:
         """
         Asynchronous version of run_model. Calls LiteLLM's acompletion.
         Returns the message dictionary (e.g., response['choices'][0]['message'])
         which may contain 'content' or 'tool_calls'.
+
+        When ``stream`` is True and ``stream_callback`` is provided, the call is
+        made with ``stream=True`` and content deltas are emitted live via
+        ``stream_callback("answer_delta", piece)``. The streamed chunks are then
+        reassembled with litellm's ``stream_chunk_builder`` so the returned
+        message has the SAME shape (content + tool_calls + usage) as the
+        non-streaming path — callers are unaffected. Any streaming error falls
+        back to a normal (non-streaming) call, so streaming is best-effort.
         """
         if not messages:
             logger.warning(
@@ -2513,7 +2527,35 @@ class PromptChain:
                     )
                 logger.debug(f"Calling acompletion with params: {log_params_safe}")
 
-            response = await acompletion(**model_params)
+            # Streaming path (best-effort, opt-in): emit content deltas live and
+            # reassemble into a standard response via stream_chunk_builder so the
+            # downstream shape is identical to the non-streaming path.
+            response = None
+            if stream and stream_callback is not None:
+                try:
+                    chunks: List[Any] = []
+                    response_stream = await acompletion(**model_params, stream=True)
+                    async for chunk in response_stream:
+                        chunks.append(chunk)
+                        try:
+                            choices = getattr(chunk, "choices", None)
+                            if choices:
+                                piece = getattr(choices[0].delta, "content", None)
+                                if piece:
+                                    stream_callback("answer_delta", piece)
+                        except Exception:
+                            # Never let a delta-emit error abort the stream
+                            pass
+                    if chunks:
+                        response = stream_chunk_builder(chunks, messages=messages)
+                except Exception as e:
+                    logger.warning(
+                        f"Streaming failed for {model_name}, falling back to non-stream: {e}"
+                    )
+                    response = None
+
+            if response is None:
+                response = await acompletion(**model_params)
 
             # Extract and track token usage from response
             if hasattr(response, "usage") and response.usage:

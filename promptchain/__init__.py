@@ -22,4 +22,9 @@ __all__ = [
 try:
     from ._version import version as __version__
 except ImportError:
-    __version__ = "unknown"
+    try:
+        from importlib.metadata import version
+
+        __version__ = version("promptchain")
+    except Exception:
+        __version__ = "unknown"
