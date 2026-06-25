@@ -167,3 +167,7 @@ scripts/scratch/*
 !scripts/scratch/.gitkeep
 scripts/runs/*/output.log
 scripts/runs/*/mlruns/
+
+# runtime / generated (added 2026-06-25)
+mlflow.db
+/optimized_code_reviewer.json
