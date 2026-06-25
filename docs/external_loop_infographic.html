@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExternalLoop — PromptChain</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121a31; --panel2:#0e1528; --ink:#e8edf7; --muted:#93a0bd;
+    --line:#23304f; --accent:#34d6c8; --accent2:#7c9cff; --warn:#f5b657; --bad:#ff6b6b; --good:#46d39a;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#16224a 0%,var(--bg) 55%);
+       color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 80px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:46px;line-height:1.05;margin:10px 0 6px;letter-spacing:-.02em}
+  h1 .mono{font-family:var(--mono);color:var(--accent)}
+  .lede{font-size:18px;color:var(--muted);max-width:760px}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
+  .pill{font-family:var(--mono);font-size:12px;border:1px solid var(--line);background:var(--panel);
+        color:var(--muted);padding:5px 11px;border-radius:999px}
+  .pill b{color:var(--good)}
+  section{margin-top:46px}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent2);margin-bottom:14px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:780px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+        border-radius:16px;padding:20px}
+  .card h3{margin:0 0 8px;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .mono{font-family:var(--mono)}
+  /* guard */
+  .guard{display:flex;gap:18px;align-items:stretch;flex-wrap:wrap}
+  .guard .shield{flex:1;min-width:230px;border:1px solid var(--line);border-radius:16px;padding:18px 20px;
+        background:linear-gradient(180deg,#13203c,#0e1730)}
+  .shield .tag{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .shield .big{font-family:var(--mono);font-size:26px;margin:6px 0 2px}
+  .shield small{color:var(--muted)}
+  .always{color:var(--good);font-weight:700}
+  /* loop diagram */
+  .diagram{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap}
+  .node{font-family:var(--mono);font-size:13px;border:1px solid var(--line);background:var(--panel);
+        border-radius:12px;padding:12px 14px;text-align:center;min-width:120px}
+  .node.small{color:var(--muted)}
+  .node.exit{border-color:var(--accent);color:var(--accent)}
+  .arrow{color:var(--muted);font-size:22px;padding:0 8px}
+  .loopback{margin-top:10px;font-family:var(--mono);font-size:12.5px;color:var(--accent);
+        border:1px dashed var(--line);border-radius:10px;padding:8px 12px;display:inline-block}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:14px;overflow:hidden;border-radius:12px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line)}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+  td.mono{font-family:var(--mono);font-size:13px}
+  tr:last-child td{border-bottom:none}
+  .stopcell{font-family:var(--mono);font-size:12.5px;font-weight:700}
+  .s-exhaust{color:var(--accent2)} .s-iters{color:var(--warn)} .s-time{color:var(--bad)} .s-brk{color:var(--good)}
+  /* run cards */
+  .run{display:grid;grid-template-columns:1fr;gap:6px}
+  .run .why{font-size:13px;color:var(--muted)}
+  .run .out{font-family:var(--mono);font-size:13px}
+  .badge{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--line)}
+  .b-exhaust{color:var(--accent2);border-color:#2a3a66}.b-iters{color:var(--warn);border-color:#4a3a1e}
+  .b-time{color:var(--bad);border-color:#4a2222}.b-brk{color:var(--good);border-color:#1f4536}
+  /* code */
+  pre{background:#070b18;border:1px solid var(--line);border-radius:14px;padding:18px;overflow:auto;
+      font-family:var(--mono);font-size:13px;line-height:1.6;color:#cdd7ee;margin:0}
+  .c-key{color:#7c9cff}.c-str{color:#7fe3c0}.c-com{color:#5f6f93}.c-fn{color:#f5b657}
+  footer{margin-top:54px;border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:13px;
+         display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  footer .mono{color:var(--accent)}
+  .vs th:first-child{color:var(--accent)} .vs td:first-child{font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">PromptChain · promptchain.utils.external_loop</div>
+  <h1><span class="mono">ExternalLoop</span></h1>
+  <p class="lede">A <b>deterministic external loop</b> — the external twin of <span class="mono">AgenticStepProcessor</span>’s
+  <i>internal</i> loop. It re-runs a step (typically a whole sequential <span class="mono">PromptChain</span>) over a worklist
+  or until a condition, behind a guard that <b>can’t run away</b>. Any model. No tools.</p>
+  <div class="pills">
+    <span class="pill">issue <b>#8</b></span>
+    <span class="pill">impl <b>#12</b> merged</span>
+    <span class="pill">docs <b>#13</b> merged</span>
+    <span class="pill"><b>8/8</b> tests green</span>
+    <span class="pill">on <b>main</b></span>
+  </div>
+
+  <!-- THE REQUIRED GUARD -->
+  <section>
+    <div class="kicker">The required, default-on guard</div>
+    <div class="guard">
+      <div class="shield">
+        <div class="tag">always on · cannot be disabled</div>
+        <div class="big">max_iters</div>
+        <small>Hard iteration cap (default 100,000). <span class="always">Always checked first.</span>
+        The external twin of <span class="mono">max_internal_steps</span>. <span class="mono">&lt;1</span> raises <span class="mono">ValueError</span>.</small>
+      </div>
+      <div class="shield">
+        <div class="tag">optional</div>
+        <div class="big">max_seconds</div>
+        <small>Wall-clock budget. Checked after each pass — a running pass is never interrupted, so it may slightly overshoot.</small>
+      </div>
+      <div class="shield">
+        <div class="tag">stackable</div>
+        <div class="big">breakers</div>
+        <small><span class="mono">(iter, state) → (stop, reason)</span> — the same contract as PromptChain’s <span class="mono">chainbreakers</span>, checked <i>after</i> the guard.</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT LOOPS -->
+  <section>
+    <div class="kicker">How one iteration flows</div>
+    <div class="card">
+      <div class="diagram">
+        <div class="node">run <b>step(it,&nbsp;state)</b></div>
+        <span class="arrow">→</span>
+        <div class="node">required<br><b>guard</b>?</div>
+        <span class="arrow">→</span>
+        <div class="node small">custom<br><b>breakers</b>?</div>
+        <span class="arrow">→</span>
+        <div class="node exit">stop ✓<br><span class="mono">_stopped</span></div>
+      </div>
+      <div style="text-align:center"><span class="loopback">↻ else loop back — always loops until a guard/breaker fires or <span class="mono">step</span> returns <b>False</b> (exhausted)</span></div>
+    </div>
+  </section>
+
+  <!-- WRAP A 6-STEP CHAIN -->
+  <section>
+    <div class="kicker">Wrapping a 6-step sequential chain — the state wraps around it</div>
+    <div class="grid g2">
+      <pre><span class="c-com"># inner work: 6-step SEQUENTIAL chain (one pass / doc)</span>
+<span class="c-key">def</span> <span class="c-fn">make_distill_chain</span>():
+  <span class="c-key">return</span> PromptChain(
+    models=[<span class="c-str">"openai/gpt-4o-mini"</span>]*<span class="c-str">5</span>,  <span class="c-com"># 5 string steps</span>
+    instructions=[
+      <span class="c-str">"Extract key points …{input}"</span>,   <span class="c-com"># 1</span>
+      <span class="c-str">"Group into 2-4 themes …{input}"</span>, <span class="c-com"># 2</span>
+      <span class="c-str">"Order by importance …{input}"</span>,   <span class="c-com"># 3</span>
+      <span class="c-str">"Draft a summary …{input}"</span>,       <span class="c-com"># 4</span>
+      <span class="c-str">"Tighten to TWO sentences …{input}"</span>,<span class="c-com"># 5</span>
+      <span class="c-key">lambda</span> two: json.dumps({...}),     <span class="c-com"># 6 fn</span>
+    ])
+
+<span class="c-com"># outer loop: ExternalLoop threads STATE</span>
+<span class="c-key">async def</span> <span class="c-fn">step</span>(it, st):
+  <span class="c-key">if not</span> st[<span class="c-str">"queue"</span>]: <span class="c-key">return</span> <span class="c-str">False</span>
+  doc = st[<span class="c-str">"queue"</span>].pop(<span class="c-str">0</span>)
+  out = <span class="c-key">await</span> make_distill_chain()\
+          .process_prompt_async(doc)
+  st[<span class="c-str">"results"</span>].append(json.loads(out))
+  <span class="c-key">return</span> bool(st[<span class="c-str">"queue"</span>])
+
+<span class="c-key">await</span> ExternalLoop(max_iters=<span class="c-str">50</span>,
+       max_seconds=<span class="c-str">120</span>).run(step, state)</pre>
+      <div>
+        <table>
+          <thead><tr><th>iter</th><th>step does</th><th>state after</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1</td><td>pop&nbsp;docA → 6 steps</td><td class="mono">results=[A] · queue=[B,C] → True</td></tr>
+            <tr><td class="mono">2</td><td>pop&nbsp;docB → 6 steps</td><td class="mono">results=[A,B] · queue=[C] → True</td></tr>
+            <tr><td class="mono">3</td><td>pop&nbsp;docC → 6 steps</td><td class="mono">results=[A,B,C] · queue=[] → False</td></tr>
+            <tr><td class="mono">—</td><td>loop exits</td><td class="stopcell s-exhaust">_stopped="exhausted" · _iterations=3</td></tr>
+          </tbody>
+        </table>
+        <p class="card" style="margin-top:14px">The <b>same <span class="mono">state</span> dict</b> is threaded through every iteration; the 6-step chain is
+        re-created and run <i>inside</i> each pass; <span class="mono">results</span> accumulate in the wrapping state.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE RUN -->
+  <section>
+    <div class="kicker">From this run · <span class="mono">python examples/external_loop_example.py</span></div>
+    <div class="grid g2">
+      <div class="card run">
+        <h3>① worklist · natural exhaustion</h3>
+        <div class="why">5 items, handler squares each; queue empties → loop ends on its own.</div>
+        <div class="out">{1:1, 2:4, 3:9, 4:16, 5:25}</div>
+        <div><span class="badge b-exhaust">exhausted</span> &nbsp;<span class="mono" style="color:var(--muted)">iters: 5</span></div>
+      </div>
+      <div class="card run">
+        <h3>② step never stops · iter guard fires</h3>
+        <div class="why">step always returns True — only the always-on cap can stop it.</div>
+        <div class="out">count = 5</div>
+        <div><span class="badge b-iters">max_iters=5</span></div>
+      </div>
+      <div class="card run">
+        <h3>③ time budget · wall-clock guard</h3>
+        <div class="why">each pass sleeps 20ms; budget 50ms → exits after ~3 passes.</div>
+        <div class="out">count = 3</div>
+        <div><span class="badge b-time">max_seconds=0.05</span></div>
+      </div>
+      <div class="card run">
+        <h3>④ custom breaker · exit on a target</h3>
+        <div class="why">accumulate 1+2+…; breaker stops once total ≥ 30 (at iter 8 → 36).</div>
+        <div class="out">total = 36</div>
+        <div><span class="badge b-brk">hit-target-30</span> &nbsp;<span class="mono" style="color:var(--muted)">iters: 8</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VS -->
+  <section>
+    <div class="kicker">ExternalLoop vs AgenticStepProcessor</div>
+    <table class="vs">
+      <thead><tr><th>ExternalLoop (this)</th><th>AgenticStepProcessor</th></tr></thead>
+      <tbody>
+        <tr><td>Deterministic — your <span class="mono">step</span> drives it</td><td class="mono">model drives it (ReAct/TAO)</td></tr>
+        <tr><td><span class="mono">max_iters</span> (always) + <span class="mono">max_seconds</span></td><td class="mono">max_internal_steps</td></tr>
+        <tr><td><b>Any model</b>, or none · no tools</td><td class="mono">tool-calling model required</td></tr>
+        <tr><td>Fixed order</td><td class="mono">model-chosen order</td></tr>
+        <tr><td>Fixed-shape work over N inputs / refine-to-threshold</td><td class="mono">open-ended reasoning</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <div><span class="mono">from promptchain.utils.external_loop import ExternalLoop, over_worklist</span></div>
+    <div>docs/external_loop.md · examples/external_loop_example.py · tests/test_external_loop.py</div>
+  </footer>
+
+</div>
+</body>
+</html>
