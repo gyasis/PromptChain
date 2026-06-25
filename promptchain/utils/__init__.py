@@ -25,6 +25,7 @@ from . import promptchaining
 from . import async_agent_inbox
 from . import janitor_agent
 from . import context_distiller
+from . import external_loop
 
 # You can also choose to expose specific classes/functions directly, for example:
 # from .agent_chain import AgentChain
