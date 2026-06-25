@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`ExternalLoop`** (`promptchain.utils.external_loop`) — a deterministic external
+  loop, the external analog of `AgenticStepProcessor`'s internal loop. Always loops
+  with a **required, default-on guard** (`max_iters` always-on + optional `max_seconds`
+  wall-clock — the external twin of `max_internal_steps`); custom breakers stack using
+  the `chainbreakers` contract `(iter, state) -> (stop, reason)`. Includes
+  `over_worklist()` + `run_sync()`. Any model, no tools. See `docs/external_loop.md`,
+  `examples/external_loop_example.py`, `tests/test_external_loop.py`. Closes #8.
+
 ### Fixed
 - **CoVe verifier signature mismatch silently skipped every tool call**
   (commits `d2f6286`, `05aae1f`): when `AgenticStepProcessor(enable_cove=True, ...)`

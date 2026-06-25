@@ -34,6 +34,7 @@ Welcome to the complete PromptChain documentation! This page organizes all avail
 ### Chain Control & Flow
 - **[Chain Breaker Guide](chainbreaker_guide.md)** - Interrupt and control chain execution with conditions
 - **[Circular Runs](circular_runs.md)** - Create iterative feedback loops and circular processing
+- **[ExternalLoop](external_loop.md)** - Deterministic bounded external loop (required `max_iters`/`max_seconds` guard); the external analog of `AgenticStepProcessor`'s internal loop
 - **[Dynamic Chain Examples](dynamic_chain_examples.md)** - Build chains that adapt and modify themselves
 
 ### Specialized Techniques
