@@ -3325,13 +3325,17 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     mcp_servers=mcp_server_configs if mcp_server_configs else None,
                 )
 
-                # Add tool schemas FIRST so LLM knows what tools are available
-                chain.add_tools(all_tool_schemas)
-
-                # Then register the actual tool functions for execution
+                # Register tool FUNCTIONS first, THEN add schemas. The chain's
+                # _validate_tool_registry() raises if a schema lacks a function;
+                # adding all 32 schemas first then registering one-by-one trips
+                # it right after the first function (31 schemas still unmatched),
+                # aborting the loop so only 'resolve_path' survived. Doing
+                # functions-then-schemas validates ONCE at the end with all
+                # present. TUI-only fix — core registration order is correct.
                 for tool_meta in all_tools:
                     if tool_meta is not None:
                         chain.register_tool_function(tool_meta.function)
+                chain.add_tools(all_tool_schemas)
 
                 # Opt into live answer streaming (2d): run_model_async will emit
                 # "answer_delta" events consumed by _streaming_callback.
@@ -3354,11 +3358,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     mcp_servers=mcp_server_configs if mcp_server_configs else None,
                 )
 
-                # Add tool schemas FIRST, then register functions
-                chain.add_tools(all_tool_schemas)
+                # Register functions FIRST, then add schemas (see note above):
+                # avoids the mid-build _validate_tool_registry() crash.
                 for tool_meta in all_tools:
                     if tool_meta is not None:
                         chain.register_tool_function(tool_meta.function)
+                chain.add_tools(all_tool_schemas)
 
                 agents_dict[agent_name] = chain
 
