@@ -49,7 +49,7 @@ class StatusBar(Static):
 
         # Build status line
         parts = [
-            f"{state_indicator} Session: [bold]{self.session_name}[/bold]",
+            f"{state_indicator} [dim]Session[/dim] [bold]{self.session_name}[/bold]",
         ]
 
         # Agent display with router mode indicator (T039, T041)
@@ -60,38 +60,35 @@ class StatusBar(Static):
             parts.append(agent_display)
         else:
             # Single-agent mode: Show agent normally
-            parts.append(f"Agent: [bold]{self.active_agent}[/bold]")
+            parts.append(f"[dim]Agent[/dim] [bold]{self.active_agent}[/bold]")
 
         # Show agent switch indicator if recent switch occurred (T039)
         if self.last_agent_switch:
             parts.append(f"[dim]\u2192 {self.last_agent_switch}[/dim]")
 
         if self.model_name:
-            parts.append(f"Model: [dim]{self.model_name}[/dim]")
+            parts.append(f"[#4ec9b0]{self.model_name}[/#4ec9b0]")
 
-        parts.append(f"Messages: {self.message_count}")
+        parts.append(f"[dim]Msgs[/dim] {self.message_count}")
 
         # History token usage display (T079) - RED when at/over limit
         if self.max_tokens > 0:
             percentage = (self.token_count / self.max_tokens) * 100 if self.max_tokens > 0 else 0
             at_limit = self.token_count >= self.max_tokens
 
-            # RED when at/over limit, otherwise grayscale indicator
+            # Color-graded context usage (red at limit, yellow when tight)
             if at_limit:
-                # At/over limit: RED token count
-                token_display = f"[bold]![/bold] Ctx: [red bold]{self.token_count}[/red bold]/{self.max_tokens}"
-            elif percentage < 60:
-                token_display = f"[dim].[/dim] Ctx: {self.token_count}/{self.max_tokens}"
-            elif percentage < 85:
-                token_display = f"o Ctx: {self.token_count}/{self.max_tokens}"
+                token_display = f"[dim]Ctx[/dim] [red bold]{self.token_count}[/red bold][dim]/{self.max_tokens}[/dim]"
+            elif percentage >= 85:
+                token_display = f"[dim]Ctx[/dim] [yellow]{self.token_count}[/yellow][dim]/{self.max_tokens}[/dim]"
             else:
-                token_display = f"[bold]![/bold] Ctx: {self.token_count}/{self.max_tokens}"
+                token_display = f"[dim]Ctx[/dim] {self.token_count}[dim]/{self.max_tokens}[/dim]"
             parts.append(token_display)
 
         # API token usage display (cumulative prompt + completion tokens from LLM)
         api_total = self.api_prompt_tokens + self.api_completion_tokens
         if api_total > 0:
-            parts.append(f"API: {api_total} ({self.api_prompt_tokens}+{self.api_completion_tokens})")
+            parts.append(f"[dim]API[/dim] {api_total}")
 
         # MCP server status display (T069) - grayscale
         if self.mcp_servers:
@@ -100,18 +97,18 @@ class StatusBar(Static):
                 server_id = server.get("id", "unknown")
                 state = server.get("state", "disconnected")
 
-                # Grayscale indicators
+                # Colored status dots (blend theme)
                 if state == "connected":
-                    indicator = "[bold]+[/bold]"
+                    indicator = "[#7ee787]●[/#7ee787]"
                 elif state == "error":
-                    indicator = "[bold]x[/bold]"
+                    indicator = "[#e06c75]●[/#e06c75]"
                 else:  # disconnected
-                    indicator = "[dim]o[/dim]"
+                    indicator = "[dim]●[/dim]"
 
-                mcp_status_parts.append(f"{indicator}{server_id}")
+                mcp_status_parts.append(f"{indicator}[dim]{server_id}[/dim]")
 
             if mcp_status_parts:
-                parts.append(f"MCP: {' '.join(mcp_status_parts)}")
+                parts.append(f"[dim]MCP[/dim] {' '.join(mcp_status_parts)}")
 
         # Workflow progress display (T092) - grayscale
         if self.workflow_objective:
@@ -138,7 +135,7 @@ class StatusBar(Static):
                 workflow_display = f"{icon} Workflow: {objective_display} {self.workflow_progress:.0f}%"
             parts.append(workflow_display)
 
-        return " · ".join(parts)
+        return "  [dim]│[/dim]  ".join(parts)
 
     def update_session_info(
         self,

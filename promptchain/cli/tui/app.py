@@ -157,6 +157,13 @@ class PromptChainApp(App):
         padding: 0 1;
     }
 
+    /* Token info now lives in the single status line (pilot style); the
+       separate TokenBar duplicated Ctx + API, so hide it. Remove this rule
+       to bring the standalone token bar back. */
+    TokenBar {
+        display: none;
+    }
+
     Header {
         display: none;
     }
