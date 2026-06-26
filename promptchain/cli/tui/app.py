@@ -57,19 +57,33 @@ class PromptChainApp(App):
     """
 
     CSS = """
-    /* Minimal TUI Theme - Inherits terminal background */
+    /* PromptChain TUI — Codex framing x opencode accent (feat/tui-codex-blend-theme).
+       Restyle only: structure/heights/docks preserved, palette + role framing added. */
+    $pc-bg: #0b0e14;        /* terminal canvas */
+    $pc-bg2: #0f131c;       /* panel / card tint */
+    $pc-ink: #c6ccd6;       /* default text */
+    $pc-dim: #6b7480;       /* dim / detail */
+    $pc-line: #1d2430;      /* hairline */
+    $pc-line2: #2a3340;     /* card border */
+    $pc-user: #6cb6ff;      /* user accent (blue) */
+    $pc-asst: #4ec9b0;      /* assistant accent (teal) */
+    $pc-tool: #e5c07b;      /* tool / function (amber) */
+    $pc-think: #8a93a0;     /* thinking breadcrumb */
+    $pc-accent: #4ec9b0;    /* the one unifying accent */
+
     Screen {
-        background: transparent;
+        background: $pc-bg;
+        color: $pc-ink;
     }
 
     #chat-container {
         height: 1fr;
-        background: transparent;
+        background: $pc-bg;
     }
 
     #chat-header {
         height: 1;
-        background: transparent;
+        background: $pc-bg;
         padding: 0 1;
         align: right middle;
     }
@@ -77,51 +91,70 @@ class PromptChainApp(App):
     #chat-title {
         width: 1fr;
         padding: 0 1;
+        color: $pc-dim;
     }
 
     .copy-btn {
         min-width: 16;
         background: transparent;
-        color: #666666;
+        color: $pc-dim;
         border: none;
     }
 
     .copy-btn:hover {
-        background: $surface;
-        color: #888888;
+        background: $pc-bg2;
+        color: $pc-ink;
     }
-
 
     ChatView {
         height: 1fr;
         border: none;
-        background: transparent;
-        padding: 0;
+        background: $pc-bg;
+        padding: 0 1;
     }
 
+    /* Chat turns — Codex-style colored gutter bar per role */
+    MessageItem {
+        padding: 0 1;
+        margin: 0 0 1 0;
+        border-left: heavy $pc-line2;
+    }
+    MessageItem.role-user      { border-left: heavy $pc-user; }
+    MessageItem.role-assistant { border-left: heavy $pc-asst; }
+    MessageItem.role-tool      { border-left: heavy $pc-tool; background: $pc-bg2; }
+    MessageItem.role-think     { border-left: heavy $pc-think; color: $pc-dim; }
+    MessageItem.role-system    { border-left: blank; color: $pc-dim; text-style: italic; }
+    MessageItem.-highlight     { background: $pc-bg2; }
+
+    /* Composer — bordered input, accent on focus */
     InputWidget {
         height: 3;
-        border: none;
-        background: transparent;
-        padding: 0;
+        border: round $pc-line2;
+        background: $pc-bg2;
+        padding: 0 1;
+    }
+    InputWidget:focus {
+        border: round $pc-accent;
     }
 
     /* Live streaming answer area (2d) - shown only while streaming */
     #live-response {
         height: auto;
         max-height: 16;
-        background: transparent;
-        color: #cccccc;
+        background: $pc-bg;
+        color: $pc-ink;
         padding: 0 1;
+        border-left: heavy $pc-asst;
         display: none;
     }
 
     StatusBar {
         dock: bottom;
         height: 1;
-        background: transparent;
-        color: #666666;
+        background: $pc-bg2;
+        color: $pc-dim;
         border: none;
+        padding: 0 1;
     }
 
     Header {
@@ -129,18 +162,18 @@ class PromptChainApp(App):
     }
 
     Footer {
-        background: transparent;
-        color: #666666;
+        background: $pc-bg2;
+        color: $pc-dim;
         border: none;
     }
 
     .copy-feedback {
-        color: #888888;
+        color: $pc-accent;
     }
 
     .system-message {
         padding: 0;
-        color: #666666;
+        color: $pc-dim;
         text-style: italic;
     }
 
@@ -152,8 +185,8 @@ class PromptChainApp(App):
         width: 60;
         height: auto;
         max-height: 12;
-        background: $surface;
-        border: solid $primary;
+        background: $pc-bg2;
+        border: round $pc-accent;
         padding: 0 1;
         display: none;
     }
@@ -186,6 +219,7 @@ class PromptChainApp(App):
         sessions_dir: Optional[Path] = None,
         config: Optional["Config"] = None,
         verbose_mode: bool = False,
+        model_override: Optional[str] = None,
         *args,
         **kwargs,
     ):
@@ -196,10 +230,13 @@ class PromptChainApp(App):
             sessions_dir: Directory for session storage
             config: Configuration object (T151-T153)
             verbose_mode: Enable verbose observability mode (T118)
+            model_override: CLI --model value; applied to the active agent at
+                mount for this launch only (does not persist to the session file)
         """
         super().__init__(*args, **kwargs)
         self.session_name = session_name
         self.verbose_mode = verbose_mode  # T118: Verbose observability mode
+        self.model_override = model_override  # CLI --model (this-launch override)
 
         # Store config (T151-T153)
         from ..models import Config
@@ -634,6 +671,21 @@ class PromptChainApp(App):
             assert self.session is not None  # Type narrowing for mypy
             self.title = f"PromptChain - {self.session.name}"
             logger.debug("on_mount: New session created")
+
+        # Apply CLI --model override (this-launch only; mirrors `/agent update`
+        # which sets agent.model_name directly — see command_handler.py).
+        if self.model_override:
+            _ov_agent = self.session.agents.get(self.session.active_agent)
+            if _ov_agent:
+                logger.debug(
+                    f"on_mount: --model override {_ov_agent.model_name!r} -> "
+                    f"{self.model_override!r} on agent '{self.session.active_agent}'"
+                )
+                _ov_agent.model_name = self.model_override
+            else:
+                # No agent object yet — fall back to the session default model,
+                # which is what model resolution uses when no agent is present.
+                self.session.default_model = self.model_override
 
         # Display welcome message (for both new AND existing sessions)
         from ..models import Message

@@ -62,10 +62,10 @@ class TaskListWidget(Container):
         display: none;
         height: auto;
         max-height: 20;
-        border: none;
-        background: transparent;
-        padding: 0;
-        margin: 0;
+        border: round #2a3340;
+        background: #0f131c;
+        padding: 0 1;
+        margin: 1 0;
     }
 
     TaskListWidget.visible {
@@ -74,7 +74,8 @@ class TaskListWidget(Container):
 
     #task-header {
         height: 1;
-        color: #888888;
+        color: #c792ea;
+        text-style: bold;
     }
 
     #task-list-container {
@@ -88,56 +89,57 @@ class TaskListWidget(Container):
 
     .task-line {
         height: 1;
-        color: #666666;
+        color: #9aa3af;
     }
 
     .task-line.pending {
-        color: #666666;
+        color: #6b7480;
     }
 
     .task-line.in-progress {
-        color: #aaaaaa;
+        color: #c6ccd6;
+        text-style: bold;
     }
 
     .task-line.completed {
-        color: #444444;
+        color: #6b7480;
     }
 
     .task-line.expandable {
-        color: #aaaaaa;
+        color: #c792ea;
     }
 
     .internal-step {
         height: 1;
-        color: #555555;
+        color: #6b7480;
         padding-left: 4;
     }
 
     .internal-step.thinking {
-        color: #777777;
+        color: #8a93a0;
     }
 
     .internal-step.tool-call {
-        color: #5588aa;
+        color: #e5c07b;
     }
 
     .internal-step.tool-result {
-        color: #558855;
+        color: #7ee787;
     }
 
     .internal-step.error {
-        color: #aa5555;
+        color: #e06c75;
     }
 
     .subtask-line {
         height: 1;
-        color: #555555;
+        color: #8a93a0;
         padding-left: 4;
     }
 
     #task-progress-bar {
         height: 1;
-        color: #666666;
+        color: #6b7480;
         margin-top: 0;
     }
     """
@@ -379,23 +381,23 @@ class TaskListWidget(Container):
         is_expanded = expandable and expandable.expanded
 
         if status == "completed":
-            prefix = "[bold]+[/bold]"
+            prefix = "[#7ee787]✓[/#7ee787]"
             text = f"[dim]{content}[/dim]"
             css_class = "completed"
         elif status == "in_progress":
             # Show expand indicator for in_progress tasks
-            expand_icon = "v" if is_expanded else ">"
-            prefix = f"[bold]{expand_icon}[/bold]"
+            expand_icon = "▾" if is_expanded else "▸"
+            prefix = f"[#4ec9b0]{expand_icon}[/#4ec9b0]"
             text = f"[bold]{active_form}[/bold]"
             if has_steps and expandable is not None:
                 text += f" [dim]({len(expandable.internal_steps)} steps)[/dim]"
             css_class = "in-progress"
         elif status == "skipped":
-            prefix = "[dim]-[/dim]"
+            prefix = "[dim]╌[/dim]"
             text = f"[dim]{content} (skipped)[/dim]"
             css_class = "completed"
         else:  # pending
-            prefix = "[dim]o[/dim]"
+            prefix = "[dim]○[/dim]"
             text = content
             css_class = "pending"
 

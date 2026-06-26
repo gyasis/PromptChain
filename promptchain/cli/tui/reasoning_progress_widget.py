@@ -27,10 +27,10 @@ class ReasoningProgressWidget(Container):
         display: none;
         height: auto;
         max-height: 12;
-        border: none;
-        background: transparent;
-        padding: 0;
-        margin: 0;
+        border: round #2a3340;
+        background: #0f131c;
+        padding: 0 1;
+        margin: 1 0;
     }
 
     ReasoningProgressWidget.visible {
@@ -39,7 +39,8 @@ class ReasoningProgressWidget(Container):
 
     #progress-header {
         height: 1;
-        color: #888888;
+        color: #4ec9b0;
+        text-style: bold;
     }
 
     #progress-steps {
@@ -53,15 +54,15 @@ class ReasoningProgressWidget(Container):
 
     .step-line {
         height: 1;
-        color: #666666;
+        color: #6b7480;
     }
 
     .step-line.current {
-        color: #aaaaaa;
+        color: #c6ccd6;
     }
 
     .step-line.tool-call {
-        color: #888888;
+        color: #e5c07b;
     }
     """
 
@@ -99,7 +100,7 @@ class ReasoningProgressWidget(Container):
 
         # Update header with step count
         header = self.query_one("#progress-header", Static)
-        header.update(f"Step {current_step}/{max_steps}")
+        header.update(f"▾ reasoning · step {current_step}/{max_steps}")
 
         # Add step to history if status provided
         if status:

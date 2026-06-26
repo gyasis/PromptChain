@@ -41,7 +41,7 @@ class StatusBar(Static):
         """Render the status bar content (T039: Enhanced with router mode indicator)."""
         # Session state indicator (grayscale)
         if self.session_state == "Active":
-            state_indicator = "[bold]*[/bold]"
+            state_indicator = "[#4ec9b0]✱[/#4ec9b0]"
         elif self.session_state == "Paused":
             state_indicator = "[dim]*[/dim]"
         else:
@@ -138,7 +138,7 @@ class StatusBar(Static):
                 workflow_display = f"{icon} Workflow: {objective_display} {self.workflow_progress:.0f}%"
             parts.append(workflow_display)
 
-        return " | ".join(parts)
+        return " · ".join(parts)
 
     def update_session_info(
         self,

@@ -89,6 +89,16 @@ class MessageItem(ListItem):
         super().__init__(*args, **kwargs)
         self.message = message
         self.index = index
+        # Codex-blend theme: tag each turn with a role class so the app CSS can
+        # draw the colored gutter bar (.role-user / .role-assistant / .role-tool / ...).
+        _meta = getattr(message, "metadata", None) or {}
+        _etype = _meta.get("event_type")
+        if _etype in ("tool_call", "tool_result"):
+            self.add_class("role-tool")
+        elif _etype == "thinking":
+            self.add_class("role-think")
+        elif getattr(message, "role", None):
+            self.add_class(f"role-{message.role}")
         self.selected = reactive(False)
         self.is_processing = reactive(False)  # Keep for API compat but no visual
         self.spin_task: Optional[asyncio.Task[None]] = None
@@ -136,16 +146,16 @@ class MessageItem(ListItem):
 
     def render(self) -> Union[Text, Group]:
         """Render the message with markdown support for assistant messages."""
-        # Simple consistent prefix (no selection highlighting)
-        prefix_text = Text("  ")
+        # Indentation is handled by the gutter + padding in app CSS now.
+        prefix_text = Text("")
 
         # For system messages, content might already be formatted - render directly
         if self.message.role == "system":
             # System messages may have pre-formatted content (like shell output)
             try:
-                return Text.from_markup("  " + self.message.content)
+                return Text.from_markup(self.message.content)
             except Exception:
-                return Text("  " + self.message.content)
+                return Text(self.message.content)
 
         # Create role indicator for user/assistant
         if self.message.role == "user":
