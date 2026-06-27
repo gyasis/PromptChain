@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-06-27 15:31:27
+**Last Updated**: 2026-06-27 15:35:12
 
 ## Overall Progress
 - Total Tasks: 24
-- Completed: 16 ✅
-- Pending: 8 ⏳
-- Progress: 66%
+- Completed: 18 ✅
+- Pending: 6 ⏳
+- Progress: 75%
 
 ## Task Breakdown
 - [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
@@ -25,8 +25,8 @@
 - [x] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
 - [x] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
 - [x] T016 [P] [W7] [US3] [python-pro] [tests/test_dynamic_prompt_longevity.py] FAILING tests: `build_turn_context(goal, turn=...)` emits a `<turn-context>` block re-injecting the goal (FR-011); `DocumentAndClear.should_compress(usage)` true at ≥`compress_at` (~0.60); `document_and_clear(working_dir, state)` writes `PROGRESS.md`/`todo.md` (plan/decisions/progress), clears working context, returns the doc-seeded resumed history (temp dir) (FR-012); a simulated run sustains ≥10 task-turns before a reset (FR-013); `is_stalled`/`should_escalate` escalate ONLY on a no-progress stall AND only when `jacket.escalate` (no escalate when forbidden); when `working_dir` is not writable it falls back to `HistorySummarizer` (FR-014).
-- [ ] T017 [W8] [US3] [python-pro] [promptchain/prompts/longevity.py] Implement `build_turn_context(...)`, `DocumentAndClear` (`should_compress`, `is_stalled`, `should_escalate` respecting `jacket.escalate`, `document_and_clear` writing the progress doc per contracts/prompt-layout.md + clear/resume, lossy `HistorySummarizer` fallback). Pure decisions deterministic; only `document_and_clear` does I/O → T016 green.
-- [ ] T018 [W8] [US3] [python-pro] [promptchain/prompts/__init__.py] Export `DocumentAndClear`, `build_turn_context` (additive to `__all__`).
+- [x] T017 [W8] [US3] [python-pro] [promptchain/prompts/longevity.py] Implement `build_turn_context(...)`, `DocumentAndClear` (`should_compress`, `is_stalled`, `should_escalate` respecting `jacket.escalate`, `document_and_clear` writing the progress doc per contracts/prompt-layout.md + clear/resume, lossy `HistorySummarizer` fallback). Pure decisions deterministic; only `document_and_clear` does I/O → T016 green.
+- [x] T018 [W8] [US3] [python-pro] [promptchain/prompts/__init__.py] Export `DocumentAndClear`, `build_turn_context` (additive to `__all__`).
 - [ ] T019 [P] [W9] [python-pro] [tests/test_dynamic_prompt_eval.py] FAILING tests for the A/B harness: the eval set has N=5 `EvalTask`s each with a deterministic `check(output)`; the runner scores each task×arm (`f3` vs `static_base`) with an INJECTED fake model (scripted pass/fail), aggregates per-arm completion rate, and computes `delta = f3 − static_base`; aggregation is deterministic.
 - [ ] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
 - [ ] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
