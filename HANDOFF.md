@@ -18,7 +18,34 @@ It self-locates → always runs the worktree's code, and sources the Ollama-Clou
   fallback. Verified live.
 - `dev-tui.sh` launcher.
 
-## #1 status — BLOCKED on a render/propagation gap (the live mystery)
+## SESSION UPDATE (2026-06-27) — #1 RESOLVED, #2 BUILT + VERIFIED
+
+**#1 is NOT a router-mode gap — it already works in the committed code.** Proven
+at three levels: (a) static trace — `run_chat_turn_async`'s router branch DOES
+forward `streaming_callback` → `process_prompt_async` → `instruction.run_async`
+→ `_stream_event`; (b) an isolated repro of the AgentChain(router)→PromptChain→
+processor path streamed `tool_call`/`tool_result`; (c) a **headless Textual pilot
+of the REAL app** (`app.run_test()` + `handle_user_message`) showed 2 visible
+`role-tool` widgets + 1 `role-think`. The previous "still not rendering" reading
+was almost certainly the **editable-install gotcha** (see below): the test
+imported the *main-repo* `promptchain`, not this worktree's edited code. The
+fixes that actually closed #1 (streaming_callback wired at app.py:3443/4180 +
+by-identity `remove_message(processing_msg)`) are already committed in `eccd2c7`.
+
+> **TESTING GOTCHA (critical):** `pip install -e` pins `promptchain` to the MAIN
+> repo. Running a script with `python /path/to/script.py` puts the *script's* dir
+> on `sys.path`, so `import promptchain` resolves to the main repo — NOT this
+> worktree. To test worktree code: `sys.path.insert(0, "<worktree>")` at the top
+> of the script BEFORE importing promptchain (or run `python -m` from the worktree
+> root). `dev-tui.sh` works because `-m` runs from the worktree cwd.
+
+**#2 BUILT + VERIFIED.** Collapsible reasoning + tool blocks with the full
+lifecycle (stream live full → 3.5s idle dwell → auto-collapse to a one-line
+summary → click to expand → new delta re-expands). 14/14 deterministic lifecycle
+checks pass against the real widgets; real-LLM pilot confirms live events flow
+into blocks and auto-collapse. See "## #2 IMPLEMENTATION (done)" below.
+
+## #1 status — RESOLVED (history below; was wrongly suspected as a router gap)
 Diagnosis so far:
 - The agentic processor **DOES** emit the event:
   `agentic_step_processor.py:1479  self._stream_event("tool_call", ...)` (and an
@@ -100,3 +127,40 @@ Implementation notes:
   item's rendered content / `display`, not a Textual `Collapsible`.
 - "rich bullet points" = render the reasoning steps via the ChatMarkdown path
   (clean headings, `•` bullets, no boxes) — reuse the #1 render plumbing.
+
+## #2 IMPLEMENTATION (done — 2026-06-27)
+
+Design: reuse `MessageItem` with a `metadata["block"]` shape (no nested Textual
+`Collapsible`, per the ListView constraint). One **reasoning block per turn**
+(accumulates `thinking` lines → `▸ reasoning · N steps · click to expand`) and one
+**tool block per tool call** (call + result, amber `role-tool` → `▸ ⚙ <tool> ·
+click to expand`).
+
+Files:
+- `chat_view.py` — `MessageItem._render_block()` (collapsed = one `Text` line;
+  expanded = `Group` of `• `-prefixed rich lines + header), `on_click` toggles
+  `collapsed` + `refresh(layout=True)`; `ChatView.item_for()` / `refresh_block()`.
+- `app.py` — block state + helpers `_begin_turn_blocks` / `_append_reasoning_line`
+  / `_start_tool_block` / `_append_tool_result` / `_restart_block_dwell` /
+  `_collapse_block`. Dwell = `set_timer(3.5, …)` re-armed on each delta and
+  **generation-guarded** (`metadata["dwell_gen"]`) so only the latest arming
+  collapses. `_streaming_callback` thinking/tool_call/tool_result now route into
+  blocks; the observability `_add_tool_section` routes through the same helpers so
+  PromptChain-loop / MCP tools get the identical lifecycle. Turn reset wired in
+  `handle_user_message`.
+
+Verified headless: `scratchpad/pilot_unit.py` (14/14 deterministic lifecycle
+checks) + `scratchpad/pilot_blocks.py` (real LLM → blocks created + auto-collapse).
+
+NOT yet done (the OTHER half of #2 — the reasoning **extractor**): pulling real
+extended-reasoning tokens from reasoning models (deepseek-r1 `message.thinking`,
+qwq `<think>`, `reasoning_content`) keyed off the model-catalog reasoning profile,
+to feed RICHER lines into the reasoning block. The block WIDGET is model-agnostic
+and ready; it currently streams whatever `thinking` events the processor emits
+(step-status lines for non-reasoning models like gpt-4.1-mini). Needs an
+ollama-cloud reasoning model to build+test (source `OLLAMA_API_KEY`).
+
+Interaction note: Ctrl+T keeps its existing **hide/show all detail** behavior;
+per-block expand/collapse is **click**. (Spec said "click/Ctrl-toggle re-opens" —
+click is wired; a Ctrl-to-expand-all binding can be added if wanted, but it would
+overload the current Ctrl+T hide binding.)

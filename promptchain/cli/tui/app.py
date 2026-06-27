@@ -342,6 +342,15 @@ class PromptChainApp(App):
         # rendered into the #live-response Markdown area during a turn.
         self._live_text = ""
 
+        # Collapsible reasoning/tool blocks (#2). The current turn's reasoning
+        # block (one per turn) and the in-progress tool block (one per tool
+        # call) are accumulated here; a monotonic generation guards the 3.5s
+        # dwell timer so it only collapses a block once its stream goes idle.
+        self._reasoning_block_msg: Optional[Any] = None
+        self._tool_block_msg: Optional[Any] = None
+        self._block_dwell_gen = 0
+        self._block_dwell_seconds = 3.5
+
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
 
@@ -1451,36 +1460,17 @@ class PromptChainApp(App):
             self.set_timer(2.0, lambda: self.reasoning_progress.hide_progress())
 
     def _add_tool_section(self, tool_name: str, detail: str, kind: str) -> None:
-        """Surface a tool call/result as a PERSISTENT amber gutter-bar section
-        in the chat (#1 — the mockup's FUNCTION / TOOL CALL block).
-
-        ``role='system'`` renders the Rich markup cleanly with no prefix, while
-        ``metadata.event_type`` drives the ``role-tool`` amber gutter bar AND the
-        Ctrl+T detail toggle. Thread-safe via ``_safe_call_ui``.
+        """Surface a tool call/result as a PERSISTENT, collapsible amber
+        gutter-bar section in the chat (#1 — the mockup's FUNCTION / TOOL CALL
+        block). Routes through the same collapsible-block machinery as the
+        streaming path (#2) so the observability-bridge tools (PromptChain-loop
+        / MCP) get the identical stream → dwell → collapse → expand lifecycle.
         """
         try:
-            from ..models import Message
-
-            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
             if kind == "call":
-                content = f"[bold #e5c07b]⚙ {tool_name}[/]  [dim]{safe}[/]"
-                etype = "tool_call"
+                self._start_tool_block(tool_name, detail)
             else:
-                content = f"[#4ec9b0]  ↳ ✓[/] [dim]{safe}[/]"
-                etype = "tool_result"
-            msg = Message(
-                role="system",
-                content=content,
-                metadata={"streaming": True, "event_type": etype},
-            )
-
-            def _add() -> None:
-                try:
-                    self.query_one("#chat-view", ChatView).add_message(msg)
-                except Exception:
-                    pass
-
-            self._safe_call_ui(_add)
+                self._append_tool_result(detail)
         except Exception:
             pass
 
@@ -1520,6 +1510,145 @@ class PromptChainApp(App):
 
         self._safe_call_ui(_reset)
 
+    # ---- Collapsible reasoning/tool blocks (#2) ---------------------------
+    def _begin_turn_blocks(self) -> None:
+        """Reset per-turn collapsible-block state (call at the start of a turn)."""
+        self._reasoning_block_msg = None
+        self._tool_block_msg = None
+
+    def _reasoning_summary(self, n: int) -> str:
+        unit = "step" if n == 1 else "steps"
+        return f"[dim italic]▸ reasoning · {n} {unit} · click to expand[/]"
+
+    def _tool_summary(self, name: str) -> str:
+        return f"[#e5c07b]▸ ⚙ {name}[/][dim] · click to expand[/]"
+
+    def _restart_block_dwell(self, msg: Any) -> None:
+        """(Re)arm the dwell timer that auto-collapses a block once its stream
+        goes idle. Generation-guarded so each new delta cancels the prior arming
+        and only the latest fires (handoff: ``set_timer(3.5, collapse)`` reset on
+        each delta). Must run on the main thread (set_timer)."""
+        self._block_dwell_gen += 1
+        gen = self._block_dwell_gen
+        meta = getattr(msg, "metadata", None)
+        if meta is None:
+            return
+        meta["dwell_gen"] = gen
+        self.set_timer(
+            self._block_dwell_seconds,
+            lambda m=msg, g=gen: self._collapse_block(m, g),
+        )
+
+    def _collapse_block(self, msg: Any, gen: int) -> None:
+        """Collapse a block to its one-line summary — but only if no newer delta
+        re-armed the dwell since this timer was scheduled."""
+        meta = getattr(msg, "metadata", None) or {}
+        if meta.get("dwell_gen") != gen or meta.get("collapsed"):
+            return
+        meta["collapsed"] = True
+        try:
+            self.query_one("#chat-view", ChatView).refresh_block(msg)
+        except Exception:
+            pass
+
+    def _append_reasoning_line(self, line: str) -> None:
+        """Stream one reasoning line into the turn's single reasoning block."""
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._reasoning_block_msg
+            if msg is None:
+                msg = Message(
+                    role="system",
+                    content=self._reasoning_summary(1),
+                    metadata={
+                        "block": True,
+                        "block_kind": "reasoning",
+                        "event_type": "thinking",  # role-think gutter + Ctrl+T
+                        "streaming": True,
+                        "lines": [],
+                        "collapsed": False,
+                        "expanded_header": "[dim italic]🧠 reasoning[/]",
+                    },
+                )
+                self._reasoning_block_msg = msg
+                chat_view.add_message(msg)
+            meta = msg.metadata
+            meta["lines"].append(line)
+            meta["collapsed"] = False  # new delta re-expands (stream live, full)
+            meta["summary"] = self._reasoning_summary(len(meta["lines"]))
+            chat_view.refresh_block(msg)
+            self._restart_block_dwell(msg)
+
+        self._safe_call_ui(_do)
+
+    def _start_tool_block(self, name: str, detail: str) -> None:
+        """Open a new collapsible tool block for a tool call (one per call)."""
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
+            call_line = f"[bold #e5c07b]⚙ {name}[/]  [dim]{safe}[/]"
+            msg = Message(
+                role="system",
+                content=self._tool_summary(name),
+                metadata={
+                    "block": True,
+                    "block_kind": "tool",
+                    "event_type": "tool_call",  # role-tool amber gutter + Ctrl+T
+                    "streaming": True,
+                    "lines": [call_line],
+                    "collapsed": False,
+                    "expanded_header": None,
+                    "summary": self._tool_summary(name),
+                    "tool_name": name,
+                },
+            )
+            self._tool_block_msg = msg
+            chat_view.add_message(msg)
+            chat_view.refresh_block(msg)
+            self._restart_block_dwell(msg)
+
+        self._safe_call_ui(_do)
+
+    def _append_tool_result(self, detail: str) -> None:
+        """Stream a tool result into the in-progress tool block."""
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._tool_block_msg
+            if msg is None:
+                # Result with no preceding call block — open a bare one.
+                msg = Message(
+                    role="system",
+                    content=self._tool_summary("tool"),
+                    metadata={
+                        "block": True,
+                        "block_kind": "tool",
+                        "event_type": "tool_call",
+                        "streaming": True,
+                        "lines": [],
+                        "collapsed": False,
+                        "expanded_header": None,
+                        "summary": self._tool_summary("tool"),
+                    },
+                )
+                self._tool_block_msg = msg
+                chat_view.add_message(msg)
+            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
+            msg.metadata["lines"].append(f"[#4ec9b0]↳ ✓[/] [dim]{safe}[/]")
+            msg.metadata["collapsed"] = False
+            chat_view.refresh_block(msg)
+            self._restart_block_dwell(msg)
+
+        self._safe_call_ui(_do)
+
     # REACT Loop: Streaming callback for real-time agent output
     def _streaming_callback(self, event_type: str, content: str) -> None:
         """Handle streaming events from AgenticStepProcessor.
@@ -1539,41 +1668,27 @@ class PromptChainApp(App):
             if event_type in ("thinking", "tool_call", "tool_result"):
                 self._reset_live_stream()
 
-            # Format based on event type + add to task internal steps
+            # Format based on event type + add to task internal steps.
+            # #2: thinking/tool_call/tool_result stream into COLLAPSIBLE blocks
+            # (stream live full → 3.5s dwell → auto-collapse → click to expand)
+            # instead of one flat breadcrumb message each. These branches handle
+            # their own rendering and return early.
             if event_type == "thinking":
-                # Show thinking in dim/italic
-                # Escape brackets to prevent Rich markup conflicts
                 safe_content = content.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[dim italic]🧠 {safe_content}[/dim italic]",
-                    metadata={"streaming": True, "event_type": "thinking"},
-                )
-                # Track in task list (Claude Code style)
+                self._append_reasoning_line(safe_content)
                 self._add_task_internal_step("thinking", content)
+                return
             elif event_type == "tool_call":
-                # Show tool call being made
-                # Escape brackets to prevent Rich markup conflicts
-                safe_content = content.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[cyan]🔧 Calling: {safe_content}[/cyan]",
-                    metadata={"streaming": True, "event_type": "tool_call"},
-                )
-                # Track in task list (Claude Code style)
+                # content is "<function_name>: <args>" (agentic_step_processor)
+                name, _sep, detail = content.partition(": ")
+                self._start_tool_block(name.strip() or "tool", detail)
                 self._add_task_internal_step("tool_call", content)
+                return
             elif event_type == "tool_result":
-                # Show tool result (truncated for display)
                 preview = content[:300] + "..." if len(content) > 300 else content
-                # Escape brackets to prevent Rich markup conflicts
-                safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[green]✓ {safe_preview}[/green]",
-                    metadata={"streaming": True, "event_type": "tool_result"},
-                )
-                # Track in task list (Claude Code style)
+                self._append_tool_result(preview)
                 self._add_task_internal_step("tool_result", preview)
+                return
             elif event_type == "error":
                 # Show errors in red
                 # Escape brackets to prevent Rich markup conflicts
@@ -3597,6 +3712,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         self.last_step_number = 0
         self.processor_completed = False
         self.last_displayed_step = None
+        # #2: start fresh collapsible reasoning/tool blocks for this turn.
+        self._begin_turn_blocks()
 
         # Inject file context for @syntax references (User Story 4: T096-T098)
         working_directory = Path(self.session.working_directory)

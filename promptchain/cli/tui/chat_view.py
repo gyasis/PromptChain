@@ -140,9 +140,18 @@ class MessageItem(ListItem):
             self.spin_task = None
 
     def on_click(self, event: events.Click):
-        """Click handler - disabled for normal terminal selection."""
-        # Selection disabled - allow normal terminal text selection
-        pass
+        """Click handler.
+
+        For collapsible reasoning/tool BLOCKS (#2): toggle expanded/collapsed in
+        place. For all other messages: disabled, so normal terminal text
+        selection still works.
+        """
+        meta = getattr(self.message, "metadata", None) or {}
+        if meta.get("block"):
+            meta["collapsed"] = not meta.get("collapsed", False)
+            # Re-measure: collapsed is one line, expanded is N — needs layout.
+            self.refresh(layout=True)
+            event.stop()
 
     def on_key(self, event) -> None:
         """Handle key events for copy shortcut."""
@@ -165,10 +174,47 @@ class MessageItem(ListItem):
         except Exception:
             pass
 
+    def _render_block(self, meta: dict) -> Union[Text, Group]:
+        """Render a collapsible reasoning/tool block (#2).
+
+        Collapsed -> a single truncated summary line (``▸ … · click to expand``).
+        Expanded  -> the full body as rich bullet points (one per streamed line).
+        The app mutates ``meta`` (lines / collapsed / summary) then refreshes us,
+        so we always read live from metadata rather than caching at construction.
+        """
+        if meta.get("collapsed", False):
+            summary = meta.get("summary") or self.message.content
+            try:
+                return Text.from_markup(summary)
+            except Exception:
+                return Text(summary)
+
+        lines = meta.get("lines") or []
+        parts: List[Union[Text, Markdown]] = []
+        header = meta.get("expanded_header")
+        if header:
+            try:
+                parts.append(Text.from_markup(header))
+            except Exception:
+                parts.append(Text(str(header)))
+        for ln in lines:
+            try:
+                parts.append(Text.from_markup(f"  • {ln}"))
+            except Exception:
+                parts.append(Text(f"  • {ln}"))
+        if not parts:
+            return Text("")
+        return Group(*parts)
+
     def render(self) -> Union[Text, Group]:
         """Render the message with markdown support for assistant messages."""
         # Indentation is handled by the gutter + padding in app CSS now.
         prefix_text = Text("")
+
+        # Collapsible reasoning/tool block (#2) — handled before role dispatch.
+        _meta = getattr(self.message, "metadata", None) or {}
+        if _meta.get("block"):
+            return self._render_block(_meta)
 
         # For system messages, content might already be formatted - render directly
         if self.message.role == "system":
@@ -310,6 +356,25 @@ class ChatView(ListView):
         except ValueError:
             pass
         return removed
+
+    def item_for(self, message: Message) -> Optional["MessageItem"]:
+        """Return the MessageItem widget backing ``message`` (by identity), or None."""
+        for item in self.children:
+            if isinstance(item, MessageItem) and item.message is message:
+                return item
+        return None
+
+    def refresh_block(self, message: Message) -> None:
+        """Re-render the collapsible block backing ``message`` after its
+        metadata (lines / collapsed / summary) was mutated in place (#2)."""
+        item = self.item_for(message)
+        if item is not None:
+            item.refresh(layout=True)
+            # Keep the freshly-grown block in view while it streams.
+            try:
+                self.scroll_end(animate=False)
+            except Exception:
+                pass
 
     def clear_messages(self):
         """Clear all messages from the view."""
