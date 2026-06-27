@@ -34,6 +34,7 @@ from .activity_log_viewer import ActivityLogViewer
 from .approval_screen import ApprovalScreen
 from .autocomplete_popup import AutocompletePopup
 from .chat_view import ChatView, MessageItem
+from .lingua_client import LinguaCompressor
 from .command_provider import PromptChainCommands
 from .input_widget import InputWidget
 from .observe_panel import ObservePanel
@@ -373,6 +374,10 @@ class PromptChainApp(App):
         self._recap_tools = 0
         self._recap_files: List[str] = []  # ordered, deduped, recent-last
         self._recap_tasks_done = 0
+        # LLMLingua history compression (V2) — local persistent worker, isolated
+        # uv venv; torch never enters this env. Graceful no-op if unavailable.
+        self._lingua = LinguaCompressor()
+        self._recap_compression: Optional[str] = None  # last "8.2k→3.1k · 2.6x"
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1614,7 +1619,7 @@ class PromptChainApp(App):
 
     def _recap_lines(self) -> List[str]:
         """Compact structured recap for the dock's idle resting state."""
-        if not (self._recap_tools or self._recap_files):
+        if not self._recap_lines_has_content():
             return []
         lines: List[str] = []
         if self._recap_files:
@@ -1629,7 +1634,12 @@ class PromptChainApp(App):
             bits.append(f"{self._recap_tasks_done} tasks done")
         bits.append(f"{self._recap_tools} tool calls")
         lines.append(f"[dim]{' · '.join(bits)}[/]")
+        if self._recap_compression:
+            lines.append(f"[#c792ea]Compressed[/]  [dim]{self._recap_compression}[/]")
         return lines
+
+    def _recap_lines_has_content(self) -> bool:
+        return bool(self._recap_tools or self._recap_files or self._recap_compression)
 
     def _finalize_dock(self) -> None:
         """End-of-turn dock: keep active tasks, else show the recap resting state
@@ -1646,6 +1656,70 @@ class PromptChainApp(App):
                     )
         except Exception:
             pass
+
+    @staticmethod
+    def _fmt_tok(n: Optional[int]) -> str:
+        if n is None:
+            return "?"
+        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+    async def _handle_compress_command(self, chat_view) -> None:
+        """/compress — LLMLingua-2 (local worker) compresses the session history,
+        reports token savings, and records it in the dock recap. Runs off the UI
+        thread (model load + compression block)."""
+        from ..models import Message
+
+        if not self._lingua.available():
+            chat_view.add_message(Message(
+                role="system",
+                content="[#f47067]LLMLingua worker unavailable[/] "
+                        "[dim](expected at ~/.local/bin/lingua-worker)[/]"))
+            return
+        try:
+            history = self.session.history_manager.get_formatted_history(
+                format_style="chat", max_tokens=64000)
+        except Exception:
+            history = "\n".join(
+                f"{m.role}: {m.content}" for m in (self.session.messages or []))
+        if not history or not history.strip():
+            chat_view.add_message(Message(
+                role="system", content="[dim]Nothing to compress yet.[/dim]"))
+            return
+
+        info = Message(role="system",
+                       content="[dim]◌ Compressing history with LLMLingua…[/dim]")
+        chat_view.add_message(info)
+
+        def _work() -> None:
+            res = self._lingua.compress(history, rate=0.5)
+
+            def _show() -> None:
+                try:
+                    chat_view.remove_message(info)
+                except Exception:
+                    pass
+                if not res:
+                    chat_view.add_message(Message(
+                        role="system", content="[#f47067]Compression failed.[/]"))
+                    return
+                o = res.get("origin_tokens")
+                c = res.get("compressed_tokens")
+                ratio = res.get("ratio")
+                self._recap_compression = (
+                    f"{self._fmt_tok(o)}→{self._fmt_tok(c)} · {ratio}")
+                saved = (o - c) if (o is not None and c is not None) else "?"
+                chat_view.add_message(Message(
+                    role="system",
+                    content=f"[#7ee787]✓ Compressed history[/] "
+                            f"[dim]{o} → {c} tokens · {ratio} (saved {saved})[/]"))
+                self._finalize_dock()  # surface the stat in the dock recap
+
+            try:
+                self.call_from_thread(_show)
+            except Exception:
+                pass
+
+        threading.Thread(target=_work, daemon=True).start()
 
     def _start_spinner(self) -> None:
         """Begin ticking the in-progress-block spinner (idempotent)."""
@@ -2176,6 +2250,11 @@ class PromptChainApp(App):
             chat_view.add_message(
                 Message(role="system", content="[dim]Chat view cleared.[/dim]")
             )
+
+        elif command.startswith("/compress"):
+            # LLMLingua-2 (local worker) compresses the session history and
+            # reports the token savings — the compaction-seed lever.
+            await self._handle_compress_command(chat_view)
 
         elif command.startswith("/cache"):
             # Handle cache commands (T-cache: Python pycache clearing)
