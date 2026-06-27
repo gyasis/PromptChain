@@ -99,11 +99,11 @@
 
 ### Tests for US3 (write FIRST — MUST FAIL) — Wave 6
 
-- [ ] T013 [P] [W6] [US3] [tests/test_transcript_emitter_unit.py] Unit test: `redact()` masks key-name matches (`api_key`/`token`/`secret`/`authorization`/`password`/`bearer`) AND pattern matches (`sk-…`, `Bearer …`, long high-entropy runs), recursively, biased to over-redact. MUST FAIL. (Sequential after T006 — same file.)
-- [ ] T014 [W6] [US3] [python-pro] [tests/test_transcript_emitter_unit.py] Unit test: `truncate()` caps oversized values with `…[truncated N chars]`, line stays valid JSON (FR-014). MUST FAIL. (Sequential, same file.)
-- [ ] T015 [W6] [US3] [python-pro] [tests/test_transcript_emitter_unit.py] Unit test: whole-file rotation by mtime keeps dir within `max_files`/`max_bytes` across ≥100 runs (FR-007). MUST FAIL. (Sequential, same file.)
-- [ ] T016 [P] [W6] [US3] [tests/test_transcript_emitter_integration.py] Test: disabled-by-default writes NOTHING and runs no emit path (US3 AS1); emitter imports + emits with `mlflow` uninstalled; module performs no `import sio` (SC-005). MUST FAIL. (Sequential after T007 — same file.)
-- [ ] T017 [P] [W6] [US3] [tests/test_transcript_emitter_performance.py] Performance test: end-to-end wall-clock with emission enabled is <2% over disabled (SC-003). MUST FAIL.
+- [x] T013 [P] [W6] [US3] [tests/test_transcript_emitter_unit.py] Unit test: `redact()` masks key-name matches (`api_key`/`token`/`secret`/`authorization`/`password`/`bearer`) AND pattern matches (`sk-…`, `Bearer …`, long high-entropy runs), recursively, biased to over-redact. MUST FAIL. (Sequential after T006 — same file.)
+- [x] T014 [W6] [US3] [python-pro] [tests/test_transcript_emitter_unit.py] Unit test: `truncate()` caps oversized values with `…[truncated N chars]`, line stays valid JSON (FR-014). MUST FAIL. (Sequential, same file.)
+- [x] T015 [W6] [US3] [python-pro] [tests/test_transcript_emitter_unit.py] Unit test: whole-file rotation by mtime keeps dir within `max_files`/`max_bytes` across ≥100 runs (FR-007). MUST FAIL. (Sequential, same file.)
+- [x] T016 [P] [W6] [US3] [tests/test_transcript_emitter_integration.py] Test: disabled-by-default writes NOTHING and runs no emit path (US3 AS1); emitter imports + emits with `mlflow` uninstalled; module performs no `import sio` (SC-005). MUST FAIL. (Sequential after T007 — same file.)
+- [x] T017 [P] [W6] [US3] [tests/test_transcript_emitter_performance.py] Performance test: end-to-end wall-clock with emission enabled is <2% over disabled (SC-003). MUST FAIL.
 
 ### Implementation for US3 — Wave 7
 

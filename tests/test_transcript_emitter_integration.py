@@ -169,3 +169,70 @@ def test_erroring_run_still_closes_with_terminal(tmp_path):
     assert lines[-1]["type"] == "chain_error", (
         f"last line should be 'chain_error', got {lines[-1]['type']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T016 — Production hygiene: disabled guard + no-mlflow/no-sio guard
+#         (likely PASS — SC-005 guards)
+# ---------------------------------------------------------------------------
+
+def test_disabled_writes_nothing(tmp_path):
+    """T016 (guard / SC-005): an emitter with enabled=False must write no files.
+
+    Drives a complete success event sequence through a disabled emitter and
+    asserts that no JSONL file is created anywhere under tmp_path.
+
+    Expected to PASS: handle_event returns early when not self.config.enabled.
+    """
+    cfg = TranscriptEmitterConfig(
+        enabled=False, base_dir=tmp_path, project="disabled_test"
+    )
+    em = TranscriptEmitter(cfg)
+    _drive(em, _success_events())
+    files = list(tmp_path.glob("**/*.jsonl"))
+    assert not files, (
+        f"disabled emitter should write no files, found {files}"
+    )
+
+
+def test_module_imports_no_mlflow_no_sio(tmp_path):
+    """T016 (guard / SC-005): transcript_emitter.py must not import mlflow or sio.
+
+    Checks the source text for top-level mlflow/sio imports, then verifies the
+    emitter works correctly even when 'mlflow' is absent from sys.modules.
+
+    Expected to PASS: the module only imports stdlib + execution_events.
+    """
+    import sys
+
+    import promptchain.observability.transcript_emitter as tem
+
+    src = open(tem.__file__).read()
+    assert "import mlflow" not in src, (
+        "transcript_emitter.py must not contain 'import mlflow'"
+    )
+    assert "import sio" not in src, (
+        "transcript_emitter.py must not contain 'import sio'"
+    )
+    assert "from sio" not in src, (
+        "transcript_emitter.py must not contain 'from sio'"
+    )
+
+    # Emitter must work even when mlflow is not installed / not in sys.modules
+    had = sys.modules.pop("mlflow", None)
+    try:
+        em = tem.TranscriptEmitter(
+            tem.TranscriptEmitterConfig(
+                enabled=True, base_dir=tmp_path, project="nm"
+            )
+        )
+        _drive(em, [
+            _ev(ExecutionEventType.CHAIN_START, chain_id="z"),
+            _ev(ExecutionEventType.CHAIN_END, total_tokens=0),
+        ])
+        assert list((tmp_path / "nm").glob("*.jsonl")), (
+            "emitter must write a transcript even when mlflow is absent from sys.modules"
+        )
+    finally:
+        if had is not None:
+            sys.modules["mlflow"] = had

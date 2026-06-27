@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from promptchain.observability._transcript_redaction import redact, truncate
 from promptchain.observability.transcript_emitter import (
     TranscriptEmitter,
     TranscriptEmitterConfig,
@@ -220,4 +221,185 @@ def test_chain_error_terminal_fields(tmp_path):
     # First line must be chain_start (no partial-only file)
     assert lines[0].get("type") == "chain_start", (
         f"first line should be 'chain_start', got {lines[0].get('type')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T013 — Secret redaction (redact is a NO-OP stub → MUST FAIL until Wave 8)
+# ---------------------------------------------------------------------------
+
+def test_redact_key_name_matches():
+    """T013: sensitive key names must have values replaced with '***REDACTED***'.
+
+    Keys: api_key, Authorization, token, password, secret (case-insensitive).
+    Benign keys (e.g. 'ok') must be left unchanged.
+
+    FAILS NOW: redact() is a no-op stub that returns value unchanged.
+    """
+    inp = {
+        "api_key": "abc",
+        "Authorization": "Bearer z",
+        "token": "t",
+        "password": "p",
+        "secret": "s",
+        "ok": "keep",
+    }
+    result = redact(inp)
+    for key in ("api_key", "Authorization", "token", "password", "secret"):
+        assert result[key] == "***REDACTED***", (
+            f"expected key {key!r} to be '***REDACTED***', got {result[key]!r}"
+        )
+    assert result["ok"] == "keep", (
+        f"benign key 'ok' should be unchanged, got {result['ok']!r}"
+    )
+
+
+def test_redact_pattern_matches():
+    """T013: string VALUES that look like secrets are masked even under benign keys.
+
+    Covers: sk-... API keys, Bearer tokens, long high-entropy hex runs (≥32 chars).
+
+    FAILS NOW: redact() is a no-op stub.
+    """
+    # OpenAI-style key: sk-<long run>
+    r1 = redact({"note": "my key sk-abcdefghijklmnopqrstuvwxyz0123"})
+    v1 = r1["note"]
+    assert "***REDACTED***" in v1 or v1 == "***REDACTED***", (
+        f"sk-... value should be redacted under a benign key, got {v1!r}"
+    )
+
+    # Bearer JWT-ish token
+    r2 = redact({"note": "Bearer eyJhbGciOiJIUzI1NiJ9.aaaa.bbbb"})
+    v2 = r2["note"]
+    assert "***REDACTED***" in v2 or v2 == "***REDACTED***", (
+        f"Bearer token value should be redacted, got {v2!r}"
+    )
+
+    # Long high-entropy hex string (40 hex chars = 160 bits of entropy)
+    r3 = redact({"note": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"})
+    v3 = r3["note"]
+    assert "***REDACTED***" in v3 or v3 == "***REDACTED***", (
+        f"long hex run (≥32 chars) should be redacted, got {v3!r}"
+    )
+
+
+def test_redact_recursive():
+    """T013: redact must recurse into nested dicts and lists.
+
+    FAILS NOW: redact() is a no-op stub.
+    """
+    result = redact({
+        "outer": {"token": "x"},
+        "list": [{"api_key": "y"}, "normal"],
+    })
+    assert result["outer"]["token"] == "***REDACTED***", (
+        f"nested dict token should be redacted, got {result['outer']['token']!r}"
+    )
+    assert result["list"][0]["api_key"] == "***REDACTED***", (
+        f"api_key inside a list element should be redacted, got {result['list'][0]['api_key']!r}"
+    )
+    assert result["list"][1] == "normal", (
+        f"plain string in list should be unchanged, got {result['list'][1]!r}"
+    )
+
+
+def test_redact_preserves_nonsecrets():
+    """T013 (guard): ints, bools, and short benign strings must NOT be redacted.
+
+    PASSES with the no-op stub — this is the over-redaction guard; it verifies that
+    correct implementations do not mask everything indiscriminately.
+    """
+    result = redact({"count": 5, "msg": "hello world", "flag": True})
+    assert result["count"] == 5, (
+        f"int value should be unchanged, got {result['count']!r}"
+    )
+    assert result["msg"] == "hello world", (
+        f"short benign string should be unchanged, got {result['msg']!r}"
+    )
+    assert result["flag"] is True, (
+        f"bool value should be unchanged, got {result['flag']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T014 — Value truncation (truncate is a NO-OP stub → MUST FAIL until Wave 8)
+# ---------------------------------------------------------------------------
+
+def test_truncate_long_string():
+    """T014: string longer than max_len is capped; tail replaced with marker.
+
+    Marker format: '…[truncated N chars]' where N = chars removed.
+    Result must remain JSON-serializable.
+
+    FAILS NOW: truncate() is a no-op stub that returns value unchanged.
+    """
+    s = "x" * 1000
+    out = truncate(s, 100)
+    assert len(out) < 1000, (
+        f"truncated output must be shorter than 1000 chars, got len={len(out)}"
+    )
+    assert out[:100] == "x" * 100, (
+        "kept prefix must be the first max_len chars of the original string"
+    )
+    assert "[truncated 900 chars]" in out, (
+        f"truncation marker '[truncated 900 chars]' missing from output: {out!r}"
+    )
+    json.dumps(out)  # must be JSON-serializable after truncation
+
+
+def test_truncate_short_string_untouched():
+    """T014 (guard): string shorter than max_len must be returned unchanged.
+
+    PASSES with the no-op stub — this is the identity-on-short-input guard.
+    """
+    assert truncate("short", 100) == "short", (
+        "string shorter than max_len must be returned unchanged"
+    )
+
+
+def test_truncate_keeps_json_valid():
+    """T014: truncated value in a dict round-trips through json.dumps/loads.
+
+    Also asserts that truncation actually occurred (marker is present in the
+    round-tripped value).
+
+    FAILS NOW: truncate() is a no-op stub; '[truncated' marker will be absent.
+    """
+    long_val = "y" * 5000
+    truncated = truncate(long_val, 50)
+    roundtripped = json.loads(json.dumps({"r": truncated}))
+    assert "[truncated" in roundtripped["r"], (
+        f"truncation marker must be present in round-tripped value, "
+        f"got prefix {roundtripped['r'][:80]!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T015 — Whole-file rotation by mtime (NOT implemented → MUST FAIL)
+# ---------------------------------------------------------------------------
+
+def test_rotation_bounds_dir(tmp_path):
+    """T015: transcript directory stays within max_files after many runs.
+
+    Drives 120 runs through a single enabled emitter with max_files=5.
+    After all runs the directory must contain ≤5 files (oldest deleted).
+
+    FAILS NOW: rotation is not implemented — ~120 files will accumulate.
+    """
+    cfg = TranscriptEmitterConfig(
+        enabled=True,
+        base_dir=tmp_path,
+        project="rot",
+        max_files=5,
+    )
+    em = TranscriptEmitter(cfg)
+    for i in range(120):
+        run = [
+            _ev(ExecutionEventType.CHAIN_START, chain_id=f"r{i}"),
+            _ev(ExecutionEventType.CHAIN_END, total_tokens=0),
+        ]
+        _drive(em, run)
+    files = list((tmp_path / "rot").glob("*.jsonl"))
+    assert len(files) <= 5, (
+        f"rotation should cap dir at max_files=5, found {len(files)} files"
     )
