@@ -114,7 +114,7 @@ unavailable → lossy fallback.
 
 ### Tests (W7) — write FIRST, must FAIL
 
-- [ ] T016 [P] [W7] [US3] [python-pro] [tests/test_dynamic_prompt_longevity.py] FAILING tests: `build_turn_context(goal, turn=...)` emits a `<turn-context>` block re-injecting the goal (FR-011); `DocumentAndClear.should_compress(usage)` true at ≥`compress_at` (~0.60); `document_and_clear(working_dir, state)` writes `PROGRESS.md`/`todo.md` (plan/decisions/progress), clears working context, returns the doc-seeded resumed history (temp dir) (FR-012); a simulated run sustains ≥10 task-turns before a reset (FR-013); `is_stalled`/`should_escalate` escalate ONLY on a no-progress stall AND only when `jacket.escalate` (no escalate when forbidden); when `working_dir` is not writable it falls back to `HistorySummarizer` (FR-014).
+- [x] T016 [P] [W7] [US3] [python-pro] [tests/test_dynamic_prompt_longevity.py] FAILING tests: `build_turn_context(goal, turn=...)` emits a `<turn-context>` block re-injecting the goal (FR-011); `DocumentAndClear.should_compress(usage)` true at ≥`compress_at` (~0.60); `document_and_clear(working_dir, state)` writes `PROGRESS.md`/`todo.md` (plan/decisions/progress), clears working context, returns the doc-seeded resumed history (temp dir) (FR-012); a simulated run sustains ≥10 task-turns before a reset (FR-013); `is_stalled`/`should_escalate` escalate ONLY on a no-progress stall AND only when `jacket.escalate` (no escalate when forbidden); when `working_dir` is not writable it falls back to `HistorySummarizer` (FR-014).
 
 ### Implementation (W8)
 
