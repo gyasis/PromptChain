@@ -70,3 +70,20 @@ def test_adapt_format_unknown_family_is_format_safe():
     joined = "\n".join(out)
     for part in PARTS:
         assert part in joined
+
+
+def test_adapt_format_known_families_are_real_variants():
+    # Per-family variants over the `default` fallback (PRD §7): a known family
+    # produces a measurably DIFFERENT format than `default`, and two distinct
+    # known families differ from each other — while still preserving content.
+    base = adapt_format(list(PARTS), "default")
+    anthropic = adapt_format(list(PARTS), "anthropic")
+    openai = adapt_format(list(PARTS), "openai")
+    assert anthropic != base, "known family must differ from the default fallback"
+    assert openai != base
+    assert anthropic != openai, "distinct families must produce distinct framing"
+    # content still verbatim under the real variants
+    for variant in (anthropic, openai):
+        joined = "\n".join(variant)
+        for part in PARTS:
+            assert part in joined

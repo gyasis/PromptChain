@@ -64,9 +64,9 @@ is within budget; forcing over-cap drops optional modules in order (never the ba
 
 ### Implementation (W3) — pure modules, parallel
 
-- [ ] T006 [P] [W3] [US1] [python-pro] [promptchain/prompts/tiers.py] Implement `PromptTier` (CORE/EXTENDED/TINY), `OptionalModule` dataclass, the per-tier module registry, `select_tier(profile)` (D2 thresholds; no-profile→CORE), `modules_for_tier(tier)` → T002 green.
-- [ ] T007 [P] [W3] [US1] [python-pro] [promptchain/prompts/family.py] Implement `family_of(model_id)` (strip `provider/`, match stems, `default` fallback) and `adapt_format(parts, family)` (FORMAT-only per-family variants over `default`) → T003 green.
-- [ ] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
+- [x] T006 [P] [W3] [US1] [python-pro] [promptchain/prompts/tiers.py] Implement `PromptTier` (CORE/EXTENDED/TINY), `OptionalModule` dataclass, the per-tier module registry, `select_tier(profile)` (D2 thresholds; no-profile→CORE), `modules_for_tier(tier)` → T002 green.
+- [x] T007 [P] [W3] [US1] [python-pro] [promptchain/prompts/family.py] Implement `family_of(model_id)` (strip `provider/`, match stems, `default` fallback) and `adapt_format(parts, family)` (FORMAT-only per-family variants over `default`) → T003 green.
+- [x] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
 
 ### Implementation (W4) — the generator (depends on W3)
 
