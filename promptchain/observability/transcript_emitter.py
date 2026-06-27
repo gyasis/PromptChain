@@ -14,6 +14,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 from ..utils.execution_events import ExecutionEvent, ExecutionEventType
+from ._transcript_redaction import redact, truncate
 
 # ---------------------------------------------------------------------------
 # Schema constants (locked — downstream F2 + SIO harness depend on these)
@@ -68,9 +69,64 @@ class TranscriptEmitter:
     ) -> None:
         """Initialise with an optional config; extra kwargs are accepted for forward-compatibility."""
         self.config = config or TranscriptEmitterConfig()
+        # Resolve enabled once at init: config flag OR env-var opt-in.
+        _env = os.environ.get("PROMPTCHAIN_TRANSCRIPTS_ENABLED", "").lower()
+        self._enabled: bool = self.config.enabled or _env in {"1", "true", "yes"}
         self._session_id: Optional[str] = None
         self._project: Optional[str] = None
         self._path: Optional[Path] = None
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _safe_value(self, value: Any) -> Any:
+        """Apply secret redaction then length truncation to *value*.
+
+        Redaction runs first (D6) so truncation markers are never mistaken
+        for secrets.  Only free-text / payload fields are passed through
+        here — structural fields (type, ts, call_id, …) are left as-is.
+        """
+        return truncate(redact(value), self.config.max_value_len)
+
+    def _rotate_transcripts(self) -> None:
+        """Delete the oldest transcript files until within max_files and max_bytes (D7).
+
+        Called after writing a terminal event while ``self._path`` is still set.
+        Deletes files by ascending (mtime, name) order — the most-recently
+        written file always has the newest mtime and is the last to be removed.
+        FileNotFoundError on any individual file is silently ignored.
+        """
+        if self._path is None:
+            return
+        transcript_dir = self._path.parent
+        try:
+            entries: list[tuple[float, str, Path, int]] = []
+            for f in transcript_dir.glob("*.jsonl"):
+                try:
+                    st = f.stat()
+                    entries.append((st.st_mtime, f.name, f, st.st_size))
+                except FileNotFoundError:
+                    pass
+            entries.sort()  # ascending (mtime, name) — oldest first
+        except Exception:
+            logger.error("TranscriptEmitter: error listing transcripts for rotation", exc_info=True)
+            return
+
+        total_bytes = sum(e[3] for e in entries)
+        while entries and (
+            len(entries) > self.config.max_files
+            or total_bytes > self.config.max_bytes
+        ):
+            _mtime, _name, oldest_path, oldest_size = entries.pop(0)
+            try:
+                oldest_path.unlink()
+                total_bytes -= oldest_size
+            except FileNotFoundError:
+                total_bytes -= oldest_size  # already gone; keep count accurate
+            except Exception:
+                logger.error("TranscriptEmitter: error deleting transcript during rotation", exc_info=True)
+                break  # avoid infinite loop on repeated I/O errors
 
     # ------------------------------------------------------------------
     # Line builder (pure — no I/O; returns None for unmapped event types)
@@ -130,13 +186,13 @@ class TranscriptEmitter:
             line["call_id"] = md.get("call_id")
             line["usage"] = md.get("usage")
             line["execution_time_ms"] = md.get("execution_time_ms")
-            line["error"] = md.get("error")
+            line["error"] = self._safe_value(md.get("error"))
 
         elif line_type == "tool_call":
             # TOOL_CALL_START or FUNCTION_CALL_START
             line["call_id"] = md.get("call_id")
             line["tool_name"] = md.get("tool_name")
-            line["arguments"] = md.get("arguments")
+            line["arguments"] = self._safe_value(md.get("arguments"))
 
         elif line_type == "tool_result":
             # TOOL_CALL_END/ERROR or FUNCTION_CALL_END/ERROR
@@ -147,8 +203,8 @@ class TranscriptEmitter:
             line["call_id"] = md.get("call_id")
             line["tool_name"] = md.get("tool_name")
             line["status"] = "error" if is_error else "ok"
-            line["result"] = md.get("result")
-            line["error"] = md.get("error")
+            line["result"] = self._safe_value(md.get("result"))
+            line["error"] = self._safe_value(md.get("error"))
 
         elif line_type == "chain_end":
             line["stop_reason"] = "completed"
@@ -161,7 +217,7 @@ class TranscriptEmitter:
 
         elif line_type == "chain_error":
             line["stop_reason"] = md.get("stop_reason") or "error"
-            line["error"] = md.get("error")
+            line["error"] = self._safe_value(md.get("error"))
             line["outcome"] = "error"
 
         return line
@@ -172,7 +228,8 @@ class TranscriptEmitter:
         Observability must never break the chain — all exceptions are caught
         and logged without re-raising.
         """
-        if not self.config.enabled:
+        # Zero work when disabled — gate before any path/format work (D8).
+        if not self._enabled:
             return
 
         try:
@@ -208,12 +265,13 @@ class TranscriptEmitter:
             with open(self._path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(line, default=str) + "\n")
 
-            # After a terminal event, reset run state so the emitter can be
-            # reused cleanly for a subsequent run.
+            # After a terminal event: rotate old transcripts, then reset run state
+            # so the emitter can be reused cleanly for a subsequent run.
             if event_type in (
                 ExecutionEventType.CHAIN_END,
                 ExecutionEventType.CHAIN_ERROR,
             ):
+                self._rotate_transcripts()
                 self._session_id = None
                 self._project = None
                 self._path = None

@@ -107,10 +107,10 @@
 
 ### Implementation for US3 — Wave 7
 
-- [ ] T018 [P] [W7] [US3] [python-pro] [promptchain/observability/_transcript_redaction.py] Implement `redact()` (key-name + pattern, recursive, over-redact).
-- [ ] T019 [W7] [US3] [python-pro] [promptchain/observability/_transcript_redaction.py] Implement `truncate(value, max_len)` keeping JSON validity. (Sequential after T018 — same file.)
-- [ ] T020 [W7] [US3] [python-pro] [promptchain/observability/transcript_emitter.py] Wire redact+truncate into line assembly (applied to arguments/result/error/messages before `json.dumps`); add opt-in config (`enabled` flag + `PROMPTCHAIN_TRANSCRIPTS_ENABLED`); guarantee zero work when disabled. (Sequential on transcript_emitter.py.)
-- [ ] T021 [W7] [US3] [python-pro] [promptchain/observability/transcript_emitter.py] Implement whole-file rotation by mtime after the terminal write (`max_files`/`max_bytes`). (Sequential.)
+- [x] T018 [P] [W7] [US3] [python-pro] [promptchain/observability/_transcript_redaction.py] Implement `redact()` (key-name + pattern, recursive, over-redact).
+- [x] T019 [W7] [US3] [python-pro] [promptchain/observability/_transcript_redaction.py] Implement `truncate(value, max_len)` keeping JSON validity. (Sequential after T018 — same file.)
+- [x] T020 [W7] [US3] [python-pro] [promptchain/observability/transcript_emitter.py] Wire redact+truncate into line assembly (applied to arguments/result/error/messages before `json.dumps`); add opt-in config (`enabled` flag + `PROMPTCHAIN_TRANSCRIPTS_ENABLED`); guarantee zero work when disabled. (Sequential on transcript_emitter.py.)
+- [x] T021 [W7] [US3] [python-pro] [promptchain/observability/transcript_emitter.py] Implement whole-file rotation by mtime after the terminal write (`max_files`/`max_bytes`). (Sequential.)
 
 **Checkpoint**: All user stories green.
 
