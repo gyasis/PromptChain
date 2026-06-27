@@ -472,7 +472,8 @@ class TaskListWidget(Container):
                 bar = "[" + "#" * filled + "." * (10 - filled) + "]"
                 progress_bar.update(f"  {bar} {step_count} steps")
             else:
-                progress_bar.update("  [..........] waiting...")
+                # No active step-tracker → don't sit on a frozen 'waiting…' bar.
+                progress_bar.update("")
         else:
             progress_bar.update("")
 
@@ -518,6 +519,33 @@ class TaskListWidget(Container):
             self._expandable_tasks["agent_processing"].active_form = "Completed"
             self._current_task_id = None
             self.refresh_display()
+
+    def finalize_turn(self) -> None:
+        """A turn's final answer was delivered — clear + HIDE the panel, UNLESS
+        real (TodoWrite) tasks are still unfinished.
+
+        The synthetic 'agent_processing' step-tracker is NOT a real task; on its
+        own (no pending todos) the panel should disappear so it doesn't sit there
+        stuck on 'waiting…'. If genuine tasks remain unfinished, drop the
+        step-tracker but keep surfacing those tasks.
+        """
+        real_unfinished = False
+        if self._task_manager and getattr(self._task_manager, "current_list", None):
+            tl = self._task_manager.current_list
+            if getattr(tl, "total_count", 0) and tl.completed_count < tl.total_count:
+                real_unfinished = True
+        real_unfinished = real_unfinished or any(
+            tid != "agent_processing" and t.status in ("pending", "in_progress")
+            for tid, t in self._expandable_tasks.items()
+        )
+
+        if real_unfinished:
+            # Keep the real task list visible; the step-tracker is done.
+            self._expandable_tasks.pop("agent_processing", None)
+            self._current_task_id = None
+            self.refresh_display()
+        else:
+            self.clear()  # shrink to nothing + hide
 
     def clear(self) -> None:
         """Clear the task list display."""

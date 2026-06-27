@@ -4270,20 +4270,21 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     if self.log_viewer_visible:
                         self.log_viewer.load_activities()
 
-                # Mark task list processing as complete
+                # Turn done — clear + hide the Agent Activity panel (keep it only
+                # if real TodoWrite tasks are still unfinished).
                 try:
                     task_list = self.query_one("#task-list-widget", TaskListWidget)
-                    task_list.mark_processing_complete()
+                    task_list.finalize_turn()
                 except Exception:
                     pass  # Widget may not be ready
 
         except Exception as e:
             # REACT Loop: Reset processing flag on error
             self.is_processing = False
-            # Mark task list processing as complete (even on error)
+            # Clear/collapse the Agent Activity panel even on error.
             try:
                 task_list = self.query_one("#task-list-widget", TaskListWidget)
-                task_list.mark_processing_complete()
+                task_list.finalize_turn()
             except Exception:
                 pass
             # Clear queue
