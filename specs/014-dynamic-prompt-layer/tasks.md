@@ -88,8 +88,8 @@ plain-text history; `native`/absent → no shim block, native passthrough; the a
 
 ### Tests (W5) — write FIRST, must FAIL
 
-- [ ] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
-- [ ] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
+- [x] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
+- [x] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
 
 ### Implementation (W6)
 
