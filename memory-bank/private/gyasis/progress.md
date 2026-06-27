@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-06-27 15:16:22
+**Last Updated**: 2026-06-27 15:28:57
 
 ## Overall Progress
 - Total Tasks: 24
-- Completed: 12 ✅
-- Pending: 12 ⏳
-- Progress: 50%
+- Completed: 15 ✅
+- Pending: 9 ⏳
+- Progress: 62%
 
 ## Task Breakdown
 - [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
@@ -21,9 +21,9 @@
 - [x] T010 [W4] [US1] [python-pro] [promptchain/prompts/__init__.py] Export `DynamicModelPromptGenerator` + `PromptTier`, `select_tier`, `family_of` from `promptchain.prompts` per contracts/generator-api.md (additive to `__all__`; do not remove existing exports).
 - [x] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
 - [x] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
-- [ ] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
-- [ ] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
-- [ ] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
+- [x] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
+- [x] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
+- [x] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
 - [ ] T016 [P] [W7] [US3] [python-pro] [tests/test_dynamic_prompt_longevity.py] FAILING tests: `build_turn_context(goal, turn=...)` emits a `<turn-context>` block re-injecting the goal (FR-011); `DocumentAndClear.should_compress(usage)` true at ≥`compress_at` (~0.60); `document_and_clear(working_dir, state)` writes `PROGRESS.md`/`todo.md` (plan/decisions/progress), clears working context, returns the doc-seeded resumed history (temp dir) (FR-012); a simulated run sustains ≥10 task-turns before a reset (FR-013); `is_stalled`/`should_escalate` escalate ONLY on a no-progress stall AND only when `jacket.escalate` (no escalate when forbidden); when `working_dir` is not writable it falls back to `HistorySummarizer` (FR-014).
 - [ ] T017 [W8] [US3] [python-pro] [promptchain/prompts/longevity.py] Implement `build_turn_context(...)`, `DocumentAndClear` (`should_compress`, `is_stalled`, `should_escalate` respecting `jacket.escalate`, `document_and_clear` writing the progress doc per contracts/prompt-layout.md + clear/resume, lossy `HistorySummarizer` fallback). Pure decisions deterministic; only `document_and_clear` does I/O → T016 green.
 - [ ] T018 [W8] [US3] [python-pro] [promptchain/prompts/__init__.py] Export `DocumentAndClear`, `build_turn_context` (additive to `__all__`).

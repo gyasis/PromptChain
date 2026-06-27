@@ -1,13 +1,16 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:16:22
+**Last Updated**: 2026-06-27 15:28:57
 
 ## Current Focus
-test(F3): Wave 5 (T011-T012) — US2 toolshim failing tests (RED)
+feat(F3): Wave 6 (T013-T015) — toolshim + Jacket.tool_mode (US2 GREEN)
 
-jacket.tool_mode round-trip + toolshim (resolve/render <tools>/serialize history)
-+ generator shim-vs-native wiring. RED: Jacket has no tool_mode, toolshim is a stub.
-F2 composite still 17 passed.
+Additive-optional Jacket.tool_mode (F2 66 still green). toolshim: resolve_tool_mode,
+render_tools_block (<tools> JSON-in-text), serialize_history_plaintext. Generator
+branches native vs shim — STATIC BASE EMITTED VERBATIM (reverted a subagent
+workaround that rewrote the foundation's <tools> tag, which broke SC-003).
+Discriminate native/shim on the shim marker, not the bare tag. Strengthened SC-003
+test to assert the FULL base render is verbatim. US2 11, US1 49, F2 66.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
