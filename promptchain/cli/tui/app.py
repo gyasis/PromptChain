@@ -61,8 +61,8 @@ class PromptChainApp(App):
     CSS = """
     /* PromptChain TUI — Codex framing x opencode accent (feat/tui-codex-blend-theme).
        Restyle only: structure/heights/docks preserved, palette + role framing added. */
-    $pc-bg: #0b0e14;        /* terminal canvas */
-    $pc-bg2: #0b0e14;       /* was a lighter panel tint; collapsed to the canvas color
+    $pc-bg: #000000;        /* terminal canvas */
+    $pc-bg2: #000000;       /* was a lighter panel tint; collapsed to the canvas color
                                so nothing gets a background highlight — dark everywhere,
                                only TEXT + the thin role gutter bars carry color. */
     $pc-ink: #c6ccd6;       /* default text */

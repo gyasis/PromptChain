@@ -63,7 +63,7 @@ class TaskListWidget(Container):
         height: auto;
         max-height: 20;
         border: round #2a3340;
-        background: #0b0e14;
+        background: #000000;
         padding: 0 1;
         margin: 1 0;
     }

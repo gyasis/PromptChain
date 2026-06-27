@@ -160,7 +160,7 @@ class ActivityLogViewer(Container):
     }
 
     .search-btn:hover {
-        background: #0b0e14;
+        background: #000000;
     }
 
     .clear-btn {
@@ -171,7 +171,7 @@ class ActivityLogViewer(Container):
     }
 
     .clear-btn:hover {
-        background: #0b0e14;
+        background: #000000;
     }
     """
 
