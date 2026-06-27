@@ -236,3 +236,28 @@ into a three-part status board:
    processor `enable_summarization`) — one rolling summary that both renders + feeds
    compaction.
 3. Auto-clear/shrink when idle (DONE).
+
+## DOCK RECAP V1 + V2 (2026-06-27)
+
+V1 — structured recap as the dock's idle resting state (`RECAP · N turns` + files
+touched + tool/task counts), tracked TUI-side. No deps.
+
+V2 — LLMLingua-2 history compression (the compaction-seed lever):
+- **Isolated, local, persistent.** `~/.local/bin/lingua-worker` runs in a uv venv
+  at `~/.local/share/lingua-venv` (CPU torch + llmlingua; **never** in miniconda or
+  the editable promptchain). Loads `microsoft/llmlingua-2-bert-base-multilingual-
+  cased-meetingbank` ONCE, serves JSON-lines compress requests over stdin/stdout.
+- `promptchain/cli/tui/lingua_client.py` (`LinguaCompressor`) spawns/keeps the
+  worker warm, serializes requests, **degrades gracefully** to a no-op if the
+  venv/worker is missing (promptchain imports no torch).
+- `/compress` command → compresses `get_formatted_history` off the UI thread →
+  reports `N → M tokens · Xx (saved K)` in chat + the dock recap.
+- SETUP to reproduce on a fresh box:
+  `uv venv --python 3.11 ~/.local/share/lingua-venv`
+  `uv pip install --python ~/.local/share/lingua-venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu`
+  `uv pip install --python ~/.local/share/lingua-venv/bin/python llmlingua`
+  (the BERT model ~700MB downloads on first worker run).
+- Decision (user): host = **local only** (not Atelier/cloud); worker = **persistent**.
+- NEXT (V2.x): auto-compress at a history-token threshold (vs the manual /compress)
+  and feed the compressed text as the actual model context (the true compaction
+  seed) — touches history_manager / the per-turn `history` built in handle_user_message.
