@@ -378,6 +378,13 @@ class PromptChainApp(App):
         # uv venv; torch never enters this env. Graceful no-op if unavailable.
         self._lingua = LinguaCompressor()
         self._recap_compression: Optional[str] = None  # last "8.2k→3.1k · 2.6x"
+        # Auto compression (V2.x): pre-stage a compressed seed in the background
+        # at a token threshold (default ON, no model-input change). Opt-in "bank"
+        # reuses that already-computed seed as the next turn's history.
+        self._compress_auto = True
+        self._compress_bank = False
+        self._staged_seed: Optional[str] = None
+        self._staging = False  # a background pre-stage is in flight
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1690,11 +1697,23 @@ class PromptChainApp(App):
             return "?"
         return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 
-    async def _handle_compress_command(self, chat_view) -> None:
-        """/compress — LLMLingua-2 (local worker) compresses the session history,
-        reports token savings, and records it in the dock recap. Runs off the UI
-        thread (model load + compression block)."""
+    async def _handle_compress_command(self, chat_view, command: str = "/compress") -> None:
+        """/compress [auto on|off | bank on|off] — LLMLingua-2 history compression."""
         from ..models import Message
+
+        parts = command.split()
+        if len(parts) >= 2 and parts[1] in ("auto", "bank"):
+            on = (len(parts) < 3) or parts[2].lower() in ("on", "true", "1", "yes")
+            if parts[1] == "auto":
+                self._compress_auto = on
+            else:
+                self._compress_bank = on
+            chat_view.add_message(Message(
+                role="system",
+                content=f"[dim]compress · auto [{'on' if self._compress_auto else 'off'}]"
+                        f" · bank [{'on' if self._compress_bank else 'off'}]"
+                        f"{' — staged seed ready' if self._staged_seed else ''}[/]"))
+            return
 
         if not self._lingua.available():
             chat_view.add_message(Message(
@@ -1745,6 +1764,54 @@ class PromptChainApp(App):
                 self.call_from_thread(_show)
             except Exception:
                 pass
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _compress_threshold(self) -> int:
+        """Pre-stage once history grows past ~half the configured max."""
+        mx = getattr(self.session, "history_max_tokens", 64000) or 64000
+        return max(3000, int(mx * 0.5))
+
+    def _maybe_prestage_compression(self) -> None:
+        """After a turn, if auto-compress is on and history is large, compress it
+        in the BACKGROUND and keep the seed ready (no model-input change). When
+        'bank' is enabled, that seed is reused as the next turn's history."""
+        if not (self._compress_auto and self._lingua.available()) or self._staging:
+            return
+        try:
+            tokens = self.session.history_manager.get_statistics().get(
+                "total_tokens", 0)
+        except Exception:
+            return
+        if tokens < self._compress_threshold():
+            return
+        try:
+            history = self.session.history_manager.get_formatted_history(
+                format_style="chat", max_tokens=64000)
+        except Exception:
+            return
+        if not history or not history.strip():
+            return
+        self._staging = True
+
+        def _work() -> None:
+            res = self._lingua.compress(history, rate=0.5)
+
+            def _show() -> None:
+                self._staging = False
+                if res:
+                    self._staged_seed = res.get("compressed")
+                    o = res.get("origin_tokens")
+                    c = res.get("compressed_tokens")
+                    self._recap_compression = (
+                        f"{self._fmt_tok(o)}→{self._fmt_tok(c)} · "
+                        f"{res.get('ratio')} (staged)")
+                    self._finalize_dock()
+
+            try:
+                self.call_from_thread(_show)
+            except Exception:
+                self._staging = False
 
         threading.Thread(target=_work, daemon=True).start()
 
@@ -2279,9 +2346,10 @@ class PromptChainApp(App):
             )
 
         elif command.startswith("/compress"):
-            # LLMLingua-2 (local worker) compresses the session history and
-            # reports the token savings — the compaction-seed lever.
-            await self._handle_compress_command(chat_view)
+            # /compress            — compress now, show savings
+            # /compress auto on|off — toggle background pre-staging
+            # /compress bank on|off — toggle feeding the compressed seed to the model
+            await self._handle_compress_command(chat_view, command)
 
         elif command.startswith("/cache"):
             # Handle cache commands (T-cache: Python pycache clearing)
@@ -4179,6 +4247,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 format_style="chat", max_tokens=6000  # Leave room for response
             )
 
+            # BANK (opt-in): reuse the already-computed compressed seed as the
+            # history sent to the model — real token savings with no per-turn
+            # latency (it was pre-staged in the background after the last turn).
+            if self._compress_bank and self._staged_seed:
+                history = self._staged_seed
+
             # Prepare input with history context (use content_with_files for LLM)
             if history:
                 # Add history as context before the current message
@@ -4576,6 +4650,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 # Turn done — keep active tasks, else show the RECAP resting
                 # state (or hide if no session activity yet).
                 self._finalize_dock()
+                # Pre-stage a compressed seed in the background if history is big.
+                self._maybe_prestage_compression()
 
         except Exception as e:
             # REACT Loop: Reset processing flag on error
