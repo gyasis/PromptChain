@@ -1,146 +1,38 @@
 # Progress
 
-**Last Updated**: 2026-02-27 06:33:24
+**Last Updated**: 2026-06-27 15:00:16
 
 ## Overall Progress
-- Total Tasks: 132
-- Completed: 47 ✅
-- Pending: 85 ⏳
-- Progress: 35%
+- Total Tasks: 24
+- Completed: 5 ✅
+- Pending: 19 ⏳
+- Progress: 20%
 
 ## Task Breakdown
-- [x] T001 [W1] [sql-pro] [schema.sql] Add V3 SQLite schema tables (task_queue, blackboard, workflow_state) in promptchain/cli/schema.sql
-- [x] T002 [P] [W1] [python-pro] [communication/__init__.py] Create communication module init in promptchain/cli/communication/__init__.py
-- [x] T003 [P] [W2] [python-pro] [models/message.py] Add Message and MessageType dataclasses in promptchain/cli/models/message.py
-- [x] T004 [P] [W2] [python-pro] [models/task.py] Add Task dataclass in promptchain/cli/models/task.py
-- [x] T005 [P] [W2] [python-pro] [models/blackboard.py] Add BlackboardEntry dataclass in promptchain/cli/models/blackboard.py
-- [x] T006 [P] [W2] [python-pro] [models/workflow.py] Add WorkflowState and WorkflowStage in promptchain/cli/models/workflow.py
-- [x] T007 [W3] [python-pro] [models/__init__.py] Update promptchain/cli/models/__init__.py to export new models
-- [x] T008 [W1] [python-pro] [session_manager.py] Implement V3 schema migration in promptchain/cli/session_manager.py (method: _check_and_migrate_v3)
-- [x] T009 [P] [W2] [python-pro] [session_manager.py:blackboard] Add blackboard CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [x] T010 [P] [W2] [python-pro] [session_manager.py:task_queue] Add task_queue CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [x] T011 [P] [W2] [python-pro] [session_manager.py:workflow] Add workflow_state CRUD methods to SessionManager in promptchain/cli/session_manager.py
-- [x] T012 [P] [W2] [python-pro] [tools/registry.py:metadata] Extend ToolMetadata with allowed_agents and capabilities fields in promptchain/cli/tools/registry.py
-- [ ] T014 [P] [W2] [test-automator] [tests/cli/] Create test directory structure: tests/cli/communication/, tests/cli/e2e/
-- [x] T013 [W3] [python-pro] [tools/registry.py:discover] Add discover_capabilities() method to ToolRegistry in promptchain/cli/tools/registry.py
-- [ ] T015 [P] [W1] [US1] [test-automator] [test_registry.py:metadata] Unit test for ToolMetadata extensions in tests/cli/tools/test_registry.py
-- [ ] T016 [P] [W1] [US1] [test-automator] [test_registry.py:discover] Unit test for discover_capabilities() in tests/cli/tools/test_registry.py
-- [ ] T017 [P] [W1] [US1] [test-automator] [test_capability_discovery.py] Integration test for capability discovery in tests/cli/integration/test_capability_discovery.py
-- [x] T018 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept allowed_agents param in promptchain/cli/tools/registry.py
-- [x] T019 [W2] [US1] [python-pro] [tools/registry.py] Update @registry.register decorator to accept capabilities param in promptchain/cli/tools/registry.py
-- [x] T020 [W3] [US1] [python-pro] [tools/registry.py] Implement discover_capabilities(agent_name, capability_filter) in promptchain/cli/tools/registry.py
-- [ ] T021 [W3] [US1] [test-automator] [test_registry.py] Add backward compatibility test - tools without allowed_agents work for all agents
-- [x] T022 [P] [W4] [US1] [python-pro] [registration.py:filesystem] Tag filesystem tools with capabilities in promptchain/cli/tools/library/registration.py
-- [x] T023 [P] [W4] [US1] [python-pro] [registration.py:session] Tag session tools with capabilities in promptchain/cli/tools/library/registration.py
-- [x] T024 [P] [W4] [US1] [python-pro] [registration.py:shell] Tag shell tools with capabilities in promptchain/cli/tools/library/registration.py
-- [x] T025 [P] [W4] [US1] [python-pro] [registration.py:context] Tag context tools with capabilities in promptchain/cli/tools/library/registration.py
-- [x] T026 [W5] [US1] [python-pro] [command_handler.py] Add /capabilities CLI command in promptchain/cli/command_handler.py
-- [ ] T027 [P] [W1] [US2] [test-automator] [test_delegation.py:model] Unit test for Task model in tests/cli/tools/test_delegation.py
-- [ ] T028 [P] [W1] [US2] [test-automator] [test_delegation.py:tool] Unit test for delegate_task tool in tests/cli/tools/test_delegation.py
-- [ ] T029 [P] [W1] [US2] [test-automator] [test_task_delegation.py] Integration test for task status transitions in tests/cli/integration/test_task_delegation.py
-- [x] T030 [W2] [US2] [python-pro] [delegation_tools.py] Implement delegate_task() tool in promptchain/cli/tools/library/delegation_tools.py
-- [x] T031 [W2] [US2] [python-pro] [delegation_tools.py] Implement get_pending_tasks() helper in promptchain/cli/tools/library/delegation_tools.py
-- [x] T032 [W2] [US2] [python-pro] [delegation_tools.py] Implement update_task_status() helper in promptchain/cli/tools/library/delegation_tools.py
-- [x] T033 [P] [W3] [US2] [python-pro] [library/__init__.py] Register delegation tools in promptchain/cli/tools/library/__init__.py
-- [x] T034 [P] [W3] [US2] [python-pro] [command_handler.py] Add /tasks CLI command in promptchain/cli/command_handler.py
-- [x] T035 [W3] [US2] [python-pro] [delegation_tools.py] Add task validation (target_agent != source_agent) in delegation_tools.py
-- [ ] T036 [W3] [US2] [python-pro] [delegation_tools.py] Add activity logger integration for task events in delegation_tools.py
-- [ ] T037 [P] [W1] [US3] [test-automator] [test_blackboard.py:model] Unit test for BlackboardEntry model in tests/cli/tools/test_blackboard.py
-- [ ] T038 [P] [W1] [US3] [test-automator] [test_blackboard.py:write] Unit test for write_to_blackboard tool in tests/cli/tools/test_blackboard.py
-- [ ] T039 [P] [W1] [US3] [test-automator] [test_blackboard.py:read] Unit test for read_from_blackboard tool in tests/cli/tools/test_blackboard.py
-- [ ] T040 [P] [W1] [US3] [test-automator] [test_blackboard.py:integration] Integration test for blackboard operations in tests/cli/integration/test_blackboard.py
-- [x] T041 [W2] [US3] [python-pro] [blackboard_tools.py] Implement write_to_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [x] T042 [W2] [US3] [python-pro] [blackboard_tools.py] Implement read_from_blackboard() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [x] T043 [W2] [US3] [python-pro] [blackboard_tools.py] Implement list_blackboard_keys() tool in promptchain/cli/tools/library/blackboard_tools.py
-- [x] T044 [W2] [US3] [python-pro] [blackboard_tools.py] Add upsert logic with version incrementing in blackboard_tools.py
-- [x] T045 [P] [W3] [US3] [python-pro] [library/__init__.py] Register blackboard tools in promptchain/cli/tools/library/__init__.py
-- [x] T046 [P] [W3] [US3] [python-pro] [command_handler.py] Add /blackboard CLI command in promptchain/cli/command_handler.py
-- [ ] T047 [W3] [US3] [python-pro] [blackboard_tools.py] Add activity logger integration for blackboard events
-- [ ] T048 [P] [W1] [US4] [test-automator] [test_handlers.py:message] Unit test for Message dataclass in tests/cli/communication/test_handlers.py
-- [ ] T049 [P] [W1] [US4] [test-automator] [test_handlers.py:decorator] Unit test for @cli_communication_handler decorator in tests/cli/communication/test_handlers.py
-- [ ] T050 [P] [W1] [US4] [test-automator] [test_message_bus.py] Unit test for message_bus send/broadcast in tests/cli/communication/test_message_bus.py
-- [ ] T051 [P] [W1] [US4] [test-automator] [test_handlers.py:filter] Integration test for handler filtering in tests/cli/communication/test_handlers.py
-- [x] T052 [W2] [US4] [python-pro] [handlers.py] Implement @cli_communication_handler decorator in promptchain/cli/communication/handlers.py
-- [x] T053 [W2] [US4] [python-pro] [handlers.py] Add handler filtering logic (sender, receiver, type) in handlers.py
-- [x] T054 [W3] [US4] [python-pro] [message_bus.py] Implement MessageBus class with send() in promptchain/cli/communication/message_bus.py
-- [x] T055 [W3] [US4] [python-pro] [message_bus.py] Implement broadcast() method in message_bus.py
-- [x] T056 [W3] [US4] [python-pro] [message_bus.py] Add handler registry for message routing in message_bus.py
-- [x] T057 [W3] [US4] [python-pro] [message_bus.py] Integrate activity logger for message events in message_bus.py
-- [x] T058 [W3] [US4] [python-pro] [message_bus.py] Add fail-safe error handling (log and continue) in message_bus.py
-- [x] T059 [W4] [US4] [python-pro] [communication/__init__.py] Export communication module in promptchain/cli/communication/__init__.py
-- [ ] T060 [P] [W1] [US5] [test-automator] [test_workflow.py:model] Unit test for WorkflowState model in tests/cli/integration/test_workflow.py
-- [ ] T061 [P] [W1] [US5] [test-automator] [test_workflow.py:transitions] Unit test for workflow stage transitions in tests/cli/integration/test_workflow.py
-- [ ] T062 [P] [W1] [US5] [test-automator] [test_workflow.py:persistence] Integration test for workflow persistence in tests/cli/integration/test_workflow.py
-- [ ] T063 [W2] [US5] [python-pro] [session_manager.py] Implement create_workflow() in promptchain/cli/session_manager.py
-- [ ] T064 [W2] [US5] [python-pro] [session_manager.py] Implement update_workflow_stage() in session_manager.py
-- [ ] T065 [W2] [US5] [python-pro] [session_manager.py] Implement add_completed_task() in session_manager.py
-- [ ] T066 [W2] [US5] [python-pro] [session_manager.py] Implement get_workflow_state() in session_manager.py
-- [x] T067 [P] [W3] [US5] [python-pro] [command_handler.py] Add /workflow CLI command in promptchain/cli/command_handler.py
-- [ ] T068 [P] [W3] [US5] [python-pro] [delegation_tools.py] Integrate workflow updates with task completion callbacks
-- [x] T069 [W3] [US5] [python-pro] [session_manager.py] Add workflow state restoration on session load
-- [ ] T070 [P] [W1] [US6] [test-automator] [test_delegation.py:help] Unit test for request_help tool in tests/cli/tools/test_delegation.py
-- [ ] T071 [P] [W1] [US6] [test-automator] [test_help_request.py] Integration test for help routing in tests/cli/integration/test_help_request.py
-- [x] T072 [W2] [US6] [python-pro] [delegation_tools.py] Implement request_help() tool in promptchain/cli/tools/library/delegation_tools.py
-- [x] T073 [W2] [US6] [python-pro] [delegation_tools.py] Add capability matching logic for help routing in delegation_tools.py
-- [x] T074 [W2] [US6] [python-pro] [delegation_tools.py] Add broadcast fallback when no matching capability found
-- [x] T075 [W3] [US6] [python-pro] [library/__init__.py] Register request_help tool in library/__init__.py
-- [ ] T076 [P] [W1] [US7] [test-automator] [test_mental_models.py:model] Unit test for MentalModel dataclass in tests/cli/tools/test_mental_models.py
-- [ ] T077 [P] [W1] [US7] [test-automator] [test_mental_models.py:registry] Unit test for MentalModelRegistry in tests/cli/tools/test_mental_models.py
-- [ ] T078 [P] [W1] [US7] [test-automator] [test_mental_models.py:selector] Unit test for MentalModelSelector in tests/cli/tools/test_mental_models.py
-- [ ] T079 [P] [W1] [US7] [test-automator] [test_mental_models.py:find] Unit test for find_models_for_task() in tests/cli/tools/test_mental_models.py
-- [ ] T080 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:select] Integration test for mental model selection in tests/cli/integration/test_mental_models.py
-- [ ] T081 [P] [W1] [US7] [test-automator] [test_mental_models_int.py:apply] Integration test for model application in tests/cli/integration/test_mental_models.py
-- [ ] T082 [W2] [US7] [python-pro] [mental_models.py:dataclass] Create MentalModel dataclass in promptchain/utils/mental_models.py
-- [ ] T083 [W2] [US7] [python-pro] [mental_models.py:tag] Create Tag dataclass in promptchain/utils/mental_models.py
-- [ ] T084 [W2] [US7] [python-pro] [mental_models.py:registry] Implement MentalModelRegistry class in promptchain/utils/mental_models.py
-- [ ] T085 [W2] [US7] [python-pro] [mental_models.py:get] Implement get_model() method in mental_models.py
-- [ ] T086 [W2] [US7] [python-pro] [mental_models.py:list] Implement list_models() method in mental_models.py
-- [ ] T087 [W2] [US7] [python-pro] [mental_models.py:tags] Implement list_tags() method in mental_models.py
-- [ ] T088 [W2] [US7] [python-pro] [mental_models.py:find] Implement find_models_for_task() method in mental_models.py
-- [ ] T089 [P] [W3] [US7] [python-pro] [mental_models.py:rubber-duck] Implement rubber-duck process prompt (debugging, communication)
-- [ ] T090 [P] [W3] [US7] [python-pro] [mental_models.py:five-whys] Implement five-whys process prompt (debugging, validation)
-- [ ] T091 [P] [W3] [US7] [python-pro] [mental_models.py:pre-mortem] Implement pre-mortem process prompt (risk-analysis, planning)
-- [ ] T092 [P] [W3] [US7] [python-pro] [mental_models.py:assumption] Implement assumption-surfacing process prompt (validation, planning)
-- [ ] T093 [P] [W3] [US7] [python-pro] [mental_models.py:steelman] Implement steelmanning process prompt (decision-making, validation)
-- [ ] T094 [P] [W3] [US7] [python-pro] [mental_models.py:trade-off] Implement trade-off-matrix process prompt (decision-making, prioritization)
-- [ ] T095 [P] [W3] [US7] [python-pro] [mental_models.py:fermi] Implement fermi-estimation process prompt (estimation)
-- [ ] T096 [P] [W3] [US7] [python-pro] [mental_models.py:abstraction] Implement abstraction-laddering process prompt (architecture, communication)
-- [ ] T097 [P] [W3] [US7] [python-pro] [mental_models.py:decomposition] Implement decomposition process prompt (planning, architecture)
-- [ ] T098 [P] [W3] [US7] [python-pro] [mental_models.py:adversarial] Implement adversarial-thinking process prompt (risk-analysis, validation)
-- [ ] T099 [P] [W3] [US7] [python-pro] [mental_models.py:opportunity] Implement opportunity-cost process prompt (decision-making, prioritization)
-- [ ] T100 [P] [W3] [US7] [python-pro] [mental_models.py:constraint] Implement constraint-relaxation process prompt (planning, architecture)
-- [ ] T101 [P] [W3] [US7] [python-pro] [mental_models.py:time-horizon] Implement time-horizon-shifting process prompt (planning, decision-making)
-- [ ] T102 [P] [W3] [US7] [python-pro] [mental_models.py:impact-effort] Implement impact-effort-grid process prompt (prioritization)
-- [ ] T103 [P] [W3] [US7] [python-pro] [mental_models.py:inversion] Implement inversion process prompt (risk-analysis, planning)
-- [ ] T104 [W4] [US7] [python-pro] [mental_models.py:selector] Implement MentalModelSelector class in promptchain/utils/mental_models.py
-- [ ] T105 [W4] [US7] [python-pro] [mental_models.py:select] Implement select_model() async method in mental_models.py
-- [ ] T106 [W4] [US7] [python-pro] [mental_models.py:prompt] Implement _build_selection_prompt() in mental_models.py
-- [ ] T107 [W5] [US7] [python-pro] [mental_models.py:applicator] Implement MentalModelApplicator class in promptchain/utils/mental_models.py
-- [ ] T108 [W5] [US7] [python-pro] [mental_models.py:apply] Implement apply_model() async method in mental_models.py
-- [ ] T109 [W6] [US7] [python-pro] [agent_chain.py:param] Add enable_mental_models parameter to AgentChain in promptchain/utils/agent_chain.py
-- [ ] T110 [W6] [US7] [python-pro] [agent_chain.py:register] Add _register_mental_model_tools() method to AgentChain
-- [ ] T111 [W6] [US7] [python-pro] [agent_chain.py:create] Add _create_mental_model_tools() method to AgentChain
-- [ ] T112 [W6] [US7] [python-pro] [agent_chain.py:select_schema] Implement select_mental_model tool schema in agent_chain.py
-- [ ] T113 [W6] [US7] [python-pro] [agent_chain.py:get_schema] Implement get_mental_model tool schema in agent_chain.py
-- [ ] T114 [W6] [US7] [python-pro] [agent_chain.py:list_schema] Implement list_mental_models tool schema in agent_chain.py
-- [ ] T115 [W6] [US7] [python-pro] [agent_chain.py:handle] Implement _handle_mental_model_tool() async method in agent_chain.py
-- [ ] T116 [W7] [US7] [python-pro] [agent_chain.py:auto] Add auto-select mental model logic in process_input() in agent_chain.py
-- [ ] T117 [W7] [US7] [python-pro] [agent_chain.py:enhance] Enhance user input with mental model guidance when model selected
-- [ ] T118 [W7] [US7] [python-pro] [agent_chain.py:context] Add mental model context to conversation history
-- [ ] T119 [P] [W8] [US7] [python-pro] [command_handler.py] Add /mentalmodels CLI command in promptchain/cli/command_handler.py
-- [ ] T120 [P] [W8] [US7] [python-pro] [registration.py] Add mental model tools to CLI tool registry in promptchain/cli/tools/library/registration.py
-- [ ] T121 [P] [W1] [test-automator] [test_multi_agent.py] E2E test for complete multi-agent workflow in tests/cli/e2e/test_multi_agent.py
-- [ ] T122 [P] [W1] [test-automator] [test_communication.py] Performance test for communication < 10ms in tests/cli/performance/test_communication.py
-- [ ] T123 [P] [W1] [test-automator] [test_blackboard.py] Performance test for blackboard < 5ms in tests/cli/performance/test_blackboard.py
-- [ ] T124 [W1] [test-automator] [tests/cli/] Backward compatibility test - existing CLI tests pass in tests/cli/
-- [ ] T125 [P] [W1] [python-pro] [cli/__init__.py] Update promptchain/cli/__init__.py exports for new modules
-- [ ] T129 [P] [W1] [test-automator] [test_mental_models_e2e.py] E2E test for mental models integration with multi-agent workflow in tests/cli/e2e/test_mental_models_e2e.py
-- [ ] T130 [P] [W1] [test-automator] [test_mental_models.py] Performance test for mental model selection < 100ms in tests/cli/performance/test_mental_models.py
-- [ ] T126 [W2] [general-purpose] Run quickstart.md validation scenarios manually
-- [ ] T127 [W2] [general-purpose] [checklists/requirements.md] Update checklists/requirements.md with completion status
-- [ ] T128 [W2] [general-purpose] Validate all 15 success criteria (SC-001 to SC-015)
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story
+- [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
+- [x] T002 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_tiers.py] FAILING tests: `select_tier(profile)` maps capability to `PromptTier` by the D2 thresholds (`≥0.66→EXTENDED`, `0.33–0.66→CORE`, `<0.66... <0.33→TINY`), `recommended_tier` honored as hint, no-profile → CORE; `modules_for_tier(tier)` returns the documented `OptionalModule` set per tier (EXTENDED has `examples`+`extended_guidance`; CORE essentials only; TINY reduced) with correct `drop_priority` ordering.
+- [x] T003 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_family.py] FAILING tests: `family_of(model_id)` derives `anthropic/openai/google/qwen/llama` from representative ids (incl. `provider/` prefixes) and `default` for unknown; `adapt_format(parts, family)` changes FORMAT only — the static-base substring is preserved unchanged for every family (incl. `default` = no-op).
+- [x] T004 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_budget.py] FAILING tests: `measure(text)` returns a non-negative int (tiktoken or `len//4`); `fit_to_budget(base, optional, target_max, hard_cap)` drops optional modules in ascending `drop_priority` until within budget, NEVER drops `base`, returns `(assembled, dropped_keys)`; when the base alone exceeds `hard_cap` it returns the base + flags over-cap (no truncation of the base).
+- [x] T005 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_generate.py] FAILING tests for `DynamicModelPromptGenerator` (US1 acceptance): static base VERBATIM in output (SC-003); two seeded profiles → measurably different prompts (SC-002); output within budget / under hard cap (SC-001); null jacket → `recommended_tier`+`budget_tokens`, no profile → CORE, neither raises (SC-005); deterministic for fixed inputs (SC-008); conforms to `BasePromptBuilder` (`generate(objective, tools, context)` + `get_token_estimate`) — drop-in; empty objective rejected. Profiles seeded via an injected store/fixture (no live model).
+- [ ] T006 [P] [W3] [US1] [python-pro] [promptchain/prompts/tiers.py] Implement `PromptTier` (CORE/EXTENDED/TINY), `OptionalModule` dataclass, the per-tier module registry, `select_tier(profile)` (D2 thresholds; no-profile→CORE), `modules_for_tier(tier)` → T002 green.
+- [ ] T007 [P] [W3] [US1] [python-pro] [promptchain/prompts/family.py] Implement `family_of(model_id)` (strip `provider/`, match stems, `default` fallback) and `adapt_format(parts, family)` (FORMAT-only per-family variants over `default`) → T003 green.
+- [ ] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
+- [ ] T009 [W4] [US1] [python-pro] [promptchain/prompts/model_dynamic.py] Implement `DynamicModelPromptGenerator` (`BasePromptBuilder`): `__init__(*, model=None, store=None, base_generator=None, store_path=None)`; `generate(objective, tools, context=None, *, model=None)` → resolve model (kwarg→ctor→None), load the F2 profile via the store (`get_profile`; tolerate None), `select_tier`, compose the static base from `base_generator` (default `DynamicTUIPromptGenerator`) VERBATIM, `adapt_format` for the family, attach `modules_for_tier`, then `fit_to_budget` (effective budget = `min(jacket.budget_tokens or 1000, 1000)`, hard cap 1500); `get_token_estimate`. Null jacket → `recommended_tier`+`budget_tokens`; no profile → CORE. Deterministic. → T005 green.
+- [ ] T010 [W4] [US1] [python-pro] [promptchain/prompts/__init__.py] Export `DynamicModelPromptGenerator` + `PromptTier`, `select_tier`, `family_of` from `promptchain.prompts` per contracts/generator-api.md (additive to `__all__`; do not remove existing exports).
+- [ ] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
+- [ ] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
+- [ ] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
+- [ ] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
+- [ ] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
+- [ ] T016 [P] [W7] [US3] [python-pro] [tests/test_dynamic_prompt_longevity.py] FAILING tests: `build_turn_context(goal, turn=...)` emits a `<turn-context>` block re-injecting the goal (FR-011); `DocumentAndClear.should_compress(usage)` true at ≥`compress_at` (~0.60); `document_and_clear(working_dir, state)` writes `PROGRESS.md`/`todo.md` (plan/decisions/progress), clears working context, returns the doc-seeded resumed history (temp dir) (FR-012); a simulated run sustains ≥10 task-turns before a reset (FR-013); `is_stalled`/`should_escalate` escalate ONLY on a no-progress stall AND only when `jacket.escalate` (no escalate when forbidden); when `working_dir` is not writable it falls back to `HistorySummarizer` (FR-014).
+- [ ] T017 [W8] [US3] [python-pro] [promptchain/prompts/longevity.py] Implement `build_turn_context(...)`, `DocumentAndClear` (`should_compress`, `is_stalled`, `should_escalate` respecting `jacket.escalate`, `document_and_clear` writing the progress doc per contracts/prompt-layout.md + clear/resume, lossy `HistorySummarizer` fallback). Pure decisions deterministic; only `document_and_clear` does I/O → T016 green.
+- [ ] T018 [W8] [US3] [python-pro] [promptchain/prompts/__init__.py] Export `DocumentAndClear`, `build_turn_context` (additive to `__all__`).
+- [ ] T019 [P] [W9] [python-pro] [tests/test_dynamic_prompt_eval.py] FAILING tests for the A/B harness: the eval set has N=5 `EvalTask`s each with a deterministic `check(output)`; the runner scores each task×arm (`f3` vs `static_base`) with an INJECTED fake model (scripted pass/fail), aggregates per-arm completion rate, and computes `delta = f3 − static_base`; aggregation is deterministic.
+- [ ] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
+- [ ] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
+- [ ] T022 [W11] [python-pro] [tests/] Run the full F3 suite `python -m pytest tests/test_dynamic_prompt_*.py tests/test_profiler_jacket_toolmode.py -q` (all green) AND the no-regression suite `python -m pytest tests/test_profiler_*.py tests/test_transcript_*.py -q` (F1+F2 still green, esp. F2's 66).
+- [ ] T023 [W11] [python-pro] [specs/014-dynamic-prompt-layer/] Run the offline live smoke (`ab_smoke.py` vs a weak LAN ollama model) and record the per-arm completion + delta in quickstart.md / the memory-bank checkpoint (SC-007 evidence). If the LAN model is unreachable, note it and rely on the deterministic harness.
+- [ ] T024 [W11] [python-pro] [memory-bank/] Update the memory-bank (progress.md + activeContext.md): F3 complete + green; summarize per-US deliverables, the one additive F2 field (`Jacket.tool_mode`), and the SC-007 smoke result.
 
 ## Recent Milestones
 9837ff2 [MILESTONE] Dev-kid initialized
