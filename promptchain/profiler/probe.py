@@ -36,7 +36,7 @@ from promptchain.profiler.jacket import (
     ProbeResponse,
     SkillEstimate,
 )
-from promptchain.profiler.store import ProfileStore
+from promptchain.profiler.store import ProfileStore, ewma_update
 from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 
 # Tier bands keyed off the aggregate capability C. (capability_floor, tier, budget_tokens)
@@ -53,6 +53,12 @@ _SE_TAU = 0.3
 
 def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
+
+
+def _logit(c: float) -> float:
+    """Inverse of the sigmoid; clamps c to (0, 1) to avoid +/-inf."""
+    c = min(1 - 1e-6, max(1e-6, c))
+    return math.log(c / (1 - c))
 
 
 def _tier_for_capability(c: float) -> tuple[str, int]:
@@ -199,6 +205,131 @@ class ModelProfiler:
 
     def get_profile(self, model_id: str) -> Optional[CapabilityProfile]:
         return ProfileStore(self.store_path).get(model_id)
+
+    # ------------------------------------------------------------------ #
+    # US3 — EWMA online refinement (FR-013)
+    # ------------------------------------------------------------------ #
+    def refine(self, model_id: str, session_metrics, *, lam: float = 0.2) -> CapabilityProfile:
+        """Fold observed per-dimension session metrics into the persisted profile via EWMA.
+
+        ``session_metrics`` maps a capability dimension → an observed capability in [0, 1].
+        Empty/None metrics are a no-op (the loaded profile is returned unchanged). Otherwise
+        each matching skill's capability is EWMA-updated, theta is kept consistent (logit of the
+        new capability), the aggregate capability is recomputed, n_observations is incremented,
+        and the profile is persisted.
+        """
+        store = ProfileStore(self.store_path)
+        profile = store.get(model_id)
+        if profile is None:
+            raise ValueError(f"refine: no persisted profile for model_id={model_id!r}")
+
+        if not session_metrics:
+            return profile
+
+        for dim, observed in session_metrics.items():
+            est = profile.skills.get(dim)
+            if est is None:
+                continue
+            new_cap = ewma_update(est.capability, float(observed), lam)
+            est.capability = new_cap
+            est.theta = _logit(new_cap)
+
+        profile.n_observations += 1
+
+        # Recompute aggregate capability (mirror run_probe's aggregation).
+        cap_dims = [d for d in profile.skills if d in CAPABILITY_DIMENSIONS]
+        if cap_dims:
+            profile.capability = sum(
+                profile.skills[d].capability for d in cap_dims
+            ) / len(cap_dims)
+        elif profile.skills:
+            profile.capability = sum(
+                e.capability for e in profile.skills.values()
+            ) / len(profile.skills)
+
+        profile.updated_ts = datetime.now(timezone.utc).isoformat()
+        store.upsert(profile)
+        return profile
+
+    # ------------------------------------------------------------------ #
+    # US3 — two-sided model×jacket fit (FR-012)
+    # ------------------------------------------------------------------ #
+    def jacket_fit(
+        self,
+        model_id: str,
+        jackets,
+        *,
+        bank: Optional[ItemBank] = None,
+        runner_for: Optional[Callable] = None,
+        scorer: Optional[Callable] = None,
+        baseline=None,
+    ) -> dict:
+        """Fix the model, vary the jacket; report each jacket's effective-ability lift Δθ vs a
+        baseline jacket and return the max-lift jacket.
+
+        This is the IN-PROCESS measurement: for each jacket we run a probe under its runner and
+        take θ = logit(C). It degrades to direct measurement when SIO experiment/GEPA is
+        unavailable (the optional optimization layer is not required for the fit itself).
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self._jacket_fit_async(
+                    model_id, jackets, bank=bank, runner_for=runner_for,
+                    scorer=scorer, baseline=baseline,
+                )
+            )
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(
+                lambda: asyncio.run(
+                    self._jacket_fit_async(
+                        model_id, jackets, bank=bank, runner_for=runner_for,
+                        scorer=scorer, baseline=baseline,
+                    )
+                )
+            ).result()
+
+    async def _jacket_fit_async(
+        self,
+        model_id: str,
+        jackets,
+        *,
+        bank: Optional[ItemBank] = None,
+        runner_for: Optional[Callable] = None,
+        scorer: Optional[Callable] = None,
+        baseline=None,
+    ) -> dict:
+        bank = bank if bank is not None else self.item_bank
+        if bank is None or not getattr(bank, "calibrated", False):
+            raise ValueError(
+                "jacket_fit requires a calibrated, non-empty item bank "
+                "(uncalibrated/empty item bank rejected)."
+            )
+        if not jackets:
+            raise ValueError("jacket_fit requires at least one jacket.")
+
+        baseline = baseline if baseline is not None else jackets[0]
+
+        async def _theta(jacket) -> float:
+            runner = runner_for(jacket) if runner_for is not None else self._default_runner(model_id)
+            prof = await self.run_probe_async(
+                model_id, bank=bank, model_runner=runner, scorer=scorer, persist=False
+            )
+            return _logit(prof.capability)
+
+        theta_base = await _theta(baseline)
+        lifts = [(await _theta(j)) - theta_base for j in jackets]
+
+        best_index = max(range(len(lifts)), key=lambda i: lifts[i])
+        return {
+            "best": jackets[best_index],
+            "best_index": best_index,
+            "lifts": lifts,
+            "baseline": baseline,
+        }
 
     # ------------------------------------------------------------------ #
     # CAT loop for one dimension

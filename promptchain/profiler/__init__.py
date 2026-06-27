@@ -11,6 +11,7 @@ from promptchain.profiler.jacket import (
     SkillEstimate,
 )
 from promptchain.profiler.probe import ModelProfiler
+from promptchain.profiler.prompt_generator import ModelPromptGenerator
 
 
 def run_probe(model_id, **kw) -> CapabilityProfile:
@@ -20,6 +21,7 @@ def run_probe(model_id, **kw) -> CapabilityProfile:
 
 __all__ = [
     "ModelProfiler",
+    "ModelPromptGenerator",
     "run_probe",
     "CapabilityProfile",
     "Jacket",

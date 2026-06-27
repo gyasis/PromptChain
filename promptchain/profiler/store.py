@@ -20,6 +20,11 @@ from promptchain.profiler.jacket import CapabilityProfile
 SCHEMA_VERSION = 1
 
 
+def ewma_update(old: float, observed: float, lam: float = 0.2) -> float:
+    """Exponentially-weighted moving-average update (research D5): new = (1-λ)·old + λ·observed."""
+    return (1 - lam) * old + lam * observed
+
+
 class ProfileStore:
     """A small, atomic, idempotent JSON store of CapabilityProfiles keyed by model id."""
 

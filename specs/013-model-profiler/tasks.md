@@ -113,12 +113,12 @@ the evidence by the EWMA amount; refine is a no-op with no telemetry.
 
 ### Tests (W9) — write FIRST, must FAIL
 
-- [ ] T018 [P] [W9] [python-pro] [tests/test_profiler_refine.py] FAILING tests: `refine(model_id, session_metrics, lam)` EWMA-updates the stored estimate toward new evidence by the expected amount and is a no-op for empty metrics (FR-013); `jacket_fit(model_id, jackets, baseline)` computes Δθ per jacket vs baseline and returns the max-lift jacket (FR-012); graceful no-op/return-probe-jacket when SIO experiment/optimize unavailable.
+- [x] T018 [P] [W9] [python-pro] [tests/test_profiler_refine.py] FAILING tests: `refine(model_id, session_metrics, lam)` EWMA-updates the stored estimate toward new evidence by the expected amount and is a no-op for empty metrics (FR-013); `jacket_fit(model_id, jackets, baseline)` computes Δθ per jacket vs baseline and returns the max-lift jacket (FR-012); graceful no-op/return-probe-jacket when SIO experiment/optimize unavailable.
 
 ### Implementation
 
-- [ ] T019 [W10] [python-pro] [promptchain/profiler/store.py] Add `refine` (EWMA update; no-op on empty) and `jacket_fit` (two-sided Δθ vs baseline → best) to the store/`ModelProfiler` → T018 green. (depends on T012; same file as T012 → not [P])
-- [ ] T020 [P] [W10] [python-pro] [promptchain/profiler/prompt_generator.py] Implement the DSPy `model_prompt_generator` module (per-model error/flow profile → jacket / optional system prompt), distinct from SIO's `suggestion_generator`; degrade gracefully (return the probe-derived jacket) when DSPy LM / SIO optimize is unavailable.
+- [x] T019 [W10] [python-pro] [promptchain/profiler/store.py] Add `refine` (EWMA update; no-op on empty) and `jacket_fit` (two-sided Δθ vs baseline → best) to the store/`ModelProfiler` → T018 green. (depends on T012; same file as T012 → not [P])
+- [x] T020 [P] [W10] [python-pro] [promptchain/profiler/prompt_generator.py] Implement the DSPy `model_prompt_generator` module (per-model error/flow profile → jacket / optional system prompt), distinct from SIO's `suggestion_generator`; degrade gracefully (return the probe-derived jacket) when DSPy LM / SIO optimize is unavailable.
 
 **Checkpoint**: all three stories functional.
 
