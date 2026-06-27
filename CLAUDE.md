@@ -382,5 +382,5 @@ When running `/devkid.execute` or any wave-based workflow, the agent decides whe
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/012-sio-output-integration/plan.md` (F1 — SIO Output Integration / JSONL transcript emitter)
+`specs/013-model-profiler/plan.md` (F2 — Model Profiler / IRT+CAT capability assessment + jacket)
 <!-- SPECKIT END -->
