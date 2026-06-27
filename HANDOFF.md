@@ -261,3 +261,17 @@ V2 — LLMLingua-2 history compression (the compaction-seed lever):
 - NEXT (V2.x): auto-compress at a history-token threshold (vs the manual /compress)
   and feed the compressed text as the actual model context (the true compaction
   seed) — touches history_manager / the per-turn `history` built in handle_user_message.
+
+## AUTO COMPRESSION + DOCK LOOPS/SUB-AGENTS (2026-06-27)
+
+- Dock LOOPS: '⟳ loop N/M [bar]' from _reasoning_progress_callback (current_step/
+  max_steps), reset at turn end. Verified live (loop 1/15).
+- Dock SUB-AGENTS: TUI registers the AgentChain orchestration callback
+  (plan_agent_start/complete) → 'sub-agent <name> ▸ running / ✓ done' rows
+  (reuses the step display). Shows when a multi-agent plan runs.
+- AUTO COMPRESSION (design: pre-stage seed; opt-in to bank):
+  * auto (default ON): after a turn, if history > ~0.5×max-tokens, compress in the
+    BACKGROUND → staged seed + '(staged)' in the recap. No model-input change.
+  * bank (opt-in, default OFF): the next turn's model history = the staged seed
+    (pre-computed → no latency; the model sees pruned text).
+  * /compress · /compress auto on|off · /compress bank on|off.
