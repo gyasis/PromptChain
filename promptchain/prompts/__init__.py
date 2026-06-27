@@ -15,6 +15,7 @@ from promptchain.prompts.base import BasePromptBuilder
 from promptchain.prompts.dynamic import DynamicPromptGenerator
 from promptchain.prompts.family import family_of
 from promptchain.prompts.legacy_tui import LegacyTUIPromptGenerator
+from promptchain.prompts.longevity import DocumentAndClear, build_turn_context
 from promptchain.prompts.model_dynamic import DynamicModelPromptGenerator
 from promptchain.prompts.tiers import PromptTier, select_tier
 from promptchain.prompts.tui_dynamic import (
@@ -32,4 +33,6 @@ __all__ = [
     "PromptTier",
     "select_tier",
     "family_of",
+    "DocumentAndClear",
+    "build_turn_context",
 ]
