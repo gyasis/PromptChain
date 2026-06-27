@@ -478,12 +478,14 @@ class TaskListWidget(Container):
 
     def _get_step_prefix(self, step_type: str) -> str:
         """Get display prefix for step type."""
+        # Cohesive monochrome glyph set + accent palette (matches the chat
+        # blocks: ★ reasoning · ⚙ tool · ✓ ok · ◇ llm · ✗ error).
         prefixes = {
             "thinking": "[dim]★[/dim]",
-            "tool_call": "[cyan]🔧[/cyan]",
-            "tool_result": "[green]✓[/green]",
-            "llm_call": "[blue]💬[/blue]",
-            "error": "[red]⚠[/red]",
+            "tool_call": "[#e5c07b]⚙[/]",
+            "tool_result": "[#7ee787]✓[/]",
+            "llm_call": "[#4ec9b0]◇[/]",
+            "error": "[#f47067]✗[/]",
         }
         return prefixes.get(step_type, "[dim]•[/dim]")
 

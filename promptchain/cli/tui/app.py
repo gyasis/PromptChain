@@ -827,7 +827,7 @@ class PromptChainApp(App):
 
         # Auto-connect default MCP servers from config — run as a background
         # worker so the (cold-starting) MCP servers don't block the UI. The
-        # worker shows a live "⏳ Connecting…" line and replaces it with the real
+        # worker shows a live "◌ Connecting…" line and replaces it with the real
         # tool count when discovery finishes.
         logger.debug("on_mount: Auto-connecting MCP servers (background)...")
         self.run_worker(
@@ -1045,7 +1045,7 @@ class PromptChainApp(App):
                 # Live loading line while the (cold-starting) server connects.
                 loading_msg = Message(
                     role="system",
-                    content=f"[#4ec9b0]⏳ Connecting to '{server_id}'…[/]",
+                    content=f"[#4ec9b0]◌ Connecting to '{server_id}'…[/]",
                 )
                 chat_view.add_message(loading_msg)
                 try:
@@ -1648,7 +1648,7 @@ class PromptChainApp(App):
                 self._tool_block_msg = msg
                 chat_view.add_message(msg)
             safe = str(detail).replace("[", "\\[").replace("]", "\\]")
-            msg.metadata["lines"].append(f"[#4ec9b0]↳ ✓[/] [dim]{safe}[/]")
+            msg.metadata["lines"].append(f"[dim]↳[/] [#7ee787]✓[/] [dim]{safe}[/]")
             msg.metadata["collapsed"] = False
             chat_view.refresh_block(msg)
             self._restart_block_dwell(msg)
@@ -1701,7 +1701,7 @@ class PromptChainApp(App):
                 safe_content = content.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
-                    content=f"[red]⚠️ {safe_content}[/red]",
+                    content=f"[red]⚠ {safe_content}[/red]",
                     metadata={"streaming": True, "event_type": "error"},
                 )
                 # Track in task list (Claude Code style)
@@ -1713,7 +1713,7 @@ class PromptChainApp(App):
                 safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
-                    content=f"[yellow]📥 User input received: {safe_preview}[/yellow]",
+                    content=f"[yellow]▸ User input received: {safe_preview}[/yellow]",
                     metadata={"streaming": True, "event_type": "user_input"},
                 )
             elif event_type == "tokens":
@@ -2531,7 +2531,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔍 Generating branching hypotheses for: {query}"
+            role="system", content=f"▸ Generating branching hypotheses for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2557,11 +2557,11 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 hypotheses = result.get("hypotheses", [])
-                content_lines = [f"✅ Generated {len(hypotheses)} hypotheses:\n"]
+                content_lines = [f"✓ Generated {len(hypotheses)} hypotheses:\n"]
                 for i, hyp in enumerate(hypotheses, 1):
                     content_lines.append(f"{i}. {hyp}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2574,19 +2574,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2610,7 +2610,7 @@ class PromptChainApp(App):
         options = parsed["options"]
 
         # Show processing message
-        processing_msg = Message(role="system", content=f"🔄 Expanding query: {query}")
+        processing_msg = Message(role="system", content=f"▸ Expanding query: {query}")
         chat_view.add_message(processing_msg)
 
         try:
@@ -2634,11 +2634,11 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 expansions = result.get("expansions", [])
-                content_lines = [f"✅ Generated {len(expansions)} query expansions:\n"]
+                content_lines = [f"✓ Generated {len(expansions)} query expansions:\n"]
                 for i, exp in enumerate(expansions, 1):
                     content_lines.append(f"{i}. {exp}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2651,19 +2651,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2688,7 +2688,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔗 Running multi-hop retrieval for: {query}"
+            role="system", content=f"▸ Running multi-hop retrieval for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2714,7 +2714,7 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 documents = result.get("documents", result.get("results", []))
-                content_lines = [f"✅ Retrieved {len(documents)} documents:\n"]
+                content_lines = [f"✓ Retrieved {len(documents)} documents:\n"]
                 for i, doc in enumerate(documents[:10], 1):  # Show first 10
                     doc_preview = (
                         str(doc)[:100] + "..." if len(str(doc)) > 100 else str(doc)
@@ -2723,7 +2723,7 @@ class PromptChainApp(App):
                 if len(documents) > 10:
                     content_lines.append(f"\n... and {len(documents) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2736,19 +2736,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2773,7 +2773,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔀 Running hybrid search for: {query}"
+            role="system", content=f"▸ Running hybrid search for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2799,7 +2799,7 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 results_data = result.get("results", [])
-                content_lines = [f"✅ Found {len(results_data)} results:\n"]
+                content_lines = [f"✓ Found {len(results_data)} results:\n"]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
                     res_preview = (
                         str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
@@ -2808,7 +2808,7 @@ class PromptChainApp(App):
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2821,19 +2821,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2873,7 +2873,7 @@ class PromptChainApp(App):
         )
         processing_msg = Message(
             role="system",
-            content=f"🗂️  Searching across {len(shards)} shards for: {query}",
+            content=f"▸ Searching across {len(shards)} shards for: {query}",
         )
         chat_view.add_message(processing_msg)
 
@@ -2900,7 +2900,7 @@ class PromptChainApp(App):
             if result["success"]:
                 results_data = result.get("results", [])
                 content_lines = [
-                    f"✅ Found {len(results_data)} results across shards:\n"
+                    f"✓ Found {len(results_data)} results across shards:\n"
                 ]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
                     res_preview = (
@@ -2910,7 +2910,7 @@ class PromptChainApp(App):
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2923,19 +2923,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2960,7 +2960,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"⚡ Running speculative execution..."
+            role="system", content=f"▸ Running speculative execution..."
         )
         chat_view.add_message(processing_msg)
 
@@ -2987,7 +2987,7 @@ class PromptChainApp(App):
             if result["success"]:
                 predictions = result.get("predictions", result.get("results", []))
                 content_lines = [
-                    f"✅ Generated {len(predictions)} speculative predictions:\n"
+                    f"✓ Generated {len(predictions)} speculative predictions:\n"
                 ]
                 for i, pred in enumerate(predictions, 1):
                     pred_preview = (
@@ -2995,7 +2995,7 @@ class PromptChainApp(App):
                     )
                     content_lines.append(f"{i}. {pred_preview}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -3008,19 +3008,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -3032,25 +3032,25 @@ class PromptChainApp(App):
 
         help_content = """Pattern Commands:
 
-🌳 /branch "query" [--count=N] [--mode=local|global|hybrid]
+▸ /branch "query" [--count=N] [--mode=local|global|hybrid]
    Generate branching hypotheses for exploration
 
-🔄 /expand "query" [--strategies=semantic,synonym] [--max=N]
+▸ /expand "query" [--strategies=semantic,synonym] [--max=N]
    Expand query with variations
 
-🔗 /multihop "query" [--max-hops=N] [--mode=hybrid]
+▸ /multihop "query" [--max-hops=N] [--mode=hybrid]
    Multi-hop retrieval with reasoning chains
 
-🔀 /hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]
+▸ /hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]
    Hybrid search combining dense and sparse retrieval
 
-🗂️  /sharded "query" --shards=shard1,shard2 [--aggregation=rrf]
+▸ /sharded "query" --shards=shard1,shard2 [--aggregation=rrf]
    Search across multiple sharded indexes
 
-⚡ /speculate "context" [--min-confidence=0.7] [--prefetch=N]
+▸ /speculate "context" [--min-confidence=0.7] [--prefetch=N]
    Speculative execution with prefetching
 
-📖 /patterns
+▸ /patterns
    Show this help message
 
 Examples:
@@ -3078,7 +3078,7 @@ Examples:
         if self.shell_mode:
             mode_msg = Message(
                 role="system",
-                content="🔧 Shell mode activated. All input will be executed as shell commands.\nType !! to exit shell mode.",
+                content="❯ Shell mode activated. All input will be executed as shell commands.\nType !! to exit shell mode.",
             )
             # Update status bar to show shell mode
             status_bar = self.query_one("#status-bar", StatusBar)
@@ -3086,7 +3086,7 @@ Examples:
         else:
             mode_msg = Message(
                 role="system",
-                content="💬 Chat mode activated. Back to normal conversation.",
+                content="◇ Chat mode activated. Back to normal conversation.",
             )
 
         chat_view.add_message(mode_msg)
@@ -3707,7 +3707,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 auto_include_history=orchestration.auto_include_history,
                 agent_history_configs=self._build_history_configs(),
                 verbose=False,
-                activity_logger=self.session.activity_logger,  # ✅ FIX: Enable activity logging
+                activity_logger=self.session.activity_logger,  # ✓ FIX: Enable activity logging
             )
         else:
             # Single-agent mode: Wrap single agent in AgentChain for consistency
@@ -3722,7 +3722,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 auto_include_history=True,
                 agent_history_configs=self._build_history_configs(),
                 verbose=False,
-                activity_logger=self.session.activity_logger,  # ✅ FIX: Enable activity logging
+                activity_logger=self.session.activity_logger,  # ✓ FIX: Enable activity logging
             )
 
         return self.agent_chain
