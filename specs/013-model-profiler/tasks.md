@@ -64,10 +64,10 @@ trial transcripts are F1-schema-valid and carry `model`.
 
 ### Tests (W4) — write FIRST, must FAIL
 
-- [ ] T005 [P] [W4] [python-pro] [tests/test_profiler_irt.py] FAILING tests (FR-016): `prob_3pl` matches closed-form values; `fisher_information` matches closed form; `estimate_theta_eap` and `estimate_theta_wle` recover a KNOWN θ from synthetic responses to known-(a,b,c) items within tolerance; WLE used for all-correct/all-incorrect.
-- [ ] T006 [P] [W4] [python-pro] [tests/test_profiler_cat.py] FAILING tests: `select_next_item` picks the max-Fisher-info unused item at θ̂; `standard_error` = `1/√(ΣI)`; `cat_should_stop` stops at SE≤τ (after `min_items`) and at `max_items` cap.
-- [ ] T007 [P] [W4] [python-pro] [tests/test_profiler_scoring.py] FAILING tests: each per-dimension auto-scorer maps a sample model response → correct/incorrect (+ raw value) deterministically (instruction-following, tool-call validity, reasoning, format-sensitivity, degradation turn, effective context, latency).
-- [ ] T008 [P] [W4] [python-pro] [tests/test_profiler_probe_integration.py] FAILING end-to-end test using an INJECTED fake `model_runner` (no live calls): `ModelProfiler.run_probe` produces a persisted `CapabilityProfile` (per-skill θ̂/C, `recommended_tier`, `budget_tokens`); a second run is materially equivalent (SC-002); item count bounded (SC-003); each trial wrote an F1-schema-valid transcript whose `model_call` lines carry `model` (SC-005, FR-007); uncalibrated bank raises.
+- [x] T005 [P] [W4] [python-pro] [tests/test_profiler_irt.py] FAILING tests (FR-016): `prob_3pl` matches closed-form values; `fisher_information` matches closed form; `estimate_theta_eap` and `estimate_theta_wle` recover a KNOWN θ from synthetic responses to known-(a,b,c) items within tolerance; WLE used for all-correct/all-incorrect.
+- [x] T006 [P] [W4] [python-pro] [tests/test_profiler_cat.py] FAILING tests: `select_next_item` picks the max-Fisher-info unused item at θ̂; `standard_error` = `1/√(ΣI)`; `cat_should_stop` stops at SE≤τ (after `min_items`) and at `max_items` cap.
+- [x] T007 [P] [W4] [python-pro] [tests/test_profiler_scoring.py] FAILING tests: each per-dimension auto-scorer maps a sample model response → correct/incorrect (+ raw value) deterministically (instruction-following, tool-call validity, reasoning, format-sensitivity, degradation turn, effective context, latency).
+- [x] T008 [P] [W4] [python-pro] [tests/test_profiler_probe_integration.py] FAILING end-to-end test using an INJECTED fake `model_runner` (no live calls): `ModelProfiler.run_probe` produces a persisted `CapabilityProfile` (per-skill θ̂/C, `recommended_tier`, `budget_tokens`); a second run is materially equivalent (SC-002); item count bounded (SC-003); each trial wrote an F1-schema-valid transcript whose `model_call` lines carry `model` (SC-005, FR-007); uncalibrated bank raises.
 
 ### Implementation
 
