@@ -1,13 +1,17 @@
 """Opt-in JSONL transcript emitter — writes one append-only JSONL transcript per PromptChain run for SIO mining."""
 
 import json
+import logging
 import os
 import re
 import threading
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from ..utils.execution_events import ExecutionEvent, ExecutionEventType
 
@@ -65,6 +69,8 @@ class TranscriptEmitter:
         """Initialise with an optional config; extra kwargs are accepted for forward-compatibility."""
         self.config = config or TranscriptEmitterConfig()
         self._session_id: Optional[str] = None
+        self._project: Optional[str] = None
+        self._path: Optional[Path] = None
 
     # ------------------------------------------------------------------
     # Line builder (pure — no I/O; returns None for unmapped event types)
@@ -94,7 +100,11 @@ class TranscriptEmitter:
 
         # Per-type payload.
         if line_type == "chain_start":
-            line["project"] = self.config.project or md.get("project")
+            line["project"] = (
+                self._project
+                if self._project is not None
+                else (self.config.project or md.get("project"))
+            )
             line["schema_version"] = SCHEMA_VERSION
 
         elif line_type == "step":
@@ -157,5 +167,56 @@ class TranscriptEmitter:
         return line
 
     async def handle_event(self, event: ExecutionEvent) -> None:
-        """Receive an execution event (no-op skeleton — writing not yet implemented)."""
-        return
+        """Write one JSONL line for *event* to the per-run transcript file.
+
+        Observability must never break the chain — all exceptions are caught
+        and logged without re-raising.
+        """
+        if not self.config.enabled:
+            return
+
+        try:
+            md: dict = event.metadata or {}
+            event_type = event.event_type
+
+            # On CHAIN_START, resolve and store run state for this run.
+            if event_type == ExecutionEventType.CHAIN_START:
+                self._session_id = md.get("chain_id") or uuid.uuid4().hex
+                self._project = self.config.project or os.path.basename(os.getcwd())
+                self._path = (
+                    Path(self.config.base_dir)
+                    / self._project
+                    / f"{self._session_id}.jsonl"
+                )
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Defensive: events arriving before CHAIN_START bootstrap run state.
+            if self._path is None:
+                self._session_id = md.get("chain_id") or uuid.uuid4().hex
+                self._project = self.config.project or os.path.basename(os.getcwd())
+                self._path = (
+                    Path(self.config.base_dir)
+                    / self._project
+                    / f"{self._session_id}.jsonl"
+                )
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+
+            line = self._build_line(event)
+            if line is None:
+                return
+
+            with open(self._path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(line, default=str) + "\n")
+
+            # After a terminal event, reset run state so the emitter can be
+            # reused cleanly for a subsequent run.
+            if event_type in (
+                ExecutionEventType.CHAIN_END,
+                ExecutionEventType.CHAIN_ERROR,
+            ):
+                self._session_id = None
+                self._project = None
+                self._path = None
+
+        except Exception:
+            logger.error("TranscriptEmitter: error handling event", exc_info=True)

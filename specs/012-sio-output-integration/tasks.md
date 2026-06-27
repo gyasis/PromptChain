@@ -65,9 +65,9 @@
 
 ### Implementation for US1 — Wave 4
 
-- [ ] T008 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Implement `handle_event`: map event→line (T004), resolve path (`session_id`=`chain_id` w/ uuid4 fallback, `<project>`=cwd basename), ensure dir, append one JSON line per event (one file per run). (Sequential on transcript_emitter.py.)
-- [ ] T009 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Guarantee a terminal event on both `CHAIN_END` (stop_reason=completed/outcome=success) and `CHAIN_ERROR` (stop_reason=error|limit/outcome=error) — FR-003. (Sequential.)
-- [ ] T010 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Make `handle_event` an async callback that the CallbackManager awaits (research D2 — no `run_coro_blocking` in the hot path; no bare `asyncio.run`). (Sequential.)
+- [x] T008 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Implement `handle_event`: map event→line (T004), resolve path (`session_id`=`chain_id` w/ uuid4 fallback, `<project>`=cwd basename), ensure dir, append one JSON line per event (one file per run). (Sequential on transcript_emitter.py.)
+- [x] T009 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Guarantee a terminal event on both `CHAIN_END` (stop_reason=completed/outcome=success) and `CHAIN_ERROR` (stop_reason=error|limit/outcome=error) — FR-003. (Sequential.)
+- [x] T010 [W4] [US1] [python-pro] [promptchain/observability/transcript_emitter.py] Make `handle_event` an async callback that the CallbackManager awaits (research D2 — no `run_coro_blocking` in the hot path; no bare `asyncio.run`). (Sequential.)
 
 **Checkpoint**: US1 green — MVP transcript is produced and contract test passes.
 
