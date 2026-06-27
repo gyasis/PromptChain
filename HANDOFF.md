@@ -77,3 +77,26 @@ likely doesn't forward the inner AgenticStepProcessor's stream events to the TUI
 `_streaming_callback`. NEXT: trace how AgentChain (router) invokes the agent's
 PromptChain at runtime and whether streaming_callback survives that hop; OR test in
 single-agent (non-router) mode to confirm the events render there.
+
+## #2 UX SPEC (user, explicit) — the thinking/tool block lifecycle
+The collapsible reasoning (and tool) blocks must behave like this:
+1. **Stream live, FULL** — reasoning streams in fully visible as the model generates.
+2. **Dwell ~3–4s** — once complete, stay FULLY on screen for 3–4 seconds so it can
+   be read.
+3. **Auto-collapse** — then collapse to a single **truncated line / rich bullet**
+   (one-line summary, e.g. `▸ reasoning · N steps · click to expand`).
+4. **Expand on demand** — click/Ctrl-toggle re-opens it to the FULL reasoning
+   rendered as **rich bullet points**.
+Flow: full stream → 3–4s full dwell → auto-collapse to truncated bullet → expandable.
+Same collapse-after-dwell applies to the #1 tool-call sections.
+
+Implementation notes:
+- The 3–4s dwell + auto-collapse = a `set_timer(3.5, collapse)` after the block's
+  final delta (cancel/restart the timer on each new delta so it only fires once the
+  stream is idle).
+- Collapsed state = a one-line summary widget; expanded = the full rich-bullet body.
+  Toggle on click (`on_click`) and/or a Ctrl key. ListView doesn't support nested
+  Collapsible widgets (see chat_view note ~line 281), so do collapse by swapping the
+  item's rendered content / `display`, not a Textual `Collapsible`.
+- "rich bullet points" = render the reasoning steps via the ChatMarkdown path
+  (clean headings, `•` bullets, no boxes) — reuse the #1 render plumbing.
