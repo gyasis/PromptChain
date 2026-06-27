@@ -133,7 +133,7 @@ improves vs the static base alone" claim shown by an offline live smoke (LAN oll
 
 ### Tests (W9) — write FIRST, must FAIL
 
-- [ ] T019 [P] [W9] [python-pro] [tests/test_dynamic_prompt_eval.py] FAILING tests for the A/B harness: the eval set has N=5 `EvalTask`s each with a deterministic `check(output)`; the runner scores each task×arm (`f3` vs `static_base`) with an INJECTED fake model (scripted pass/fail), aggregates per-arm completion rate, and computes `delta = f3 − static_base`; aggregation is deterministic.
+- [x] T019 [P] [W9] [python-pro] [tests/test_dynamic_prompt_eval.py] FAILING tests for the A/B harness: the eval set has N=5 `EvalTask`s each with a deterministic `check(output)`; the runner scores each task×arm (`f3` vs `static_base`) with an INJECTED fake model (scripted pass/fail), aggregates per-arm completion rate, and computes `delta = f3 − static_base`; aggregation is deterministic.
 
 ### Implementation (W10)
 
