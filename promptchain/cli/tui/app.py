@@ -385,6 +385,8 @@ class PromptChainApp(App):
         self._compress_bank = False
         self._staged_seed: Optional[str] = None
         self._staging = False  # a background pre-stage is in flight
+        # Tunable pre-stage threshold (tokens). None → auto (~0.5×max-tokens).
+        self._compress_threshold_tokens: Optional[int] = None
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1697,22 +1699,57 @@ class PromptChainApp(App):
             return "?"
         return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 
+    def _compress_status_msg(self):
+        """A one-line compress status — auto/bank/threshold + live history tokens,
+        so the threshold can be tuned empirically."""
+        from ..models import Message
+
+        th = self._compress_threshold()
+        th_label = self._fmt_tok(th) + (
+            "" if self._compress_threshold_tokens is not None else " (auto)")
+        cur = self._history_tokens()
+        seed = " · [#7ee787]seed staged[/]" if self._staged_seed else ""
+        return Message(
+            role="system",
+            content=(
+                f"[dim]compress · auto [{'on' if self._compress_auto else 'off'}]"
+                f" · bank [{'on' if self._compress_bank else 'off'}]"
+                f" · threshold {th_label}"
+                f" · history {self._fmt_tok(cur)}{seed}[/]"))
+
     async def _handle_compress_command(self, chat_view, command: str = "/compress") -> None:
         """/compress [auto on|off | bank on|off] — LLMLingua-2 history compression."""
         from ..models import Message
 
         parts = command.split()
-        if len(parts) >= 2 and parts[1] in ("auto", "bank"):
+        sub = parts[1] if len(parts) >= 2 else ""
+
+        if sub == "threshold":
+            arg = parts[2] if len(parts) >= 3 else ""
+            if arg.lower() in ("auto", "default", ""):
+                self._compress_threshold_tokens = None
+            elif arg.replace("k", "").replace("K", "").isdigit():
+                n = int(arg.lower().replace("k", "")) * (1000 if "k" in arg.lower() else 1)
+                self._compress_threshold_tokens = max(200, n)
+            else:
+                chat_view.add_message(Message(
+                    role="system",
+                    content="[dim]usage: /compress threshold <N | Nk | auto>[/]"))
+                return
+            chat_view.add_message(self._compress_status_msg())
+            return
+
+        if sub in ("auto", "bank"):
             on = (len(parts) < 3) or parts[2].lower() in ("on", "true", "1", "yes")
-            if parts[1] == "auto":
+            if sub == "auto":
                 self._compress_auto = on
             else:
                 self._compress_bank = on
-            chat_view.add_message(Message(
-                role="system",
-                content=f"[dim]compress · auto [{'on' if self._compress_auto else 'off'}]"
-                        f" · bank [{'on' if self._compress_bank else 'off'}]"
-                        f"{' — staged seed ready' if self._staged_seed else ''}[/]"))
+            chat_view.add_message(self._compress_status_msg())
+            return
+
+        if sub == "status":
+            chat_view.add_message(self._compress_status_msg())
             return
 
         if not self._lingua.available():
@@ -1768,9 +1805,18 @@ class PromptChainApp(App):
         threading.Thread(target=_work, daemon=True).start()
 
     def _compress_threshold(self) -> int:
-        """Pre-stage once history grows past ~half the configured max."""
+        """Pre-stage threshold (tokens): the user-set value, else ~half the max."""
+        if self._compress_threshold_tokens is not None:
+            return self._compress_threshold_tokens
         mx = getattr(self.session, "history_max_tokens", 64000) or 64000
         return max(3000, int(mx * 0.5))
+
+    def _history_tokens(self) -> int:
+        try:
+            return self.session.history_manager.get_statistics().get(
+                "total_tokens", 0)
+        except Exception:
+            return 0
 
     def _maybe_prestage_compression(self) -> None:
         """After a turn, if auto-compress is on and history is large, compress it
