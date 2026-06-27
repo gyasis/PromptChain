@@ -522,25 +522,27 @@ class TaskListWidget(Container):
 
     def finalize_turn(self) -> None:
         """A turn's final answer was delivered — clear + HIDE the panel, UNLESS
-        real (TodoWrite) tasks are still unfinished.
+        there is genuinely ACTIVE work to keep surfacing.
 
-        The synthetic 'agent_processing' step-tracker is NOT a real task; on its
-        own (no pending todos) the panel should disappear so it doesn't sit there
-        stuck on 'waiting…'. If genuine tasks remain unfinished, drop the
-        step-tracker but keep surfacing those tasks.
+        'Active' = a task actually ``in_progress`` (or, later, a live loop/
+        sub-agent). A one-shot query that spawned pending-but-untouched todos is
+        NOT ongoing work — it must clear, or the box sits there stuck at 0/N. The
+        synthetic 'agent_processing' step-tracker never counts as active.
         """
-        real_unfinished = False
+        active = False
         if self._task_manager and getattr(self._task_manager, "current_list", None):
             tl = self._task_manager.current_list
-            if getattr(tl, "total_count", 0) and tl.completed_count < tl.total_count:
-                real_unfinished = True
-        real_unfinished = real_unfinished or any(
-            tid != "agent_processing" and t.status in ("pending", "in_progress")
+            active = any(
+                getattr(t.status, "value", t.status) == "in_progress"
+                for t in getattr(tl, "tasks", [])
+            )
+        active = active or any(
+            tid != "agent_processing" and t.status == "in_progress"
             for tid, t in self._expandable_tasks.items()
         )
 
-        if real_unfinished:
-            # Keep the real task list visible; the step-tracker is done.
+        if active:
+            # Genuine ongoing work — keep the task list; drop the step-tracker.
             self._expandable_tasks.pop("agent_processing", None)
             self._current_task_id = None
             self.refresh_display()

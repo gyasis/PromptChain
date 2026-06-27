@@ -1,6 +1,7 @@
 """ChatView widget for displaying conversation messages."""
 
 import asyncio
+import re
 from typing import Any, List, Optional, Union
 
 import pyperclip
@@ -31,6 +32,16 @@ def _lexer_for_path(path: Optional[str]) -> str:
 
 def _esc(s: str) -> str:
     return str(s).replace("[", "\\[").replace("]", "\\]")
+
+
+# Strip Rich-style markup TAGS (e.g. a tool result that already carries
+# [bold]…[/bold] / [dim] / [#hex]) so they don't leak into the chat as literal
+# escaped brackets ([bold\]). Only removes things shaped like Rich tags.
+_MARKUP_TAG = re.compile(r"\[/?[a-zA-Z#][^\[\]]*\]")
+
+
+def _strip_markup(s: str) -> str:
+    return _MARKUP_TAG.sub("", str(s))
 
 
 def _parse_file_read(result: str):
@@ -310,7 +321,11 @@ class MessageItem(ListItem):
         elif _is_diffish(result):
             parts.append(Padding(_render_diff(result), (0, 0, 0, 2)))
         else:
-            txt = result if len(result) <= 2000 else result[:2000] + " …"
+            # Strip any Rich markup the tool result already carries (e.g. the
+            # task-list tool's [bold]Tasks (N/M)[/bold]) so it renders clean
+            # instead of leaking literal [bold\] brackets into the chat.
+            txt = _strip_markup(result)
+            txt = txt if len(txt) <= 2000 else txt[:2000] + " …"
             parts.append(Text.from_markup(f"  [dim]{_esc(txt)}[/]"))
         return parts
 
