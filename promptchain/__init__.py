@@ -6,6 +6,9 @@ from .cli.communication.message_bus import PubSubBus
 from .utils.janitor_agent import JanitorAgent
 from .utils.memo_store import MemoStore
 from .utils.interrupt_queue import InterruptQueue
+from .utils.external_loop import ExternalLoop
+from .utils.docker_executor import DockerExecutor
+from .utils.test_loop_chain import MicroPromptChain, LoopResult, LocalExecutor
 
 __all__ = [
     'PromptChain',
@@ -17,6 +20,11 @@ __all__ = [
     'JanitorAgent',
     'MemoStore',
     'InterruptQueue',
+    'ExternalLoop',
+    'DockerExecutor',
+    'MicroPromptChain',
+    'LoopResult',
+    'LocalExecutor',
 ]
 
 try:
