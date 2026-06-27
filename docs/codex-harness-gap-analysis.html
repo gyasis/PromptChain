@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptChain TUI vs. Codex — Harness Chat-Loop Gap Analysis</title>
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#0f131c; --bg3:#11161f;
+    --ink:#c6ccd6; --hi:#eef1f5; --dim:#7b8492; --dimmer:#4b5360;
+    --line:#1d2430; --line2:#2a3340;
+    --teal:#4ec9b0; --blue:#6cb6ff; --amber:#e5c07b; --violet:#c792ea;
+    --green:#7ee787; --red:#e06c75;
+    --mono:"JetBrains Mono","SFMono-Regular",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#10202a 0%,var(--bg) 55%);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:40px 24px 90px}
+  code,.mono{font-family:var(--mono)}
+  .mono{font-size:.86em}
+  h1,h2,h3{color:var(--hi);font-weight:650;letter-spacing:.2px;margin:0}
+
+  /* hero */
+  header.hero{margin-bottom:30px}
+  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+  header.hero h1{font-size:30px;line-height:1.15}
+  header.hero .sub{color:var(--dim);font-size:15.5px;max-width:760px;margin-top:12px}
+  header.hero .sub b{color:var(--ink)}
+  .src{margin-top:10px;font-size:12px;color:var(--dimmer);font-family:var(--mono)}
+
+  /* verdict scorecard */
+  .verdict{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:14px;margin:26px 0 8px}
+  .vcard{background:linear-gradient(180deg,var(--bg2),#0c1017);border:1px solid var(--line2);border-radius:14px;padding:16px 18px}
+  .vcard .big{font-size:30px;font-weight:700;color:var(--hi);font-family:var(--mono);line-height:1}
+  .vcard .lbl{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:8px}
+  .vcard.lead{grid-column:span 1;border-left:3px solid var(--teal)}
+  .vcard.lead .big{font-size:19px;color:var(--teal);line-height:1.25}
+  .vcard .big.has{color:var(--green)} .vcard .big.part{color:var(--amber)} .vcard .big.miss{color:var(--red)} .vcard .big.ahead{color:var(--blue)}
+  .takeaway{margin:14px 0 4px;padding:14px 18px;border:1px solid var(--line2);border-left:3px solid var(--amber);border-radius:10px;background:var(--bg2);color:var(--ink);font-size:14.5px}
+  .takeaway b{color:var(--hi)}
+
+  .sect{margin:42px 0 16px}
+  .sect .stag{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dimmer)}
+  .sect h2{font-size:21px;margin-top:4px}
+  .sect .lede{color:var(--dim);font-size:14px;margin-top:6px;max-width:820px}
+
+  /* loop pipeline */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin-top:8px}
+  .stage{flex:1;min-width:118px;background:var(--bg2);border:1px solid var(--line2);border-radius:11px;padding:12px 12px 11px;position:relative}
+  .stage .n{font-family:var(--mono);font-size:10px;color:var(--dimmer)}
+  .stage .t{font-weight:600;color:var(--hi);font-size:13.5px;margin:3px 0 6px}
+  .stage .d{font-size:11.5px;color:var(--dim);line-height:1.4}
+  .stage .pill{display:inline-block;margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;padding:2px 7px;border-radius:20px;border:1px solid var(--line2)}
+  .pill.has{color:var(--green);border-color:#244b30;background:#0e1a12}
+  .pill.part{color:var(--amber);border-color:#4a3f23;background:#191407}
+  .pill.gap{color:var(--red);border-color:#4a2626;background:#190d0d}
+  .arrow{align-self:center;color:var(--dimmer);font-family:var(--mono);font-size:15px}
+
+  /* comparison table */
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13.5px}
+  thead th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line2)}
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:hover{background:#0d1219}
+  .dim{white-space:nowrap;color:var(--hi);font-weight:600;font-size:12.5px}
+  .dim small{display:block;color:var(--dimmer);font-weight:400;font-family:var(--mono);font-size:10px;letter-spacing:.06em}
+  .codex{color:var(--dim);font-size:12.7px}
+  .codex b{color:var(--ink);font-weight:600}
+  .st{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;letter-spacing:.04em}
+  .st.has{color:var(--green);background:#0e1a12;border:1px solid #244b30}
+  .st.part{color:var(--amber);background:#191407;border:1px solid #4a3f23}
+  .st.ahead{color:var(--blue);background:#0c1622;border:1px solid #244055}
+  .gap{color:var(--ink);font-size:12.7px}
+  .gap .g{color:var(--red)} .gap .ok{color:var(--green)}
+  .ev{color:var(--dimmer);font-family:var(--mono);font-size:10.5px}
+
+  /* priority fixes */
+  .tier{margin-top:16px}
+  .tierhead{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+  .tierhead .badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 10px;border-radius:7px}
+  .badge.high{color:var(--red);background:#190d0d;border:1px solid #4a2626}
+  .badge.med{color:var(--amber);background:#191407;border:1px solid #4a3f23}
+  .badge.low{color:var(--dim);background:#11151c;border:1px solid var(--line2)}
+  .tierhead .desc{font-size:12.5px;color:var(--dim)}
+  .fix{display:grid;grid-template-columns:54px 1fr;gap:0 14px;padding:11px 14px;border:1px solid var(--line);border-left:2px solid var(--line2);border-radius:9px;background:var(--bg2);margin-bottom:8px}
+  .fix.h{border-left-color:var(--red)} .fix.m{border-left-color:var(--amber)} .fix.l{border-left-color:var(--dimmer)}
+  .fix .d{font-family:var(--mono);font-size:11px;color:var(--dim);padding-top:2px;font-weight:700}
+  .fix .body .h3{color:var(--hi);font-weight:600;font-size:14px}
+  .fix .body .p{color:var(--dim);font-size:12.8px;margin-top:3px}
+  .fix .body .p code{color:var(--ink);background:var(--bg3);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px}
+  .fix .body .where{color:var(--dimmer);font-family:var(--mono);font-size:10.5px;margin-top:5px}
+
+  .ahead{margin-top:14px;padding:16px 18px;border:1px solid #244055;border-left:3px solid var(--blue);border-radius:12px;background:linear-gradient(180deg,#0c1622,#0b0e14)}
+  .ahead h3{color:var(--blue);font-size:15px;margin-bottom:6px}
+  .ahead p{color:var(--ink);font-size:13.5px;margin:0}
+  .ahead p code{font-family:var(--mono);font-size:12px;color:var(--teal)}
+
+  footer{margin-top:46px;border-top:1px solid var(--line);padding-top:18px;color:var(--dimmer);font-size:11.5px;font-family:var(--mono);line-height:1.7}
+  footer a{color:var(--dim);text-decoration:none;border-bottom:1px dotted var(--dimmer)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0 0;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+  @media(max-width:760px){.verdict{grid-template-columns:1fr 1fr}.pipe .arrow{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kicker">smart-research · agentic harness teardown</div>
+    <h1>PromptChain TUI&nbsp; vs &nbsp;OpenAI Codex</h1>
+    <h1 style="font-size:20px;color:var(--dim);font-weight:500;margin-top:4px">Is the chat-session loop on par? Where are the gaps?</h1>
+    <div class="sub">We reverse-engineered the canonical <b>chat-session loop</b> of modern coding harnesses (OpenAI&nbsp;Codex <code class="mono">codex-rs</code>, Claude&nbsp;Code, opencode, aider) across <b>14 dimensions</b>, then mapped PromptChain's Textual TUI against it with file-level evidence.</div>
+    <div class="src">sources: OpenAI Codex docs + local codex-rs · Claude Code internals · opencode/aider · PromptChain repo (file:line verified)</div>
+  </header>
+
+  <!-- VERDICT -->
+  <div class="verdict">
+    <div class="vcard lead"><div class="big">On par on loop <u>shape</u> — gapped on <u>depth</u></div><div class="lbl">verdict</div></div>
+    <div class="vcard"><div class="big has">0</div><div class="lbl">dimensions missing</div></div>
+    <div class="vcard"><div class="big part">13</div><div class="lbl">partial (depth gaps)</div></div>
+    <div class="vcard"><div class="big ahead">1▲</div><div class="lbl">ahead of Codex<br>(reliability)</div></div>
+  </div>
+  <div class="takeaway">
+    <b>The honest read:</b> PromptChain isn't <i>missing</i> the harness loop — it has all 14 dimensions present (ReAct tool loop, streaming, MCP, routing, sandbox, history-distillation, persistence, mid-turn input). The gaps are <b>depth inside dimensions</b>, and they cluster on <b>safety &amp; control</b>: LLM tool calls run <b>ungated</b>, there's <b>no true turn-cancel</b>, the sandbox isn't <b>auto-enforced</b>, and project docs aren't <b>auto-loaded</b>. Fixing ~5 of these closes most of the distance to Codex.
+  </div>
+
+  <!-- THE LOOP -->
+  <div class="sect">
+    <div class="stag">the anatomy</div>
+    <h2>The canonical turn loop — and where PromptChain stands at each stage</h2>
+    <div class="lede">Every strong harness runs this pipeline each turn. PromptChain implements the whole pipeline; the colored pill is its depth at that stage.</div>
+  </div>
+  <div class="pipe">
+    <div class="stage"><div class="n">01</div><div class="t">Compose</div><div class="d">multiline · history · slash · @file</div><div class="pill part">partial · no images</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">02</div><div class="t">Assemble ctx</div><div class="d">sys + history + tool schemas + project docs</div><div class="pill gap">gap · no AGENTS.md</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">03</div><div class="t">Stream model</div><div class="d">tokens + thinking stream</div><div class="pill part">partial · no effort knob</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">04</div><div class="t">Tool loop</div><div class="d">ReAct: call→exec→observe→repeat</div><div class="pill part">partial · sequential</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">05</div><div class="t">Approve + sandbox</div><div class="d">gate every call · OS sandbox</div><div class="pill gap">gap · LLM calls ungated</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">06</div><div class="t">Render</div><div class="d">role cells · diff cells · status</div><div class="pill part">partial · no diff cell</div></div>
+    <div class="arrow">→</div>
+    <div class="stage"><div class="n">07</div><div class="t">Persist + compact</div><div class="d">save/resume · auto-summarize</div><div class="pill part">partial · no /compact</div></div>
+  </div>
+
+  <!-- 14-DIM TABLE -->
+  <div class="sect">
+    <div class="stag">dimension by dimension</div>
+    <h2>14-dimension comparison</h2>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--green)"></i>HAS</span>
+      <span><i class="sw" style="background:var(--amber)"></i>PARTIAL</span>
+      <span><i class="sw" style="background:var(--blue)"></i>AHEAD of Codex</span>
+      <span><i class="sw" style="background:var(--red)"></i>the gap</span>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th style="width:13%">Dimension</th><th style="width:34%">What Codex / strong harnesses do</th><th style="width:9%">PromptChain</th><th style="width:44%">Gap to close</th></tr></thead>
+    <tbody>
+      <tr><td class="dim">Input<small>D1</small></td><td class="codex">Ink composer, <b>image input</b> (<code class="mono">-i</code>), history/resume browser, slash, @file</td><td><span class="st part">PARTIAL</span></td><td class="gap">Has multiline + history + slash-autocomplete + <code class="mono">@file</code> + <code class="mono">!shell</code>. <span class="g">No image / paste-as-attachment.</span></td></tr>
+      <tr><td class="dim">Context<small>D2</small></td><td class="codex"><b>AGENTS.md</b> auto-injected each turn + history + tool schemas</td><td><span class="st part">PARTIAL</span></td><td class="gap">History lives in the chain; 32 tool schemas injected. <span class="g">No auto-load of project docs (AGENTS.md / CLAUDE.md / README).</span></td></tr>
+      <tr><td class="dim">Streaming<small>D3</small></td><td class="codex">Responses API stream, <b>reasoning_effort</b> low/med/high, flex tier</td><td><span class="st part">PARTIAL</span></td><td class="gap">litellm <code class="mono">stream=True</code>; 5 event types (thinking/tool_call/tool_result/error/tokens). <span class="g">No reasoning-effort / token-budget control.</span></td></tr>
+      <tr><td class="dim">Tool loop<small>D4</small></td><td class="codex">submit/event core, <b>parallel</b> tool calls, ToolRouter</td><td><span class="st part">PARTIAL</span></td><td class="gap"><code class="mono">AgenticStepProcessor</code> ReAct loop, <code class="mono">max_internal_steps=5</code>, interrupt flag, queue drain. <span class="g">Parallel tool calls execute sequentially.</span></td></tr>
+      <tr><td class="dim">Tools<small>D5</small></td><td class="codex"><b>apply_patch</b> (structured diff), exec, MCP client+server</td><td><span class="st part">PARTIAL</span></td><td class="gap">32 tools: line-edits, sandbox, ripgrep, delegate, MCP (stdio). <span class="g">No web/fetch tool; edits are line-based, not structured patch.</span></td></tr>
+      <tr><td class="dim">Approvals<small>D6</small></td><td class="codex">3 modes (<b>suggest / auto-edit / full-auto</b>) gate <b>every</b> tool call</td><td><span class="st part">PARTIAL</span></td><td class="gap"><code class="mono">ApprovalScreen</code> gates only user <code class="mono">!</code>-shell. <span class="g">LLM-invoked tool calls (write/exec) run fully ungated — no approval modes.</span></td></tr>
+      <tr><td class="dim">Sandbox<small>D7</small></td><td class="codex">OS sandbox (<b>seatbelt / landlock+seccomp</b>) auto on all exec, net allowlist</td><td><span class="st part">PARTIAL</span></td><td class="gap"><code class="mono">DockerExecutor</code> (<code class="mono">--network none</code>, ro, mem/cpu/pids limits) exists. <span class="g">But it's agent-chosen, not policy-enforced; no worktree isolation.</span></td></tr>
+      <tr><td class="dim">Interrupt<small>D8</small></td><td class="codex"><b>Esc cancels the running turn</b>; queue input mid-turn</td><td><span class="st part">PARTIAL</span></td><td class="gap">Mid-turn input queue + <code class="mono">_interrupt_requested</code> (next-step boundary). <span class="g">Ctrl+C only clears the input — no <code class="mono">Task.cancel()</code> / true cancel.</span></td></tr>
+      <tr><td class="dim">Render<small>D9</small></td><td class="codex">distinct <b>exec / patch / diff</b> cells, status line</td><td><span class="st part">PARTIAL</span></td><td class="gap">Role-class cells (user/asst/tool/think), detail toggle, status bar, command palette. <span class="g">No dedicated diff cell or exec-output cell.</span></td></tr>
+      <tr><td class="dim">Ctx mgmt<small>D10</small></td><td class="codex">auto-compact + <b>manual /compact + /context</b> visibility</td><td><span class="st part">PARTIAL</span></td><td class="gap"><span class="ok">Auto: ContextDistiller @70% + HistorySummarizer + tiktoken caps (good!).</span> <span class="g">No manual <code class="mono">/compact</code> or <code class="mono">/context</code> breakdown.</span></td></tr>
+      <tr><td class="dim">Persist<small>D11</small></td><td class="codex">SQLite Thread/Turn, resume, <b>checkpoints / rollback</b></td><td><span class="st part">PARTIAL</span></td><td class="gap">SQLite save/load + JSONL sidecar + schema migrations + replay. <span class="g">No checkpoint / turn-level undo.</span></td></tr>
+      <tr><td class="dim">Multi-agent<small>D12</small></td><td class="codex">subagents via MCP / Agent tool, <b>parallel</b> sessions</td><td><span class="st part">PARTIAL</span></td><td class="gap">LLM router (1 agent/turn) + handoff + <code class="mono">delegate_task</code> + blackboard + static plans. <span class="g">No parallel agent execution.</span></td></tr>
+      <tr><td class="dim">Reliability<small>D13</small></td><td class="codex">process-tree sandbox; <i>no documented per-turn timeout</i></td><td><span class="st ahead">AHEAD ▲</span></td><td class="gap"><span class="ok">Turn timeout (<code class="mono">wait_for</code>, env-configurable) + classified retry/backoff (3×) + router fallback + guaranteed <code class="mono">finally</code> cleanup. More turn-resilient than Codex here.</span></td></tr>
+      <tr><td class="dim">Observe<small>D14</small></td><td class="codex">TokensUsed events, DEBUG log, rollout replay</td><td><span class="st part">PARTIAL</span></td><td class="gap">JSONL activity logs (router decision/failure/exhaustion) + live token accounting + <code class="mono">/log</code> viewer + MLflow (opt-in). <span class="g">No OTEL export.</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- PRIORITY FIXES -->
+  <div class="sect">
+    <div class="stag">what to correct</div>
+    <h2>Gaps to close — prioritized by impact × effort</h2>
+    <div class="lede">Five fixes close most of the distance. The top tier is about <b>safety &amp; control</b> (the real divergence from Codex), not raw capability.</div>
+  </div>
+
+  <div class="tier">
+    <div class="tierhead"><span class="badge high">HIGH</span><span class="desc">safety &amp; control — the genuine divergence from Codex</span></div>
+    <div class="fix h"><div class="d">D6</div><div class="body"><div class="h3">Gate LLM-invoked tool calls with approval modes</div><div class="p">Route <i>every</i> agent tool call (<code>file_write</code>, <code>terminal_execute</code>, <code>sandbox_execute</code>) through a policy — add Codex-style <code>suggest / auto-edit / full-auto</code> modes reusing the existing <code>ApprovalScreen</code>. Today only user <code>!</code>-shell is gated.</div><div class="where">app.py agent tool loop (~3320–3429) · approval_screen.py</div></div></div>
+    <div class="fix h"><div class="d">D7</div><div class="body"><div class="h3">Auto-enforce the sandbox by policy, not by LLM choice</div><div class="p">The hardened <code>DockerExecutor</code> already exists — route exec/file-write tool categories through it under <code>full-auto</code> instead of relying on the model to <i>pick</i> the sandbox tool. Pairs naturally with D6.</div><div class="where">docker_executor.py · tool registry routing</div></div></div>
+    <div class="fix h"><div class="d">D8</div><div class="body"><div class="h3">True turn-cancel on Ctrl+C / Esc</div><div class="p">Wire the key handler to <code>Task.cancel()</code> the running turn + call <code>request_interrupt()</code> — today Ctrl+C only clears the input box. Complements the turn-timeout we just shipped (timeout = backstop; cancel = user control).</div><div class="where">app.py:626 Ctrl+C handler · agentic_step_processor.request_interrupt()</div></div></div>
+  </div>
+
+  <div class="tier">
+    <div class="tierhead"><span class="badge med">MED</span><span class="desc">high value, low effort</span></div>
+    <div class="fix m"><div class="d">D2</div><div class="body"><div class="h3">Auto-load project docs at session start</div><div class="p">Discover &amp; inject <code>AGENTS.md</code> / <code>CLAUDE.md</code> / <code>README</code> from the working dir into context — the single cheapest parity win with Codex.</div><div class="where">_get_or_create_agent_chain (~3320)</div></div></div>
+    <div class="fix m"><div class="d">D9</div><div class="body"><div class="h3">Dedicated diff + exec-output cells</div><div class="p">Add a <code>role-diff</code> / <code>role-exec</code> cell type with the new blend theme's framing — cheap, and a big visual payoff now that the TUI is restyled.</div><div class="where">chat_view.py MessageItem.render + app.py CSS</div></div></div>
+    <div class="fix m"><div class="d">D10·D3</div><div class="body"><div class="h3">Expose <code>/compact</code>, <code>/context</code>, and a reasoning-effort knob</div><div class="p">Auto-distillation already runs — just surface a manual <code>/compact</code> + a <code>/context</code> token breakdown, and pass <code>reasoning_effort</code> through to the model call.</div><div class="where">command_handler COMMAND_REGISTRY · model-call kwargs</div></div></div>
+    <div class="fix m"><div class="d">D5</div><div class="body"><div class="h3">Add a web fetch / search tool</div><div class="p">The one whole tool category Codex/Claude have and PromptChain lacks. Slots into the existing tool registry.</div><div class="where">promptchain/tools/</div></div></div>
+  </div>
+
+  <div class="tier">
+    <div class="tierhead"><span class="badge low">LOW</span><span class="desc">nice-to-have / longer horizon</span></div>
+    <div class="fix l"><div class="d">D4·D5</div><div class="body"><div class="h3">Restore safe parallel tool calls + structured (apply_patch-style) edits</div><div class="p">Re-enable concurrent tool execution (was disabled for a pre-0.6.1 bug) and add a structured-diff edit format alongside the line-based editor.</div></div></div>
+    <div class="fix l"><div class="d">D11·D12·D14</div><div class="body"><div class="h3">Checkpoints + <code>/undo</code>, parallel agents, OTEL export</div><div class="p">Turn-level snapshots/rollback, true parallel agent execution beyond routing, and an OpenTelemetry surface for tracing.</div></div></div>
+  </div>
+
+  <!-- AHEAD -->
+  <div class="ahead">
+    <h3>▲ Where PromptChain already beats Codex — Reliability (D13)</h3>
+    <p>PromptChain now bounds every turn with a configurable timeout (<code>PROMPTCHAIN_TURN_TIMEOUT</code>, via <code>asyncio.wait_for</code>), classified retry/backoff, router fallback, and a guaranteed <code>finally</code> cleanup so the UI can't lock up. Codex has <b>no documented per-turn timeout</b> — its turn ends on completion or signal. This is the one dimension where PromptChain is genuinely <b>more turn-resilient</b>.</p>
+  </div>
+
+  <footer>
+    method: /smart-research · 2 parallel research agents (Codex/Claude/opencode/aider loop teardown + PromptChain file:line inventory) → 14-dimension synthesis.<br>
+    sources: developers.openai.com/codex (cli · approvals · sandboxing) · codex-rs architecture (danielvaughan) · code.claude.com/docs · opencode/aider docs · local codex-rs &amp; PromptChain repos.<br>
+    generated 2026-06-27 · PromptChain @ github.com/gyasis/PromptChain (main)
+  </footer>
+
+</div>
+</body>
+</html>
