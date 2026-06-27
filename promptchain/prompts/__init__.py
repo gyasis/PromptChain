@@ -12,9 +12,11 @@ for the authoritative contract.
 from promptchain.prompts.base import BasePromptBuilder
 from promptchain.prompts.dynamic import DynamicPromptGenerator
 from promptchain.prompts.legacy_tui import LegacyTUIPromptGenerator
+from promptchain.prompts.tui_dynamic import DynamicTUIPromptGenerator
 
 __all__ = [
     "BasePromptBuilder",
     "DynamicPromptGenerator",
     "LegacyTUIPromptGenerator",
+    "DynamicTUIPromptGenerator",
 ]

@@ -318,13 +318,13 @@ def test_legacy_drift_warning_on_unexpected_tools(
     )
 
 
-def test_tui_subclass_bakes_legacy_builder() -> None:
-    """TUIAgenticStepProcessor wires up LegacyTUIPromptGenerator (T027)."""
+def test_tui_subclass_bakes_grounded_builder() -> None:
+    """TUIAgenticStepProcessor wires up the grounded DynamicTUIPromptGenerator (T027)."""
     from promptchain.cli.tui_processor import TUIAgenticStepProcessor
-    from promptchain.prompts import LegacyTUIPromptGenerator
+    from promptchain.prompts import DynamicTUIPromptGenerator
 
     proc = TUIAgenticStepProcessor(objective="x")
-    assert isinstance(proc.prompt_builder, LegacyTUIPromptGenerator)
+    assert isinstance(proc.prompt_builder, DynamicTUIPromptGenerator)
 
 
 def test_tui_subclass_rejects_prompt_builder_kwarg() -> None:

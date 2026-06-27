@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from promptchain.prompts import LegacyTUIPromptGenerator
+from promptchain.prompts import DynamicTUIPromptGenerator
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 
@@ -49,6 +49,6 @@ class TUIAgenticStepProcessor(AgenticStepProcessor):
             )
         super().__init__(  # type: ignore[misc]
             *args,
-            prompt_builder=LegacyTUIPromptGenerator(),
+            prompt_builder=DynamicTUIPromptGenerator(),
             **kwargs,
         )
