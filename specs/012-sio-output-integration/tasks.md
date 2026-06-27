@@ -45,7 +45,7 @@
 
 **Purpose**: The locked line-schema constants every test + implementation depends on.
 
-- [ ] T004 [W2] [python-pro] [promptchain/observability/transcript_emitter.py] Encode the schema contract as constants/builders: the `ExecutionEventType → line.type` map (research D3), `SCHEMA_VERSION = 1`, the common envelope builder `{type, ts (isoformat), session_id}`, and per-type field assembly per `contracts/transcript-schema.md`. (Same file as T001 → sequential.)
+- [x] T004 [W2] [python-pro] [promptchain/observability/transcript_emitter.py] Encode the schema contract as constants/builders: the `ExecutionEventType → line.type` map (research D3), `SCHEMA_VERSION = 1`, the common envelope builder `{type, ts (isoformat), session_id}`, and per-type field assembly per `contracts/transcript-schema.md`. (Same file as T001 → sequential.)
 
 **⚠️ CRITICAL**: No user-story implementation begins until T004 is complete.
 
