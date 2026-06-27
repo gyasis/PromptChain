@@ -150,17 +150,24 @@ def _store() -> FakeStore:
     )
 
 
+# The static base legitimately contains its own `<tools>` GUIDANCE section, so the
+# bare `<tools>` tag cannot discriminate native vs shim. Discriminate on the shim
+# block's own distinctive content ("cannot call tools natively") so the static base
+# stays VERBATIM (SC-003) — we never rewrite the foundation's tags.
+SHIM_MARKER = "cannot call tools natively"
+
+
 def test_generate_renders_tools_block_for_shim_model():
     gen = DynamicModelPromptGenerator(store=_store())
     out = gen.generate(OBJECTIVE, TOOLS, model="shim/model")
-    assert "<tools>" in out
-    # Parity floor intact.
+    assert SHIM_MARKER in out  # the <tools> JSON-in-text shim block is present
+    # Parity floor intact (static base verbatim).
     assert BASE_SENTENCE in out
 
 
 def test_generate_no_tools_block_for_native_model():
     gen = DynamicModelPromptGenerator(store=_store())
     out = gen.generate(OBJECTIVE, TOOLS, model="native/model")
-    assert "<tools>" not in out
-    # Parity floor intact.
+    assert SHIM_MARKER not in out  # no shim block in native mode
+    # Parity floor intact (static base verbatim).
     assert BASE_SENTENCE in out

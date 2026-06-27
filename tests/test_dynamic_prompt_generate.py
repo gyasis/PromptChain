@@ -109,6 +109,20 @@ def test_static_base_verbatim_for_both_models():
     assert BASE_SENTENCE in tiny
 
 
+def test_full_static_base_render_is_verbatim_substring():
+    # SC-003 (strong form): the ENTIRE static-base render (not just the first
+    # sentence) appears byte-identical in the F3 output — F3 must never rewrite or
+    # mutate the foundation. Strong/tiny ids resolve to the `default` family
+    # (identity framing), so the base render is a contiguous substring.
+    from promptchain.prompts import DynamicTUIPromptGenerator
+
+    base_render = DynamicTUIPromptGenerator().generate(OBJECTIVE, TOOLS)
+    gen = _gen()
+    for model in ("strong/model", "tiny/model"):
+        out = gen.generate(OBJECTIVE, TOOLS, model=model)
+        assert base_render in out, f"static base not verbatim for {model}"
+
+
 # --------------------------------------------------------------------------- #
 # SC-002 — per-model difference
 # --------------------------------------------------------------------------- #

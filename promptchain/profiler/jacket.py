@@ -67,6 +67,7 @@ class Jacket:
     role: str  # planner | executor | both
     escalate: bool = False
     system_prompt: Optional[str] = None  # optional GEPA-compiled per-model prompt (US3)
+    tool_mode: Optional[str] = None  # native | shim_prompt | shim_interpreter (F3 US2); None → native
 
     def to_dict(self) -> dict:
         return {
@@ -79,6 +80,7 @@ class Jacket:
             "role": self.role,
             "escalate": self.escalate,
             "system_prompt": self.system_prompt,
+            "tool_mode": self.tool_mode,
         }
 
     @classmethod
@@ -93,6 +95,7 @@ class Jacket:
             role=d["role"],
             escalate=d.get("escalate", False),
             system_prompt=d.get("system_prompt"),
+            tool_mode=d.get("tool_mode"),
         )
 
 

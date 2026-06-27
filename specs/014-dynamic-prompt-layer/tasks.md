@@ -93,9 +93,9 @@ plain-text history; `native`/absent → no shim block, native passthrough; the a
 
 ### Implementation (W6)
 
-- [ ] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
-- [ ] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
-- [ ] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
+- [x] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
+- [x] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
+- [x] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
 
 **Checkpoint**: US2 green — non-tool-calling models get working tool use; native unchanged; F2 intact.
 

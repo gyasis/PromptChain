@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from promptchain.prompts.budget import fit_to_budget, measure
 from promptchain.prompts.family import adapt_format, family_of
 from promptchain.prompts.tiers import modules_for_tier, select_tier
+from promptchain.prompts.toolshim import render_tools_block, resolve_tool_mode
 from promptchain.prompts.tui_dynamic import DynamicTUIPromptGenerator
 
 _TARGET_CAP = 1000
@@ -93,10 +94,23 @@ class DynamicModelPromptGenerator:
         profile = self._load_profile(resolved_model)
         tier = select_tier(profile)
 
-        base_text = self._base.generate(objective, tools, context)
+        jacket = profile.jacket if profile is not None else None
+        mode = resolve_tool_mode(jacket)
+        if mode == "native":
+            # Native tools embedded by the base (AVAILABLE TOOLS / MCP TOOLS).
+            # The static base is emitted VERBATIM (SC-003) — never mutated.
+            base_text = self._base.generate(objective, tools, context)
+        else:
+            # Shim mode: static base (VERBATIM) WITHOUT the native tool inventory,
+            # then append the <tools> JSON-in-text protocol block. The shim block
+            # is part of the never-dropped parity floor (passed to fit_to_budget as
+            # ``base``). Native vs shim is discriminated by the shim block's own
+            # content, NOT by rewriting the foundation's tags.
+            base_text = self._base.generate(objective, [], context)
+            base_text = base_text + "\n\n" + render_tools_block(tools)
+
         modules = modules_for_tier(tier)
 
-        jacket = profile.jacket if profile is not None else None
         if jacket is not None:
             effective_budget = jacket.budget_tokens
         elif profile is not None:
