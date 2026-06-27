@@ -347,13 +347,14 @@ def _launch_tui(
         # child subprocess + anyio/pipe resources that can keep the interpreter
         # alive after the Textual loop ends, so `/exit` / Ctrl+D appeared to hang
         # (the session is already saved in App.on_exit, MLflow is flushed above,
-        # and the stdio child self-terminates on stdin EOF when we go). Only force
-        # the hard exit for the interactive TUI launch (no subcommand) — other
-        # commands return normally.
-        if ctx.invoked_subcommand is None:
-            sys.stdout.flush()
-            sys.stderr.flush()
-            os._exit(0)
+        # and the stdio child self-terminates on stdin EOF when we go).
+        # _launch_tui IS the interactive TUI path, so always hard-exit. (Was
+        # `if ctx.invoked_subcommand is None:` — but `ctx` isn't in this
+        # function's scope, so this raised NameError on EVERY TUI exit and the
+        # os._exit failsafe never ran.)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
 
 from .install_skill import install_skill as _install_skill_cmd
