@@ -92,12 +92,12 @@ documented bands, escalation fires exactly when a condition holds.
 
 ### Tests (W7) — write FIRST, must FAIL
 
-- [ ] T015 [P] [W7] [python-pro] [tests/test_profiler_composite.py] FAILING tests (FR-017): `capability`=σ(θ̂); `calibration_k`=1−ECE; `cost_penalty`=F formula; `omega`=0.7·C·K−0.3·F; `derive_jacket` maps each Ω band → the documented {tier, budget, mode, spawn=1−C, compress@}; escalate=True iff `P_route≥α OR Ω<0.25 OR SE>0.4`. Also `Jacket` to_dict/from_dict round-trip.
+- [x] T015 [P] [W7] [python-pro] [tests/test_profiler_composite.py] FAILING tests (FR-017): `capability`=σ(θ̂); `calibration_k`=1−ECE; `cost_penalty`=F formula; `omega`=0.7·C·K−0.3·F; `derive_jacket` maps each Ω band → the documented {tier, budget, mode, spawn=1−C, compress@}; escalate=True iff `P_route≥α OR Ω<0.25 OR SE>0.4`. Also `Jacket` to_dict/from_dict round-trip.
 
 ### Implementation
 
-- [ ] T016 [W8] [python-pro] [promptchain/profiler/composite.py] Implement `capability`, `calibration_k`, `cost_penalty`, `omega`, `derive_jacket` (band table + escalation) per research D3 / data-model.md → T015 green.
-- [ ] T017 [W8] [python-pro] [promptchain/profiler/probe.py] Wire `derive_jacket` into `run_probe` so the persisted profile carries `omega`/`calibration_k`/`cost_penalty_f`/`jacket` (additive to the US1 record; nulls tolerated when inputs absent). (depends on T016; same file as T013 → not [P])
+- [x] T016 [W8] [python-pro] [promptchain/profiler/composite.py] Implement `capability`, `calibration_k`, `cost_penalty`, `omega`, `derive_jacket` (band table + escalation) per research D3 / data-model.md → T015 green.
+- [x] T017 [W8] [python-pro] [promptchain/profiler/probe.py] Wire `derive_jacket` into `run_probe` so the persisted profile carries `omega`/`calibration_k`/`cost_penalty_f`/`jacket` (additive to the US1 record; nulls tolerated when inputs absent). (depends on T016; same file as T013 → not [P])
 
 **Checkpoint**: US1 + US2 — profile now includes Ω + jacket.
 

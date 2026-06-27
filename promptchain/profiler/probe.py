@@ -25,7 +25,7 @@ from promptchain.observability.transcript_emitter import (
     TranscriptEmitter,
     TranscriptEmitterConfig,
 )
-from promptchain.profiler import cat, irt, scoring
+from promptchain.profiler import cat, composite, irt, scoring
 from promptchain.profiler.item_bank import (
     CAPABILITY_DIMENSIONS,
     ItemBank,
@@ -137,6 +137,29 @@ class ModelProfiler:
             capability = 0.0
 
         tier, budget = _tier_for_capability(capability)
+
+        # US2: composite Ω + jacket. With no measured ECE/cost on a local probe, K
+        # defaults to 1-ECE=1.0 (refined from telemetry in US3) and the cost penalty
+        # F=0; both fields are persisted so F3 can read them.
+        cap_thetas = [skills[d].theta for d in cap_dims] or [e.theta for e in skills.values()]
+        mean_theta = sum(cap_thetas) / len(cap_thetas) if cap_thetas else 0.0
+        worst_se = max((e.se for e in skills.values()), default=float("inf"))
+        # degradation_turn / effective_context are raw values from the non-capability
+        # scorers; not threaded through the capability CAT yet → left None (optional fields).
+        degradation_turn = None
+        effective_context = None
+        calibration_k = composite.calibration_k(0.0)
+        cost_penalty_f = 0.0
+        omega_value = composite.omega(capability, calibration_k, cost_penalty_f)
+        jacket = composite.derive_jacket(
+            omega=omega_value,
+            theta=mean_theta,
+            se=worst_se,
+            capability=capability,
+            degradation_turn=degradation_turn,
+            effective_context=effective_context,
+        )
+
         now = datetime.now(timezone.utc).isoformat()
         profile = CapabilityProfile(
             model_id=model_id,
@@ -144,6 +167,12 @@ class ModelProfiler:
             capability=capability,
             recommended_tier=tier,
             budget_tokens=budget,
+            effective_context=effective_context,
+            degradation_turn=degradation_turn,
+            omega=omega_value,
+            calibration_k=calibration_k,
+            cost_penalty_f=cost_penalty_f,
+            jacket=jacket,
             n_observations=sum(e.n_items for e in skills.values()),
             created_ts=now,
             updated_ts=now,
