@@ -29,14 +29,14 @@ class ApprovalScreen(ModalScreen[bool]):
     DEFAULT_CSS = """
     ApprovalScreen {
         align: center middle;
-        background: $background 70%;
+        background: #0b0e14;
     }
     ApprovalScreen #approval-box {
         width: 80;
         max-width: 90%;
         height: auto;
         padding: 1 2;
-        background: $surface;
+        background: #0b0e14;
         border: round $warning;
     }
     ApprovalScreen #approval-title {

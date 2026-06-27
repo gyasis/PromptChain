@@ -291,7 +291,7 @@ class MessageItem(ListItem):
             try:
                 parts.append(Padding(
                     Syntax(code, lexer, theme="ansi_dark", line_numbers=True,
-                           word_wrap=True, background_color="default"),
+                           word_wrap=True, background_color="#0b0e14"),
                     (0, 0, 0, 2)))
             except Exception:
                 parts.append(Text(code, style="dim"))

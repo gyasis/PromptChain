@@ -118,7 +118,7 @@ class PromptChainApp(App):
 
     /* Chat turns — Codex-style colored gutter bar per role */
     MessageItem {
-        padding: 0 1;
+        padding: 0 1 1 1;     /* bottom padding so content isn't flush to the edge */
         margin: 0 0 1 0;
         border-left: heavy $pc-line2;
         background: $pc-bg;   /* flat canvas — kill the default ListItem gray tint */
