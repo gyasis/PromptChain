@@ -13,7 +13,10 @@ for the authoritative contract.
 
 from promptchain.prompts.base import BasePromptBuilder
 from promptchain.prompts.dynamic import DynamicPromptGenerator
+from promptchain.prompts.family import family_of
 from promptchain.prompts.legacy_tui import LegacyTUIPromptGenerator
+from promptchain.prompts.model_dynamic import DynamicModelPromptGenerator
+from promptchain.prompts.tiers import PromptTier, select_tier
 from promptchain.prompts.tui_dynamic import (
     TUI_FOUNDATION_PROMPT,
     DynamicTUIPromptGenerator,
@@ -25,4 +28,8 @@ __all__ = [
     "LegacyTUIPromptGenerator",
     "DynamicTUIPromptGenerator",
     "TUI_FOUNDATION_PROMPT",
+    "DynamicModelPromptGenerator",
+    "PromptTier",
+    "select_tier",
+    "family_of",
 ]
