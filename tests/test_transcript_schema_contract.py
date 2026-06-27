@@ -146,3 +146,107 @@ def test_session_id_matches_chain_id(tmp_path):
     assert path.stem == "sess-1", (
         f"file stem should be 'sess-1', got {path.stem!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T011 — Derivability contract (FR-002, FR-004)
+# ---------------------------------------------------------------------------
+
+def test_sio_derivable_from_transcript(tmp_path):
+    """A generic consumer can derive all four SIO guarantees from a transcript.
+
+    Covers FR-002 (model_used, token totals, tool sequence) and FR-004
+    (error / stop_reason).  Two runs share tmp_path but use separate base_dirs.
+    """
+    # ------------------------------------------------------------------ run 1: success
+    config1 = TranscriptEmitterConfig(
+        enabled=True, base_dir=tmp_path / "run1", project="testproj"
+    )
+    emitter1 = TranscriptEmitter(config=config1)
+    _drive(emitter1, _success_events())
+    _path1, lines1 = _read_transcript(tmp_path / "run1")
+
+    # 1. model_used — ≥1 model_call line, model is a non-empty string
+    model_call_lines = [l for l in lines1 if l["type"] == "model_call"]
+    assert len(model_call_lines) >= 1, "expected ≥1 model_call line"
+    end_calls = [l for l in model_call_lines if l.get("phase") == "end"]
+    assert end_calls, "expected a model_call with phase='end'"
+    model_used = end_calls[0]["model"]
+    assert isinstance(model_used, str) and model_used, (
+        f"model_used must be a non-empty string, got {model_used!r}"
+    )
+
+    # 2. token totals — at least one path yields the integer total (3)
+    total_from_usage = sum(
+        l["usage"]["total_tokens"]
+        for l in model_call_lines
+        if isinstance(l.get("usage"), dict) and "total_tokens" in l["usage"]
+    )
+    chain_end_lines = [l for l in lines1 if l["type"] == "chain_end"]
+    total_from_chain_end = (
+        chain_end_lines[0].get("total_tokens") if chain_end_lines else None
+    )
+    assert total_from_usage == 3 or total_from_chain_end == 3, (
+        f"expected total_tokens=3 via at least one path; "
+        f"usage_sum={total_from_usage}, chain_end={total_from_chain_end}"
+    )
+
+    # 3. ordered tool sequence — pair tool_call→tool_result by call_id
+    tool_calls = [l for l in lines1 if l["type"] == "tool_call"]
+    tool_results = [l for l in lines1 if l["type"] == "tool_result"]
+    results_by_call_id = {l["call_id"]: l for l in tool_results}
+    paired = []
+    for tc in tool_calls:
+        cid = tc["call_id"]
+        assert cid in results_by_call_id, (
+            f"tool_call call_id={cid!r} has no matching tool_result (orphan)"
+        )
+        paired.append((tc["tool_name"], results_by_call_id[cid]["status"]))
+    assert paired == [("build", "ok")], (
+        f"expected tool sequence [('build', 'ok')], got {paired!r}"
+    )
+
+    # 4. stop_reason / outcome on the terminal line
+    terminal1 = lines1[-1]
+    assert "stop_reason" in terminal1, "terminal line missing stop_reason"
+    assert "outcome" in terminal1, "terminal line missing outcome"
+    assert terminal1["stop_reason"] == "completed", (
+        f"expected stop_reason='completed', got {terminal1['stop_reason']!r}"
+    )
+    assert terminal1["outcome"] == "success", (
+        f"expected outcome='success', got {terminal1['outcome']!r}"
+    )
+
+    # ------------------------------------------------------------------ run 2: error path
+    config2 = TranscriptEmitterConfig(
+        enabled=True, base_dir=tmp_path / "run2", project="testproj"
+    )
+    emitter2 = TranscriptEmitter(config=config2)
+    error_events = [
+        _ev(ExecutionEventType.CHAIN_START, chain_id="sess-d2", project="testproj"),
+        _ev(
+            ExecutionEventType.TOOL_CALL_ERROR,
+            call_id="tool-e1",
+            tool_name="build",
+            error="build failed",
+        ),
+        _ev(ExecutionEventType.CHAIN_ERROR, stop_reason="error", error="chain failed"),
+    ]
+    _drive(emitter2, error_events)
+    _path2, lines2 = _read_transcript(tmp_path / "run2")
+
+    terminal2 = lines2[-1]
+    assert terminal2["stop_reason"] in {"error", "limit"}, (
+        f"expected stop_reason in {{'error','limit'}}, got {terminal2['stop_reason']!r}"
+    )
+    assert terminal2["outcome"] == "error", (
+        f"expected outcome='error', got {terminal2['outcome']!r}"
+    )
+
+    # status=="error" derivable from a tool_result line (from TOOL_CALL_ERROR)
+    error_results = [
+        l for l in lines2 if l["type"] == "tool_result" and l.get("status") == "error"
+    ]
+    assert len(error_results) >= 1, (
+        "expected ≥1 tool_result with status='error' when TOOL_CALL_ERROR is present"
+    )

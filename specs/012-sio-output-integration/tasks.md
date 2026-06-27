@@ -81,11 +81,11 @@
 
 ### Tests for US2 (write FIRST — MUST FAIL) — Wave 5
 
-- [ ] T011 [P] [W5] [US2] [tests/test_transcript_schema_contract.py] Contract test (SIO-derivable guarantees): from a transcript, derive `model_used` (from `model_call.model`), token totals (`usage`/`chain_end.total_tokens`), the ordered `tool_call`→`tool_result` sequence (paired by `call_id`), and error/stop_reason. MUST FAIL. (Sequential after T005 — same file.)
+- [x] T011 [P] [W5] [US2] [tests/test_transcript_schema_contract.py] Contract test (SIO-derivable guarantees): from a transcript, derive `model_used` (from `model_call.model`), token totals (`usage`/`chain_end.total_tokens`), the ordered `tool_call`→`tool_result` sequence (paired by `call_id`), and error/stop_reason. MUST FAIL. (Sequential after T005 — same file.)
 
 ### Implementation for US2 — Wave 5
 
-- [ ] T012 [W5] [US2] [python-pro] [promptchain/observability/transcript_emitter.py] Ensure `model_call` lines carry non-empty `model` + `usage`, and `tool_call`/`tool_result` carry matching `call_id` so the tool sequence is recoverable; `chain_end` carries `total_tokens` + `stop_reason` (FR-002/FR-004 derivability). (Sequential on transcript_emitter.py.)
+- [x] T012 [W5] [US2] [python-pro] [promptchain/observability/transcript_emitter.py] Ensure `model_call` lines carry non-empty `model` + `usage`, and `tool_call`/`tool_result` carry matching `call_id` so the tool sequence is recoverable; `chain_end` carries `total_tokens` + `stop_reason` (FR-002/FR-004 derivability). (Sequential on transcript_emitter.py.)
 
 **Checkpoint**: US1 + US2 green — transcripts are mineable; SIO adapter (separate repo) can consume them.
 
