@@ -1,15 +1,14 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:35:12
+**Last Updated**: 2026-06-27 15:39:31
 
 ## Current Focus
-feat(F3): Wave 8 (T017-T018) — longevity Document-&-Clear (US3 GREEN)
+test(F3): Wave 9 (T019) — A/B eval harness failing test (RED)
 
-build_turn_context (<turn-context> + goal re-injection); DocumentAndClear:
-should_compress (>=compress_at), is_stalled, should_escalate (respects
-jacket.escalate), document_and_clear (writes PROGRESS.md, returns reset
-goal-seeded history; lossy fallback on OSError, never raises); min_turns=10.
-Longevity 13 passed; full F3 suite 73.
+EVAL_TASKS (5 programmatically-scored tasks), run_ab(model_runner) → EvalReport
+with per_arm_completion_rate + delta; deterministic directional-win assertion with
+a fake model (discriminates f3 vs static_base via the family FORMAT: preamble).
+RED: eval_ab module absent.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
