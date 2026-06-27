@@ -105,6 +105,8 @@ class DockerExecutor:
         if self.auto_remove:
             argv.append("--rm")
         argv += ["-v", f"{self.work_dir}:/work", "-w", "/work"]
+        # avoid stale .pyc reuse across iterations on the mounted work_dir (benign for non-Python)
+        argv += ["-e", "PYTHONDONTWRITEBYTECODE=1"]
         if self.network is not None:
             argv += ["--network", self.network]
         if self.memory:
@@ -129,6 +131,20 @@ class DockerExecutor:
         except subprocess.TimeoutExpired as e:
             partial = (e.stdout or "") + (e.stderr or "") if (e.stdout or e.stderr) else ""
             return ExecResult(124, partial + f"\n[timeout after {self.timeout}s]", timed_out=True)
+
+    def write_file(self, relpath: str, content: str) -> str:
+        """Write ``content`` to ``relpath`` inside the work_dir (creating parent dirs).
+
+        Lets a caller stage a target file / tests / fixtures before ``run``. Returns
+        the absolute path written. ``relpath`` is confined to the work_dir.
+        """
+        dest = os.path.abspath(os.path.join(self.work_dir, relpath))
+        if not dest.startswith(self.work_dir + os.sep) and dest != self.work_dir:
+            raise ValueError(f"relpath escapes work_dir: {relpath!r}")
+        os.makedirs(os.path.dirname(dest) or self.work_dir, exist_ok=True)
+        with open(dest, "w") as f:
+            f.write(content)
+        return dest
 
     def run_code_blocks(self, blocks) -> ExecResult:
         """Write code blocks to the work_dir and run them in order, stopping at the first

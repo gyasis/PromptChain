@@ -62,8 +62,18 @@ except ImportError:
     record_task_experience_tool = None
     share_capabilities_tool = None
 
+# Import loop / build tools (iterate-until-tests-pass engines as agent tools)
+try:
+    from .loop_tools import build_until_tests_pass, multi_agent_build
+except ImportError:
+    build_until_tests_pass = None
+    multi_agent_build = None
+
 __all__ = [
     "registration",
+    # Loop / build tools
+    "build_until_tests_pass",
+    "multi_agent_build",
     # Delegation tools
     "delegate_task",
     "get_pending_tasks",

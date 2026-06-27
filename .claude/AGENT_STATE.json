@@ -1,0 +1,20 @@
+{
+  "session_id": "3e2a3bc4-e60c-421e-b57d-11b67890e453",
+  "user_id": "gyasis",
+  "project_path": "/home/gyasis/Documents/PromptChain.wt-epic-adaptive-prompting",
+  "status": "active",
+  "agents": {
+    "main": {
+      "status": "idle"
+    },
+    "memory-keeper": {
+      "status": "idle"
+    },
+    "git-manager": {
+      "status": "idle"
+    }
+  },
+  "initialized_at": "2026-06-27T11:31:38-04:00",
+  "last_session_start": "2026-06-27T14:31:03.900097",
+  "last_session_end": "2026-06-27T14:31:03.062093"
+}

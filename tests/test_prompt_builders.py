@@ -318,13 +318,48 @@ def test_legacy_drift_warning_on_unexpected_tools(
     )
 
 
-def test_tui_subclass_bakes_legacy_builder() -> None:
-    """TUIAgenticStepProcessor wires up LegacyTUIPromptGenerator (T027)."""
+def test_tui_subclass_bakes_dynamic_tui_builder() -> None:
+    """TUIAgenticStepProcessor wires up DynamicTUIPromptGenerator — a static
+    curated foundation + a live, registry-accurate tool inventory (replaces the
+    legacy frozen prompt whose tool list drifted from the registry)."""
     from promptchain.cli.tui_processor import TUIAgenticStepProcessor
-    from promptchain.prompts import LegacyTUIPromptGenerator
+    from promptchain.prompts import DynamicTUIPromptGenerator
 
     proc = TUIAgenticStepProcessor(objective="x")
-    assert isinstance(proc.prompt_builder, LegacyTUIPromptGenerator)
+    assert isinstance(proc.prompt_builder, DynamicTUIPromptGenerator)
+
+
+def test_dynamic_tui_prompt_static_foundation_plus_live_tools() -> None:
+    """Static foundation is preserved; AVAILABLE TOOLS is rendered from the
+    supplied (real) schemas; the MCP section is omitted when no mcp_* tools are
+    loaded and shown (with a web-search steer) when they are."""
+    from promptchain.prompts import DynamicTUIPromptGenerator
+
+    gen = DynamicTUIPromptGenerator()
+    tools = [
+        {"function": {"name": "file_write", "description": "Write a file"}},
+        {"function": {"name": "terminal_execute", "description": "Run a shell command"}},
+        {"function": {"name": "task_list_write_tool", "description": "Create/update the task plan"}},
+    ]
+    p = gen.generate("Do the thing", tools=tools)
+    # grounded foundation: ReAct work-loop + plan-first + show-results discipline
+    assert "<work_loop>" in p and "task_list_write_tool FIRST" in p
+    assert "final answer MUST contain the actual results" in p
+    assert "<objective>" in p and "Do the thing" in p
+    assert "AVAILABLE TOOLS" in p
+    for name in ("file_write", "terminal_execute", "task_list_write_tool"):
+        assert name in p
+    assert "MCP TOOLS" not in p  # never promise an absent tool
+
+    p2 = gen.generate("X", tools=tools + [
+        {"function": {"name": "mcp_gemini_gemini_research", "description": "Web search"}}])
+    assert "MCP TOOLS" in p2 and "mcp_gemini_gemini_research" in p2 and "WEB SEARCH" in p2
+
+
+def test_dynamic_tui_prompt_token_estimate_nonneg() -> None:
+    from promptchain.prompts import DynamicTUIPromptGenerator
+
+    assert DynamicTUIPromptGenerator().get_token_estimate("obj", tools=[]) >= 0
 
 
 def test_tui_subclass_rejects_prompt_builder_kwarg() -> None:
