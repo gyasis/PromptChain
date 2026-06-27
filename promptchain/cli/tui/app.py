@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import threading
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -1672,6 +1673,9 @@ class PromptChainApp(App):
                     "file_path": file_path,
                     "result_raw": None,
                     "running": True,  # spinner until the result arrives
+                    "t0": time.monotonic(),  # for per-call timing (142ms · ok)
+                    "time_ms": None,
+                    "status": None,
                 },
             )
             self._tool_block_msg = msg
@@ -1717,6 +1721,18 @@ class PromptChainApp(App):
             msg.metadata["result_raw"] = str(detail)
             msg.metadata["collapsed"] = False
             msg.metadata["running"] = False  # result arrived → ⚙ (spinner stops)
+            # Per-call metadata (mockup: "142ms · ok"). Timing is the TUI-side
+            # call→result span; status from error markers in the result.
+            t0 = msg.metadata.get("t0")
+            if t0 is not None:
+                msg.metadata["time_ms"] = int((time.monotonic() - t0) * 1000)
+            low = str(detail).lower()
+            msg.metadata["status"] = (
+                "error" if low.startswith("error")
+                or "[completed with errors]" in low
+                or "❌" in str(detail) or "exception" in low[:40]
+                else "ok"
+            )
             chat_view.refresh_block(msg)
             # No dwell-collapse for tool blocks — code/diff stays visible.
 

@@ -261,12 +261,23 @@ class MessageItem(ListItem):
         # glyph. Signals "still working", not frozen/paused.
         spin = meta.get("spinner") if meta.get("running") else None
         if kind == "reasoning":
+            parts.append(Text.from_markup("[dim]INTERNAL REASONING[/]"))  # section label
             glyph = spin or "★"
             parts.append(Text.from_markup(f"[dim italic]{glyph} reasoning[/]"))
         elif kind == "tool":
+            parts.append(Text.from_markup("[dim]FUNCTION · TOOL CALL[/]"))  # section label
             name = meta.get("tool_name", "tool")
             glyph = spin or "⚙"
-            parts.append(Text.from_markup(f"[bold #e5c07b]{glyph} {name}[/]"))
+            # Per-call metadata (mockup: "142ms · ok"): timing + colored status.
+            meta_md = ""
+            tms = meta.get("time_ms")
+            if tms is not None:
+                meta_md += f"[dim]  {tms}ms[/]"
+            status = meta.get("status")
+            if status:
+                col = "#7ee787" if status == "ok" else "#f47067"
+                meta_md += f"[dim] · [/][{col}]{status}[/]"
+            parts.append(Text.from_markup(f"[bold #e5c07b]{glyph} {name}[/]{meta_md}"))
         else:
             header = meta.get("expanded_header")
             if header:
