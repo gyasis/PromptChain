@@ -1,5 +1,6 @@
 """Main Textual application for PromptChain CLI."""
 
+import asyncio
 import json
 import logging
 import os
@@ -60,7 +61,9 @@ class PromptChainApp(App):
     /* PromptChain TUI — Codex framing x opencode accent (feat/tui-codex-blend-theme).
        Restyle only: structure/heights/docks preserved, palette + role framing added. */
     $pc-bg: #0b0e14;        /* terminal canvas */
-    $pc-bg2: #0f131c;       /* panel / card tint */
+    $pc-bg2: #0b0e14;       /* was a lighter panel tint; collapsed to the canvas color
+                               so nothing gets a background highlight — dark everywhere,
+                               only TEXT + the thin role gutter bars carry color. */
     $pc-ink: #c6ccd6;       /* default text */
     $pc-dim: #6b7480;       /* dim / detail */
     $pc-line: #1d2430;      /* hairline */
@@ -126,15 +129,17 @@ class PromptChainApp(App):
     MessageItem.role-system    { border-left: blank; color: $pc-dim; text-style: italic; }
     MessageItem.-highlight     { background: $pc-bg2; }
 
-    /* Composer — bordered input, accent on focus */
+    /* Composer — no box, just a single top rule (accent on focus) */
     InputWidget {
-        height: 3;
-        border: round $pc-line2;
-        background: $pc-bg2;
+        height: 2;
+        border: none;
+        border-top: solid $pc-line2;
+        background: $pc-bg;
         padding: 0 1;
     }
     InputWidget:focus {
-        border: round $pc-accent;
+        border: none;
+        border-top: solid $pc-accent;
     }
 
     /* Live streaming answer area (2d) - shown only while streaming */
@@ -3619,12 +3624,31 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 # Execute via AgentChain (works for both single-agent and router modes)
                 # T044: Router failure handling with fallback to default agent
                 # REACT Loop (v0.4.3): Pass queue/callback for mid-execution interaction
+                # Bound the turn so a hung tool/MCP connection (e.g. an MCP
+                # server that errors out — "no fastmcp.json found" — and never
+                # completes its handshake) can't freeze the UI forever.
+                # Overridable via PROMPTCHAIN_TURN_TIMEOUT (seconds).
+                turn_timeout = float(os.environ.get("PROMPTCHAIN_TURN_TIMEOUT", "300"))
+
                 async def _generate_response():
-                    return await agent_chain.run_chat_turn_async(
-                        content_with_files,
-                        user_input_queue=self.user_input_queue,
-                        streaming_callback=self._streaming_callback,
-                    )
+                    try:
+                        return await asyncio.wait_for(
+                            agent_chain.run_chat_turn_async(
+                                content_with_files,
+                                user_input_queue=self.user_input_queue,
+                                streaming_callback=self._streaming_callback,
+                            ),
+                            timeout=turn_timeout,
+                        )
+                    except asyncio.TimeoutError as exc:
+                        # Surface as a non-router error so it routes to the
+                        # graceful handler (clears "Processing…", shows a message)
+                        # rather than the router-fallback path, which would just
+                        # hang again on the same connection.
+                        raise RuntimeError(
+                            f"Turn aborted: no response within {turn_timeout:.0f}s — "
+                            f"a tool or MCP server may be hanging (check its config)."
+                        ) from exc
 
                 try:
                     response_content = await self.error_handler.handle_with_retry(
@@ -3656,8 +3680,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
                     # Execute with fallback agent directly
                     fallback_chain = self.session.agents[default_agent_name]
-                    response_content = await fallback_chain.process_prompt_async(
-                        content_with_files
+                    response_content = await asyncio.wait_for(
+                        fallback_chain.process_prompt_async(content_with_files),
+                        timeout=turn_timeout,
                     )
 
                     # Log router failure to JSONL (T044)
@@ -3939,6 +3964,15 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 )
 
             finally:
+                # Always clear the "Processing…" indicator — even if the turn
+                # raised or timed out before the normal removal — so a failed
+                # turn can never strand it and leave the UI looking frozen.
+                # remove_message() is by-identity and idempotent (no-op if the
+                # happy path already removed it).
+                try:
+                    chat_view.remove_message(processing_msg)
+                except Exception:
+                    pass
                 # REACT Loop: Reset processing flag
                 self.is_processing = False
                 # Clear any remaining items in the queue
