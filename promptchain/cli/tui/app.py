@@ -1375,6 +1375,9 @@ class PromptChainApp(App):
             max_steps: Maximum number of steps
             status: Current status message
         """
+        # Surface the agentic loop progress in the dock (the "8/10 loops").
+        self._update_dock_loop(current_step, max_steps, status)
+
         if not self.reasoning_progress:
             return
 
@@ -1654,6 +1657,30 @@ class PromptChainApp(App):
                     tl.show_recap(
                         f"RECAP · {turns} turn{'' if turns == 1 else 's'}", lines
                     )
+        except Exception:
+            pass
+
+    def _update_dock_loop(self, current: int, max_steps: int, status: str) -> None:
+        """Surface the agentic loop progress (the '8/10 loops') in the dock."""
+        def _do() -> None:
+            try:
+                if not self.task_list_widget or status == "Complete":
+                    return
+                self.task_list_widget.set_loop(current, max_steps)
+            except Exception:
+                pass
+        self._safe_call_ui(_do)
+
+    def _orchestration_callback(self, event_type: str, data: dict) -> None:
+        """Surface SUB-AGENTS in the dock when a multi-agent plan runs (the
+        AgentChain emits plan_agent_start / plan_agent_complete)."""
+        try:
+            d = data or {}
+            name = d.get("agent_name") or d.get("agent") or d.get("name") or "agent"
+            if event_type == "plan_agent_start":
+                self._add_task_internal_step("tool_call", f"sub-agent {name} ▸ running")
+            elif event_type == "plan_agent_complete":
+                self._add_task_internal_step("tool_result", f"sub-agent {name} ✓ done")
         except Exception:
             pass
 
@@ -4019,6 +4046,13 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 verbose=False,
                 activity_logger=self.session.activity_logger,  # ✓ FIX: Enable activity logging
             )
+
+        # Surface sub-agents in the dock when a multi-agent plan runs.
+        try:
+            self.agent_chain.register_orchestration_callback(
+                self._orchestration_callback)
+        except Exception:
+            pass
 
         return self.agent_chain
 

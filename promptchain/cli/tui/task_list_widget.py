@@ -162,6 +162,8 @@ class TaskListWidget(Container):
         self._current_task_id: Optional[str] = None
         # Refresh timer to update task counts in real-time
         self._refresh_timer: Optional[Any] = None
+        # Live agentic LOOP progress (current_step, max_steps) — the "8/10 loops"
+        self._loop: Optional[tuple] = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -451,7 +453,14 @@ class TaskListWidget(Container):
         """
         progress_bar = self.query_one("#task-progress-bar", Static)
 
-        if self._task_manager and self._task_manager.current_list:
+        # Live agentic loop progress wins (the "8/10 loops").
+        if self._loop and self._loop[0] is not None:
+            cur, mx = self._loop
+            filled = int((cur / mx) * 10) if mx else 0
+            bar = "[" + "#" * filled + "." * (10 - filled) + "]"
+            progress_bar.update(
+                f"  [#c792ea]⟳ loop {cur}/{mx}[/]  [dim]{bar}[/]")
+        elif self._task_manager and self._task_manager.current_list:
             # Use task manager progress
             task_list = self._task_manager.current_list
             progress_pct = task_list.progress_percentage
@@ -523,6 +532,18 @@ class TaskListWidget(Container):
         self.query_one("#task-progress-bar", Static).update("")
         self.show_task_list()
 
+    def set_loop(self, current: int, max_steps: int) -> None:
+        """Surface the agentic loop progress (the '8/10 loops') in the dock."""
+        self._loop = (current, max_steps)
+        try:
+            filled = int((current / max_steps) * 10) if max_steps else 0
+            bar = "[" + "#" * filled + "." * (10 - filled) + "]"
+            self.query_one("#task-progress-bar", Static).update(
+                f"  [#c792ea]⟳ loop {current}/{max_steps}[/]  [dim]{bar}[/]")
+            self.show_task_list()
+        except Exception:
+            pass
+
     def mark_processing_complete(self) -> None:
         """Mark the default processing task as completed.
 
@@ -538,6 +559,8 @@ class TaskListWidget(Container):
     def finalize_turn(self) -> None:
         """A turn's final answer was delivered — clear + HIDE the panel, UNLESS
         there is genuinely ACTIVE work to keep surfacing.
+
+        (Note: the live loop indicator is reset here — the turn's loop is over.)
 
         'Active' = a task actually ``in_progress`` (or, later, a live loop/
         sub-agent). A one-shot query that spawned pending-but-untouched todos is
@@ -555,6 +578,7 @@ class TaskListWidget(Container):
             tid != "agent_processing" and t.status == "in_progress"
             for tid, t in self._expandable_tasks.items()
         )
+        self._loop = None  # the turn's loop is over
 
         if active:
             # Genuine ongoing work — keep the task list; drop the step-tracker.
@@ -579,6 +603,7 @@ class TaskListWidget(Container):
         progress_bar.update("")
 
         # Clear internal state
+        self._loop = None
         self._expandable_tasks.clear()
         self._current_task_id = None
 
