@@ -508,6 +508,21 @@ class TaskListWidget(Container):
         """Hide the task list widget."""
         self.remove_class("visible")
 
+    def show_recap(self, header: str, lines: List[str]) -> None:
+        """Resting state: a compact session RECAP (shown when there are no active
+        tasks) — a running summary of what's been done this session."""
+        self._expandable_tasks.clear()
+        self._current_task_id = None
+        self.query_one("#task-header", Static).update(f"[bold #c792ea]{header}[/]")
+        container = self.query_one("#task-list-container", ScrollableContainer)
+        container.remove_children()
+        for ln in lines:
+            s = Static(f"  {ln}")
+            s.add_class("task-line")
+            container.mount(s)
+        self.query_one("#task-progress-bar", Static).update("")
+        self.show_task_list()
+
     def mark_processing_complete(self) -> None:
         """Mark the default processing task as completed.
 

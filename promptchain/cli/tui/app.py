@@ -366,6 +366,13 @@ class PromptChainApp(App):
         self._spinner_frames = "◐◓◑◒"
         self._spinner_idx = 0
         self._spinner_timer: Optional[Any] = None
+        # Dock RECAP (V1 — structured): a compact running summary of the session
+        # shown as the dock's resting state when idle. (V2 will compress this
+        # narrative via LLMLingua to seed compaction.)
+        self._recap_turns = 0
+        self._recap_tools = 0
+        self._recap_files: List[str] = []  # ordered, deduped, recent-last
+        self._recap_tasks_done = 0
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1538,6 +1545,7 @@ class PromptChainApp(App):
         self._reasoning_block_msg = None
         self._tool_block_msg = None
         self._subtasks_block_msg = None
+        self._recap_turns += 1  # session recap: count turns
         self._start_spinner()
 
     def _update_subtasks_block(self) -> None:
@@ -1589,8 +1597,55 @@ class PromptChainApp(App):
                 msg.metadata["tasks"] = tasks
                 msg.metadata["summary"] = summary
             chat_view.refresh_block(msg)
+            self._recap_tasks_done = sum(
+                1 for t in tasks if t["status"] == "completed"
+            )
 
         self._safe_call_ui(_do)
+
+    # ---- Dock RECAP (V1 — structured resting state) ----------------------
+    def _recap_track_tool(self, name: str, file_path: Optional[str]) -> None:
+        """Accumulate session recap stats from a tool call."""
+        self._recap_tools += 1
+        if file_path:
+            if file_path in self._recap_files:
+                self._recap_files.remove(file_path)
+            self._recap_files.append(file_path)  # recent-last
+
+    def _recap_lines(self) -> List[str]:
+        """Compact structured recap for the dock's idle resting state."""
+        if not (self._recap_tools or self._recap_files):
+            return []
+        lines: List[str] = []
+        if self._recap_files:
+            recent = self._recap_files[-4:]
+            more = len(self._recap_files) - len(recent)
+            shown = ", ".join(p.split("/")[-1] for p in recent)
+            if more > 0:
+                shown += f" +{more}"
+            lines.append(f"[#c6ccd6]Files[/]  [dim]{shown}[/]")
+        bits = []
+        if self._recap_tasks_done:
+            bits.append(f"{self._recap_tasks_done} tasks done")
+        bits.append(f"{self._recap_tools} tool calls")
+        lines.append(f"[dim]{' · '.join(bits)}[/]")
+        return lines
+
+    def _finalize_dock(self) -> None:
+        """End-of-turn dock: keep active tasks, else show the recap resting state
+        (or hide if the session has no recap yet)."""
+        try:
+            tl = self.query_one("#task-list-widget", TaskListWidget)
+            tl.finalize_turn()
+            if not tl.has_class("visible"):
+                lines = self._recap_lines()
+                if lines:
+                    turns = self._recap_turns
+                    tl.show_recap(
+                        f"RECAP · {turns} turn{'' if turns == 1 else 's'}", lines
+                    )
+        except Exception:
+            pass
 
     def _start_spinner(self) -> None:
         """Begin ticking the in-progress-block spinner (idempotent)."""
@@ -1722,6 +1777,7 @@ class PromptChainApp(App):
                 r'["\']?path["\']?\s*[:=]\s*["\']?([^"\',}\s]+)', str(detail)
             )
             file_path = _m.group(1) if _m else None
+            self._recap_track_tool(name, file_path)  # session recap stats
             msg = Message(
                 role="system",
                 content=self._tool_summary(name),
@@ -4404,23 +4460,15 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     if self.log_viewer_visible:
                         self.log_viewer.load_activities()
 
-                # Turn done — clear + hide the Agent Activity panel (keep it only
-                # if real TodoWrite tasks are still unfinished).
-                try:
-                    task_list = self.query_one("#task-list-widget", TaskListWidget)
-                    task_list.finalize_turn()
-                except Exception:
-                    pass  # Widget may not be ready
+                # Turn done — keep active tasks, else show the RECAP resting
+                # state (or hide if no session activity yet).
+                self._finalize_dock()
 
         except Exception as e:
             # REACT Loop: Reset processing flag on error
             self.is_processing = False
-            # Clear/collapse the Agent Activity panel even on error.
-            try:
-                task_list = self.query_one("#task-list-widget", TaskListWidget)
-                task_list.finalize_turn()
-            except Exception:
-                pass
+            # Same dock finalize on error.
+            self._finalize_dock()
             # Clear queue
             while not self.user_input_queue.empty():
                 try:
