@@ -158,11 +158,15 @@ SHIM_MARKER = "cannot call tools natively"
 
 
 def test_generate_renders_tools_block_for_shim_model():
+    # NB: this shim profile is capability 0.20 → TINY tier, which SWAPS to the
+    # simpler base (no foundation BASE_SENTENCE). The shim block must still render
+    # so a non-tool-calling model gets the JSON-in-text protocol.
+    from promptchain.prompts.tiers import TINY_DIRECTIVE
+
     gen = DynamicModelPromptGenerator(store=_store())
     out = gen.generate(OBJECTIVE, TOOLS, model="shim/model")
     assert SHIM_MARKER in out  # the <tools> JSON-in-text shim block is present
-    # Parity floor intact (static base verbatim).
-    assert BASE_SENTENCE in out
+    assert TINY_DIRECTIVE in out  # TINY simpler base (foundation swapped out)
 
 
 def test_generate_no_tools_block_for_native_model():

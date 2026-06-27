@@ -71,6 +71,36 @@ _MODULES: List[OptionalModule] = [
 ]
 
 
+# --------------------------------------------------------------------------- #
+# TINY tier = a SIMPLER REPLACEMENT base (Goose `tiny_model_system` precedent;
+# the brief: "the tiny variant may even swap the loop protocol").
+#
+# Origin 2026-06-27: a weak model (llama3.2:1b) served the full ~748-token
+# foundation scores ~60% on trivial tasks but ANY *addition* to that base makes it
+# WORSE (a family preamble → −60%, a focusing directive in the floor → −40%): the
+# full foundation is already at the 1B model's ceiling, so additive-only F3 cannot
+# help it. The only way to help a weak model is a *shorter, simpler* prompt. So
+# the TINY tier SWAPS the full foundation for this short base. Consequently the
+# verbatim-static-base invariant (SC-003) holds for CORE/EXTENDED only — TINY is
+# the sanctioned exception (decided with the user 2026-06-27).
+#
+# TINY_DIRECTIVE is the focusing tail (also the stable marker the A/B eval uses to
+# tell the f3 arm from the static-base arm). It must NOT appear in the full
+# foundation. It avoids prescribing an OUTPUT FORMAT (that is what harmed the
+# model) — it steers toward ANSWERING, not reformatting.
+# --------------------------------------------------------------------------- #
+TINY_DIRECTIVE = (
+    "Answer directly and minimally: for a coding task, give the minimal code AND "
+    "its final printed result/value. Do not restate the task, do not explain your "
+    "steps, do not add section headers — just produce the answer."
+)
+
+TINY_BASE_PROMPT = (
+    "You are a focused coding assistant. Do exactly ONE task and stop.\n\n"
+    "TASK:\n{objective}\n\n" + TINY_DIRECTIVE
+)
+
+
 def select_tier(profile: "Optional[CapabilityProfile]") -> PromptTier:
     """Map a capability profile to a prompt tier (D2).
 

@@ -101,26 +101,26 @@ def _gen() -> DynamicModelPromptGenerator:
 # --------------------------------------------------------------------------- #
 # SC-003 — static base verbatim for BOTH models
 # --------------------------------------------------------------------------- #
-def test_static_base_verbatim_for_both_models():
+def test_static_base_verbatim_for_core_extended_only():
+    # SC-003 holds for CORE/EXTENDED: the full foundation appears verbatim. TINY is
+    # the sanctioned exception (decided 2026-06-27) — it SWAPS to a simpler base, so
+    # the foundation's BASE_SENTENCE is intentionally absent for a TINY model.
     gen = _gen()
-    strong = gen.generate(OBJECTIVE, TOOLS, model="strong/model")
-    tiny = gen.generate(OBJECTIVE, TOOLS, model="tiny/model")
+    strong = gen.generate(OBJECTIVE, TOOLS, model="strong/model")  # EXTENDED
+    tiny = gen.generate(OBJECTIVE, TOOLS, model="tiny/model")      # TINY
     assert BASE_SENTENCE in strong
-    assert BASE_SENTENCE in tiny
+    assert BASE_SENTENCE not in tiny, "TINY must swap to the simpler base, not the full foundation"
 
 
-def test_full_static_base_render_is_verbatim_substring():
-    # SC-003 (strong form): the ENTIRE static-base render (not just the first
-    # sentence) appears byte-identical in the F3 output — F3 must never rewrite or
-    # mutate the foundation. Strong/tiny ids resolve to the `default` family
-    # (identity framing), so the base render is a contiguous substring.
+def test_full_static_base_render_is_verbatim_substring_for_extended():
+    # SC-003 (strong form) for CORE/EXTENDED: the ENTIRE foundation render appears
+    # byte-identical in the F3 output — F3 must never rewrite/mutate the foundation
+    # for these tiers. (TINY swaps the base entirely, so this does not apply there.)
     from promptchain.prompts import DynamicTUIPromptGenerator
 
     base_render = DynamicTUIPromptGenerator().generate(OBJECTIVE, TOOLS)
-    gen = _gen()
-    for model in ("strong/model", "tiny/model"):
-        out = gen.generate(OBJECTIVE, TOOLS, model=model)
-        assert base_render in out, f"static base not verbatim for {model}"
+    out = _gen().generate(OBJECTIVE, TOOLS, model="strong/model")
+    assert base_render in out, "foundation not verbatim for EXTENDED model"
 
 
 # --------------------------------------------------------------------------- #
@@ -174,6 +174,29 @@ def test_no_profile_generates_without_raising_default_core():
     gen = _gen()  # store returns None for unknown id
     out = gen.generate(OBJECTIVE, TOOLS, model="unknown/model-xyz")
     assert BASE_SENTENCE in out
+
+
+# --------------------------------------------------------------------------- #
+# TINY tier — focusing directive in the never-dropped floor (SC-007 aid)
+# --------------------------------------------------------------------------- #
+def test_tiny_tier_uses_simpler_shorter_base():
+    # TINY swaps to a short replacement base (Goose tiny_model_system). It must:
+    # (a) carry the TINY focusing directive, (b) NOT carry the full foundation, and
+    # (c) be MUCH shorter than the full foundation — the whole point (a weak model
+    # is derailed by the big base; additive-only F3 measurably HURT it).
+    from promptchain.prompts.tiers import TINY_DIRECTIVE
+    from promptchain.prompts import DynamicTUIPromptGenerator
+    from promptchain.prompts.budget import measure
+
+    gen = _gen()
+    tiny = gen.generate(OBJECTIVE, TOOLS, model="tiny/model")
+    full_base = DynamicTUIPromptGenerator().generate(OBJECTIVE, TOOLS)
+    assert TINY_DIRECTIVE in tiny
+    assert BASE_SENTENCE not in tiny
+    assert measure(tiny) < measure(full_base), "TINY base must be shorter than the full foundation"
+    # The directive is TINY-only — a strong (EXTENDED) model keeps the full base.
+    strong = gen.generate(OBJECTIVE, TOOLS, model="strong/model")
+    assert TINY_DIRECTIVE not in strong
 
 
 # --------------------------------------------------------------------------- #

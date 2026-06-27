@@ -14,23 +14,6 @@ from typing import List
 
 _KNOWN = {"anthropic", "openai", "google", "qwen", "llama", "default"}
 
-# Per-family FORMAT preamble (format guidance only — no task content). Distinct
-# per family so two same-tier models of different families get measurably
-# different prompts (SC-002), while every base/optional part stays verbatim.
-_FAMILY_PREAMBLE = {
-    "anthropic": "FORMAT: structure your reasoning and outputs with XML-style tags "
-                 "(e.g. <plan>…</plan>); keep tool calls native.",
-    "openai": "FORMAT: structure sections with Markdown headers; emit concise, "
-              "single-purpose tool calls.",
-    "google": "FORMAT: use clear Markdown sections and explicit step labels; "
-              "prefer compact, well-delimited blocks.",
-    "qwen": "FORMAT: use plain headed sections; keep instructions terse and "
-            "imperative; one action per step.",
-    "llama": "FORMAT: use plain ALL-CAPS section labels and short imperative "
-             "lines; avoid nested structure.",
-}
-
-
 def family_of(model_id: str) -> str:
     """Map a model id to its family stem.
 
@@ -62,12 +45,16 @@ def family_of(model_id: str) -> str:
 def adapt_format(parts: List[str], family: str) -> List[str]:
     """Format-only normalization of prompt ``parts`` for a model family (D3).
 
-    Known families get a concise family-specific FORMAT preamble prepended (a
-    per-family *variant*); ``default`` and any unknown family are the identity
-    transform. Returns a new list. Every original part's text is preserved
-    verbatim — the preamble is additive framing, never a rewrite of content.
+    Returns a new list, identity for ALL families. The seam exists (``family_of``
+    is wired) but adapt_format injects NO content — in particular NO prescriptive
+    output-format directive.
+
+    Why identity (origin 2026-06-27): an earlier version prepended a per-family
+    ``FORMAT: …`` preamble. The offline live smoke showed it MEASURABLY HARMED a
+    weak model (llama3.2:1b regurgitated the prompt structure in ALL-CAPS instead
+    of solving the task → 0% vs 60% for the bare base). A family adapter must
+    normalize how the prompt is FRAMED, never dictate the model's OUTPUT format —
+    so until a genuinely helpful (non-prescriptive) per-family framing is designed
+    and validated against weak models, this is the safe identity transform.
     """
-    preamble = _FAMILY_PREAMBLE.get(family)
-    if not preamble:  # "default" and unknown families → identity
-        return list(parts)
-    return [preamble, *parts]
+    return list(parts)

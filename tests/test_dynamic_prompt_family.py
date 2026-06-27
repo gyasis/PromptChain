@@ -72,18 +72,11 @@ def test_adapt_format_unknown_family_is_format_safe():
         assert part in joined
 
 
-def test_adapt_format_known_families_are_real_variants():
-    # Per-family variants over the `default` fallback (PRD §7): a known family
-    # produces a measurably DIFFERENT format than `default`, and two distinct
-    # known families differ from each other — while still preserving content.
-    base = adapt_format(list(PARTS), "default")
-    anthropic = adapt_format(list(PARTS), "anthropic")
-    openai = adapt_format(list(PARTS), "openai")
-    assert anthropic != base, "known family must differ from the default fallback"
-    assert openai != base
-    assert anthropic != openai, "distinct families must produce distinct framing"
-    # content still verbatim under the real variants
-    for variant in (anthropic, openai):
-        joined = "\n".join(variant)
-        for part in PARTS:
-            assert part in joined
+def test_adapt_format_is_non_prescriptive_identity():
+    # Origin 2026-06-27: an earlier per-family `FORMAT: …` preamble MEASURABLY
+    # HARMED a weak model (it obeyed the format directive and echoed the prompt
+    # structure instead of solving). A family adapter must NOT dictate the model's
+    # OUTPUT format. Until a genuinely helpful non-prescriptive framing exists,
+    # adapt_format is the identity transform for EVERY family — it injects nothing.
+    for family in ("anthropic", "openai", "google", "qwen", "llama", "default", "zzz"):
+        assert adapt_format(list(PARTS), family) == PARTS, f"family={family!r} not identity"

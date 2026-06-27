@@ -48,37 +48,45 @@ class EvalTask:
         return self.answer.strip().lower() in output.lower()
 
 
-# Exactly 5 small, deterministically-checkable coding tasks (D7: N=5).
+# Exactly 5 small, deterministically-checkable tasks (D7: N=5).
+#
+# DIRECT-ANSWER framing (origin 2026-06-27): the tasks are phrased "reply with ONLY
+# the answer" rather than "write and run a function". The smoke is SINGLE-SHOT text
+# (nothing executes), so a "write and run + print" framing is an INVALID proxy — it
+# measured "did the model happen to emit the literal value in code" (noise), and the
+# foundation's heavy "USE TOOLS / act don't explain" guidance misleads a weak model
+# into (impossible) tool use. Direct-answer is the valid single-shot measurement and
+# lets the TINY simpler base's "answer directly" steer show through.
 EVAL_TASKS: List[EvalTask] = [
     EvalTask(
         id="fibonacci",
-        objective="Write and run a function that returns the 10th Fibonacci number "
-        "(F(0)=0, F(1)=1). Print the result.",
+        objective="Compute the 10th Fibonacci number (F(0)=0, F(1)=1) and reply with "
+        "ONLY the number.",
         tools=[],
         answer="55",
     ),
     EvalTask(
         id="reverse_string",
-        objective="Reverse the string 'hello' and print the reversed string.",
+        objective="Reverse the string 'hello' and reply with ONLY the reversed string.",
         tools=[],
         answer="olleh",
     ),
     EvalTask(
         id="sum_list",
-        objective="Compute and print the sum of the integers [1, 2, 3, 4, 5].",
+        objective="Compute the sum of the integers [1, 2, 3, 4, 5] and reply with ONLY "
+        "the number.",
         tools=[],
         answer="15",
     ),
     EvalTask(
         id="palindrome",
-        objective="Determine whether the string 'racecar' is a palindrome and "
-        "print True or False.",
+        objective="Is the string 'racecar' a palindrome? Reply with ONLY True or False.",
         tools=[],
         answer="True",
     ),
     EvalTask(
         id="fizzbuzz",
-        objective="Print the FizzBuzz value for n=15 (multiples of 3 and 5 -> 'FizzBuzz').",
+        objective="In FizzBuzz, what is printed for n=15? Reply with ONLY that single word.",
         tools=[],
         answer="FizzBuzz",
     ),
@@ -130,11 +138,12 @@ def run_ab(
 ) -> EvalReport:
     """Run every ``EVAL_TASKS`` task through both arms (per budget) and aggregate.
 
-    Deterministic for a deterministic ``model_runner``: the f3 arm carries the
-    family ``FORMAT:`` preamble (so a fake can tell it apart from the static base),
-    the static base does not. Budgets are iterated so each task contributes more
-    than one observation per arm; the per-arm RATE is unaffected because the
-    runner's per-arm verdict does not depend on budget.
+    Deterministic for a deterministic ``model_runner``. The f3 arm differs from the
+    static base via per-model tiering driven by ``store`` (e.g. a TINY-profiled model
+    gets the simpler base + focusing directive); a fake runner can tell the arms
+    apart by that directive. Budgets are iterated so each task contributes more than
+    one observation per arm; the per-arm RATE is unaffected because the runner's
+    per-arm verdict does not depend on budget.
     """
     f3_gen = DynamicModelPromptGenerator(model=model, store=store)
     base_gen = DynamicTUIPromptGenerator()

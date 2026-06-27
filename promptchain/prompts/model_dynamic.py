@@ -25,7 +25,12 @@ from typing import Any, Dict, List, Optional
 
 from promptchain.prompts.budget import fit_to_budget, measure
 from promptchain.prompts.family import adapt_format, family_of
-from promptchain.prompts.tiers import modules_for_tier, select_tier
+from promptchain.prompts.tiers import (
+    TINY_BASE_PROMPT,
+    PromptTier,
+    modules_for_tier,
+    select_tier,
+)
 from promptchain.prompts.toolshim import render_tools_block, resolve_tool_mode
 from promptchain.prompts.tui_dynamic import DynamicTUIPromptGenerator
 
@@ -96,7 +101,25 @@ class DynamicModelPromptGenerator:
 
         jacket = profile.jacket if profile is not None else None
         mode = resolve_tool_mode(jacket)
-        if mode == "native":
+        if tier == PromptTier.TINY:
+            # TINY SWAPS the full foundation for a short, simpler base (Goose
+            # tiny_model_system precedent). A weak model is derailed by the full
+            # base, so SC-003's verbatim-base invariant holds for CORE/EXTENDED
+            # only — TINY is the sanctioned exception (decided 2026-06-27). Tool
+            # awareness is preserved minimally: shim → the <tools> protocol block;
+            # native + tools → a terse one-line tool list.
+            base_text = TINY_BASE_PROMPT.replace("{objective}", objective)
+            if mode != "native":
+                # A non-tool-calling model still needs the JSON-in-text protocol.
+                base_text = base_text + "\n\n" + render_tools_block(tools)
+            # Native TINY deliberately OMITS the tool inventory: a weak model
+            # advertised tools reaches for them on direct tasks and fails (observed
+            # 2026-06-27 — it called file_read("fibonacci.txt") instead of computing).
+            # TINY = a focused direct-answer protocol; tool-driven agentic work is a
+            # CORE/EXTENDED concern.
+            if context:
+                base_text = base_text + "\n\nPRIOR CONTEXT:\n" + context
+        elif mode == "native":
             # Native tools embedded by the base (AVAILABLE TOOLS / MCP TOOLS).
             # The static base is emitted VERBATIM (SC-003) — never mutated.
             base_text = self._base.generate(objective, tools, context)

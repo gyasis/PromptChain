@@ -20,24 +20,47 @@ from promptchain.prompts.eval_ab import (  # noqa: E402  (import-time red expect
     EvalTask,
     run_ab,
 )
+from promptchain.prompts.tiers import TINY_DIRECTIVE
+from promptchain.profiler.jacket import CapabilityProfile, Jacket
 
-# A known-FAMILY model so the f3 generator emits its family FORMAT preamble.
-# Discriminator (see _scripted_fake): qwen → ``family.py`` adds a "FORMAT:" line,
-# which the bare static base (``TUI_FOUNDATION_PROMPT``) never contains. That is
-# how the fake tells the f3 arm from the static_base arm given the (prompt, task)
-# signature.
-_MODEL = "ollama/qwen3-coder:30b"
-_F3_MARKER = "FORMAT:"
+# A genuinely weak model id, profiled TINY, so the f3 generator injects the TINY
+# focusing directive (the real, non-harmful F3 differentiator) into the floor.
+# Discriminator (see _scripted_fake): the f3 arm carries TINY_DIRECTIVE; the bare
+# static base never does. (Earlier this keyed off a per-family "FORMAT:" preamble,
+# but that preamble was removed for MEASURABLY HARMING weak models — 2026-06-27.)
+_MODEL = "ollama/llama3.2:1b"
+_F3_MARKER = TINY_DIRECTIVE
 _WRONG = "<<<deliberately-wrong-output: this never satisfies a task check>>>"
+
+
+class _TinyStore:
+    """Profile store seeding a TINY capability profile for the weak model."""
+
+    def get_profile(self, model_id):
+        if model_id != _MODEL:
+            return None
+        jacket = Jacket(
+            tier="tiny", budget_tokens=600, mode="single-shot+retry",
+            spawn_temp=0.8, compress_at=0.6, max_turns=10, role="executor",
+            escalate=False,
+        )
+        return CapabilityProfile(
+            model_id=_MODEL, capability=0.2, recommended_tier="tiny",
+            budget_tokens=600, jacket=jacket,
+        )
+
+
+def _store() -> _TinyStore:
+    return _TinyStore()
 
 
 def _scripted_fake(prompt: str, task: EvalTask) -> str:
     """Injected fake model: PASS on the f3 arm, FAIL on the static_base arm.
 
-    Arm is detected purely from the assembled ``prompt`` — the f3 arm carries the
-    family ``FORMAT:`` preamble; the static base does not. On the f3 arm we return
-    the task's KNOWN-CORRECT output (so ``task.check`` passes); on the static_base
-    arm we return a constant wrong output (so ``task.check`` fails).
+    Arm is detected purely from the assembled ``prompt`` — the f3 arm (TINY tier)
+    carries the TINY focusing directive; the static base does not. On the f3 arm we
+    return the task's KNOWN-CORRECT output (``task.check`` passes); on static_base a
+    constant wrong output (``task.check`` fails).
     """
     is_f3 = _F3_MARKER in prompt
     correct = getattr(task, "answer", None)
@@ -60,7 +83,7 @@ def test_eval_tasks_shape() -> None:
 
 def test_run_ab_measures_directional_win() -> None:
     """f3 beats static_base on the scripted fake; report is well-formed."""
-    report = run_ab(_scripted_fake, model=_MODEL, store=None, budgets=(1000, 300))
+    report = run_ab(_scripted_fake, model=_MODEL, store=_store(), budgets=(1000, 300))
 
     assert isinstance(report, EvalReport)
 
@@ -79,7 +102,7 @@ def test_run_ab_measures_directional_win() -> None:
 
 def test_run_ab_is_deterministic() -> None:
     """Same fake + same inputs → identical aggregate (deterministic aggregation)."""
-    r1 = run_ab(_scripted_fake, model=_MODEL, store=None, budgets=(1000, 300))
-    r2 = run_ab(_scripted_fake, model=_MODEL, store=None, budgets=(1000, 300))
+    r1 = run_ab(_scripted_fake, model=_MODEL, store=_store(), budgets=(1000, 300))
+    r2 = run_ab(_scripted_fake, model=_MODEL, store=_store(), budgets=(1000, 300))
     assert r1.per_arm_completion_rate == r2.per_arm_completion_rate
     assert r1.delta == r2.delta
