@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-06-27 15:12:35
+**Last Updated**: 2026-06-27 15:16:22
 
 ## Overall Progress
 - Total Tasks: 24
-- Completed: 10 ✅
-- Pending: 14 ⏳
-- Progress: 41%
+- Completed: 12 ✅
+- Pending: 12 ⏳
+- Progress: 50%
 
 ## Task Breakdown
 - [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
@@ -19,8 +19,8 @@
 - [x] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
 - [x] T009 [W4] [US1] [python-pro] [promptchain/prompts/model_dynamic.py] Implement `DynamicModelPromptGenerator` (`BasePromptBuilder`): `__init__(*, model=None, store=None, base_generator=None, store_path=None)`; `generate(objective, tools, context=None, *, model=None)` → resolve model (kwarg→ctor→None), load the F2 profile via the store (`get_profile`; tolerate None), `select_tier`, compose the static base from `base_generator` (default `DynamicTUIPromptGenerator`) VERBATIM, `adapt_format` for the family, attach `modules_for_tier`, then `fit_to_budget` (effective budget = `min(jacket.budget_tokens or 1000, 1000)`, hard cap 1500); `get_token_estimate`. Null jacket → `recommended_tier`+`budget_tokens`; no profile → CORE. Deterministic. → T005 green.
 - [x] T010 [W4] [US1] [python-pro] [promptchain/prompts/__init__.py] Export `DynamicModelPromptGenerator` + `PromptTier`, `select_tier`, `family_of` from `promptchain.prompts` per contracts/generator-api.md (additive to `__all__`; do not remove existing exports).
-- [ ] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
-- [ ] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
+- [x] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
+- [x] T012 [P] [W5] [US2] [python-pro] [tests/test_dynamic_prompt_toolshim.py] FAILING tests: `resolve_tool_mode(jacket)` → `jacket.tool_mode` or `native` (None/absent→native); `render_tools_block(tools)` emits the `<tools>` JSON-in-text protocol enumerating tools (shim modes); `serialize_history_plaintext(history)` turns native tool-call objects into readable plain text; and `generate()` with a shim jacket includes the `<tools>` block while a native jacket does not (SC-004, mutually exclusive).
 - [ ] T013 [P] [W6] [US2] [python-pro] [promptchain/profiler/jacket.py] Add OPTIONAL `tool_mode: Optional[str] = None` to the `Jacket` dataclass + `to_dict` (emit it) + `from_dict` (`d.get("tool_mode")`). No change to `derive_jacket`/math; `schema_version` unchanged → T011 green; F2's 66 tests stay green.
 - [ ] T014 [P] [W6] [US2] [python-pro] [promptchain/prompts/toolshim.py] Implement `resolve_tool_mode`, `render_tools_block` (`<tools>` per contracts/prompt-layout.md), `serialize_history_plaintext` → T012 (helpers) green.
 - [ ] T015 [W6] [US2] [python-pro] [promptchain/prompts/model_dynamic.py] Wire toolshim into `generate()`: when `resolve_tool_mode` is a shim mode, render the `<tools>` block (as the tool inventory, replacing the native `AVAILABLE TOOLS`/`MCP TOOLS` blocks) and expose plain-text history serialization; native keeps the existing passthrough → T012 (generate) green. (depends on T013, T014, T009)
