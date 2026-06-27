@@ -28,6 +28,7 @@ import asyncio
 import os
 import subprocess
 import tempfile
+import threading
 import warnings
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional
@@ -63,6 +64,45 @@ def truncate_tail(text: str, limit: int = _FAILURE_TAIL_CHARS) -> str:
     if len(text) <= limit:
         return text
     return "...[truncated]...\n" + text[-limit:]
+
+
+def run_coro_blocking(coro):
+    """Run ``coro`` to completion and return its result — SAFELY whether or not an
+    event loop is already running on this thread.
+
+    The footgun this guards: ``asyncio.run()`` (and ``loop.run_until_complete``)
+    raise ``RuntimeError: asyncio.run() cannot be called from a running event loop``
+    when called from inside an already-running loop (e.g. a ``run_sync`` invoked from
+    within the TUI's async tool path). Here we DETECT a running loop and, if present,
+    execute the coroutine on a fresh loop in a short-lived worker thread (the outer
+    loop is never touched). With no running loop, it's just ``asyncio.run``.
+
+    Prefer ``await``-ing the async API directly; this exists so the synchronous
+    ``run_sync`` wrappers can never blow up no matter where they are called from.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)  # no loop on this thread — the normal, cheap path
+
+    box: dict = {}
+
+    def _worker():
+        loop = asyncio.new_event_loop()
+        try:
+            box["value"] = loop.run_until_complete(coro)
+        except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
+            box["error"] = exc
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+    t = threading.Thread(target=_worker, name="promptchain-run-sync", daemon=True)
+    t.start()
+    t.join()
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 def make_generator(model) -> "GenerateFn":
@@ -364,5 +404,6 @@ class MicroPromptChain:
                 executor.stop()
 
     def run_sync(self, *args, **kwargs) -> LoopResult:
-        """Synchronous convenience wrapper around :meth:`run`."""
-        return asyncio.run(self.run(*args, **kwargs))
+        """Synchronous wrapper around :meth:`run` — safe even if an event loop is
+        already running (see :func:`run_coro_blocking`)."""
+        return run_coro_blocking(self.run(*args, **kwargs))

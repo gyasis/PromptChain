@@ -23,11 +23,10 @@ See ``research/foundation/architecture/05-tool-creation-and-subchains.md`` and
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional
 
-from .test_loop_chain import GenerateFn, LoopResult, MicroPromptChain
+from .test_loop_chain import GenerateFn, LoopResult, MicroPromptChain, run_coro_blocking
 
 # brief -> research notes (gather stage). Return a string the build objective can use.
 ResearchFn = Callable[[str], Awaitable[str]]
@@ -145,8 +144,9 @@ class AutoResearch:
             winning_code=build.winning_code, attempts=build.attempts)
 
     def run_sync(self, *args, **kwargs) -> ResearchResult:
-        """Synchronous convenience wrapper around :meth:`run`."""
-        return asyncio.run(self.run(*args, **kwargs))
+        """Synchronous wrapper around :meth:`run` — safe even if an event loop is
+        already running (see :func:`~promptchain.utils.test_loop_chain.run_coro_blocking`)."""
+        return run_coro_blocking(self.run(*args, **kwargs))
 
 
 async def auto_research(brief: str, *, model=None, generate: Optional[GenerateFn] = None,

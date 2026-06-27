@@ -29,7 +29,6 @@ reusing the identical sandbox/test contract. See
 """
 from __future__ import annotations
 
-import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import Optional
@@ -40,6 +39,7 @@ from .test_loop_chain import (
     extract_code,
     make_generator,
     resolve_executor,
+    run_coro_blocking,
     truncate_tail,
 )
 
@@ -272,8 +272,9 @@ class RalphChain:
                 executor.stop()
 
     def run_sync(self, *args, **kwargs) -> RalphResult:
-        """Synchronous convenience wrapper around :meth:`run`."""
-        return asyncio.run(self.run(*args, **kwargs))
+        """Synchronous wrapper around :meth:`run` — safe even if an event loop is
+        already running (see :func:`~promptchain.utils.test_loop_chain.run_coro_blocking`)."""
+        return run_coro_blocking(self.run(*args, **kwargs))
 
 
 async def _noop() -> str:

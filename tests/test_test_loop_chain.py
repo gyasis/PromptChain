@@ -145,6 +145,35 @@ def test_requires_model_or_generate():
         raise AssertionError("expected ValueError when neither model nor generate is given")
 
 
+def test_run_sync_is_safe_inside_a_running_event_loop():
+    """The footgun guard: run_sync() called from INSIDE a running loop must NOT raise
+    'asyncio.run() cannot be called from a running event loop' — it offloads to a
+    worker-thread loop and still returns the right result."""
+    import asyncio
+
+    async def correct(prompt: str) -> str:
+        return "```python\ndef multiply(a, b):\n    return a * b\n```"
+
+    async def driver():
+        loop = MicroPromptChain(generate=correct, use_docker=False)
+        # we are INSIDE a running event loop right now — this used to crash
+        return loop.run_sync(objective="multiply", target_file="solution.py",
+                             test_command=_TEST_CMD, deps={"test_solution.py": _TEST_FILE})
+
+    res = asyncio.run(driver())
+    assert res.result == "PASS"
+
+
+def test_run_coro_blocking_no_loop():
+    """With no running loop, run_coro_blocking just returns the result (asyncio.run path)."""
+    from promptchain.utils.test_loop_chain import run_coro_blocking
+
+    async def add():
+        return 41 + 1
+
+    assert run_coro_blocking(add()) == 42
+
+
 def test_local_executor_confines_writes(tmp_path):
     ex = LocalExecutor(work_dir=str(tmp_path))
     ex.write_file("a/b.py", "x = 1\n")
