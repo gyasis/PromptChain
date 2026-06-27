@@ -76,3 +76,11 @@ python specs/014-dynamic-prompt-layer/scripts/ab_smoke.py --weak ollama/llama3.2
 
 (The deterministic A/B harness — task set, scoring, aggregation — is unit-tested with a fake model;
 this script is the live demonstration.)
+
+**Recorded result (2026-06-27, `ollama/llama3.2:1b`, direct-answer eval):** f3 **40%** vs
+static_base **30%** (delta **+10%**; a diagnostic run measured +20%). Magnitude is noisy (N=5 × one
+1B model) but the sign is consistently positive and the qualitative win is robust — the F3 TINY
+simpler base makes the weak model ANSWER on-task, while the full foundation derails it into echoing
+its own structure (`<work_loop>`/`<safety>`/`<paths>`). The TINY tier swaps to a short base
+(`tiers.TINY_BASE_PROMPT`); native TINY omits the tool inventory (a weak model misuses advertised
+tools on a direct task).

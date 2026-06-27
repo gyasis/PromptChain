@@ -172,9 +172,12 @@ triggered only when a stall (no-progress) condition is detected, not merely on c
 - **FR-003**: The system MUST apply a **family adapter** keyed by the model's family that adjusts
   **format only** (per-family variants over a `default` fallback), without altering the semantic
   content of the static base.
-- **FR-004**: The system MUST keep the existing **static base** foundation prompt intact and emit
-  it **verbatim** in every assembled prompt; the dynamic layer only ADDS optional modules — it MUST
-  NOT modify or omit the static base.
+- **FR-004**: For **CORE and EXTENDED** tiers the system MUST keep the existing **static base**
+  foundation prompt intact and emit it **verbatim**; the dynamic layer only ADDS optional modules —
+  it MUST NOT modify or omit the static base. **TINY is the sanctioned exception** (decided with the
+  user 2026-06-27): a weak model is *derailed* by the full foundation (additive-only F3 measurably
+  HARMED a 1B model), so the TINY tier **swaps** the foundation for a short, simpler base (the Goose
+  `tiny_model_system` precedent the brief cites — "the tiny variant may even swap the loop protocol").
 - **FR-005**: The system MUST measure the assembled prompt's token count (via the existing token
   estimator) and **trim to a 300–1,000-token base** (hard cap ~1,500) by **dropping optional
   modules** — never the static base — in a documented priority order when over budget.
@@ -244,8 +247,9 @@ triggered only when a stall (no-progress) condition is detected, not merely on c
   configured token budget (target 300–1,000, hard cap ~1,500) with the static base present verbatim.
 - **SC-002**: Two models with materially different profiles receive **measurably different** prompts
   (different tier and/or family adapter), verifiable by diffing the rendered outputs.
-- **SC-003**: The static base is **unchanged** by F3 — the foundation prompt's content appears
-  verbatim and is byte-identical to its pre-F3 form (no regression to the model-agnostic floor).
+- **SC-003**: For **CORE/EXTENDED** the static base is **unchanged** by F3 — the foundation prompt's
+  content appears verbatim and is byte-identical to its pre-F3 form. **TINY swaps** to a simpler base
+  (sanctioned exception, see FR-004), so byte-identity is asserted for CORE/EXTENDED only.
 - **SC-004**: A non-tool-calling model (shim `tool_mode`) receives a `<tools>` JSON-in-text protocol
   and plain-text tool history; a native model receives unchanged native tools.
 - **SC-005**: A null/missing jacket falls back to `recommended_tier` + `budget_tokens` (null jacket)
@@ -253,8 +257,14 @@ triggered only when a stall (no-progress) condition is detected, not merely on c
 - **SC-006**: A weak-tier model in the loop runs Document-&-Clear at the compression threshold,
   re-injects the goal each turn via `<turn-context>`, sustains **≥10 task-turns** before a reset,
   and escalates only on a stall.
-- **SC-007**: On the small eval set defined during planning, a weak model's task-completion rate is
-  **measurably higher** with the F3 per-model prompt than with the static base alone (the A/B win).
+- **SC-007**: On the small direct-answer eval set, a weak model's task-completion rate is
+  **measurably higher** with the F3 per-model prompt than with the static base alone. **Result
+  (2026-06-27, offline live smoke vs LAN `ollama/llama3.2:1b`):** f3 40% vs static_base 30% (+10%;
+  a diagnostic run measured +20%). The **magnitude is noisy** (N=5 × one 1B model) but the sign is
+  consistently positive and the **qualitative win is robust**: the F3 TINY base makes the weak model
+  ANSWER on-task, whereas the full foundation reliably derails it into echoing its own structure
+  (`<work_loop>`/`<safety>`/`<paths>`). NB: the eval is **direct-answer** framed — a "write-and-run"
+  framing is an invalid single-shot proxy (nothing executes); see eval_ab.py.
 - **SC-008**: `generate()` is **deterministic** for fixed inputs (reproducible prompts), validated
   by offline unit tests with seeded profiles.
 

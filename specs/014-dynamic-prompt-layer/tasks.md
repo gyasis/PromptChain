@@ -146,9 +146,9 @@ improves vs the static base alone" claim shown by an offline live smoke (LAN oll
 
 ## Phase 7: Polish & Verification
 
-- [ ] T022 [W11] [python-pro] [tests/] Run the full F3 suite `python -m pytest tests/test_dynamic_prompt_*.py tests/test_profiler_jacket_toolmode.py -q` (all green) AND the no-regression suite `python -m pytest tests/test_profiler_*.py tests/test_transcript_*.py -q` (F1+F2 still green, esp. F2's 66).
-- [ ] T023 [W11] [python-pro] [specs/014-dynamic-prompt-layer/] Run the offline live smoke (`ab_smoke.py` vs a weak LAN ollama model) and record the per-arm completion + delta in quickstart.md / the memory-bank checkpoint (SC-007 evidence). If the LAN model is unreachable, note it and rely on the deterministic harness.
-- [ ] T024 [W11] [python-pro] [memory-bank/] Update the memory-bank (progress.md + activeContext.md): F3 complete + green; summarize per-US deliverables, the one additive F2 field (`Jacket.tool_mode`), and the SC-007 smoke result.
+- [x] T022 [W11] [python-pro] [tests/] Run the full F3 suite `python -m pytest tests/test_dynamic_prompt_*.py tests/test_profiler_jacket_toolmode.py -q` (all green) AND the no-regression suite `python -m pytest tests/test_profiler_*.py tests/test_transcript_*.py -q` (F1+F2 still green, esp. F2's 66).
+- [x] T023 [W11] [python-pro] [specs/014-dynamic-prompt-layer/] Run the offline live smoke (`ab_smoke.py` vs a weak LAN ollama model) and record the per-arm completion + delta in quickstart.md / the memory-bank checkpoint (SC-007 evidence). If the LAN model is unreachable, note it and rely on the deterministic harness.
+- [x] T024 [W11] [python-pro] [memory-bank/] Update the memory-bank (progress.md + activeContext.md): F3 complete + green; summarize per-US deliverables, the one additive F2 field (`Jacket.tool_mode`), and the SC-007 smoke result.
 
 **Checkpoint**: F3 fully green, no F1/F2 regression, evidence recorded → ready to merge `--no-ff` into `epic/adaptive-prompting`.
 
