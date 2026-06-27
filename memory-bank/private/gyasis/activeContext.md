@@ -1,31 +1,26 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:00:16
+**Last Updated**: 2026-06-27 15:07:16
 
 ## Current Focus
-test(F3): Wave 2 (T002-T005) — US1 failing tests (RED)
+feat(F3): Wave 3 (T006-T008) — tiers/family/budget pure modules (GREEN)
 
-tiers/family/budget/generate tests written test-first; 4 collection ImportErrors
-(stubs not implemented) = expected red. Constitution III gate.
+select_tier (capability→CORE/EXTENDED/TINY), modules_for_tier; family_of +
+adapt_format with REAL per-family variants over default (strengthened beyond the
+initial no-op + added a variant test); measure + fit_to_budget (drop optional by
+priority, never the base). 39 passed; generate still red (W4).
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ## Recent Changes
 ```
- .devkid/config.json                         |  11 +-
- .specify/integrations/claude.manifest.json  |   2 +-
- .specify/integrations/speckit.manifest.json |  10 +-
- memory-bank/private/gyasis/activeContext.md |  36 ++---
- memory-bank/private/gyasis/progress.md      | 164 ++++-------------------
- 5 files changed, 46 insertions(+), 177 deletions(-)
+ .claude/activity_stream.md | 1 +
+ 1 file changed, 1 insertion(+)
 ```
 
 ## Modified Files
-.devkid/config.json
-.specify/integrations/claude.manifest.json
-.specify/integrations/speckit.manifest.json
+.claude/activity_stream.md
 memory-bank/private/gyasis/activeContext.md
-memory-bank/private/gyasis/progress.md
 
 ## Next Actions
 - Continue implementation

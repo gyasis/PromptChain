@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-06-27 15:00:16
+**Last Updated**: 2026-06-27 15:07:17
 
 ## Overall Progress
 - Total Tasks: 24
-- Completed: 5 ✅
-- Pending: 19 ⏳
-- Progress: 20%
+- Completed: 8 ✅
+- Pending: 16 ⏳
+- Progress: 33%
 
 ## Task Breakdown
 - [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
@@ -14,9 +14,9 @@
 - [x] T003 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_family.py] FAILING tests: `family_of(model_id)` derives `anthropic/openai/google/qwen/llama` from representative ids (incl. `provider/` prefixes) and `default` for unknown; `adapt_format(parts, family)` changes FORMAT only — the static-base substring is preserved unchanged for every family (incl. `default` = no-op).
 - [x] T004 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_budget.py] FAILING tests: `measure(text)` returns a non-negative int (tiktoken or `len//4`); `fit_to_budget(base, optional, target_max, hard_cap)` drops optional modules in ascending `drop_priority` until within budget, NEVER drops `base`, returns `(assembled, dropped_keys)`; when the base alone exceeds `hard_cap` it returns the base + flags over-cap (no truncation of the base).
 - [x] T005 [P] [W2] [US1] [python-pro] [tests/test_dynamic_prompt_generate.py] FAILING tests for `DynamicModelPromptGenerator` (US1 acceptance): static base VERBATIM in output (SC-003); two seeded profiles → measurably different prompts (SC-002); output within budget / under hard cap (SC-001); null jacket → `recommended_tier`+`budget_tokens`, no profile → CORE, neither raises (SC-005); deterministic for fixed inputs (SC-008); conforms to `BasePromptBuilder` (`generate(objective, tools, context)` + `get_token_estimate`) — drop-in; empty objective rejected. Profiles seeded via an injected store/fixture (no live model).
-- [ ] T006 [P] [W3] [US1] [python-pro] [promptchain/prompts/tiers.py] Implement `PromptTier` (CORE/EXTENDED/TINY), `OptionalModule` dataclass, the per-tier module registry, `select_tier(profile)` (D2 thresholds; no-profile→CORE), `modules_for_tier(tier)` → T002 green.
-- [ ] T007 [P] [W3] [US1] [python-pro] [promptchain/prompts/family.py] Implement `family_of(model_id)` (strip `provider/`, match stems, `default` fallback) and `adapt_format(parts, family)` (FORMAT-only per-family variants over `default`) → T003 green.
-- [ ] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
+- [x] T006 [P] [W3] [US1] [python-pro] [promptchain/prompts/tiers.py] Implement `PromptTier` (CORE/EXTENDED/TINY), `OptionalModule` dataclass, the per-tier module registry, `select_tier(profile)` (D2 thresholds; no-profile→CORE), `modules_for_tier(tier)` → T002 green.
+- [x] T007 [P] [W3] [US1] [python-pro] [promptchain/prompts/family.py] Implement `family_of(model_id)` (strip `provider/`, match stems, `default` fallback) and `adapt_format(parts, family)` (FORMAT-only per-family variants over `default`) → T003 green.
+- [x] T008 [P] [W3] [US1] [python-pro] [promptchain/prompts/budget.py] Implement `measure(text)` (reuse tiktoken `cl100k_base`, `len//4` fallback) and `fit_to_budget(...)` (drop optional by `drop_priority`, never the base, over-cap flag) → T004 green.
 - [ ] T009 [W4] [US1] [python-pro] [promptchain/prompts/model_dynamic.py] Implement `DynamicModelPromptGenerator` (`BasePromptBuilder`): `__init__(*, model=None, store=None, base_generator=None, store_path=None)`; `generate(objective, tools, context=None, *, model=None)` → resolve model (kwarg→ctor→None), load the F2 profile via the store (`get_profile`; tolerate None), `select_tier`, compose the static base from `base_generator` (default `DynamicTUIPromptGenerator`) VERBATIM, `adapt_format` for the family, attach `modules_for_tier`, then `fit_to_budget` (effective budget = `min(jacket.budget_tokens or 1000, 1000)`, hard cap 1500); `get_token_estimate`. Null jacket → `recommended_tier`+`budget_tokens`; no profile → CORE. Deterministic. → T005 green.
 - [ ] T010 [W4] [US1] [python-pro] [promptchain/prompts/__init__.py] Export `DynamicModelPromptGenerator` + `PromptTier`, `select_tier`, `family_of` from `promptchain.prompts` per contracts/generator-api.md (additive to `__all__`; do not remove existing exports).
 - [ ] T011 [P] [W5] [US2] [python-pro] [tests/test_profiler_jacket_toolmode.py] FAILING test: `Jacket` accepts an optional `tool_mode` (default `None`); `to_dict`/`from_dict` round-trip it; a jacket dict WITHOUT `tool_mode` still loads (backward-compat) — asserting the field is additive + optional.
