@@ -126,8 +126,8 @@ the evidence by the EWMA amount; refine is a no-op with no telemetry.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T021 [P] [W11] [python-pro] [promptchain/profiler/__init__.py] Final public-API review + module docstrings; ensure `refine`/`jacket_fit` exported.
-- [ ] T022 [W11] [python-pro] [—] Run the full profiler suite `python -m pytest tests/test_profiler_*.py -q` green; then the OFFLINE LIVE SMOKE from quickstart.md against LAN ollama (`OLLAMA_API_BASE=http://192.168.0.159:11434`, `PYTHONPATH=<worktree>`, model `ollama/qwen3-coder:30b`) — a real cheap probe → persisted profile. Record the result.
+- [x] T021 [P] [W11] [python-pro] [promptchain/profiler/__init__.py] Final public-API review + module docstrings; ensure `refine`/`jacket_fit` exported.
+- [x] T022 [W11] [python-pro] [—] Run the full profiler suite `python -m pytest tests/test_profiler_*.py -q` green; then the OFFLINE LIVE SMOKE from quickstart.md against LAN ollama (`OLLAMA_API_BASE=http://192.168.0.159:11434`, `PYTHONPATH=<worktree>`, model `ollama/qwen3-coder:30b`) — a real cheap probe → persisted profile. Record the result.
 
 ---
 
