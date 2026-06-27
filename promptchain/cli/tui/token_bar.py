@@ -30,7 +30,7 @@ class TokenBar(Static):
     TokenBar {
         dock: bottom;
         height: 1;
-        background: #0f131c;
+        background: #000000;
         color: #6b7480;
         text-align: center;
         padding: 0 1;

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import threading
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +34,7 @@ from .activity_log_viewer import ActivityLogViewer
 from .approval_screen import ApprovalScreen
 from .autocomplete_popup import AutocompletePopup
 from .chat_view import ChatView, MessageItem
+from .lingua_client import LinguaCompressor
 from .command_provider import PromptChainCommands
 from .input_widget import InputWidget
 from .observe_panel import ObservePanel
@@ -60,8 +62,8 @@ class PromptChainApp(App):
     CSS = """
     /* PromptChain TUI — Codex framing x opencode accent (feat/tui-codex-blend-theme).
        Restyle only: structure/heights/docks preserved, palette + role framing added. */
-    $pc-bg: #0b0e14;        /* terminal canvas */
-    $pc-bg2: #0b0e14;       /* was a lighter panel tint; collapsed to the canvas color
+    $pc-bg: #000000;        /* terminal canvas */
+    $pc-bg2: #000000;       /* was a lighter panel tint; collapsed to the canvas color
                                so nothing gets a background highlight — dark everywhere,
                                only TEXT + the thin role gutter bars carry color. */
     $pc-ink: #c6ccd6;       /* default text */
@@ -118,16 +120,21 @@ class PromptChainApp(App):
 
     /* Chat turns — Codex-style colored gutter bar per role */
     MessageItem {
-        padding: 0 1;
+        padding: 0 1 1 1;     /* bottom padding so content isn't flush to the edge */
         margin: 0 0 1 0;
         border-left: heavy $pc-line2;
+        background: $pc-bg;   /* flat canvas — kill the default ListItem gray tint */
     }
     MessageItem.role-user      { border-left: heavy $pc-user; }
     MessageItem.role-assistant { border-left: heavy $pc-asst; }
-    MessageItem.role-tool      { border-left: heavy $pc-tool; background: $pc-bg2; }
+    MessageItem.role-tool      { border-left: heavy $pc-tool; }
     MessageItem.role-think     { border-left: heavy $pc-think; color: $pc-dim; }
-    MessageItem.role-system    { border-left: blank; color: $pc-dim; text-style: italic; }
-    MessageItem.-highlight     { background: $pc-bg2; }
+    MessageItem.role-system    { border-left: blank; color: $pc-ink; }
+    /* No gray highlight box on hover/selection/focus — stay flat in every state. */
+    MessageItem.-highlight              { background: $pc-bg; }
+    MessageItem:hover                   { background: $pc-bg; }
+    ChatView:focus MessageItem.-highlight   { background: $pc-bg; }
+    ChatView:focus-within MessageItem.-highlight { background: $pc-bg; }
 
     /* Composer — no box, just a single top rule (accent on focus) */
     InputWidget {
@@ -341,6 +348,45 @@ class PromptChainApp(App):
         # Live answer-streaming buffer (2d) — accumulates answer_delta pieces
         # rendered into the #live-response Markdown area during a turn.
         self._live_text = ""
+
+        # Collapsible reasoning/tool blocks (#2). The current turn's reasoning
+        # block (one per turn) and the in-progress tool block (one per tool
+        # call) are accumulated here; a monotonic generation guards the 3.5s
+        # dwell timer so it only collapses a block once its stream goes idle.
+        self._reasoning_block_msg: Optional[Any] = None
+        self._tool_block_msg: Optional[Any] = None
+        self._subtasks_block_msg: Optional[Any] = None
+        self._suppress_tool_result = False  # skip the result of a task-list tool
+        self._block_dwell_gen = 0
+        self._block_dwell_seconds = 3.5
+        # Model-catalog cache for routing (api_base/api_key/enable) of cloud/
+        # local reasoning models — built lazily once per app (#2 reasoning mode).
+        self._model_catalog: Optional[Any] = None
+        # Spinner for in-progress blocks — a rotating circle so an active tool /
+        # reasoning block reads as "still working", not frozen.
+        self._spinner_frames = "◐◓◑◒"
+        self._spinner_idx = 0
+        self._spinner_timer: Optional[Any] = None
+        # Dock RECAP (V1 — structured): a compact running summary of the session
+        # shown as the dock's resting state when idle. (V2 will compress this
+        # narrative via LLMLingua to seed compaction.)
+        self._recap_turns = 0
+        self._recap_tools = 0
+        self._recap_files: List[str] = []  # ordered, deduped, recent-last
+        self._recap_tasks_done = 0
+        # LLMLingua history compression (V2) — local persistent worker, isolated
+        # uv venv; torch never enters this env. Graceful no-op if unavailable.
+        self._lingua = LinguaCompressor()
+        self._recap_compression: Optional[str] = None  # last "8.2k→3.1k · 2.6x"
+        # Auto compression (V2.x): pre-stage a compressed seed in the background
+        # at a token threshold (default ON, no model-input change). Opt-in "bank"
+        # reuses that already-computed seed as the next turn's history.
+        self._compress_auto = True
+        self._compress_bank = False
+        self._staged_seed: Optional[str] = None
+        self._staging = False  # a background pre-stage is in flight
+        # Tunable pre-stage threshold (tokens). None → auto (~0.5×max-tokens).
+        self._compress_threshold_tokens: Optional[int] = None
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -668,10 +714,10 @@ class PromptChainApp(App):
                 f"on_mount: Session loaded - {len(self.session.messages)} messages"
             )
 
-            # Load existing messages into chat view
-            chat_view = self.query_one("#chat-view", ChatView)
-            chat_view.load_messages(self.session.messages)
-            logger.debug("on_mount: Messages loaded into chat view")
+            # NOTE: prior session history is loaded LATER — together with and
+            # BELOW the welcome banner — so the banner always sits at the top
+            # instead of being interleaved after the previous session's turns
+            # (the "welcome appears in the middle of the conversation" bug).
 
         except ValueError:
             # Session doesn't exist, create it
@@ -726,19 +772,22 @@ class PromptChainApp(App):
         welcome_msg = Message(
             role="system",
             content=(
-                f"[bold]Welcome to PromptChain CLI[/bold]\n\n"
-                f"[dim]Session:[/dim] {self.session.name} [dim]({session_status})[/dim]\n"
-                f"[dim]Active Agent:[/dim] {self.session.active_agent}\n"
-                f"[dim]Model:[/dim] [bold]{active_model}[/bold]\n"
-                f"[dim]Tools Loaded:[/dim] [bold]{agent_tool_count}/{tool_count}[/bold] available\n"
-                f"[dim]Working Directory:[/dim] {self.session.working_directory}\n\n"
-                "[dim]Type your message and press Enter to chat.[/dim]\n"
-                "[dim]Commands: /exit, /help, /session, /agent[/dim]\n"
-                "[dim]Shortcuts: Ctrl+C or Ctrl+D to exit[/dim]"
+                f"[bold #4ec9b0]Welcome to PromptChain CLI[/]\n\n"
+                f"[#4ec9b0]Session:[/] {self.session.name} ({session_status})\n"
+                f"[#4ec9b0]Active Agent:[/] {self.session.active_agent}\n"
+                f"[#4ec9b0]Model:[/] [bold]{active_model}[/bold]\n"
+                f"[#4ec9b0]Tools Loaded:[/] [bold]{agent_tool_count}/{tool_count}[/bold] available\n"
+                f"[#4ec9b0]Working Directory:[/] {self.session.working_directory}\n\n"
+                "Type your message and press Enter to chat.\n"
+                "Commands: /exit, /help, /session, /agent\n"
+                "Shortcuts: Ctrl+C or Ctrl+D to exit"
             ),
         )
+        # Welcome banner FIRST, then any prior session history BENEATH it — one
+        # load so the banner is always the top item (fixes the welcome-in-the-
+        # middle ordering bug on an existing session).
         chat_view = self.query_one("#chat-view", ChatView)
-        chat_view.add_message(welcome_msg)
+        chat_view.load_messages([welcome_msg, *self.session.messages])
 
         # Update status bar with active agent's model and router mode indicator (T039, T061)
         status_bar = self.query_one("#status-bar", StatusBar)
@@ -810,10 +859,16 @@ class PromptChainApp(App):
             sessions_dir=self.session_manager.sessions_dir,
         )
 
-        # Auto-connect default MCP servers from config
-        logger.debug("on_mount: Auto-connecting MCP servers...")
-        await self._auto_connect_default_mcp_servers()
-        logger.debug("on_mount: MCP servers connected")
+        # Auto-connect default MCP servers from config — run as a background
+        # worker so the (cold-starting) MCP servers don't block the UI. The
+        # worker shows a live "◌ Connecting…" line and replaces it with the real
+        # tool count when discovery finishes.
+        logger.debug("on_mount: Auto-connecting MCP servers (background)...")
+        self.run_worker(
+            self._auto_connect_default_mcp_servers(),
+            name="mcp-autoconnect",
+            exclusive=False,
+        )
 
         # Initialize PromptChain for active agent (T031-T032)
         logger.debug("on_mount: Initializing agent chain...")
@@ -891,19 +946,24 @@ class PromptChainApp(App):
                 elif event.event_type == ExecutionEventType.TOOL_CALL_START:
                     # Tool call started
                     tool_name = event.data.get("tool_name", "unknown")
-                    args_preview = str(event.data.get("arguments", ""))[:50]
+                    args_preview = str(event.data.get("arguments", ""))[:80]
                     self.observe_panel.log_entry(
                         "tool-call", f"Calling: {tool_name}({args_preview}...)"
                     )
+                    # #1 — also surface the call as a PERSISTENT gutter-bar
+                    # section in the chat (amber role-tool), not just the hidden
+                    # Observe panel. This is the mockup's "FUNCTION / TOOL CALL".
+                    self._add_tool_section(tool_name, args_preview, kind="call")
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_END:
                     # Tool call completed
                     tool_name = event.data.get("tool_name", "unknown")
                     result = event.data.get("result", "")
-                    result_preview = str(result)[:100] if result else "No result"
+                    result_preview = str(result)[:160] if result else "No result"
                     self.observe_panel.log_entry(
                         "tool-result", f"{tool_name}: {result_preview}..."
                     )
+                    self._add_tool_section(tool_name, result_preview, kind="result")
 
                 elif event.event_type == ExecutionEventType.STEP_START:
                     # Chain step started
@@ -1010,31 +1070,49 @@ class PromptChainApp(App):
                 self.session.mcp_servers.append(server)
                 existing = server
 
-            # Connect if auto_connect is enabled
-            if existing.auto_connect and existing.state != "connected":
+            # Always (re)connect auto_connect servers on startup. A fresh process
+            # has no live subprocess, so a persisted state="connected" is stale —
+            # we must actually relaunch + rediscover for the tools to work here.
+            if existing.auto_connect:
+                from ..models import Message
+
+                # Live loading line while the (cold-starting) server connects.
+                loading_msg = Message(
+                    role="system",
+                    content=f"[#4ec9b0]◌ Connecting to '{server_id}'…[/]",
+                )
+                chat_view.add_message(loading_msg)
                 try:
+                    existing.state = "disconnected"
                     mcp_manager = MCPManager(self.session)
                     success = await mcp_manager.connect_server(server_id)
 
+                    # Swap the loading line for the real result + tool count.
+                    chat_view.remove_message(loading_msg)
                     if success:
-                        tools = existing.discovered_tools
-                        # Show brief status in welcome (grayscale)
-                        from ..models import Message
-
-                        connect_msg = Message(
-                            role="system",
-                            content=f"[dim]MCP '{server_id}' connected ({len(tools)} tools)[/dim]",
+                        n = len(existing.discovered_tools)
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"[#4ec9b0]✓ '{server_id}' connected — {n} tools[/]",
+                            )
                         )
-                        chat_view.add_message(connect_msg)
+                    else:
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"[#e5c07b]⚠ '{server_id}' unavailable — 0 tools[/]",
+                            )
+                        )
                 except Exception as e:
                     # Log error but don't crash startup
-                    from ..models import Message
-
-                    error_msg = Message(
-                        role="system",
-                        content=f"[dim]MCP '{server_id}' connection failed: {str(e)[:50]}[/dim]",
+                    chat_view.remove_message(loading_msg)
+                    chat_view.add_message(
+                        Message(
+                            role="system",
+                            content=f"[#e5c07b]⚠ '{server_id}' connection failed: {str(e)[:50]}[/]",
+                        )
                     )
-                    chat_view.add_message(error_msg)
 
     def show_reasoning_progress(self, objective: str, max_steps: int) -> None:
         """Show reasoning progress widget with initial state (T052).
@@ -1095,6 +1173,9 @@ class PromptChainApp(App):
         except Exception:
             # Silently fail if task list module not available
             pass
+        # Also surface the task list INLINE in the chat (persists after the
+        # dock clears) — the SUBTASKS block.
+        self._update_subtasks_block()
 
     def _log_reasoning_step(
         self, step_num: int, step_content: str, tool_calls: Optional[List] = None
@@ -1303,6 +1384,9 @@ class PromptChainApp(App):
             max_steps: Maximum number of steps
             status: Current status message
         """
+        # Surface the agentic loop progress in the dock (the "8/10 loops").
+        self._update_dock_loop(current_step, max_steps, status)
+
         if not self.reasoning_progress:
             return
 
@@ -1421,6 +1505,21 @@ class PromptChainApp(App):
             # Hide after delay
             self.set_timer(2.0, lambda: self.reasoning_progress.hide_progress())
 
+    def _add_tool_section(self, tool_name: str, detail: str, kind: str) -> None:
+        """Surface a tool call/result as a PERSISTENT, collapsible amber
+        gutter-bar section in the chat (#1 — the mockup's FUNCTION / TOOL CALL
+        block). Routes through the same collapsible-block machinery as the
+        streaming path (#2) so the observability-bridge tools (PromptChain-loop
+        / MCP) get the identical stream → dwell → collapse → expand lifecycle.
+        """
+        try:
+            if kind == "call":
+                self._start_tool_block(tool_name, detail)
+            else:
+                self._append_tool_result(detail)
+        except Exception:
+            pass
+
     def _add_task_internal_step(self, step_type: str, content: str) -> None:
         """Add an internal step to the current task in TaskListWidget.
 
@@ -1457,6 +1556,530 @@ class PromptChainApp(App):
 
         self._safe_call_ui(_reset)
 
+    # ---- Collapsible reasoning/tool blocks (#2) ---------------------------
+    def _begin_turn_blocks(self) -> None:
+        """Reset per-turn collapsible-block state (call at the start of a turn)."""
+        self._reasoning_block_msg = None
+        self._tool_block_msg = None
+        self._subtasks_block_msg = None
+        self._recap_turns += 1  # session recap: count turns
+        self._start_spinner()
+
+    def _update_subtasks_block(self) -> None:
+        """Render the agent's TodoWrite task list as an inline collapsible
+        SUBTASKS block in the chat (mockup: ``≡ Tasks · 2/4 · click to expand``),
+        so the todos persist in the conversation even after the dock clears. One
+        block per turn, updated in place as task statuses change."""
+
+        def _do() -> None:
+            from ..models import Message
+            from ..tools.library.task_list_tool import get_task_list_manager
+
+            try:
+                cl = getattr(get_task_list_manager(), "current_list", None)
+            except Exception:
+                return
+            raw = getattr(cl, "tasks", None) if cl else None
+            if not raw:
+                return
+            tasks = [
+                {"content": getattr(t, "content", ""),
+                 "status": getattr(getattr(t, "status", None), "value",
+                                   getattr(t, "status", "pending"))}
+                for t in raw
+            ]
+            done = sum(1 for t in tasks if t["status"] == "completed")
+            summary = (
+                f"[#c792ea]≡ Tasks · {done}/{len(tasks)} · click to expand[/]"
+            )
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._subtasks_block_msg
+            if msg is None:
+                msg = Message(
+                    role="system",
+                    content=summary,
+                    metadata={
+                        "block": True,
+                        "block_kind": "subtasks",
+                        "event_type": "tool_call",  # amber gutter + Ctrl+T
+                        "streaming": True,
+                        "collapsed": False,
+                        "tasks": tasks,
+                        "summary": summary,
+                    },
+                )
+                self._subtasks_block_msg = msg
+                chat_view.add_message(msg)
+            else:
+                msg.metadata["tasks"] = tasks
+                msg.metadata["summary"] = summary
+            chat_view.refresh_block(msg)
+            self._recap_tasks_done = sum(
+                1 for t in tasks if t["status"] == "completed"
+            )
+
+        self._safe_call_ui(_do)
+
+    # ---- Dock RECAP (V1 — structured resting state) ----------------------
+    def _recap_track_tool(self, name: str, file_path: Optional[str]) -> None:
+        """Accumulate session recap stats from a tool call."""
+        self._recap_tools += 1
+        if file_path:
+            if file_path in self._recap_files:
+                self._recap_files.remove(file_path)
+            self._recap_files.append(file_path)  # recent-last
+
+    def _recap_lines(self) -> List[str]:
+        """Compact structured recap for the dock's idle resting state."""
+        if not self._recap_lines_has_content():
+            return []
+        lines: List[str] = []
+        if self._recap_files:
+            recent = self._recap_files[-4:]
+            more = len(self._recap_files) - len(recent)
+            shown = ", ".join(p.split("/")[-1] for p in recent)
+            if more > 0:
+                shown += f" +{more}"
+            lines.append(f"[#c6ccd6]Files[/]  [dim]{shown}[/]")
+        bits = []
+        if self._recap_tasks_done:
+            bits.append(f"{self._recap_tasks_done} tasks done")
+        bits.append(f"{self._recap_tools} tool calls")
+        lines.append(f"[dim]{' · '.join(bits)}[/]")
+        if self._recap_compression:
+            lines.append(f"[#c792ea]Compressed[/]  [dim]{self._recap_compression}[/]")
+        return lines
+
+    def _recap_lines_has_content(self) -> bool:
+        return bool(self._recap_tools or self._recap_files or self._recap_compression)
+
+    def _finalize_dock(self) -> None:
+        """End-of-turn dock: keep active tasks, else show the recap resting state
+        (or hide if the session has no recap yet)."""
+        try:
+            tl = self.query_one("#task-list-widget", TaskListWidget)
+            tl.finalize_turn()
+            if not tl.has_class("visible"):
+                lines = self._recap_lines()
+                if lines:
+                    turns = self._recap_turns
+                    tl.show_recap(
+                        f"RECAP · {turns} turn{'' if turns == 1 else 's'}", lines
+                    )
+        except Exception:
+            pass
+
+    def _update_dock_loop(self, current: int, max_steps: int, status: str) -> None:
+        """Surface the agentic loop progress (the '8/10 loops') in the dock."""
+        def _do() -> None:
+            try:
+                if not self.task_list_widget or status == "Complete":
+                    return
+                self.task_list_widget.set_loop(current, max_steps)
+            except Exception:
+                pass
+        self._safe_call_ui(_do)
+
+    def _orchestration_callback(self, event_type: str, data: dict) -> None:
+        """Surface SUB-AGENTS in the dock when a multi-agent plan runs (the
+        AgentChain emits plan_agent_start / plan_agent_complete)."""
+        try:
+            d = data or {}
+            name = d.get("agent_name") or d.get("agent") or d.get("name") or "agent"
+            if event_type == "plan_agent_start":
+                self._add_task_internal_step("tool_call", f"sub-agent {name} ▸ running")
+            elif event_type == "plan_agent_complete":
+                self._add_task_internal_step("tool_result", f"sub-agent {name} ✓ done")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _fmt_tok(n: Optional[int]) -> str:
+        if n is None:
+            return "?"
+        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+    def _compress_status_msg(self):
+        """A one-line compress status — auto/bank/threshold + live history tokens,
+        so the threshold can be tuned empirically."""
+        from ..models import Message
+
+        th = self._compress_threshold()
+        th_label = self._fmt_tok(th) + (
+            "" if self._compress_threshold_tokens is not None else " (auto)")
+        cur = self._history_tokens()
+        seed = " · [#7ee787]seed staged[/]" if self._staged_seed else ""
+        return Message(
+            role="system",
+            content=(
+                f"[dim]compress · auto [{'on' if self._compress_auto else 'off'}]"
+                f" · bank [{'on' if self._compress_bank else 'off'}]"
+                f" · threshold {th_label}"
+                f" · history {self._fmt_tok(cur)}{seed}[/]"))
+
+    async def _handle_compress_command(self, chat_view, command: str = "/compress") -> None:
+        """/compress [auto on|off | bank on|off] — LLMLingua-2 history compression."""
+        from ..models import Message
+
+        parts = command.split()
+        sub = parts[1] if len(parts) >= 2 else ""
+
+        if sub == "threshold":
+            arg = parts[2] if len(parts) >= 3 else ""
+            if arg.lower() in ("auto", "default", ""):
+                self._compress_threshold_tokens = None
+            elif arg.replace("k", "").replace("K", "").isdigit():
+                n = int(arg.lower().replace("k", "")) * (1000 if "k" in arg.lower() else 1)
+                self._compress_threshold_tokens = max(200, n)
+            else:
+                chat_view.add_message(Message(
+                    role="system",
+                    content="[dim]usage: /compress threshold <N | Nk | auto>[/]"))
+                return
+            chat_view.add_message(self._compress_status_msg())
+            return
+
+        if sub in ("auto", "bank"):
+            on = (len(parts) < 3) or parts[2].lower() in ("on", "true", "1", "yes")
+            if sub == "auto":
+                self._compress_auto = on
+            else:
+                self._compress_bank = on
+            chat_view.add_message(self._compress_status_msg())
+            return
+
+        if sub == "status":
+            chat_view.add_message(self._compress_status_msg())
+            return
+
+        if not self._lingua.available():
+            chat_view.add_message(Message(
+                role="system",
+                content="[#f47067]LLMLingua worker unavailable[/] "
+                        "[dim](expected at ~/.local/bin/lingua-worker)[/]"))
+            return
+        try:
+            history = self.session.history_manager.get_formatted_history(
+                format_style="chat", max_tokens=64000)
+        except Exception:
+            history = "\n".join(
+                f"{m.role}: {m.content}" for m in (self.session.messages or []))
+        if not history or not history.strip():
+            chat_view.add_message(Message(
+                role="system", content="[dim]Nothing to compress yet.[/dim]"))
+            return
+
+        info = Message(role="system",
+                       content="[dim]◌ Compressing history with LLMLingua…[/dim]")
+        chat_view.add_message(info)
+
+        def _work() -> None:
+            res = self._lingua.compress(history, rate=0.5)
+
+            def _show() -> None:
+                try:
+                    chat_view.remove_message(info)
+                except Exception:
+                    pass
+                if not res:
+                    chat_view.add_message(Message(
+                        role="system", content="[#f47067]Compression failed.[/]"))
+                    return
+                o = res.get("origin_tokens")
+                c = res.get("compressed_tokens")
+                ratio = res.get("ratio")
+                self._recap_compression = (
+                    f"{self._fmt_tok(o)}→{self._fmt_tok(c)} · {ratio}")
+                saved = (o - c) if (o is not None and c is not None) else "?"
+                chat_view.add_message(Message(
+                    role="system",
+                    content=f"[#7ee787]✓ Compressed history[/] "
+                            f"[dim]{o} → {c} tokens · {ratio} (saved {saved})[/]"))
+                self._finalize_dock()  # surface the stat in the dock recap
+
+            try:
+                self.call_from_thread(_show)
+            except Exception:
+                pass
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _compress_threshold(self) -> int:
+        """Pre-stage threshold (tokens): the user-set value, else ~half the max."""
+        if self._compress_threshold_tokens is not None:
+            return self._compress_threshold_tokens
+        mx = getattr(self.session, "history_max_tokens", 64000) or 64000
+        return max(3000, int(mx * 0.5))
+
+    def _history_tokens(self) -> int:
+        try:
+            return self.session.history_manager.get_statistics().get(
+                "total_tokens", 0)
+        except Exception:
+            return 0
+
+    def _maybe_prestage_compression(self) -> None:
+        """After a turn, if auto-compress is on and history is large, compress it
+        in the BACKGROUND and keep the seed ready (no model-input change). When
+        'bank' is enabled, that seed is reused as the next turn's history."""
+        if not (self._compress_auto and self._lingua.available()) or self._staging:
+            return
+        try:
+            tokens = self.session.history_manager.get_statistics().get(
+                "total_tokens", 0)
+        except Exception:
+            return
+        if tokens < self._compress_threshold():
+            return
+        try:
+            history = self.session.history_manager.get_formatted_history(
+                format_style="chat", max_tokens=64000)
+        except Exception:
+            return
+        if not history or not history.strip():
+            return
+        self._staging = True
+
+        def _work() -> None:
+            res = self._lingua.compress(history, rate=0.5)
+
+            def _show() -> None:
+                self._staging = False
+                if res:
+                    self._staged_seed = res.get("compressed")
+                    o = res.get("origin_tokens")
+                    c = res.get("compressed_tokens")
+                    self._recap_compression = (
+                        f"{self._fmt_tok(o)}→{self._fmt_tok(c)} · "
+                        f"{res.get('ratio')} (staged)")
+                    self._finalize_dock()
+
+            try:
+                self.call_from_thread(_show)
+            except Exception:
+                self._staging = False
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _start_spinner(self) -> None:
+        """Begin ticking the in-progress-block spinner (idempotent)."""
+        if self._spinner_timer is None:
+            self._spinner_timer = self.set_interval(0.12, self._tick_spinner)
+
+    def _stop_spinner(self) -> None:
+        """Stop the spinner timer and clear the 'running' flag off all blocks."""
+        if self._spinner_timer is not None:
+            try:
+                self._spinner_timer.stop()
+            except Exception:
+                pass
+            self._spinner_timer = None
+        try:
+            chat_view = self.query_one("#chat-view", ChatView)
+            for msg in chat_view.messages:
+                meta = getattr(msg, "metadata", None) or {}
+                if meta.get("block") and meta.get("running"):
+                    meta["running"] = False
+                    chat_view.refresh_block(msg)
+        except Exception:
+            pass
+
+    def _tick_spinner(self) -> None:
+        """Advance the spinner frame and refresh any running blocks."""
+        self._spinner_idx = (self._spinner_idx + 1) % len(self._spinner_frames)
+        frame = self._spinner_frames[self._spinner_idx]
+        try:
+            chat_view = self.query_one("#chat-view", ChatView)
+        except Exception:
+            return
+        for msg in chat_view.messages:
+            meta = getattr(msg, "metadata", None) or {}
+            if meta.get("block") and meta.get("running"):
+                meta["spinner"] = frame
+                chat_view.refresh_block(msg)
+
+    def _reasoning_summary(self, n: int) -> str:
+        # ★ is the reasoning glyph AND the click-to-expand marker (no separate
+        # display triangle) — reasoning == thinking, one icon.
+        unit = "step" if n == 1 else "steps"
+        return f"[dim italic]★ reasoning · {n} {unit} · click to expand[/]"
+
+    def _tool_summary(self, name: str) -> str:
+        # ⚙ is the tool glyph + expand marker (same pattern as ★ for reasoning).
+        return f"[#e5c07b]⚙ {name}[/][dim] · click to expand[/]"
+
+    def _restart_block_dwell(self, msg: Any) -> None:
+        """(Re)arm the dwell timer that auto-collapses a block once its stream
+        goes idle. Generation-guarded so each new delta cancels the prior arming
+        and only the latest fires (handoff: ``set_timer(3.5, collapse)`` reset on
+        each delta). Must run on the main thread (set_timer)."""
+        self._block_dwell_gen += 1
+        gen = self._block_dwell_gen
+        meta = getattr(msg, "metadata", None)
+        if meta is None:
+            return
+        meta["dwell_gen"] = gen
+        self.set_timer(
+            self._block_dwell_seconds,
+            lambda m=msg, g=gen: self._collapse_block(m, g),
+        )
+
+    def _collapse_block(self, msg: Any, gen: int) -> None:
+        """Collapse a block to its one-line summary — but only if no newer delta
+        re-armed the dwell since this timer was scheduled."""
+        meta = getattr(msg, "metadata", None) or {}
+        if meta.get("dwell_gen") != gen or meta.get("collapsed"):
+            return
+        meta["collapsed"] = True
+        try:
+            self.query_one("#chat-view", ChatView).refresh_block(msg)
+        except Exception:
+            pass
+
+    def _append_reasoning_line(self, line: str) -> None:
+        """Stream one reasoning line into the turn's single reasoning block."""
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._reasoning_block_msg
+            if msg is None:
+                msg = Message(
+                    role="system",
+                    content=self._reasoning_summary(1),
+                    metadata={
+                        "block": True,
+                        "block_kind": "reasoning",
+                        "event_type": "thinking",  # role-think gutter + Ctrl+T
+                        "streaming": True,
+                        "lines": [],
+                        "collapsed": False,
+                        "running": True,  # spinner until the turn ends
+                        "expanded_header": "[dim italic]★ reasoning[/]",
+                    },
+                )
+                self._reasoning_block_msg = msg
+                chat_view.add_message(msg)
+            meta = msg.metadata
+            meta["lines"].append(line)
+            meta["collapsed"] = False  # new delta re-expands (stream live, full)
+            meta["summary"] = self._reasoning_summary(len(meta["lines"]))
+            chat_view.refresh_block(msg)
+            self._restart_block_dwell(msg)
+
+        self._safe_call_ui(_do)
+
+    # Task-list tools render as the inline SUBTASKS block, not a generic tool
+    # block — so don't open a duplicate ⚙ tool section for them.
+    _TASK_TOOLS = {"task_list_write_tool", "update_task_status", "get_pending_tasks"}
+
+    def _start_tool_block(self, name: str, detail: str) -> None:
+        """Open a new collapsible tool block for a tool call (one per call)."""
+        if name in self._TASK_TOOLS:
+            self._suppress_tool_result = True  # its result is not a tool block
+            self._update_subtasks_block()
+            return
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            # Parse a file path out of the args so the renderer can pick a lexer.
+            import re as _re
+            _m = _re.search(
+                r'["\']?path["\']?\s*[:=]\s*["\']?([^"\',}\s]+)', str(detail)
+            )
+            file_path = _m.group(1) if _m else None
+            self._recap_track_tool(name, file_path)  # session recap stats
+            msg = Message(
+                role="system",
+                content=self._tool_summary(name),
+                metadata={
+                    "block": True,
+                    "block_kind": "tool",
+                    "event_type": "tool_call",  # role-tool amber gutter + Ctrl+T
+                    "streaming": True,
+                    "lines": [],
+                    "collapsed": False,
+                    "expanded_header": f"[bold #e5c07b]⚙ {name}[/]",
+                    "summary": self._tool_summary(name),
+                    "tool_name": name,
+                    "tool_args_str": str(detail),
+                    "file_path": file_path,
+                    "result_raw": None,
+                    "running": True,  # spinner until the result arrives
+                    "t0": time.monotonic(),  # for per-call timing (142ms · ok)
+                    "time_ms": None,
+                    "status": None,
+                },
+            )
+            self._tool_block_msg = msg
+            chat_view.add_message(msg)
+            chat_view.refresh_block(msg)
+            # Tool blocks are CONTENT (code/diff) — keep them expanded so the
+            # user can read them; they don't auto-collapse like reasoning. Click
+            # the ⚙ header to collapse. (Reasoning blocks still dwell-collapse.)
+
+        self._safe_call_ui(_do)
+
+    def _append_tool_result(self, detail: str) -> None:
+        """Stream a tool result into the in-progress tool block."""
+        if self._suppress_tool_result:
+            # The matching call was a task-list tool — its result feeds the
+            # SUBTASKS block, not a tool block.
+            self._suppress_tool_result = False
+            self._update_subtasks_block()
+            return
+
+        def _do() -> None:
+            from ..models import Message
+
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._tool_block_msg
+            if msg is None:
+                # Result with no preceding call block — open a bare one.
+                msg = Message(
+                    role="system",
+                    content=self._tool_summary("tool"),
+                    metadata={
+                        "block": True,
+                        "block_kind": "tool",
+                        "event_type": "tool_call",
+                        "streaming": True,
+                        "lines": [],
+                        "collapsed": False,
+                        "expanded_header": "[bold #e5c07b]⚙ tool[/]",
+                        "summary": self._tool_summary("tool"),
+                        "tool_args_str": "",
+                        "file_path": None,
+                        "result_raw": None,
+                    },
+                )
+                self._tool_block_msg = msg
+                chat_view.add_message(msg)
+            # Store the FULL result so the renderer can syntax-highlight code /
+            # color a diff (the renderer recognises the shape itself).
+            msg.metadata["result_raw"] = str(detail)
+            msg.metadata["collapsed"] = False
+            msg.metadata["running"] = False  # result arrived → ⚙ (spinner stops)
+            # Per-call metadata (mockup: "142ms · ok"). Timing is the TUI-side
+            # call→result span; status from error markers in the result.
+            t0 = msg.metadata.get("t0")
+            if t0 is not None:
+                msg.metadata["time_ms"] = int((time.monotonic() - t0) * 1000)
+            low = str(detail).lower()
+            msg.metadata["status"] = (
+                "error" if low.startswith("error")
+                or "[completed with errors]" in low
+                or "❌" in str(detail) or "exception" in low[:40]
+                else "ok"
+            )
+            chat_view.refresh_block(msg)
+            # No dwell-collapse for tool blocks — code/diff stays visible.
+
+        self._safe_call_ui(_do)
+
     # REACT Loop: Streaming callback for real-time agent output
     def _streaming_callback(self, event_type: str, content: str) -> None:
         """Handle streaming events from AgenticStepProcessor.
@@ -1476,48 +2099,39 @@ class PromptChainApp(App):
             if event_type in ("thinking", "tool_call", "tool_result"):
                 self._reset_live_stream()
 
-            # Format based on event type + add to task internal steps
+            # Format based on event type + add to task internal steps.
+            # #2: thinking/tool_call/tool_result stream into COLLAPSIBLE blocks
+            # (stream live full → 3.5s dwell → auto-collapse → click to expand)
+            # instead of one flat breadcrumb message each. These branches handle
+            # their own rendering and return early.
             if event_type == "thinking":
-                # Show thinking in dim/italic
-                # Escape brackets to prevent Rich markup conflicts
                 safe_content = content.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[dim italic]🧠 {safe_content}[/dim italic]",
-                    metadata={"streaming": True, "event_type": "thinking"},
-                )
-                # Track in task list (Claude Code style)
+                self._append_reasoning_line(safe_content)
                 self._add_task_internal_step("thinking", content)
+                return
             elif event_type == "tool_call":
-                # Show tool call being made
-                # Escape brackets to prevent Rich markup conflicts
-                safe_content = content.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[cyan]🔧 Calling: {safe_content}[/cyan]",
-                    metadata={"streaming": True, "event_type": "tool_call"},
-                )
-                # Track in task list (Claude Code style)
+                # content is "<function_name>: <args>" (agentic_step_processor)
+                name, _sep, detail = content.partition(": ")
+                self._start_tool_block(name.strip() or "tool", detail)
                 self._add_task_internal_step("tool_call", content)
+                return
             elif event_type == "tool_result":
-                # Show tool result (truncated for display)
+                # content is "<function_name> completed: <result>" — strip the
+                # prefix and keep the FULL result so the block can render code /
+                # a diff (not a truncated one-liner). The task-panel still gets a
+                # short preview.
+                result = content.split(" completed: ", 1)[-1]
+                self._append_tool_result(result)
                 preview = content[:300] + "..." if len(content) > 300 else content
-                # Escape brackets to prevent Rich markup conflicts
-                safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
-                msg = Message(
-                    role="system",
-                    content=f"[green]✓ {safe_preview}[/green]",
-                    metadata={"streaming": True, "event_type": "tool_result"},
-                )
-                # Track in task list (Claude Code style)
                 self._add_task_internal_step("tool_result", preview)
+                return
             elif event_type == "error":
                 # Show errors in red
                 # Escape brackets to prevent Rich markup conflicts
                 safe_content = content.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
-                    content=f"[red]⚠️ {safe_content}[/red]",
+                    content=f"[red]⚠ {safe_content}[/red]",
                     metadata={"streaming": True, "event_type": "error"},
                 )
                 # Track in task list (Claude Code style)
@@ -1529,7 +2143,7 @@ class PromptChainApp(App):
                 safe_preview = preview.replace("[", "\\[").replace("]", "\\]")
                 msg = Message(
                     role="system",
-                    content=f"[yellow]📥 User input received: {safe_preview}[/yellow]",
+                    content=f"[yellow]▸ User input received: {safe_preview}[/yellow]",
                     metadata={"streaming": True, "event_type": "user_input"},
                 )
             elif event_type == "tokens":
@@ -1730,6 +2344,7 @@ class PromptChainApp(App):
                     content=f"Session '{self.session.name}' saved. Goodbye!",
                 )
                 chat_view.add_message(goodbye_msg)
+            self._arm_hard_exit()
             self.exit()
 
         elif command.startswith("/help"):
@@ -1775,6 +2390,12 @@ class PromptChainApp(App):
             chat_view.add_message(
                 Message(role="system", content="[dim]Chat view cleared.[/dim]")
             )
+
+        elif command.startswith("/compress"):
+            # /compress            — compress now, show savings
+            # /compress auto on|off — toggle background pre-staging
+            # /compress bank on|off — toggle feeding the compressed seed to the model
+            await self._handle_compress_command(chat_view, command)
 
         elif command.startswith("/cache"):
             # Handle cache commands (T-cache: Python pycache clearing)
@@ -1847,13 +2468,9 @@ class PromptChainApp(App):
                 "gemini": {
                     "id": "gemini",
                     "type": "stdio",
-                    "command": "uv",
+                    "command": "/home/gyasis/Documents/code/gemini-mcp/.venv/bin/python",
                     "args": [
-                        "run",
-                        "--directory",
-                        "/home/gyasis/Documents/code/gemini-mcp",
-                        "fastmcp",
-                        "run",
+                        "/home/gyasis/Documents/code/gemini-mcp/server.py",
                     ],
                     "description": "Gemini AI with web search (gemini_research), code review, brainstorming",
                 },
@@ -2350,7 +2967,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔍 Generating branching hypotheses for: {query}"
+            role="system", content=f"▸ Generating branching hypotheses for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2376,11 +2993,11 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 hypotheses = result.get("hypotheses", [])
-                content_lines = [f"✅ Generated {len(hypotheses)} hypotheses:\n"]
+                content_lines = [f"✓ Generated {len(hypotheses)} hypotheses:\n"]
                 for i, hyp in enumerate(hypotheses, 1):
                     content_lines.append(f"{i}. {hyp}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2393,19 +3010,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2429,7 +3046,7 @@ class PromptChainApp(App):
         options = parsed["options"]
 
         # Show processing message
-        processing_msg = Message(role="system", content=f"🔄 Expanding query: {query}")
+        processing_msg = Message(role="system", content=f"▸ Expanding query: {query}")
         chat_view.add_message(processing_msg)
 
         try:
@@ -2453,11 +3070,11 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 expansions = result.get("expansions", [])
-                content_lines = [f"✅ Generated {len(expansions)} query expansions:\n"]
+                content_lines = [f"✓ Generated {len(expansions)} query expansions:\n"]
                 for i, exp in enumerate(expansions, 1):
                     content_lines.append(f"{i}. {exp}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2470,19 +3087,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2507,7 +3124,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔗 Running multi-hop retrieval for: {query}"
+            role="system", content=f"▸ Running multi-hop retrieval for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2533,7 +3150,7 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 documents = result.get("documents", result.get("results", []))
-                content_lines = [f"✅ Retrieved {len(documents)} documents:\n"]
+                content_lines = [f"✓ Retrieved {len(documents)} documents:\n"]
                 for i, doc in enumerate(documents[:10], 1):  # Show first 10
                     doc_preview = (
                         str(doc)[:100] + "..." if len(str(doc)) > 100 else str(doc)
@@ -2542,7 +3159,7 @@ class PromptChainApp(App):
                 if len(documents) > 10:
                     content_lines.append(f"\n... and {len(documents) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2555,19 +3172,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2592,7 +3209,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"🔀 Running hybrid search for: {query}"
+            role="system", content=f"▸ Running hybrid search for: {query}"
         )
         chat_view.add_message(processing_msg)
 
@@ -2618,7 +3235,7 @@ class PromptChainApp(App):
             # Format results
             if result["success"]:
                 results_data = result.get("results", [])
-                content_lines = [f"✅ Found {len(results_data)} results:\n"]
+                content_lines = [f"✓ Found {len(results_data)} results:\n"]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
                     res_preview = (
                         str(res)[:100] + "..." if len(str(res)) > 100 else str(res)
@@ -2627,7 +3244,7 @@ class PromptChainApp(App):
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2640,19 +3257,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2692,7 +3309,7 @@ class PromptChainApp(App):
         )
         processing_msg = Message(
             role="system",
-            content=f"🗂️  Searching across {len(shards)} shards for: {query}",
+            content=f"▸ Searching across {len(shards)} shards for: {query}",
         )
         chat_view.add_message(processing_msg)
 
@@ -2719,7 +3336,7 @@ class PromptChainApp(App):
             if result["success"]:
                 results_data = result.get("results", [])
                 content_lines = [
-                    f"✅ Found {len(results_data)} results across shards:\n"
+                    f"✓ Found {len(results_data)} results across shards:\n"
                 ]
                 for i, res in enumerate(results_data[:10], 1):  # Show first 10
                     res_preview = (
@@ -2729,7 +3346,7 @@ class PromptChainApp(App):
                 if len(results_data) > 10:
                     content_lines.append(f"\n... and {len(results_data) - 10} more")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2742,19 +3359,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2779,7 +3396,7 @@ class PromptChainApp(App):
 
         # Show processing message
         processing_msg = Message(
-            role="system", content=f"⚡ Running speculative execution..."
+            role="system", content=f"▸ Running speculative execution..."
         )
         chat_view.add_message(processing_msg)
 
@@ -2806,7 +3423,7 @@ class PromptChainApp(App):
             if result["success"]:
                 predictions = result.get("predictions", result.get("results", []))
                 content_lines = [
-                    f"✅ Generated {len(predictions)} speculative predictions:\n"
+                    f"✓ Generated {len(predictions)} speculative predictions:\n"
                 ]
                 for i, pred in enumerate(predictions, 1):
                     pred_preview = (
@@ -2814,7 +3431,7 @@ class PromptChainApp(App):
                     )
                     content_lines.append(f"{i}. {pred_preview}")
                 content_lines.append(
-                    f"\n⏱️ Execution time: {result.get('execution_time_ms', 0):.0f}ms"
+                    f"\nExecution time: {result.get('execution_time_ms', 0):.0f}ms"
                 )
 
                 result_msg = Message(role="assistant", content="\n".join(content_lines))
@@ -2827,19 +3444,19 @@ class PromptChainApp(App):
             else:
                 error_msg = Message(
                     role="system",
-                    content=f"❌ Error: {result.get('error', 'Unknown error')}",
+                    content=f"✗ Error: {result.get('error', 'Unknown error')}",
                 )
                 chat_view.add_message(error_msg)
 
         except PatternNotAvailableError as e:
             error_msg = Message(
                 role="system",
-                content=f"❌ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
+                content=f"✗ Pattern not available: {str(e)}\n\nInstall with: pip install promptchain[hybridrag]",
             )
             chat_view.add_message(error_msg)
         except Exception as e:
             error_msg = Message(
-                role="system", content=f"❌ Error executing pattern: {str(e)}"
+                role="system", content=f"✗ Error executing pattern: {str(e)}"
             )
             chat_view.add_message(error_msg)
 
@@ -2851,25 +3468,25 @@ class PromptChainApp(App):
 
         help_content = """Pattern Commands:
 
-🌳 /branch "query" [--count=N] [--mode=local|global|hybrid]
+▸ /branch "query" [--count=N] [--mode=local|global|hybrid]
    Generate branching hypotheses for exploration
 
-🔄 /expand "query" [--strategies=semantic,synonym] [--max=N]
+▸ /expand "query" [--strategies=semantic,synonym] [--max=N]
    Expand query with variations
 
-🔗 /multihop "query" [--max-hops=N] [--mode=hybrid]
+▸ /multihop "query" [--max-hops=N] [--mode=hybrid]
    Multi-hop retrieval with reasoning chains
 
-🔀 /hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]
+▸ /hybrid "query" [--fusion=rrf|linear|borda] [--top-k=N]
    Hybrid search combining dense and sparse retrieval
 
-🗂️  /sharded "query" --shards=shard1,shard2 [--aggregation=rrf]
+▸ /sharded "query" --shards=shard1,shard2 [--aggregation=rrf]
    Search across multiple sharded indexes
 
-⚡ /speculate "context" [--min-confidence=0.7] [--prefetch=N]
+▸ /speculate "context" [--min-confidence=0.7] [--prefetch=N]
    Speculative execution with prefetching
 
-📖 /patterns
+▸ /patterns
    Show this help message
 
 Examples:
@@ -2897,7 +3514,7 @@ Examples:
         if self.shell_mode:
             mode_msg = Message(
                 role="system",
-                content="🔧 Shell mode activated. All input will be executed as shell commands.\nType !! to exit shell mode.",
+                content="❯ Shell mode activated. All input will be executed as shell commands.\nType !! to exit shell mode.",
             )
             # Update status bar to show shell mode
             status_bar = self.query_one("#status-bar", StatusBar)
@@ -2905,7 +3522,7 @@ Examples:
         else:
             mode_msg = Message(
                 role="system",
-                content="💬 Chat mode activated. Back to normal conversation.",
+                content="◇ Chat mode activated. Back to normal conversation.",
             )
 
         chat_view.add_message(mode_msg)
@@ -3118,6 +3735,48 @@ Examples:
         except Exception as e:
             logger.debug(f"_derive_max_context_tokens fallback for {model_name}: {e}")
         return fallback
+
+    def _reasoning_profile_for(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """Best-effort model_catalog reasoning profile for ``model_name`` (#2).
+
+        Drives the processor's reasoning extractor + supplies the ``enable``
+        params (e.g. ``think=True`` / ``reasoning_effort``) that make a reasoning
+        model actually emit its thinking. Graceful: returns None on any error, so
+        the extractor falls back to its all-surfaces heuristic.
+        """
+        try:
+            from ..model_catalog import infer_reasoning_profile
+
+            n = (model_name or "").lower()
+            if n.startswith("ollama"):
+                source = "ollama-local"
+            elif "gemini" in n:
+                source = "gemini"
+            else:
+                source = "openai"
+            return infer_reasoning_profile(model_name, source)
+        except Exception:
+            return None
+
+    def _model_call_params(self, model_name: str, base: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge ``base`` params with model_catalog ROUTING for ``model_name`` —
+        ``api_base`` / ``api_key`` / reasoning ``enable`` (e.g. cloud gpt-oss/qwq,
+        Mac-local ollama). Lets the TUI actually REACH a reasoning model so its
+        thinking streams into the block (#2 reasoning mode). Catalog is built once
+        and cached; api+cloud only (skip the slow Mac-local probe). Graceful: on
+        any miss/offline the model is used as-is (env-based routing).
+        """
+        params = dict(base)
+        try:
+            from ..model_catalog import build_catalog, resolve
+
+            if self._model_catalog is None:
+                self._model_catalog = build_catalog(include_local=False)
+            _, routing = resolve(model_name, self._model_catalog)
+            params.update(routing)
+        except Exception as e:
+            logger.debug(f"model routing lookup skipped for {model_name!r}: {e}")
+        return params
 
     def _summarization_kwargs(self, model_name: str) -> Dict[str, Any]:
         """Context-management kwargs for (TUI)AgenticStepProcessor.
@@ -3344,32 +4003,55 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     mcp_server_configs.append(mcp_config)
 
         for agent_name, agent in self.session.agents.items():
-            # Determine agent type: AgenticStepProcessor or simple PromptChain
-            if agent.instruction_chain and len(agent.instruction_chain) > 0:
-                # Import TUIAgenticStepProcessor for complex reasoning agents
+            # Determine agent type: agentic processor vs simple pass-through.
+            # An agent WITH TOOLS uses the agentic processor even when its
+            # instruction_chain is empty (older/persisted sessions stored []),
+            # so its tool calls + reasoning STREAM into the collapsible blocks
+            # (#2) instead of the silent simple path. Fixes "no tool/reasoning
+            # blocks appear in my existing default session".
+            _has_chain = bool(agent.instruction_chain) and len(agent.instruction_chain) > 0
+            if _has_chain or all_tools:
+                # Import TUIAgenticStepProcessor for tool-using / reasoning agents
                 # (spec 011: legacy TUI prompt baked in via subclass)
                 from promptchain.cli.tui_processor import \
                     TUIAgenticStepProcessor
 
-                objective = (
-                    agent.instruction_chain[0]
-                    if isinstance(agent.instruction_chain[0], str)
-                    else str(agent.instruction_chain[0])
-                )
+                if _has_chain:
+                    objective = (
+                        agent.instruction_chain[0]
+                        if isinstance(agent.instruction_chain[0], str)
+                        else str(agent.instruction_chain[0])
+                    )
+                else:
+                    # Empty instruction_chain but tools present → default agentic
+                    # objective so the agent still streams its tool/reasoning work.
+                    objective = (
+                        "You are a helpful execution agent. Use the available "
+                        "tools to complete the user's request, then give a clear, "
+                        "direct answer."
+                    )
 
                 # Determine history mode from agent's history_config
                 history_mode = "progressive"  # Default for multi-hop reasoning
                 if agent.history_config and not agent.history_config.enabled:
                     history_mode = "minimal"  # Terminal agents
 
+                # #2: reasoning profile drives the EXTRACTOR; model_call_params
+                # adds catalog ROUTING (api_base/api_key) + reasoning enable
+                # (think=True / reasoning_effort) so a reasoning model is actually
+                # REACHED and emits its thinking into the collapsible block.
+                _rprofile = self._reasoning_profile_for(agent.model_name)
+                _model_params = self._model_call_params(
+                    agent.model_name,
+                    {"max_completion_tokens": agent.max_completion_tokens},
+                )
+
                 # Create PromptChain with tools using agentic config
                 chain = PromptChain(
                     models=[
                         {
                             "name": agent.model_name,
-                            "params": {
-                                "max_completion_tokens": agent.max_completion_tokens
-                            },
+                            "params": _model_params,
                         }
                     ],
                     instructions=[
@@ -3377,9 +4059,16 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             objective=objective,
                             max_internal_steps=self.config.agentic.default_max_internal_steps,
                             model_name=agent.model_name,
+                            # The processor's model_params OVERRIDE the chain's at
+                            # call time (promptchaining ~L892), so routing + enable
+                            # MUST be set here too or a cloud reasoning model is
+                            # never reached.
+                            model_params=_model_params,
                             history_mode=history_mode
                             or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates
+                            streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
+                            reasoning_profile=_rprofile,  # #2: model reasoning extraction
                             # Wire context-management so token-based compaction
                             # actually engages (max_context_tokens per model).
                             **self._summarization_kwargs(agent.model_name),
@@ -3454,7 +4143,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 auto_include_history=orchestration.auto_include_history,
                 agent_history_configs=self._build_history_configs(),
                 verbose=False,
-                activity_logger=self.session.activity_logger,  # ✅ FIX: Enable activity logging
+                activity_logger=self.session.activity_logger,  # ✓ FIX: Enable activity logging
             )
         else:
             # Single-agent mode: Wrap single agent in AgentChain for consistency
@@ -3469,8 +4158,15 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 auto_include_history=True,
                 agent_history_configs=self._build_history_configs(),
                 verbose=False,
-                activity_logger=self.session.activity_logger,  # ✅ FIX: Enable activity logging
+                activity_logger=self.session.activity_logger,  # ✓ FIX: Enable activity logging
             )
+
+        # Surface sub-agents in the dock when a multi-agent plan runs.
+        try:
+            self.agent_chain.register_orchestration_callback(
+                self._orchestration_callback)
+        except Exception:
+            pass
 
         return self.agent_chain
 
@@ -3536,6 +4232,8 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         self.last_step_number = 0
         self.processor_completed = False
         self.last_displayed_step = None
+        # #2: start fresh collapsible reasoning/tool blocks for this turn.
+        self._begin_turn_blocks()
 
         # Inject file context for @syntax references (User Story 4: T096-T098)
         working_directory = Path(self.session.working_directory)
@@ -3594,6 +4292,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             history = self.session.history_manager.get_formatted_history(
                 format_style="chat", max_tokens=6000  # Leave room for response
             )
+
+            # BANK (opt-in): reuse the already-computed compressed seed as the
+            # history sent to the model — real token savings with no per-turn
+            # latency (it was pre-staged in the background after the last turn).
+            if self._compress_bank and self._staged_seed:
+                history = self._staged_seed
 
             # Prepare input with history context (use content_with_files for LLM)
             if history:
@@ -3989,22 +4693,17 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     if self.log_viewer_visible:
                         self.log_viewer.load_activities()
 
-                # Mark task list processing as complete
-                try:
-                    task_list = self.query_one("#task-list-widget", TaskListWidget)
-                    task_list.mark_processing_complete()
-                except Exception:
-                    pass  # Widget may not be ready
+                # Turn done — keep active tasks, else show the RECAP resting
+                # state (or hide if no session activity yet).
+                self._finalize_dock()
+                # Pre-stage a compressed seed in the background if history is big.
+                self._maybe_prestage_compression()
 
         except Exception as e:
             # REACT Loop: Reset processing flag on error
             self.is_processing = False
-            # Mark task list processing as complete (even on error)
-            try:
-                task_list = self.query_one("#task-list-widget", TaskListWidget)
-                task_list.mark_processing_complete()
-            except Exception:
-                pass
+            # Same dock finalize on error.
+            self._finalize_dock()
             # Clear queue
             while not self.user_input_queue.empty():
                 try:
@@ -4025,6 +4724,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             chat_view.remove_message(processing_msg)
 
             chat_view.add_message(error_msg)
+
+        # Turn over (success or error) — stop the in-progress spinner.
+        self._stop_spinner()
 
         # Update status bar
         status_bar.update_session_info(message_count=len(self.session.messages))
@@ -4110,21 +4812,25 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # The objective is derived from the current workflow step, not the overall workflow
             # Use agentic config for max_internal_steps (default: 15)
             max_steps = self.config.agentic.default_max_internal_steps
+            _rprofile = self._reasoning_profile_for(model_name)  # #2
+            _wf_params: Dict[str, Any] = {"max_completion_tokens": 16000}
+            if _rprofile and _rprofile.get("enable"):
+                _wf_params.update(_rprofile["enable"])
             agentic_processor = TUIAgenticStepProcessor(
                 objective=current_step.description,
                 max_internal_steps=max_steps,
                 model_name=model_name,
                 history_mode=self.config.agentic.history_mode,  # Use config history mode
                 progress_callback=self._reasoning_progress_callback,  # T052: Progress updates
+                streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
+                reasoning_profile=_rprofile,  # #2: model reasoning extraction
                 # Wire context-management (per-model context window limit).
                 **self._summarization_kwargs(model_name),
             )
 
             # Create workflow-aware PromptChain with AgenticStepProcessor
             workflow_chain = PromptChain(
-                models=[
-                    {"name": model_name, "params": {"max_completion_tokens": 16000}}
-                ],
+                models=[{"name": model_name, "params": _wf_params}],
                 instructions=[
                     f"Working on workflow: {workflow.objective}\nCurrent step: {current_step.description}",
                     agentic_processor,  # Multi-hop reasoning for current step
@@ -4307,8 +5013,33 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         # Allow app to continue running
         event.prevent_default()
 
+    def _arm_hard_exit(self, delay: float = 2.5) -> None:
+        """Guarantee the process dies shortly after the user asks to quit.
+
+        ``app.run()`` can hang on shutdown when a connected MCP stdio server's
+        async teardown blocks, so the ``os._exit()`` backstop in ``main()`` never
+        runs and ``/exit`` / Ctrl+D appear to freeze. Arm a daemon timer the
+        instant quit is requested: Textual gets ``delay`` seconds to restore the
+        terminal cleanly (alt-screen, cursor, mouse), then we hard-exit no matter
+        what. Idempotent — only the first call arms the timer.
+        """
+        if getattr(self, "_hard_exit_armed", False):
+            return
+        self._hard_exit_armed = True
+        timer = threading.Timer(delay, os._exit, args=(0,))
+        timer.daemon = True
+        timer.start()
+
+    def action_quit(self) -> None:  # type: ignore[override]
+        """Quit (Ctrl+D / quit binding): arm the failsafe, then exit cleanly."""
+        self._arm_hard_exit()
+        self.exit()
+
     async def on_exit(self):
         """Handle app exit - save session and cleanup observers."""
+        # Arm the hard-exit failsafe here too, so ANY exit path (not just the
+        # /exit command or Ctrl+D) is guaranteed to terminate the process.
+        self._arm_hard_exit()
         try:
             # Cleanup MLflow observer if active
             if hasattr(self, "_mlflow_observer"):

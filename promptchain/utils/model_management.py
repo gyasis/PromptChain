@@ -210,7 +210,7 @@ class ModelManagerFactory:
     def register_manager(cls, provider: ModelProvider, manager_class: type):
         """Register a model manager class for a provider"""
         cls._managers[provider] = manager_class
-        logger.info(
+        logger.debug(
             f"Registered {provider.value} model manager: {manager_class.__name__}"
         )
 

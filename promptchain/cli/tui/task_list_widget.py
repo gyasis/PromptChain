@@ -63,7 +63,7 @@ class TaskListWidget(Container):
         height: auto;
         max-height: 20;
         border: round #2a3340;
-        background: #0f131c;
+        background: #000000;
         padding: 0 1;
         margin: 1 0;
     }
@@ -162,6 +162,8 @@ class TaskListWidget(Container):
         self._current_task_id: Optional[str] = None
         # Refresh timer to update task counts in real-time
         self._refresh_timer: Optional[Any] = None
+        # Live agentic LOOP progress (current_step, max_steps) — the "8/10 loops"
+        self._loop: Optional[tuple] = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -451,7 +453,14 @@ class TaskListWidget(Container):
         """
         progress_bar = self.query_one("#task-progress-bar", Static)
 
-        if self._task_manager and self._task_manager.current_list:
+        # Live agentic loop progress wins (the "8/10 loops").
+        if self._loop and self._loop[0] is not None:
+            cur, mx = self._loop
+            filled = int((cur / mx) * 10) if mx else 0
+            bar = "[" + "#" * filled + "." * (10 - filled) + "]"
+            progress_bar.update(
+                f"  [#c792ea]⟳ loop {cur}/{mx}[/]  [dim]{bar}[/]")
+        elif self._task_manager and self._task_manager.current_list:
             # Use task manager progress
             task_list = self._task_manager.current_list
             progress_pct = task_list.progress_percentage
@@ -472,18 +481,21 @@ class TaskListWidget(Container):
                 bar = "[" + "#" * filled + "." * (10 - filled) + "]"
                 progress_bar.update(f"  {bar} {step_count} steps")
             else:
-                progress_bar.update("  [..........] waiting...")
+                # No active step-tracker → don't sit on a frozen 'waiting…' bar.
+                progress_bar.update("")
         else:
             progress_bar.update("")
 
     def _get_step_prefix(self, step_type: str) -> str:
         """Get display prefix for step type."""
+        # Cohesive monochrome glyph set + accent palette (matches the chat
+        # blocks: ★ reasoning · ⚙ tool · ✓ ok · ◇ llm · ✗ error).
         prefixes = {
-            "thinking": "[dim]🧠[/dim]",
-            "tool_call": "[cyan]🔧[/cyan]",
-            "tool_result": "[green]✓[/green]",
-            "llm_call": "[blue]💬[/blue]",
-            "error": "[red]⚠[/red]",
+            "thinking": "[dim]★[/dim]",
+            "tool_call": "[#e5c07b]⚙[/]",
+            "tool_result": "[#7ee787]✓[/]",
+            "llm_call": "[#4ec9b0]◇[/]",
+            "error": "[#f47067]✗[/]",
         }
         return prefixes.get(step_type, "[dim]•[/dim]")
 
@@ -505,6 +517,33 @@ class TaskListWidget(Container):
         """Hide the task list widget."""
         self.remove_class("visible")
 
+    def show_recap(self, header: str, lines: List[str]) -> None:
+        """Resting state: a compact session RECAP (shown when there are no active
+        tasks) — a running summary of what's been done this session."""
+        self._expandable_tasks.clear()
+        self._current_task_id = None
+        self.query_one("#task-header", Static).update(f"[bold #c792ea]{header}[/]")
+        container = self.query_one("#task-list-container", ScrollableContainer)
+        container.remove_children()
+        for ln in lines:
+            s = Static(f"  {ln}")
+            s.add_class("task-line")
+            container.mount(s)
+        self.query_one("#task-progress-bar", Static).update("")
+        self.show_task_list()
+
+    def set_loop(self, current: int, max_steps: int) -> None:
+        """Surface the agentic loop progress (the '8/10 loops') in the dock."""
+        self._loop = (current, max_steps)
+        try:
+            filled = int((current / max_steps) * 10) if max_steps else 0
+            bar = "[" + "#" * filled + "." * (10 - filled) + "]"
+            self.query_one("#task-progress-bar", Static).update(
+                f"  [#c792ea]⟳ loop {current}/{max_steps}[/]  [dim]{bar}[/]")
+            self.show_task_list()
+        except Exception:
+            pass
+
     def mark_processing_complete(self) -> None:
         """Mark the default processing task as completed.
 
@@ -516,6 +555,38 @@ class TaskListWidget(Container):
             self._expandable_tasks["agent_processing"].active_form = "Completed"
             self._current_task_id = None
             self.refresh_display()
+
+    def finalize_turn(self) -> None:
+        """A turn's final answer was delivered — clear + HIDE the panel, UNLESS
+        there is genuinely ACTIVE work to keep surfacing.
+
+        (Note: the live loop indicator is reset here — the turn's loop is over.)
+
+        'Active' = a task actually ``in_progress`` (or, later, a live loop/
+        sub-agent). A one-shot query that spawned pending-but-untouched todos is
+        NOT ongoing work — it must clear, or the box sits there stuck at 0/N. The
+        synthetic 'agent_processing' step-tracker never counts as active.
+        """
+        active = False
+        if self._task_manager and getattr(self._task_manager, "current_list", None):
+            tl = self._task_manager.current_list
+            active = any(
+                getattr(t.status, "value", t.status) == "in_progress"
+                for t in getattr(tl, "tasks", [])
+            )
+        active = active or any(
+            tid != "agent_processing" and t.status == "in_progress"
+            for tid, t in self._expandable_tasks.items()
+        )
+        self._loop = None  # the turn's loop is over
+
+        if active:
+            # Genuine ongoing work — keep the task list; drop the step-tracker.
+            self._expandable_tasks.pop("agent_processing", None)
+            self._current_task_id = None
+            self.refresh_display()
+        else:
+            self.clear()  # shrink to nothing + hide
 
     def clear(self) -> None:
         """Clear the task list display."""
@@ -532,6 +603,7 @@ class TaskListWidget(Container):
         progress_bar.update("")
 
         # Clear internal state
+        self._loop = None
         self._expandable_tasks.clear()
         self._current_task_id = None
 

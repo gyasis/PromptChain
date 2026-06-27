@@ -111,11 +111,16 @@ def setup_logging(
         # PRODUCTION MODE: Suppress ALL logging that spills into TUI
         # (LITELLM_LOG already set to CRITICAL above)
 
-        # Suppress all WARNING and INFO from root logger (only CRITICAL errors will show)
-        logging.basicConfig(level=logging.CRITICAL, format="%(message)s")
-
-        # Additional catch-all: Suppress any logger that wasn't explicitly named
-        logging.getLogger().setLevel(logging.CRITICAL)
+        # Detach the root logger from the console entirely. A console StreamHandler
+        # on root (e.g. from logging.basicConfig) re-emits records that PROPAGATE up
+        # from child loggers regardless of root's own level — so a child like
+        # promptchain.utils.promptchaining that sets its own INFO/ERROR level leaks
+        # straight into the TUI. A NullHandler + no stream handler closes that path.
+        root_logger = logging.getLogger()
+        for _h in root_logger.handlers[:]:
+            root_logger.removeHandler(_h)
+        root_logger.addHandler(logging.NullHandler())
+        root_logger.setLevel(logging.CRITICAL)
 
         # External libraries
         logging.getLogger("litellm").setLevel(logging.CRITICAL)
@@ -124,6 +129,14 @@ def setup_logging(
         logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 
         # PromptChain internal modules
+        logging.getLogger("promptchain.utils.promptchaining").setLevel(logging.CRITICAL)
+        logging.getLogger("promptchain.utils.model_management").setLevel(logging.CRITICAL)
+        logging.getLogger("promptchain.utils.ollama_model_manager").setLevel(
+            logging.CRITICAL
+        )
+        logging.getLogger("promptchain.observability.decorators").setLevel(
+            logging.CRITICAL
+        )
         logging.getLogger("promptchain.utils.execution_history_manager").setLevel(
             logging.CRITICAL
         )
@@ -145,6 +158,17 @@ def setup_logging(
         logging.getLogger("mcp.server").setLevel(logging.CRITICAL)
         logging.getLogger("mcp.client").setLevel(logging.CRITICAL)
         logging.getLogger("anyio").setLevel(logging.CRITICAL)
+
+        # FastMCP attaches its OWN Rich console handler, so silencing root isn't
+        # enough — it prints "[date] ERROR ... fastmcp.json ... cli.py" straight
+        # into the TUI when an MCP server is misconfigured. Gate it at the source
+        # (env, honored before its logger is built) AND at the logger itself.
+        os.environ.setdefault("FASTMCP_LOG_LEVEL", "CRITICAL")
+        for _fmcp in ("FastMCP", "fastmcp", "mcp.server.fastmcp"):
+            _lg = logging.getLogger(_fmcp)
+            _lg.handlers = []
+            _lg.setLevel(logging.CRITICAL)
+            _lg.propagate = False
 
 
 @click.group(invoke_without_command=True)
@@ -180,6 +204,13 @@ def setup_logging(
     default=False,
     help="Enable dev mode: writes ALL debug logs to a timestamped file in session directory",
 )
+@click.option(
+    "--model",
+    "-m",
+    default=None,
+    help="Model to start the session with (overrides the active agent's model, "
+    "e.g., 'openai/gpt-4o' or 'ollama/qwen3'). Applies for this launch only.",
+)
 @click.version_option(version=__version__, prog_name="promptchain")
 @click.pass_context
 def main(
@@ -189,6 +220,7 @@ def main(
     config: Optional[Path],
     verbose: bool,
     dev: bool,
+    model: Optional[str],
 ):
     """PromptChain - Interactive terminal interface for LLM conversations.
 
@@ -219,10 +251,11 @@ def main(
     ctx.obj["config"] = config
     ctx.obj["verbose"] = verbose
     ctx.obj["dev"] = dev
+    ctx.obj["model"] = model
 
     # If no subcommand invoked, launch the TUI (default behavior)
     if ctx.invoked_subcommand is None:
-        _launch_tui(session, sessions_dir, config, verbose, dev)
+        _launch_tui(session, sessions_dir, config, verbose, dev, model)
 
 
 @track_session()
@@ -232,6 +265,7 @@ def _launch_tui(
     config: Optional[Path],
     verbose: bool,
     dev: bool,
+    model: Optional[str] = None,
 ):
     """Launch the interactive TUI application."""
     # Initialize MLflow observability
@@ -270,8 +304,31 @@ def _launch_tui(
 
         # Create and run the Textual app (T037) — lazy import so non-TUI
         # subcommands (install-skill, query) don't require `textual`.
+        # Importing Textual + building the app is the slow pre-UI bit; show a
+        # Rich spinner on the normal screen so the launch isn't a blank gap.
+        # The spinner stops the instant the `with` exits, just before app.run()
+        # swaps to Textual's alternate screen.
+        from rich.console import Console
+
         try:
-            from .tui.app import PromptChainApp
+            with Console().status(
+                "[bold #4ec9b0]Starting PromptChain…[/]",
+                spinner="dots",
+                spinner_style="#4ec9b0",
+            ):
+                from .tui.app import PromptChainApp
+
+                app = PromptChainApp(
+                    session_name=session,
+                    sessions_dir=(
+                        Path(base_config.sessions_dir)
+                        if base_config.sessions_dir
+                        else None
+                    ),
+                    config=base_config,  # Config already includes settings from YAML
+                    verbose_mode=verbose,  # T118: Verbose observability mode
+                    model_override=model,  # CLI --model: override agent model this launch
+                )
         except ImportError as e:
             raise click.ClickException(
                 "TUI dependencies not installed. Run "
@@ -279,21 +336,25 @@ def _launch_tui(
                 "or use a non-TUI subcommand (e.g. `promptchain install-skill`)."
             ) from e
 
-        app = PromptChainApp(
-            session_name=session,
-            sessions_dir=(
-                Path(base_config.sessions_dir) if base_config.sessions_dir else None
-            ),
-            config=base_config,  # Config already includes settings from YAML
-            verbose_mode=verbose,  # T118: Verbose observability mode
-        )
-
         # Run the app (Textual handles async event loop internally)
         app.run()
 
     finally:
         # Shutdown MLflow observability (flush background queue, close runs)
         shutdown_mlflow()
+
+        # Guarantee the PID actually dies. A connected stdio MCP server leaves a
+        # child subprocess + anyio/pipe resources that can keep the interpreter
+        # alive after the Textual loop ends, so `/exit` / Ctrl+D appeared to hang
+        # (the session is already saved in App.on_exit, MLflow is flushed above,
+        # and the stdio child self-terminates on stdin EOF when we go).
+        # _launch_tui IS the interactive TUI path, so always hard-exit. (Was
+        # `if ctx.invoked_subcommand is None:` — but `ctx` isn't in this
+        # function's scope, so this raised NameError on EVERY TUI exit and the
+        # os._exit failsafe never ran.)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
 
 from .install_skill import install_skill as _install_skill_cmd
