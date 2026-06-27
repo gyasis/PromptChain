@@ -342,8 +342,10 @@ def test_dynamic_tui_prompt_static_foundation_plus_live_tools() -> None:
         {"function": {"name": "task_list_write_tool", "description": "Create/update the task plan"}},
     ]
     p = gen.generate("Do the thing", tools=tools)
-    assert "REACT WORKFLOW" in p and "FINAL ANSWER REQUIREMENTS" in p
-    assert "objective: Do the thing" in p
+    # grounded foundation: ReAct work-loop + plan-first + show-results discipline
+    assert "<work_loop>" in p and "task_list_write_tool FIRST" in p
+    assert "final answer MUST contain the actual results" in p
+    assert "<objective>" in p and "Do the thing" in p
     assert "AVAILABLE TOOLS" in p
     for name in ("file_write", "terminal_execute", "task_list_write_tool"):
         assert name in p
