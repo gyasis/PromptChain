@@ -3544,18 +3544,33 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                     mcp_server_configs.append(mcp_config)
 
         for agent_name, agent in self.session.agents.items():
-            # Determine agent type: AgenticStepProcessor or simple PromptChain
-            if agent.instruction_chain and len(agent.instruction_chain) > 0:
-                # Import TUIAgenticStepProcessor for complex reasoning agents
+            # Determine agent type: agentic processor vs simple pass-through.
+            # An agent WITH TOOLS uses the agentic processor even when its
+            # instruction_chain is empty (older/persisted sessions stored []),
+            # so its tool calls + reasoning STREAM into the collapsible blocks
+            # (#2) instead of the silent simple path. Fixes "no tool/reasoning
+            # blocks appear in my existing default session".
+            _has_chain = bool(agent.instruction_chain) and len(agent.instruction_chain) > 0
+            if _has_chain or all_tools:
+                # Import TUIAgenticStepProcessor for tool-using / reasoning agents
                 # (spec 011: legacy TUI prompt baked in via subclass)
                 from promptchain.cli.tui_processor import \
                     TUIAgenticStepProcessor
 
-                objective = (
-                    agent.instruction_chain[0]
-                    if isinstance(agent.instruction_chain[0], str)
-                    else str(agent.instruction_chain[0])
-                )
+                if _has_chain:
+                    objective = (
+                        agent.instruction_chain[0]
+                        if isinstance(agent.instruction_chain[0], str)
+                        else str(agent.instruction_chain[0])
+                    )
+                else:
+                    # Empty instruction_chain but tools present → default agentic
+                    # objective so the agent still streams its tool/reasoning work.
+                    objective = (
+                        "You are a helpful execution agent. Use the available "
+                        "tools to complete the user's request, then give a clear, "
+                        "direct answer."
+                    )
 
                 # Determine history mode from agent's history_config
                 history_mode = "progressive"  # Default for multi-hop reasoning
