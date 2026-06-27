@@ -182,3 +182,57 @@ Interaction note: Ctrl+T keeps its existing **hide/show all detail** behavior;
 per-block expand/collapse is **click**. (Spec said "click/Ctrl-toggle re-opens" —
 click is wired; a Ctrl-to-expand-all binding can be added if wanted, but it would
 overload the current Ctrl+T hide binding.)
+
+## RICH-OUTPUT REVAMP (2026-06-27) — shipped + backlog
+
+**Core principle:** the TUI is the "output agent" — it RECOGNISES tool output and
+styles it ITSELF (syntax-highlight code, color diffs, italic reasoning). It does
+NOT prompt the LLM to format anything (non-deterministic, token-wasteful).
+
+### Shipped (committed on feat/tui-rich-output-ui)
+- #1 persistent tool sections; #2 collapsible reasoning/tool blocks (stream→dwell→
+  collapse→expand); reasoning extractor (gpt-oss/qwq/deepseek reasoning_content/
+  `<think>` → block) + cloud-model routing (`_model_call_params` via model_catalog).
+- Welcome banner ordering fix; robust agentic-path (empty instruction_chain still
+  streams blocks); cohesive monochrome glyph set (▸ ✓ ✗ ⚠ ⚙ ◇ ★ ↳ ◌ — no emoji);
+  ALL gray backgrounds → black canvas #0b0e14; bottom padding on message containers.
+- Reasoning = ★ italic word-for-word; tool blocks render syntax-highlighted CODE
+  (file reads, line numbers, transparent bg) + colored +/- diffs; tool blocks stay
+  expanded (code is content), reasoning dwell-collapses. Truncation lifted
+  (processor 500→4000, TUI no 300 cap).
+- Agent Activity dock panel LIFECYCLE fixed: `finalize_turn()` clears+hides it when
+  a turn ends (no more stuck `[..........] waiting…`); kept only if real TodoWrite
+  tasks remain unfinished; shows live during processing.
+
+### Tooling
+- `tmux-manager` skill + `~/.local/bin/tmux-nav` (find/whoami/ls/goto/capture/send/
+  run/wait/keys + `restart` with process-death verification + `kill`). Visibility-
+  first (HITL): drive the REAL visible pane, never headless-only. Saved to memory.
+- TESTING GOTCHA: editable install resolves to MAIN repo; a script must
+  `sys.path.insert(0, "<worktree>")` to import worktree code. `dev-tui.sh` is fine.
+
+### Backlog — CHAT rendering (the general-chat richness)
+1. **diffs-on-edits** (IN PROGRESS) — `file_edit`/`replace_lines`/`file_write` should
+   return a unified diff (useful for the agent too) → `_render_diff` colors it.
+   `file_edit(path, old_text, new_text)` currently returns a plain success string.
+2. **section labels + per-call metadata** — dim uppercase `FUNCTION / TOOL CALL`,
+   `SUBTASKS`, `AGENTICSTEPPROCESSOR — INTERNAL REASONING`; `142ms · ok`,
+   `step 3/5 · 2 tools · 3.4s` (mockup Image #4).
+3. **inline SUBTASKS block** — the `≡ Tasks · 2/4 · click to expand` todo list IN the
+   chat (with +/v/o/- markers, strikethrough skipped). This is the useful half of the
+   old dock panel, moved inline.
+
+### Backlog — DOCK PANEL vision (live agent-status surface)
+The dock panel (TaskListWidget) is now a clean, auto-clearing LIVE surface. Build it
+into a three-part status board:
+1. **Live activity** while working — steps + sub-agents working (with spinners) +
+   loop progress (e.g. Ralph loop `8/10` with a spinner). Needs the loop/sub-agent
+   runtime to EMIT progress events the panel subscribes to.
+2. **RECAP** — a rolling COMPRESSED summary of the session (files touched, tasks
+   done, decisions) shown in the dock, AND reused as the **compaction seed**: when
+   history is summarized for smaller models, compaction builds on the recap instead
+   of re-summarizing raw turns (continuity + efficiency). Build on PromptChain's
+   existing summarization (`history_summarizer.py`, `ExecutionHistoryManager`,
+   processor `enable_summarization`) — one rolling summary that both renders + feeds
+   compaction.
+3. Auto-clear/shrink when idle (DONE).
