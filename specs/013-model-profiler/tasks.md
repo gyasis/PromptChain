@@ -71,9 +71,9 @@ trial transcripts are F1-schema-valid and carry `model`.
 
 ### Implementation
 
-- [ ] T009 [P] [W5] [python-pro] [promptchain/profiler/irt.py] Implement `prob_3pl`, `fisher_information`, `estimate_theta_eap` (EAP over a fixed θ grid, N(0,1) prior), `estimate_theta_wle`, `estimate_theta` (EAP→WLE at extremes) with numpy/scipy → T005 green.
-- [ ] T010 [P] [W5] [python-pro] [promptchain/profiler/cat.py] Implement `select_next_item`, `standard_error`, `cat_should_stop` (τ=0.3, min/max items) → T006 green.
-- [ ] T011 [P] [W5] [python-pro] [promptchain/profiler/scoring.py] Implement the per-dimension auto-scorers (deterministic; return correct/incorrect + raw) → T007 green.
+- [x] T009 [P] [W5] [python-pro] [promptchain/profiler/irt.py] Implement `prob_3pl`, `fisher_information`, `estimate_theta_eap` (EAP over a fixed θ grid, N(0,1) prior), `estimate_theta_wle`, `estimate_theta` (EAP→WLE at extremes) with numpy/scipy → T005 green.
+- [x] T010 [P] [W5] [python-pro] [promptchain/profiler/cat.py] Implement `select_next_item`, `standard_error`, `cat_should_stop` (τ=0.3, min/max items) → T006 green.
+- [x] T011 [P] [W5] [python-pro] [promptchain/profiler/scoring.py] Implement the per-dimension auto-scorers (deterministic; return correct/incorrect + raw) → T007 green.
 - [ ] T012 [W6] [python-pro] [promptchain/profiler/store.py] Implement the profile store: atomic load/save of `~/.promptchain/model_profiles.json` (configurable base dir), idempotent upsert by `model_id`, `get_profile` (US1 portions only; refine/jacket_fit added in US3).
 - [ ] T013 [W6] [python-pro] [promptchain/profiler/probe.py] Implement the probe harness `ModelProfiler.run_probe_async`/`run_probe`: drive the CAT loop, run each selected item as an ISOLATED PromptChain session with the F1 `TranscriptEmitter` attached (trial → F1 transcript carrying `model`), score it, update per-dimension θ̂/SE, stop at SE≤τ; compute capability C → `recommended_tier` + `budget_tokens` (US1); persist via `store`. `model_runner` injectable for tests. Raise on uncalibrated bank. (depends on T009–T012, T003, T004)
 - [ ] T014 [W6] [python-pro] [promptchain/profiler/__init__.py] Export the public API (`ModelProfiler`, `CapabilityProfile`, `Jacket`, `SkillEstimate`, `run_probe` convenience) per contracts/profiler-api.md → T008 green. (depends on T013)
