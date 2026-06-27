@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Union
 
 import pyperclip
 from rich.console import Console, ConsoleOptions, Group, RenderResult
-from rich.markdown import Markdown
+from rich.markdown import Heading, Markdown
 from rich.text import Text
 from textual import events
 from textual.message import Message as TextualMessage
@@ -18,6 +18,27 @@ from ..models import Message
 # high-volume streaming breadcrumbs that can be toggled off to declutter chat.
 # Errors are intentionally NOT included: they always stay visible.
 DETAIL_EVENT_TYPES = {"thinking", "tool_call", "tool_result"}
+
+
+class _ChatHeading(Heading):
+    """Render markdown headings as clean bold-accent text.
+
+    Rich's default boxes an h1 in a full-width HEAVY panel, which is far too
+    loud for a chat TUI (and adds a background-ish frame the dark theme avoids).
+    We render every heading as left-aligned bold teal text instead.
+    """
+
+    def __rich_console__(self, console, options):  # type: ignore[override]
+        text = self.text
+        text.justify = "left"
+        text.stylize("bold #4ec9b0")
+        yield text
+
+
+class ChatMarkdown(Markdown):
+    """Markdown tuned for the dark chat TUI: plain accent headings, no h1 box."""
+
+    elements = {**Markdown.elements, "heading_open": _ChatHeading}
 
 
 def _looks_like_markdown(text: str) -> bool:
@@ -183,7 +204,9 @@ class MessageItem(ListItem):
             if _has_significant_formatting(content):
                 # Render as markdown - this properly handles newlines and formatting
                 try:
-                    md = Markdown(content)
+                    # ansi_dark code theme → code uses the terminal's own dark
+                    # background instead of Pygments' gray box (no highlight).
+                    md = ChatMarkdown(content, code_theme="ansi_dark")
                     return Group(prefix_text, role_text, md)
                 except Exception:
                     # Fallback: render content as separate Text to preserve newlines

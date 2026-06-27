@@ -124,10 +124,10 @@ class PromptChainApp(App):
     }
     MessageItem.role-user      { border-left: heavy $pc-user; }
     MessageItem.role-assistant { border-left: heavy $pc-asst; }
-    MessageItem.role-tool      { border-left: heavy $pc-tool; background: $pc-bg2; }
+    MessageItem.role-tool      { border-left: heavy $pc-tool; }
     MessageItem.role-think     { border-left: heavy $pc-think; color: $pc-dim; }
-    MessageItem.role-system    { border-left: blank; color: $pc-dim; text-style: italic; }
-    MessageItem.-highlight     { background: $pc-bg2; }
+    MessageItem.role-system    { border-left: blank; color: $pc-ink; }
+    MessageItem.-highlight     { background: $pc-bg; }
 
     /* Composer — no box, just a single top rule (accent on focus) */
     InputWidget {
@@ -726,15 +726,15 @@ class PromptChainApp(App):
         welcome_msg = Message(
             role="system",
             content=(
-                f"[bold]Welcome to PromptChain CLI[/bold]\n\n"
-                f"[dim]Session:[/dim] {self.session.name} [dim]({session_status})[/dim]\n"
-                f"[dim]Active Agent:[/dim] {self.session.active_agent}\n"
-                f"[dim]Model:[/dim] [bold]{active_model}[/bold]\n"
-                f"[dim]Tools Loaded:[/dim] [bold]{agent_tool_count}/{tool_count}[/bold] available\n"
-                f"[dim]Working Directory:[/dim] {self.session.working_directory}\n\n"
-                "[dim]Type your message and press Enter to chat.[/dim]\n"
-                "[dim]Commands: /exit, /help, /session, /agent[/dim]\n"
-                "[dim]Shortcuts: Ctrl+C or Ctrl+D to exit[/dim]"
+                f"[bold #4ec9b0]Welcome to PromptChain CLI[/]\n\n"
+                f"[#4ec9b0]Session:[/] {self.session.name} ({session_status})\n"
+                f"[#4ec9b0]Active Agent:[/] {self.session.active_agent}\n"
+                f"[#4ec9b0]Model:[/] [bold]{active_model}[/bold]\n"
+                f"[#4ec9b0]Tools Loaded:[/] [bold]{agent_tool_count}/{tool_count}[/bold] available\n"
+                f"[#4ec9b0]Working Directory:[/] {self.session.working_directory}\n\n"
+                "Type your message and press Enter to chat.\n"
+                "Commands: /exit, /help, /session, /agent\n"
+                "Shortcuts: Ctrl+C or Ctrl+D to exit"
             ),
         )
         chat_view = self.query_one("#chat-view", ChatView)
@@ -810,10 +810,16 @@ class PromptChainApp(App):
             sessions_dir=self.session_manager.sessions_dir,
         )
 
-        # Auto-connect default MCP servers from config
-        logger.debug("on_mount: Auto-connecting MCP servers...")
-        await self._auto_connect_default_mcp_servers()
-        logger.debug("on_mount: MCP servers connected")
+        # Auto-connect default MCP servers from config — run as a background
+        # worker so the (cold-starting) MCP servers don't block the UI. The
+        # worker shows a live "⏳ Connecting…" line and replaces it with the real
+        # tool count when discovery finishes.
+        logger.debug("on_mount: Auto-connecting MCP servers (background)...")
+        self.run_worker(
+            self._auto_connect_default_mcp_servers(),
+            name="mcp-autoconnect",
+            exclusive=False,
+        )
 
         # Initialize PromptChain for active agent (T031-T032)
         logger.debug("on_mount: Initializing agent chain...")
@@ -1010,31 +1016,49 @@ class PromptChainApp(App):
                 self.session.mcp_servers.append(server)
                 existing = server
 
-            # Connect if auto_connect is enabled
-            if existing.auto_connect and existing.state != "connected":
+            # Always (re)connect auto_connect servers on startup. A fresh process
+            # has no live subprocess, so a persisted state="connected" is stale —
+            # we must actually relaunch + rediscover for the tools to work here.
+            if existing.auto_connect:
+                from ..models import Message
+
+                # Live loading line while the (cold-starting) server connects.
+                loading_msg = Message(
+                    role="system",
+                    content=f"[#4ec9b0]⏳ Connecting to '{server_id}'…[/]",
+                )
+                chat_view.add_message(loading_msg)
                 try:
+                    existing.state = "disconnected"
                     mcp_manager = MCPManager(self.session)
                     success = await mcp_manager.connect_server(server_id)
 
+                    # Swap the loading line for the real result + tool count.
+                    chat_view.remove_message(loading_msg)
                     if success:
-                        tools = existing.discovered_tools
-                        # Show brief status in welcome (grayscale)
-                        from ..models import Message
-
-                        connect_msg = Message(
-                            role="system",
-                            content=f"[dim]MCP '{server_id}' connected ({len(tools)} tools)[/dim]",
+                        n = len(existing.discovered_tools)
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"[#4ec9b0]✓ '{server_id}' connected — {n} tools[/]",
+                            )
                         )
-                        chat_view.add_message(connect_msg)
+                    else:
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"[#e5c07b]⚠ '{server_id}' unavailable — 0 tools[/]",
+                            )
+                        )
                 except Exception as e:
                     # Log error but don't crash startup
-                    from ..models import Message
-
-                    error_msg = Message(
-                        role="system",
-                        content=f"[dim]MCP '{server_id}' connection failed: {str(e)[:50]}[/dim]",
+                    chat_view.remove_message(loading_msg)
+                    chat_view.add_message(
+                        Message(
+                            role="system",
+                            content=f"[#e5c07b]⚠ '{server_id}' connection failed: {str(e)[:50]}[/]",
+                        )
                     )
-                    chat_view.add_message(error_msg)
 
     def show_reasoning_progress(self, objective: str, max_steps: int) -> None:
         """Show reasoning progress widget with initial state (T052).
@@ -1730,6 +1754,7 @@ class PromptChainApp(App):
                     content=f"Session '{self.session.name}' saved. Goodbye!",
                 )
                 chat_view.add_message(goodbye_msg)
+            self._arm_hard_exit()
             self.exit()
 
         elif command.startswith("/help"):
@@ -1847,13 +1872,9 @@ class PromptChainApp(App):
                 "gemini": {
                     "id": "gemini",
                     "type": "stdio",
-                    "command": "uv",
+                    "command": "/home/gyasis/Documents/code/gemini-mcp/.venv/bin/python",
                     "args": [
-                        "run",
-                        "--directory",
-                        "/home/gyasis/Documents/code/gemini-mcp",
-                        "fastmcp",
-                        "run",
+                        "/home/gyasis/Documents/code/gemini-mcp/server.py",
                     ],
                     "description": "Gemini AI with web search (gemini_research), code review, brainstorming",
                 },
@@ -4307,8 +4328,33 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         # Allow app to continue running
         event.prevent_default()
 
+    def _arm_hard_exit(self, delay: float = 2.5) -> None:
+        """Guarantee the process dies shortly after the user asks to quit.
+
+        ``app.run()`` can hang on shutdown when a connected MCP stdio server's
+        async teardown blocks, so the ``os._exit()`` backstop in ``main()`` never
+        runs and ``/exit`` / Ctrl+D appear to freeze. Arm a daemon timer the
+        instant quit is requested: Textual gets ``delay`` seconds to restore the
+        terminal cleanly (alt-screen, cursor, mouse), then we hard-exit no matter
+        what. Idempotent — only the first call arms the timer.
+        """
+        if getattr(self, "_hard_exit_armed", False):
+            return
+        self._hard_exit_armed = True
+        timer = threading.Timer(delay, os._exit, args=(0,))
+        timer.daemon = True
+        timer.start()
+
+    def action_quit(self) -> None:  # type: ignore[override]
+        """Quit (Ctrl+D / quit binding): arm the failsafe, then exit cleanly."""
+        self._arm_hard_exit()
+        self.exit()
+
     async def on_exit(self):
         """Handle app exit - save session and cleanup observers."""
+        # Arm the hard-exit failsafe here too, so ANY exit path (not just the
+        # /exit command or Ctrl+D) is guaranteed to terminate the process.
+        self._arm_hard_exit()
         try:
             # Cleanup MLflow observer if active
             if hasattr(self, "_mlflow_observer"):

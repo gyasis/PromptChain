@@ -78,8 +78,8 @@ class MCPConfig:
         # Gemini MCP server with web search enabled by default
         {
             "id": "gemini",
-            "command": "uv",
-            "args": ["run", "--directory", "/home/gyasis/Documents/code/gemini-mcp", "fastmcp", "run"],
+            "command": "/home/gyasis/Documents/code/gemini-mcp/.venv/bin/python",
+            "args": ["/home/gyasis/Documents/code/gemini-mcp/server.py"],
             "auto_connect": True,
             "description": "Gemini AI with web search (gemini_research), code review, brainstorming"
         }

@@ -172,6 +172,15 @@ class InputWidget(TextArea):
 
         Note: Regular character keys are explicitly passed through to TextArea.
         """
+        # Ctrl+D quits (advertised in the welcome). The TextArea would otherwise
+        # swallow it, so handle it here and route to the app's quit action, which
+        # arms the hard-exit failsafe so the process always terminates.
+        if event.key == "ctrl+d":
+            event.prevent_default()
+            event.stop()
+            self.app.action_quit()
+            return
+
         # Escape to dismiss autocomplete
         if event.key == "escape":
             if self.autocomplete_active:

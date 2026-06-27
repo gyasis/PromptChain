@@ -676,7 +676,7 @@ def init_mlflow() -> None:
         No exceptions - logs warnings if MLflow unavailable
     """
     if not is_enabled():
-        logger.info("MLflow tracking disabled via environment variable")
+        logger.debug("MLflow tracking disabled via environment variable")
         return
 
     if not is_available():
