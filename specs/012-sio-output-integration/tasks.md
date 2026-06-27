@@ -59,9 +59,9 @@
 
 ### Tests for US1 (write FIRST — MUST FAIL) — Wave 3
 
-- [ ] T005 [P] [W3] [US1] [tests/test_transcript_schema_contract.py] Contract test: every line `json.loads`-valid; first line `chain_start`; last line terminal (`chain_end`/`chain_error`); required envelope `{type, ts, session_id}` on every line. MUST FAIL.
-- [ ] T006 [P] [W3] [US1] [tests/test_transcript_emitter_unit.py] Unit test: feed synthetic `ExecutionEvent`s (chain_start, model_call, tool_call, tool_result, chain_end, chain_error) → assert correct line `type` + fields (model, usage, tool_name, arguments, result/status, stop_reason) per contract. MUST FAIL.
-- [ ] T007 [P] [W3] [US1] [tests/test_transcript_emitter_integration.py] Integration test: `chain.register_callback(emitter.handle_event)`, run a real chain to completion → transcript at `~/.promptchain/transcripts/<project>/<session_id>.jsonl` with expected ordered lines + non-empty `model`; and an erroring run still closes with a terminal `chain_error` (no partial-only file). MUST FAIL.
+- [x] T005 [P] [W3] [US1] [tests/test_transcript_schema_contract.py] Contract test: every line `json.loads`-valid; first line `chain_start`; last line terminal (`chain_end`/`chain_error`); required envelope `{type, ts, session_id}` on every line. MUST FAIL.
+- [x] T006 [P] [W3] [US1] [tests/test_transcript_emitter_unit.py] Unit test: feed synthetic `ExecutionEvent`s (chain_start, model_call, tool_call, tool_result, chain_end, chain_error) → assert correct line `type` + fields (model, usage, tool_name, arguments, result/status, stop_reason) per contract. MUST FAIL.
+- [x] T007 [P] [W3] [US1] [tests/test_transcript_emitter_integration.py] Integration test: `chain.register_callback(emitter.handle_event)`, run a real chain to completion → transcript at `~/.promptchain/transcripts/<project>/<session_id>.jsonl` with expected ordered lines + non-empty `model`; and an erroring run still closes with a terminal `chain_error` (no partial-only file). MUST FAIL.
 
 ### Implementation for US1 — Wave 4
 
