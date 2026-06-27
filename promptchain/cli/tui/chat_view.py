@@ -245,12 +245,24 @@ class MessageItem(ListItem):
 
         kind = meta.get("block_kind")
         parts: List[Any] = []
-        header = meta.get("expanded_header")
-        if header:
-            try:
-                parts.append(Text.from_markup(header))
-            except Exception:
-                parts.append(Text(str(header)))
+        # Dynamic header: an animated spinner glyph while the block is still
+        # "running" (the app ticks meta["spinner"]); otherwise the static type
+        # glyph. Signals "still working", not frozen/paused.
+        spin = meta.get("spinner") if meta.get("running") else None
+        if kind == "reasoning":
+            glyph = spin or "★"
+            parts.append(Text.from_markup(f"[dim italic]{glyph} reasoning[/]"))
+        elif kind == "tool":
+            name = meta.get("tool_name", "tool")
+            glyph = spin or "⚙"
+            parts.append(Text.from_markup(f"[bold #e5c07b]{glyph} {name}[/]"))
+        else:
+            header = meta.get("expanded_header")
+            if header:
+                try:
+                    parts.append(Text.from_markup(header))
+                except Exception:
+                    parts.append(Text(str(header)))
 
         if kind == "reasoning":
             # Word-for-word, ITALIC reasoning (reasoning == thinking). Number the

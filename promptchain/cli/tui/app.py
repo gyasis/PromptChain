@@ -358,6 +358,11 @@ class PromptChainApp(App):
         # Model-catalog cache for routing (api_base/api_key/enable) of cloud/
         # local reasoning models — built lazily once per app (#2 reasoning mode).
         self._model_catalog: Optional[Any] = None
+        # Spinner for in-progress blocks — a rotating circle so an active tool /
+        # reasoning block reads as "still working", not frozen.
+        self._spinner_frames = "◐◓◑◒"
+        self._spinner_idx = 0
+        self._spinner_timer: Optional[Any] = None
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1526,6 +1531,44 @@ class PromptChainApp(App):
         """Reset per-turn collapsible-block state (call at the start of a turn)."""
         self._reasoning_block_msg = None
         self._tool_block_msg = None
+        self._start_spinner()
+
+    def _start_spinner(self) -> None:
+        """Begin ticking the in-progress-block spinner (idempotent)."""
+        if self._spinner_timer is None:
+            self._spinner_timer = self.set_interval(0.12, self._tick_spinner)
+
+    def _stop_spinner(self) -> None:
+        """Stop the spinner timer and clear the 'running' flag off all blocks."""
+        if self._spinner_timer is not None:
+            try:
+                self._spinner_timer.stop()
+            except Exception:
+                pass
+            self._spinner_timer = None
+        try:
+            chat_view = self.query_one("#chat-view", ChatView)
+            for msg in chat_view.messages:
+                meta = getattr(msg, "metadata", None) or {}
+                if meta.get("block") and meta.get("running"):
+                    meta["running"] = False
+                    chat_view.refresh_block(msg)
+        except Exception:
+            pass
+
+    def _tick_spinner(self) -> None:
+        """Advance the spinner frame and refresh any running blocks."""
+        self._spinner_idx = (self._spinner_idx + 1) % len(self._spinner_frames)
+        frame = self._spinner_frames[self._spinner_idx]
+        try:
+            chat_view = self.query_one("#chat-view", ChatView)
+        except Exception:
+            return
+        for msg in chat_view.messages:
+            meta = getattr(msg, "metadata", None) or {}
+            if meta.get("block") and meta.get("running"):
+                meta["spinner"] = frame
+                chat_view.refresh_block(msg)
 
     def _reasoning_summary(self, n: int) -> str:
         # ★ is the reasoning glyph AND the click-to-expand marker (no separate
@@ -1584,6 +1627,7 @@ class PromptChainApp(App):
                         "streaming": True,
                         "lines": [],
                         "collapsed": False,
+                        "running": True,  # spinner until the turn ends
                         "expanded_header": "[dim italic]★ reasoning[/]",
                     },
                 )
@@ -1627,6 +1671,7 @@ class PromptChainApp(App):
                     "tool_args_str": str(detail),
                     "file_path": file_path,
                     "result_raw": None,
+                    "running": True,  # spinner until the result arrives
                 },
             )
             self._tool_block_msg = msg
@@ -1671,6 +1716,7 @@ class PromptChainApp(App):
             # color a diff (the renderer recognises the shape itself).
             msg.metadata["result_raw"] = str(detail)
             msg.metadata["collapsed"] = False
+            msg.metadata["running"] = False  # result arrived → ⚙ (spinner stops)
             chat_view.refresh_block(msg)
             # No dwell-collapse for tool blocks — code/diff stays visible.
 
@@ -4307,6 +4353,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             chat_view.remove_message(processing_msg)
 
             chat_view.add_message(error_msg)
+
+        # Turn over (success or error) — stop the in-progress spinner.
+        self._stop_spinner()
 
         # Update status bar
         status_bar.update_session_info(message_count=len(self.session.messages))
