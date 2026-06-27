@@ -382,5 +382,5 @@ When running `/devkid.execute` or any wave-based workflow, the agent decides whe
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/013-model-profiler/plan.md` (F2 — Model Profiler / IRT+CAT capability assessment + jacket)
+`specs/014-dynamic-prompt-layer/plan.md` (F3 — Dynamic prompt layer / per-model assembly reading the F2 jacket)
 <!-- SPECKIT END -->
