@@ -394,6 +394,17 @@ class SessionManager:
         session_id = str(uuid.uuid4())
         now = time.time()
 
+        # Default agent's tool list = the tools ACTUALLY registered (the old
+        # hardcoded list named tools that don't exist — create_sandbox/code_*).
+        # app.py injects the live registry tools into the chain regardless; this
+        # field drives the displayed tool count, so it must reflect reality.
+        try:
+            from promptchain.cli.tools import registry as _registry
+            import promptchain.cli.tools.library.registration  # noqa: F401  (ensure tools registered)
+            default_tool_names = sorted(_registry.list_tools())
+        except Exception:
+            default_tool_names = []
+
         # Create default agent with agentic capabilities (AgenticStepProcessor)
         # instruction_chain triggers multi-hop reasoning in app.py:1040
         default_agent = Agent(
@@ -415,27 +426,7 @@ class SessionManager:
                 "Example: User asks for pygame script → provision_uv sandbox → install pygame → write script → execute → show output\n\n"
                 "COMPLETE the user's request by EXECUTING it with tools. DO NOT explain how to do it."
             ],
-            tools=[  # All 19 registered tools available
-                "create_sandbox",
-                "list_sandboxes",
-                "delete_sandbox",
-                "execute_in_sandbox",
-                "get_sandbox_status",
-                "code_reader",
-                "code_writer",
-                "code_editor",
-                "code_analyzer",
-                "code_search",
-                "code_refactor",
-                "code_test_generator",
-                "code_doc_generator",
-                "code_complexity",
-                "code_security_scan",
-                "code_formatter",
-                "dependency_analyzer",
-                "ast_analyzer",
-                "linter",
-            ],
+            tools=default_tool_names,  # the actually-registered tools (see above)
             history_config=HistoryConfig(
                 enabled=True,
                 max_tokens=8000,  # Generous limit for agentic reasoning
