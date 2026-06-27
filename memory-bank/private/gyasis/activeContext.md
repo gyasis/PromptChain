@@ -1,14 +1,14 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:07:16
+**Last Updated**: 2026-06-27 15:12:35
 
 ## Current Focus
-feat(F3): Wave 3 (T006-T008) — tiers/family/budget pure modules (GREEN)
+feat(F3): Wave 4 (T009-T010) — DynamicModelPromptGenerator + exports (US1 GREEN)
 
-select_tier (capability→CORE/EXTENDED/TINY), modules_for_tier; family_of +
-adapt_format with REAL per-family variants over default (strengthened beyond the
-initial no-op + added a variant test); measure + fit_to_budget (drop optional by
-priority, never the base). 39 passed; generate still red (W4).
+BasePromptBuilder drop-in: reads F2 profile/jacket via injected/default store,
+select_tier → static base VERBATIM (DynamicTUIPromptGenerator) → tier modules →
+fit_to_budget (min(budget,1000)/cap 1500) → family framing. Null jacket → profile
+budget; no profile → CORE. Deterministic. US1 48 passed; F2 66 still green.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
