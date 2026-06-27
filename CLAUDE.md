@@ -378,3 +378,8 @@ When running `/devkid.execute` or any wave-based workflow, the agent decides whe
 - 007-type-safety-debt: Complete (18/18 tasks). Fixed type errors across 20+ files. Reduced mypy errors 557→421 (24% reduction). Zero regressions.
 
 
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
