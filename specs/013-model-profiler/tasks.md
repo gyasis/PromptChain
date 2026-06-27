@@ -30,7 +30,7 @@ Single-project library. New code under `promptchain/profiler/`; flat tests `test
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [W1] [python-pro] [promptchain/profiler/] Create the `promptchain/profiler/` package: an `__init__.py` and empty module stubs `irt.py`, `cat.py`, `item_bank.py`, `scoring.py`, `composite.py`, `jacket.py`, `probe.py`, `store.py`, `prompt_generator.py` so `import promptchain.profiler` resolves; confirm `numpy`, `scipy`, `dspy` import in this env.
+- [x] T001 [W1] [python-pro] [promptchain/profiler/] Create the `promptchain/profiler/` package: an `__init__.py` and empty module stubs `irt.py`, `cat.py`, `item_bank.py`, `scoring.py`, `composite.py`, `jacket.py`, `probe.py`, `store.py`, `prompt_generator.py` so `import promptchain.profiler` resolves; confirm `numpy`, `scipy`, `dspy` import in this env.
 
 **Checkpoint**: package imports cleanly.
 
