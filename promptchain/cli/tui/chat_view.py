@@ -6,7 +6,61 @@ from typing import Any, List, Optional, Union
 import pyperclip
 from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.markdown import Heading, Markdown
+from rich.padding import Padding
+from rich.syntax import Syntax
 from rich.text import Text
+
+# Map a file extension → a Pygments lexer name so we can syntax-highlight code
+# that a read/write tool returns — WE detect + style it (the agent never formats).
+_EXT_LEXER = {
+    "py": "python", "pyi": "python", "js": "javascript", "mjs": "javascript",
+    "ts": "typescript", "jsx": "jsx", "tsx": "tsx", "java": "java", "go": "go",
+    "rs": "rust", "cpp": "cpp", "cc": "cpp", "c": "c", "h": "c", "hpp": "cpp",
+    "rb": "ruby", "php": "php", "sh": "bash", "bash": "bash", "zsh": "bash",
+    "json": "json", "yaml": "yaml", "yml": "yaml", "toml": "toml", "ini": "ini",
+    "md": "markdown", "html": "html", "css": "css", "scss": "scss", "sql": "sql",
+    "xml": "xml", "svelte": "html", "vue": "html", "lua": "lua", "r": "r",
+}
+
+
+def _lexer_for_path(path: Optional[str]) -> str:
+    if not path or "." not in path:
+        return "text"
+    return _EXT_LEXER.get(path.rsplit(".", 1)[-1].lower(), "text")
+
+
+def _esc(s: str) -> str:
+    return str(s).replace("[", "\\[").replace("]", "\\]")
+
+
+def _parse_file_read(result: str):
+    """If ``result`` is the file_read summary, return (path, code_preview)."""
+    if not result or not result.lstrip().startswith("[FILE READ]"):
+        return None, None
+    first = result.splitlines()[0]
+    path = first.replace("[FILE READ]", "").strip()
+    if "Preview:" in result:
+        code = result.split("Preview:", 1)[1].strip("\n")
+        return path, code
+    return path, None
+
+
+def _is_diffish(text: str) -> bool:
+    n = sum(1 for ln in text.splitlines() if ln[:1] in ("+", "-"))
+    return n >= 2
+
+
+def _render_diff(text: str) -> Text:
+    """Color a unified-diff-ish blob: + added (green), - removed (red)."""
+    out = Text()
+    for ln in text.splitlines():
+        if ln.startswith("+"):
+            out.append(ln + "\n", style="#7ee787")
+        elif ln.startswith("-"):
+            out.append(ln + "\n", style="#f47067")
+        else:
+            out.append(ln + "\n", style="#6b7480")
+    return out
 from textual import events
 from textual.message import Message as TextualMessage
 from textual.reactive import reactive
@@ -189,22 +243,64 @@ class MessageItem(ListItem):
             except Exception:
                 return Text(summary)
 
-        lines = meta.get("lines") or []
-        parts: List[Union[Text, Markdown]] = []
+        kind = meta.get("block_kind")
+        parts: List[Any] = []
         header = meta.get("expanded_header")
         if header:
             try:
                 parts.append(Text.from_markup(header))
             except Exception:
                 parts.append(Text(str(header)))
-        for ln in lines:
-            try:
-                parts.append(Text.from_markup(f"  • {ln}"))
-            except Exception:
-                parts.append(Text(f"  • {ln}"))
+
+        if kind == "reasoning":
+            # Word-for-word, ITALIC reasoning (reasoning == thinking). Number the
+            # model's own reasoning lines, but don't double-number "Step N" status.
+            for i, ln in enumerate(meta.get("lines") or [], 1):
+                mark = "" if ln.lstrip().lower().startswith("step ") else f"{i}. "
+                try:
+                    parts.append(Text.from_markup(f"  [dim italic]{mark}{ln}[/]"))
+                except Exception:
+                    parts.append(Text(f"  {mark}{ln}", style="dim italic"))
+        elif kind == "tool":
+            parts.extend(self._render_tool_body(meta))
+        else:
+            for ln in meta.get("lines") or []:
+                try:
+                    parts.append(Text.from_markup(f"  • {ln}"))
+                except Exception:
+                    parts.append(Text(f"  • {ln}"))
+
         if not parts:
             return Text("")
         return Group(*parts)
+
+    def _render_tool_body(self, meta: dict) -> List[Any]:
+        """Render a tool call's body RICHLY — syntax-highlighted code for file
+        reads, colored +/- diffs for edits, else the result as dim text. We
+        recognise the shape ourselves; the agent never formats anything."""
+        parts: List[Any] = []
+        args = meta.get("tool_args_str") or ""
+        if args:
+            parts.append(Text.from_markup(f"  [dim]{_esc(args)}[/]"))
+        result = meta.get("result_raw")
+        if not result:
+            return parts
+        path, code = _parse_file_read(result)
+        if code is not None:
+            lexer = _lexer_for_path(path or meta.get("file_path"))
+            try:
+                parts.append(Padding(
+                    Syntax(code, lexer, theme="ansi_dark", line_numbers=True,
+                           word_wrap=True, background_color="default"),
+                    (0, 0, 0, 2)))
+            except Exception:
+                parts.append(Text(code, style="dim"))
+        elif _is_diffish(result):
+            parts.append(Padding(_render_diff(result), (0, 0, 0, 2)))
+        else:
+            txt = result if len(result) <= 2000 else result[:2000] + " …"
+            parts.append(Text.from_markup(f"  [dim]{_esc(txt)}[/]"))
+        return parts
 
     def render(self) -> Union[Text, Group]:
         """Render the message with markdown support for assistant messages."""

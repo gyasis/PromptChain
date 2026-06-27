@@ -1573,8 +1573,10 @@ class AgenticStepProcessor:
                                         f"Tool result content: {tool_result_content[:150]}..."
                                     )
 
-                                    # Stream tool result event
-                                    result_preview = str(tool_result_content)[:500]
+                                    # Stream tool result event. Keep enough of
+                                    # the result that the TUI can render a code
+                                    # preview / diff (not just a one-liner).
+                                    result_preview = str(tool_result_content)[:4000]
                                     self._stream_event(
                                         "tool_result",
                                         f"{function_name} completed: {result_preview}",

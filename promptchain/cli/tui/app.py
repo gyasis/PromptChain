@@ -1605,8 +1605,12 @@ class PromptChainApp(App):
             from ..models import Message
 
             chat_view = self.query_one("#chat-view", ChatView)
-            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
-            call_line = f"[bold #e5c07b]⚙ {name}[/]  [dim]{safe}[/]"
+            # Parse a file path out of the args so the renderer can pick a lexer.
+            import re as _re
+            _m = _re.search(
+                r'["\']?path["\']?\s*[:=]\s*["\']?([^"\',}\s]+)', str(detail)
+            )
+            file_path = _m.group(1) if _m else None
             msg = Message(
                 role="system",
                 content=self._tool_summary(name),
@@ -1615,17 +1619,22 @@ class PromptChainApp(App):
                     "block_kind": "tool",
                     "event_type": "tool_call",  # role-tool amber gutter + Ctrl+T
                     "streaming": True,
-                    "lines": [call_line],
+                    "lines": [],
                     "collapsed": False,
-                    "expanded_header": None,
+                    "expanded_header": f"[bold #e5c07b]⚙ {name}[/]",
                     "summary": self._tool_summary(name),
                     "tool_name": name,
+                    "tool_args_str": str(detail),
+                    "file_path": file_path,
+                    "result_raw": None,
                 },
             )
             self._tool_block_msg = msg
             chat_view.add_message(msg)
             chat_view.refresh_block(msg)
-            self._restart_block_dwell(msg)
+            # Tool blocks are CONTENT (code/diff) — keep them expanded so the
+            # user can read them; they don't auto-collapse like reasoning. Click
+            # the ⚙ header to collapse. (Reasoning blocks still dwell-collapse.)
 
         self._safe_call_ui(_do)
 
@@ -1649,17 +1658,21 @@ class PromptChainApp(App):
                         "streaming": True,
                         "lines": [],
                         "collapsed": False,
-                        "expanded_header": None,
+                        "expanded_header": "[bold #e5c07b]⚙ tool[/]",
                         "summary": self._tool_summary("tool"),
+                        "tool_args_str": "",
+                        "file_path": None,
+                        "result_raw": None,
                     },
                 )
                 self._tool_block_msg = msg
                 chat_view.add_message(msg)
-            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
-            msg.metadata["lines"].append(f"[dim]↳[/] [#7ee787]✓[/] [dim]{safe}[/]")
+            # Store the FULL result so the renderer can syntax-highlight code /
+            # color a diff (the renderer recognises the shape itself).
+            msg.metadata["result_raw"] = str(detail)
             msg.metadata["collapsed"] = False
             chat_view.refresh_block(msg)
-            self._restart_block_dwell(msg)
+            # No dwell-collapse for tool blocks — code/diff stays visible.
 
         self._safe_call_ui(_do)
 
@@ -1699,8 +1712,13 @@ class PromptChainApp(App):
                 self._add_task_internal_step("tool_call", content)
                 return
             elif event_type == "tool_result":
+                # content is "<function_name> completed: <result>" — strip the
+                # prefix and keep the FULL result so the block can render code /
+                # a diff (not a truncated one-liner). The task-panel still gets a
+                # short preview.
+                result = content.split(" completed: ", 1)[-1]
+                self._append_tool_result(result)
                 preview = content[:300] + "..." if len(content) > 300 else content
-                self._append_tool_result(preview)
                 self._add_task_internal_step("tool_result", preview)
                 return
             elif event_type == "error":
