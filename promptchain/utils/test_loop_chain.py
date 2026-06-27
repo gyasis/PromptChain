@@ -42,6 +42,57 @@ _FAILURE_TAIL_CHARS = 3000  # token economy: keep the END of test output (failur
 
 
 # --------------------------------------------------------------------------- #
+# Shared helpers (reused by RalphChain — engine B — so the sandbox/test contract
+# is identical across both loops)
+# --------------------------------------------------------------------------- #
+def extract_code(raw: str, language: str) -> str:
+    """Pull code out of model output: prefer a fenced block matching ``language``,
+    else the longest block; if none, treat the whole output as code."""
+    blocks = extract_code_blocks(raw or "")
+    if not blocks:
+        return (raw or "").strip()
+    lang = (language or "").lower()
+    matching = [c for ln, c in blocks if ln == lang]
+    pool = matching or [c for _, c in blocks]
+    return max(pool, key=len)
+
+
+def truncate_tail(text: str, limit: int = _FAILURE_TAIL_CHARS) -> str:
+    """Keep the last ``limit`` chars (test failures live at the end)."""
+    text = text or ""
+    if len(text) <= limit:
+        return text
+    return "...[truncated]...\n" + text[-limit:]
+
+
+def make_generator(model) -> "GenerateFn":
+    """Build an async ``(prompt) -> text`` generator from a model, as a single-
+    instruction PromptChain (any model, no tools)."""
+    from .promptchaining import PromptChain
+    chain = PromptChain(models=[model], instructions=["{input}"])
+
+    async def _gen(prompt: str) -> str:
+        return await chain.process_prompt_async(prompt)
+
+    return _gen
+
+
+def resolve_executor(executor, use_docker: bool, image: str,
+                     network: Optional[str], timeout: int):
+    """Return ``(executor, owns)``; ``owns`` is True when the caller must close it.
+    Prefers :class:`DockerExecutor`; falls back to :class:`LocalExecutor` (warned)."""
+    if executor is not None:
+        return executor, False
+    if use_docker and DockerExecutor.available():
+        return DockerExecutor(image=image, network=network, timeout=timeout), True
+    if use_docker:
+        warnings.warn(
+            "Docker unavailable — falling back to LocalExecutor (host, UNSANDBOXED). "
+            "Run untrusted LLM code only under Docker.", RuntimeWarning, stacklevel=2)
+    return LocalExecutor(timeout=timeout), True
+
+
+# --------------------------------------------------------------------------- #
 # Results
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -112,8 +163,12 @@ class LocalExecutor:
         return dest
 
     def run(self, command: str) -> ExecResult:
+        # Disable .pyc writing: across iterations a same-size source rewritten within
+        # one second would otherwise re-use a stale cached bytecode (mtime+size match).
+        env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         try:
-            p = subprocess.run(command, shell=True, cwd=self.work_dir,
+            p = subprocess.run(command, shell=True, cwd=self.work_dir, env=env,
                                capture_output=True, text=True, timeout=self.timeout)
             return ExecResult(p.returncode, (p.stdout or "") + (p.stderr or ""))
         except subprocess.TimeoutExpired as e:
@@ -208,9 +263,8 @@ class MicroPromptChain:
         if self._generate is not None:
             return await self._generate(prompt)
         if self._chain is None:
-            from .promptchaining import PromptChain
-            self._chain = PromptChain(models=[self.model], instructions=["{input}"])
-        return await self._chain.process_prompt_async(prompt)
+            self._chain = make_generator(self.model)
+        return await self._chain(prompt)
 
     def _build_prompt(self, objective: str, target_file: str, code: str, failure: str) -> str:
         failure_section = ""
@@ -222,35 +276,17 @@ class MicroPromptChain:
         )
 
     def _extract(self, raw: str) -> str:
-        """Pull the code out of the model output. Prefer a fenced block matching the
-        language, else the longest block; if none, treat the whole output as code."""
-        blocks = extract_code_blocks(raw or "")
-        if not blocks:
-            return (raw or "").strip()
-        lang = self.language.lower()
-        matching = [c for ln, c in blocks if ln == lang]
-        pool = matching or [c for _, c in blocks]
-        return max(pool, key=len)
+        return extract_code(raw, self.language)
 
     @staticmethod
     def _truncate(text: str) -> str:
-        text = text or ""
-        if len(text) <= _FAILURE_TAIL_CHARS:
-            return text
-        return "...[truncated]...\n" + text[-_FAILURE_TAIL_CHARS:]
+        return truncate_tail(text)
 
     # -- executor ---------------------------------------------------------- #
     def _make_executor(self):
         """Return ``(executor, owns)``; ``owns`` is True when this loop must close it."""
-        if self._executor is not None:
-            return self._executor, False
-        if self.use_docker and DockerExecutor.available():
-            return DockerExecutor(image=self.image, network=self.network, timeout=self.timeout), True
-        if self.use_docker:
-            warnings.warn(
-                "Docker unavailable — falling back to LocalExecutor (host, UNSANDBOXED). "
-                "Run untrusted LLM code only under Docker.", RuntimeWarning, stacklevel=2)
-        return LocalExecutor(timeout=self.timeout), True
+        return resolve_executor(self._executor, self.use_docker, self.image,
+                                self.network, self.timeout)
 
     def _log(self, msg: str) -> None:
         if self.verbose:

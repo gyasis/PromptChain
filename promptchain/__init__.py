@@ -10,6 +10,7 @@ from .utils.external_loop import ExternalLoop
 from .utils.docker_executor import DockerExecutor
 from .utils.test_loop_chain import MicroPromptChain, LoopResult, LocalExecutor
 from .utils.autoresearch import AutoResearch, ResearchResult, auto_research
+from .utils.ralph_chain import RalphChain, RalphResult
 
 __all__ = [
     'PromptChain',
@@ -29,6 +30,8 @@ __all__ = [
     'AutoResearch',
     'ResearchResult',
     'auto_research',
+    'RalphChain',
+    'RalphResult',
 ]
 
 try:

@@ -105,6 +105,8 @@ class DockerExecutor:
         if self.auto_remove:
             argv.append("--rm")
         argv += ["-v", f"{self.work_dir}:/work", "-w", "/work"]
+        # avoid stale .pyc reuse across iterations on the mounted work_dir (benign for non-Python)
+        argv += ["-e", "PYTHONDONTWRITEBYTECODE=1"]
         if self.network is not None:
             argv += ["--network", self.network]
         if self.memory:
