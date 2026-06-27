@@ -137,8 +137,8 @@ improves vs the static base alone" claim shown by an offline live smoke (LAN oll
 
 ### Implementation (W10)
 
-- [ ] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
-- [ ] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
+- [x] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
+- [x] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
 
 **Checkpoint**: A/B harness green offline; live smoke ready to run.
 
