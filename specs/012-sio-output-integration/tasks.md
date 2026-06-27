@@ -33,9 +33,9 @@
 
 **Purpose**: Importable skeletons so test-first tests fail on assertions, not collection errors.
 
-- [ ] T001 [W1] [python-pro] [promptchain/observability/transcript_emitter.py] Create skeleton `TranscriptEmitter` + `TranscriptEmitterConfig` (constructor signature per data-model.md, `async def handle_event(self, event)` no-op, `enabled=False` default) — imports limited to stdlib (`json, os, pathlib, datetime, re, threading`) + `..utils.execution_events`. No mlflow, no sio.
-- [ ] T002 [P] [W1] [python-pro] [promptchain/observability/_transcript_redaction.py] Create skeleton `redact(value)` and `truncate(value, max_len)` (stdlib only) returning input unchanged for now.
-- [ ] T003 [P] [W1] [python-pro] [promptchain/observability/__init__.py] Additively export `TranscriptEmitter` (and `TranscriptEmitterConfig`) — do not remove existing exports.
+- [x] T001 [W1] [python-pro] [promptchain/observability/transcript_emitter.py] Create skeleton `TranscriptEmitter` + `TranscriptEmitterConfig` (constructor signature per data-model.md, `async def handle_event(self, event)` no-op, `enabled=False` default) — imports limited to stdlib (`json, os, pathlib, datetime, re, threading`) + `..utils.execution_events`. No mlflow, no sio.
+- [x] T002 [P] [W1] [python-pro] [promptchain/observability/_transcript_redaction.py] Create skeleton `redact(value)` and `truncate(value, max_len)` (stdlib only) returning input unchanged for now.
+- [x] T003 [P] [W1] [python-pro] [promptchain/observability/__init__.py] Additively export `TranscriptEmitter` (and `TranscriptEmitterConfig`) — do not remove existing exports.
 
 **Checkpoint**: `from promptchain.observability import TranscriptEmitter` resolves.
 
