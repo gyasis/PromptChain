@@ -350,6 +350,9 @@ class PromptChainApp(App):
         self._tool_block_msg: Optional[Any] = None
         self._block_dwell_gen = 0
         self._block_dwell_seconds = 3.5
+        # Model-catalog cache for routing (api_base/api_key/enable) of cloud/
+        # local reasoning models — built lazily once per app (#2 reasoning mode).
+        self._model_catalog: Optional[Any] = None
 
     def _safe_call_ui(self, callback: Callable[[], None]) -> None:
         """Thread-safe UI update helper.
@@ -1573,7 +1576,7 @@ class PromptChainApp(App):
                         "streaming": True,
                         "lines": [],
                         "collapsed": False,
-                        "expanded_header": "[dim italic]🧠 reasoning[/]",
+                        "expanded_header": "[dim italic]★ reasoning[/]",
                     },
                 )
                 self._reasoning_block_msg = msg
@@ -3319,6 +3322,26 @@ Examples:
         except Exception:
             return None
 
+    def _model_call_params(self, model_name: str, base: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge ``base`` params with model_catalog ROUTING for ``model_name`` —
+        ``api_base`` / ``api_key`` / reasoning ``enable`` (e.g. cloud gpt-oss/qwq,
+        Mac-local ollama). Lets the TUI actually REACH a reasoning model so its
+        thinking streams into the block (#2 reasoning mode). Catalog is built once
+        and cached; api+cloud only (skip the slow Mac-local probe). Graceful: on
+        any miss/offline the model is used as-is (env-based routing).
+        """
+        params = dict(base)
+        try:
+            from ..model_catalog import build_catalog, resolve
+
+            if self._model_catalog is None:
+                self._model_catalog = build_catalog(include_local=False)
+            _, routing = resolve(model_name, self._model_catalog)
+            params.update(routing)
+        except Exception as e:
+            logger.debug(f"model routing lookup skipped for {model_name!r}: {e}")
+        return params
+
     def _summarization_kwargs(self, model_name: str) -> Dict[str, Any]:
         """Context-management kwargs for (TUI)AgenticStepProcessor.
 
@@ -3577,15 +3600,15 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 if agent.history_config and not agent.history_config.enabled:
                     history_mode = "minimal"  # Terminal agents
 
-                # #2: reasoning profile drives the extractor + enable-params
-                # (think=True / reasoning_effort) so reasoning models emit their
-                # internal thinking into the collapsible reasoning block.
+                # #2: reasoning profile drives the EXTRACTOR; model_call_params
+                # adds catalog ROUTING (api_base/api_key) + reasoning enable
+                # (think=True / reasoning_effort) so a reasoning model is actually
+                # REACHED and emits its thinking into the collapsible block.
                 _rprofile = self._reasoning_profile_for(agent.model_name)
-                _model_params: Dict[str, Any] = {
-                    "max_completion_tokens": agent.max_completion_tokens
-                }
-                if _rprofile and _rprofile.get("enable"):
-                    _model_params.update(_rprofile["enable"])
+                _model_params = self._model_call_params(
+                    agent.model_name,
+                    {"max_completion_tokens": agent.max_completion_tokens},
+                )
 
                 # Create PromptChain with tools using agentic config
                 chain = PromptChain(
@@ -3600,6 +3623,11 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             objective=objective,
                             max_internal_steps=self.config.agentic.default_max_internal_steps,
                             model_name=agent.model_name,
+                            # The processor's model_params OVERRIDE the chain's at
+                            # call time (promptchaining ~L892), so routing + enable
+                            # MUST be set here too or a cloud reasoning model is
+                            # never reached.
+                            model_params=_model_params,
                             history_mode=history_mode
                             or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates

@@ -479,7 +479,7 @@ class TaskListWidget(Container):
     def _get_step_prefix(self, step_type: str) -> str:
         """Get display prefix for step type."""
         prefixes = {
-            "thinking": "[dim]🧠[/dim]",
+            "thinking": "[dim]★[/dim]",
             "tool_call": "[cyan]🔧[/cyan]",
             "tool_result": "[green]✓[/green]",
             "llm_call": "[blue]💬[/blue]",
