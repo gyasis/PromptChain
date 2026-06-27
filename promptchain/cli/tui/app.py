@@ -121,13 +121,18 @@ class PromptChainApp(App):
         padding: 0 1;
         margin: 0 0 1 0;
         border-left: heavy $pc-line2;
+        background: $pc-bg;   /* flat canvas — kill the default ListItem gray tint */
     }
     MessageItem.role-user      { border-left: heavy $pc-user; }
     MessageItem.role-assistant { border-left: heavy $pc-asst; }
     MessageItem.role-tool      { border-left: heavy $pc-tool; }
     MessageItem.role-think     { border-left: heavy $pc-think; color: $pc-dim; }
     MessageItem.role-system    { border-left: blank; color: $pc-ink; }
-    MessageItem.-highlight     { background: $pc-bg; }
+    /* No gray highlight box on hover/selection/focus — stay flat in every state. */
+    MessageItem.-highlight              { background: $pc-bg; }
+    MessageItem:hover                   { background: $pc-bg; }
+    ChatView:focus MessageItem.-highlight   { background: $pc-bg; }
+    ChatView:focus-within MessageItem.-highlight { background: $pc-bg; }
 
     /* Composer — no box, just a single top rule (accent on focus) */
     InputWidget {
@@ -1523,11 +1528,14 @@ class PromptChainApp(App):
         self._tool_block_msg = None
 
     def _reasoning_summary(self, n: int) -> str:
+        # ★ is the reasoning glyph AND the click-to-expand marker (no separate
+        # display triangle) — reasoning == thinking, one icon.
         unit = "step" if n == 1 else "steps"
-        return f"[dim italic]▸ reasoning · {n} {unit} · click to expand[/]"
+        return f"[dim italic]★ reasoning · {n} {unit} · click to expand[/]"
 
     def _tool_summary(self, name: str) -> str:
-        return f"[#e5c07b]▸ ⚙ {name}[/][dim] · click to expand[/]"
+        # ⚙ is the tool glyph + expand marker (same pattern as ★ for reasoning).
+        return f"[#e5c07b]⚙ {name}[/][dim] · click to expand[/]"
 
     def _restart_block_dwell(self, msg: Any) -> None:
         """(Re)arm the dwell timer that auto-collapses a block once its stream
