@@ -1,16 +1,12 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:28:57
+**Last Updated**: 2026-06-27 15:31:27
 
 ## Current Focus
-feat(F3): Wave 6 (T013-T015) — toolshim + Jacket.tool_mode (US2 GREEN)
+test(F3): Wave 7 (T016) — US3 longevity failing test (RED)
 
-Additive-optional Jacket.tool_mode (F2 66 still green). toolshim: resolve_tool_mode,
-render_tools_block (<tools> JSON-in-text), serialize_history_plaintext. Generator
-branches native vs shim — STATIC BASE EMITTED VERBATIM (reverted a subagent
-workaround that rewrote the foundation's <tools> tag, which broke SC-003).
-Discriminate native/shim on the shim marker, not the bare tag. Strengthened SC-003
-test to assert the FULL base render is verbatim. US2 11, US1 49, F2 66.
+build_turn_context + DocumentAndClear (should_compress/is_stalled/should_escalate/
+document_and_clear) + min_turns + lossy fallback. RED: longevity.py is a stub.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
