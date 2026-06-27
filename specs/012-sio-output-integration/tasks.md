@@ -120,7 +120,7 @@
 
 - [x] T022 [P] [W8] [python-pro] [promptchain/observability/transcript_emitter.py] Emit optional rich-signal fields (`correction_count`/`positive_signal_count`/`sidechain_count`) as `0` + `schema_version` on the relevant lines (FR-013). (Sequential on transcript_emitter.py.)
 - [x] T023 [P] [W8] [python-pro] [tests/test_transcript_schema_contract.py] Add a guard test asserting `transcript_emitter`'s module-level imports contain no `mlflow`/`sio` (emit-not-reuse, FR-008). (Sequential after T011 — same file.)
-- [ ] T024 [W8] Run the full suite + the offline live smoke per quickstart.md (`OLLAMA_API_BASE=http://192.168.0.159:11434 PROMPTCHAIN_LOOP_MODEL=ollama/qwen3-coder:30b`, `use_docker=False`); confirm SC-001..SC-006.
+- [x] T024 [W8] Run the full suite + the offline live smoke per quickstart.md (`OLLAMA_API_BASE=http://192.168.0.159:11434 PROMPTCHAIN_LOOP_MODEL=ollama/qwen3-coder:30b`, `use_docker=False`); confirm SC-001..SC-006.
 
 ---
 

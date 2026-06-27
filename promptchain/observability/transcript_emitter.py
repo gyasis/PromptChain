@@ -6,7 +6,7 @@ import os
 import re
 import threading
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -67,7 +67,18 @@ class TranscriptEmitter:
     def __init__(
         self, config: Optional[TranscriptEmitterConfig] = None, **kwargs: Any
     ) -> None:
-        """Initialise with an optional config; extra kwargs are accepted for forward-compatibility."""
+        """Initialise with an optional config.
+
+        Convenience: when no ``config`` is given, recognised config fields passed
+        as keyword args (e.g. ``TranscriptEmitter(enabled=True)`` per the quickstart)
+        are folded into a fresh ``TranscriptEmitterConfig``. Unknown kwargs are
+        ignored for forward-compatibility.
+        """
+        if config is None and kwargs:
+            _known = {f.name for f in fields(TranscriptEmitterConfig)}
+            config = TranscriptEmitterConfig(
+                **{k: v for k, v in kwargs.items() if k in _known}
+            )
         self.config = config or TranscriptEmitterConfig()
         # Resolve enabled once at init: config flag OR env-var opt-in.
         _env = os.environ.get("PROMPTCHAIN_TRANSCRIPTS_ENABLED", "").lower()
