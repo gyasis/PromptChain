@@ -1,0 +1,52 @@
+# source: https://github.com/block/goose/blob/main/crates/goose/src/providers/toolshim.rs
+# function: modify_system_prompt_for_tool_json (appended to system prompt)
+# used when: model lacks native function-calling support
+
+--- TOOL DEFINITIONS (appended verbatim to system prompt) ---
+For each tool:
+  Tool Name: {name}
+  Schema: {json_schema_pretty}
+  Description: {description}
+
+--- INJECTION INSTRUCTION (appended after tool defs) ---
+Break down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format
+{
+  "name": "tool_name",
+  "arguments": {
+    "parameter1": "value1",
+    "parameter2": "value2"
+ }}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.
+
+--- HISTORY RE-SERIALIZATION ---
+ToolRequest converted to text: "Using tool: {name}\n{\n  \"name\": \"{name}\",\n  \"arguments\": {json}\n}"
+ToolResponse converted to text: "Tool result:\n{text}"
+(All tool_use/tool_result blocks in message history are flattened to plain text before submission)
+
+--- SECONDARY INTERPRETER PROMPT (OllamaInterpreter / LocalInterpreter) ---
+# system prompt sent to the interpreter model:
+If there is detectable JSON-formatted tool requests, write them into valid JSON tool calls in the following format:
+{
+  "tool_calls": [
+    {
+      "name": "tool_name",
+      "arguments": {
+        "param1": "value1",
+        "param2": "value2"
+      }
+    }
+  ]
+}
+
+Otherwise, if no JSON tool requests are provided, use the no-op tool:
+{
+  "tool_calls": [
+    {
+    "name": "noop",
+      "arguments": {
+      }
+    }]
+}
+
+# The interpreter receives: "{system_prompt}\nRequest: {last_assistant_message}\n\n"
+# Model: env GOOSE_TOOLSHIM_OLLAMA_MODEL (default: qwen2.5:7b or similar)
+# Uses Ollama structured output API (JSON schema format enforcement)
