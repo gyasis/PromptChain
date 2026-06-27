@@ -897,19 +897,24 @@ class PromptChainApp(App):
                 elif event.event_type == ExecutionEventType.TOOL_CALL_START:
                     # Tool call started
                     tool_name = event.data.get("tool_name", "unknown")
-                    args_preview = str(event.data.get("arguments", ""))[:50]
+                    args_preview = str(event.data.get("arguments", ""))[:80]
                     self.observe_panel.log_entry(
                         "tool-call", f"Calling: {tool_name}({args_preview}...)"
                     )
+                    # #1 — also surface the call as a PERSISTENT gutter-bar
+                    # section in the chat (amber role-tool), not just the hidden
+                    # Observe panel. This is the mockup's "FUNCTION / TOOL CALL".
+                    self._add_tool_section(tool_name, args_preview, kind="call")
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_END:
                     # Tool call completed
                     tool_name = event.data.get("tool_name", "unknown")
                     result = event.data.get("result", "")
-                    result_preview = str(result)[:100] if result else "No result"
+                    result_preview = str(result)[:160] if result else "No result"
                     self.observe_panel.log_entry(
                         "tool-result", f"{tool_name}: {result_preview}..."
                     )
+                    self._add_tool_section(tool_name, result_preview, kind="result")
 
                 elif event.event_type == ExecutionEventType.STEP_START:
                     # Chain step started
@@ -1444,6 +1449,40 @@ class PromptChainApp(App):
             )
             # Hide after delay
             self.set_timer(2.0, lambda: self.reasoning_progress.hide_progress())
+
+    def _add_tool_section(self, tool_name: str, detail: str, kind: str) -> None:
+        """Surface a tool call/result as a PERSISTENT amber gutter-bar section
+        in the chat (#1 — the mockup's FUNCTION / TOOL CALL block).
+
+        ``role='system'`` renders the Rich markup cleanly with no prefix, while
+        ``metadata.event_type`` drives the ``role-tool`` amber gutter bar AND the
+        Ctrl+T detail toggle. Thread-safe via ``_safe_call_ui``.
+        """
+        try:
+            from ..models import Message
+
+            safe = str(detail).replace("[", "\\[").replace("]", "\\]")
+            if kind == "call":
+                content = f"[bold #e5c07b]⚙ {tool_name}[/]  [dim]{safe}[/]"
+                etype = "tool_call"
+            else:
+                content = f"[#4ec9b0]  ↳ ✓[/] [dim]{safe}[/]"
+                etype = "tool_result"
+            msg = Message(
+                role="system",
+                content=content,
+                metadata={"streaming": True, "event_type": etype},
+            )
+
+            def _add() -> None:
+                try:
+                    self.query_one("#chat-view", ChatView).add_message(msg)
+                except Exception:
+                    pass
+
+            self._safe_call_ui(_add)
+        except Exception:
+            pass
 
     def _add_task_internal_step(self, step_type: str, content: str) -> None:
         """Add an internal step to the current task in TaskListWidget.
@@ -3401,6 +3440,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             history_mode=history_mode
                             or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates
+                            streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
                             # Wire context-management so token-based compaction
                             # actually engages (max_context_tokens per model).
                             **self._summarization_kwargs(agent.model_name),
@@ -4137,6 +4177,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 model_name=model_name,
                 history_mode=self.config.agentic.history_mode,  # Use config history mode
                 progress_callback=self._reasoning_progress_callback,  # T052: Progress updates
+                streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
                 # Wire context-management (per-model context window limit).
                 **self._summarization_kwargs(model_name),
             )
