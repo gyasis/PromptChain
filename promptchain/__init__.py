@@ -9,6 +9,7 @@ from .utils.interrupt_queue import InterruptQueue
 from .utils.external_loop import ExternalLoop
 from .utils.docker_executor import DockerExecutor
 from .utils.test_loop_chain import MicroPromptChain, LoopResult, LocalExecutor
+from .utils.autoresearch import AutoResearch, ResearchResult, auto_research
 
 __all__ = [
     'PromptChain',
@@ -25,6 +26,9 @@ __all__ = [
     'MicroPromptChain',
     'LoopResult',
     'LocalExecutor',
+    'AutoResearch',
+    'ResearchResult',
+    'auto_research',
 ]
 
 try:
