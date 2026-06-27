@@ -3294,6 +3294,28 @@ Examples:
             logger.debug(f"_derive_max_context_tokens fallback for {model_name}: {e}")
         return fallback
 
+    def _reasoning_profile_for(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """Best-effort model_catalog reasoning profile for ``model_name`` (#2).
+
+        Drives the processor's reasoning extractor + supplies the ``enable``
+        params (e.g. ``think=True`` / ``reasoning_effort``) that make a reasoning
+        model actually emit its thinking. Graceful: returns None on any error, so
+        the extractor falls back to its all-surfaces heuristic.
+        """
+        try:
+            from ..model_catalog import infer_reasoning_profile
+
+            n = (model_name or "").lower()
+            if n.startswith("ollama"):
+                source = "ollama-local"
+            elif "gemini" in n:
+                source = "gemini"
+            else:
+                source = "openai"
+            return infer_reasoning_profile(model_name, source)
+        except Exception:
+            return None
+
     def _summarization_kwargs(self, model_name: str) -> Dict[str, Any]:
         """Context-management kwargs for (TUI)AgenticStepProcessor.
 
@@ -3537,14 +3559,22 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 if agent.history_config and not agent.history_config.enabled:
                     history_mode = "minimal"  # Terminal agents
 
+                # #2: reasoning profile drives the extractor + enable-params
+                # (think=True / reasoning_effort) so reasoning models emit their
+                # internal thinking into the collapsible reasoning block.
+                _rprofile = self._reasoning_profile_for(agent.model_name)
+                _model_params: Dict[str, Any] = {
+                    "max_completion_tokens": agent.max_completion_tokens
+                }
+                if _rprofile and _rprofile.get("enable"):
+                    _model_params.update(_rprofile["enable"])
+
                 # Create PromptChain with tools using agentic config
                 chain = PromptChain(
                     models=[
                         {
                             "name": agent.model_name,
-                            "params": {
-                                "max_completion_tokens": agent.max_completion_tokens
-                            },
+                            "params": _model_params,
                         }
                     ],
                     instructions=[
@@ -3556,6 +3586,7 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                             or self.config.agentic.history_mode,
                             progress_callback=self._reasoning_progress_callback,  # T052: Real-time progress updates
                             streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
+                            reasoning_profile=_rprofile,  # #2: model reasoning extraction
                             # Wire context-management so token-based compaction
                             # actually engages (max_context_tokens per model).
                             **self._summarization_kwargs(agent.model_name),
@@ -4288,6 +4319,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             # The objective is derived from the current workflow step, not the overall workflow
             # Use agentic config for max_internal_steps (default: 15)
             max_steps = self.config.agentic.default_max_internal_steps
+            _rprofile = self._reasoning_profile_for(model_name)  # #2
+            _wf_params: Dict[str, Any] = {"max_completion_tokens": 16000}
+            if _rprofile and _rprofile.get("enable"):
+                _wf_params.update(_rprofile["enable"])
             agentic_processor = TUIAgenticStepProcessor(
                 objective=current_step.description,
                 max_internal_steps=max_steps,
@@ -4295,15 +4330,14 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
                 history_mode=self.config.agentic.history_mode,  # Use config history mode
                 progress_callback=self._reasoning_progress_callback,  # T052: Progress updates
                 streaming_callback=self._streaming_callback,  # #1: surface tool_call/thinking events as gutter-bar sections
+                reasoning_profile=_rprofile,  # #2: model reasoning extraction
                 # Wire context-management (per-model context window limit).
                 **self._summarization_kwargs(model_name),
             )
 
             # Create workflow-aware PromptChain with AgenticStepProcessor
             workflow_chain = PromptChain(
-                models=[
-                    {"name": model_name, "params": {"max_completion_tokens": 16000}}
-                ],
+                models=[{"name": model_name, "params": _wf_params}],
                 instructions=[
                     f"Working on workflow: {workflow.objective}\nCurrent step: {current_step.description}",
                     agentic_processor,  # Multi-hop reasoning for current step

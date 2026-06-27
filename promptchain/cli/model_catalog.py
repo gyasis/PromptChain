@@ -93,8 +93,14 @@ def infer_reasoning_profile(model_name: str, source: str) -> Dict:
                 "extract": "field" if source == "ollama-local" else "reasoning_content",
                 "tags": None, "enable": {"think": True} if ollama else None}
 
-    # qwq / qwen3 / magistral / gpt-oss / explicit "think/reason" distills → <think> tags
-    if any(t in n for t in ("qwq", "qwen3", "magistral", "gpt-oss", "thinking", "-think", "reason")):
+    # gpt-oss (OpenAI open-weights, harmony format) — surfaces reasoning_content
+    # via the OpenAI-compat shim, NOT <think> tags (verified live on Ollama Cloud).
+    if "gpt-oss" in n:
+        return {"supports": True, "extract": "reasoning_content", "tags": None,
+                "enable": {"think": True} if ollama else None}
+
+    # qwq / qwen3 / magistral / explicit "think/reason" distills → <think> tags
+    if any(t in n for t in ("qwq", "qwen3", "magistral", "thinking", "-think", "reason")):
         return {"supports": True, "extract": "think_tag", "tags": ["<think>", "</think>"],
                 "enable": {"think": True} if ollama else None}
 

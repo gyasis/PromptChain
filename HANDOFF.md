@@ -152,13 +152,31 @@ Files:
 Verified headless: `scratchpad/pilot_unit.py` (14/14 deterministic lifecycle
 checks) + `scratchpad/pilot_blocks.py` (real LLM → blocks created + auto-collapse).
 
-NOT yet done (the OTHER half of #2 — the reasoning **extractor**): pulling real
-extended-reasoning tokens from reasoning models (deepseek-r1 `message.thinking`,
-qwq `<think>`, `reasoning_content`) keyed off the model-catalog reasoning profile,
-to feed RICHER lines into the reasoning block. The block WIDGET is model-agnostic
-and ready; it currently streams whatever `thinking` events the processor emits
-(step-status lines for non-reasoning models like gpt-4.1-mini). Needs an
-ollama-cloud reasoning model to build+test (source `OLLAMA_API_KEY`).
+### Reasoning extractor (the OTHER half of #2 — DONE 2026-06-27)
+
+Pulls a reasoning model's INTERNAL reasoning and feeds it into the reasoning
+block as `thinking` stream events. Profile-driven (model_catalog) WITH graceful
+all-surfaces fallback.
+
+- `promptchain/utils/reasoning_extractor.py` — pure `extract_reasoning(message,
+  profile) -> (reasoning, cleaned_content)`. Surfaces: `reasoning_content`
+  (o-series / deepseek-cloud / gpt-oss), `thinking` field (ollama deepseek-r1
+  `think=true`), `<think>…</think>` tags (qwq / qwen3), incl. unclosed-tag
+  (streaming) handling. Reads dicts AND litellm objects (via `model_dump`).
+- `agentic_step_processor.py` — `reasoning_profile` ctor param + `_emit_reasoning()`
+  called after each LLM response (both standard + TAO paths): emits `thinking` +
+  strips `<think>` from content so the answer stays clean. No-op for plain models.
+- `app.py` — `_reasoning_profile_for(model_name)` (via `infer_reasoning_profile`)
+  passed to the processor at both construction sites; the profile's `enable`
+  params (`think=True` / `reasoning_effort`) merged into the model params so the
+  model actually emits reasoning.
+- `model_catalog.py` — gpt-oss reclassified to `reasoning_content` (verified live).
+
+Verified: `scratchpad/test_extractor.py` (14/14), `test_emit_reasoning.py` (6/6),
+and a LIVE call to `gpt-oss:20b` on Ollama Cloud — real reasoning extracted, AND
+it exercised the graceful fallback (catalog guessed `think_tag`; the model used
+`reasoning_content`; fallback caught it). `enable` params and the openai-compat
+shim route are the only cloud-routing concern; the TUI applies them automatically.
 
 Interaction note: Ctrl+T keeps its existing **hide/show all detail** behavior;
 per-block expand/collapse is **click**. (Spec said "click/Ctrl-toggle re-opens" —
