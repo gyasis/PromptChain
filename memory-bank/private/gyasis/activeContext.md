@@ -1,14 +1,14 @@
 # Active Context
 
-**Last Updated**: 2026-06-27 15:39:31
+**Last Updated**: 2026-06-27 15:43:59
 
 ## Current Focus
-test(F3): Wave 9 (T019) — A/B eval harness failing test (RED)
+feat(F3): Wave 10 (T020-T021) — A/B eval harness + offline smoke (SC-007)
 
-EVAL_TASKS (5 programmatically-scored tasks), run_ab(model_runner) → EvalReport
-with per_arm_completion_rate + delta; deterministic directional-win assertion with
-a fake model (discriminates f3 vs static_base via the family FORMAT: preamble).
-RED: eval_ab module absent.
+eval_ab.py: 5 programmatically-scored EvalTasks, run_ab → EvalReport
+(per_arm_completion_rate + delta), deterministic. ab_smoke.py: real LAN-ollama
+A/B (--weak), seeds a TINY jacket for the weak model so f3 emits the tiny-tier
+prompt. Eval 3 passed; full F3 suite 76.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 

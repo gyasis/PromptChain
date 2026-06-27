@@ -1,12 +1,12 @@
 # Progress
 
-**Last Updated**: 2026-06-27 15:39:31
+**Last Updated**: 2026-06-27 15:43:59
 
 ## Overall Progress
 - Total Tasks: 24
-- Completed: 19 ✅
-- Pending: 5 ⏳
-- Progress: 79%
+- Completed: 21 ✅
+- Pending: 3 ⏳
+- Progress: 87%
 
 ## Task Breakdown
 - [x] T001 [W1] [python-pro] [promptchain/prompts/] Create empty module stubs `tiers.py`, `family.py`, `toolshim.py`, `budget.py`, `longevity.py`, `model_dynamic.py` under `promptchain/prompts/` so `import promptchain.prompts.<mod>` resolves; confirm the existing static base (`from promptchain.prompts import TUI_FOUNDATION_PROMPT, DynamicTUIPromptGenerator, BasePromptBuilder`) and F2 (`from promptchain.profiler import ModelProfiler, Jacket, CapabilityProfile`) import cleanly in this env. Do NOT yet edit `__init__.py` exports.
@@ -28,8 +28,8 @@
 - [x] T017 [W8] [US3] [python-pro] [promptchain/prompts/longevity.py] Implement `build_turn_context(...)`, `DocumentAndClear` (`should_compress`, `is_stalled`, `should_escalate` respecting `jacket.escalate`, `document_and_clear` writing the progress doc per contracts/prompt-layout.md + clear/resume, lossy `HistorySummarizer` fallback). Pure decisions deterministic; only `document_and_clear` does I/O → T016 green.
 - [x] T018 [W8] [US3] [python-pro] [promptchain/prompts/__init__.py] Export `DocumentAndClear`, `build_turn_context` (additive to `__all__`).
 - [x] T019 [P] [W9] [python-pro] [tests/test_dynamic_prompt_eval.py] FAILING tests for the A/B harness: the eval set has N=5 `EvalTask`s each with a deterministic `check(output)`; the runner scores each task×arm (`f3` vs `static_base`) with an INJECTED fake model (scripted pass/fail), aggregates per-arm completion rate, and computes `delta = f3 − static_base`; aggregation is deterministic.
-- [ ] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
-- [ ] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
+- [x] T020 [P] [W10] [python-pro] [promptchain/prompts/eval_ab.py] Implement `EvalTask`/`EvalArm`/`EvalResult`/`EvalReport`, the 5-task set, and the runner (inject a model runner; `f3` arm uses `DynamicModelPromptGenerator`, `static_base` arm uses `DynamicTUIPromptGenerator`) → T019 green.
+- [x] T021 [W10] [python-pro] [specs/014-dynamic-prompt-layer/scripts/ab_smoke.py] Add the offline live-smoke script (`--weak <model>`): run the A/B against a real LAN ollama weak model, print per-arm completion + delta. No secrets; `OLLAMA_API_BASE`/`PYTHONPATH` per quickstart.
 - [ ] T022 [W11] [python-pro] [tests/] Run the full F3 suite `python -m pytest tests/test_dynamic_prompt_*.py tests/test_profiler_jacket_toolmode.py -q` (all green) AND the no-regression suite `python -m pytest tests/test_profiler_*.py tests/test_transcript_*.py -q` (F1+F2 still green, esp. F2's 66).
 - [ ] T023 [W11] [python-pro] [specs/014-dynamic-prompt-layer/] Run the offline live smoke (`ab_smoke.py` vs a weak LAN ollama model) and record the per-arm completion + delta in quickstart.md / the memory-bank checkpoint (SC-007 evidence). If the LAN model is unreachable, note it and rely on the deterministic harness.
 - [ ] T024 [W11] [python-pro] [memory-bank/] Update the memory-bank (progress.md + activeContext.md): F3 complete + green; summarize per-US deliverables, the one additive F2 field (`Jacket.tool_mode`), and the SC-007 smoke result.
