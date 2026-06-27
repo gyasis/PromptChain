@@ -278,6 +278,12 @@ class MessageItem(ListItem):
                 col = "#7ee787" if status == "ok" else "#f47067"
                 meta_md += f"[dim] · [/][{col}]{status}[/]"
             parts.append(Text.from_markup(f"[bold #e5c07b]{glyph} {name}[/]{meta_md}"))
+        elif kind == "subtasks":
+            parts.append(Text.from_markup("[dim]SUBTASKS[/]"))  # section label
+            tasks = meta.get("tasks") or []
+            done = sum(1 for t in tasks if t.get("status") == "completed")
+            parts.append(Text.from_markup(
+                f"[#c792ea]≡ Tasks[/][dim]  {done}/{len(tasks)}[/]"))
         else:
             header = meta.get("expanded_header")
             if header:
@@ -297,6 +303,18 @@ class MessageItem(ListItem):
                     parts.append(Text(f"  {mark}{ln}", style="dim italic"))
         elif kind == "tool":
             parts.extend(self._render_tool_body(meta))
+        elif kind == "subtasks":
+            for t in meta.get("tasks") or []:
+                st = t.get("status")
+                c = _esc(str(t.get("content", "")))
+                if st == "completed":
+                    parts.append(Text.from_markup(f"  [#7ee787]✓[/] [dim]{c}[/]"))
+                elif st == "in_progress":
+                    parts.append(Text.from_markup(f"  [#c6ccd6]▸ {c}[/]"))
+                elif st == "skipped":
+                    parts.append(Text.from_markup(f"  [dim strike]✗ {c}[/]"))
+                else:
+                    parts.append(Text.from_markup(f"  [dim]○ {c}[/]"))
         else:
             for ln in meta.get("lines") or []:
                 try:

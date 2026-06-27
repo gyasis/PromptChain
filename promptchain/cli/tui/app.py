@@ -354,6 +354,8 @@ class PromptChainApp(App):
         # dwell timer so it only collapses a block once its stream goes idle.
         self._reasoning_block_msg: Optional[Any] = None
         self._tool_block_msg: Optional[Any] = None
+        self._subtasks_block_msg: Optional[Any] = None
+        self._suppress_tool_result = False  # skip the result of a task-list tool
         self._block_dwell_gen = 0
         self._block_dwell_seconds = 3.5
         # Model-catalog cache for routing (api_base/api_key/enable) of cloud/
@@ -1150,6 +1152,9 @@ class PromptChainApp(App):
         except Exception:
             # Silently fail if task list module not available
             pass
+        # Also surface the task list INLINE in the chat (persists after the
+        # dock clears) — the SUBTASKS block.
+        self._update_subtasks_block()
 
     def _log_reasoning_step(
         self, step_num: int, step_content: str, tool_calls: Optional[List] = None
@@ -1532,7 +1537,60 @@ class PromptChainApp(App):
         """Reset per-turn collapsible-block state (call at the start of a turn)."""
         self._reasoning_block_msg = None
         self._tool_block_msg = None
+        self._subtasks_block_msg = None
         self._start_spinner()
+
+    def _update_subtasks_block(self) -> None:
+        """Render the agent's TodoWrite task list as an inline collapsible
+        SUBTASKS block in the chat (mockup: ``≡ Tasks · 2/4 · click to expand``),
+        so the todos persist in the conversation even after the dock clears. One
+        block per turn, updated in place as task statuses change."""
+
+        def _do() -> None:
+            from ..models import Message
+            from ..tools.library.task_list_tool import get_task_list_manager
+
+            try:
+                cl = getattr(get_task_list_manager(), "current_list", None)
+            except Exception:
+                return
+            raw = getattr(cl, "tasks", None) if cl else None
+            if not raw:
+                return
+            tasks = [
+                {"content": getattr(t, "content", ""),
+                 "status": getattr(getattr(t, "status", None), "value",
+                                   getattr(t, "status", "pending"))}
+                for t in raw
+            ]
+            done = sum(1 for t in tasks if t["status"] == "completed")
+            summary = (
+                f"[#c792ea]≡ Tasks · {done}/{len(tasks)} · click to expand[/]"
+            )
+            chat_view = self.query_one("#chat-view", ChatView)
+            msg = self._subtasks_block_msg
+            if msg is None:
+                msg = Message(
+                    role="system",
+                    content=summary,
+                    metadata={
+                        "block": True,
+                        "block_kind": "subtasks",
+                        "event_type": "tool_call",  # amber gutter + Ctrl+T
+                        "streaming": True,
+                        "collapsed": False,
+                        "tasks": tasks,
+                        "summary": summary,
+                    },
+                )
+                self._subtasks_block_msg = msg
+                chat_view.add_message(msg)
+            else:
+                msg.metadata["tasks"] = tasks
+                msg.metadata["summary"] = summary
+            chat_view.refresh_block(msg)
+
+        self._safe_call_ui(_do)
 
     def _start_spinner(self) -> None:
         """Begin ticking the in-progress-block spinner (idempotent)."""
@@ -1643,8 +1701,16 @@ class PromptChainApp(App):
 
         self._safe_call_ui(_do)
 
+    # Task-list tools render as the inline SUBTASKS block, not a generic tool
+    # block — so don't open a duplicate ⚙ tool section for them.
+    _TASK_TOOLS = {"task_list_write_tool", "update_task_status", "get_pending_tasks"}
+
     def _start_tool_block(self, name: str, detail: str) -> None:
         """Open a new collapsible tool block for a tool call (one per call)."""
+        if name in self._TASK_TOOLS:
+            self._suppress_tool_result = True  # its result is not a tool block
+            self._update_subtasks_block()
+            return
 
         def _do() -> None:
             from ..models import Message
@@ -1689,6 +1755,12 @@ class PromptChainApp(App):
 
     def _append_tool_result(self, detail: str) -> None:
         """Stream a tool result into the in-progress tool block."""
+        if self._suppress_tool_result:
+            # The matching call was a task-list tool — its result feeds the
+            # SUBTASKS block, not a tool block.
+            self._suppress_tool_result = False
+            self._update_subtasks_block()
+            return
 
         def _do() -> None:
             from ..models import Message
