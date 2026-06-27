@@ -677,10 +677,10 @@ class PromptChainApp(App):
                 f"on_mount: Session loaded - {len(self.session.messages)} messages"
             )
 
-            # Load existing messages into chat view
-            chat_view = self.query_one("#chat-view", ChatView)
-            chat_view.load_messages(self.session.messages)
-            logger.debug("on_mount: Messages loaded into chat view")
+            # NOTE: prior session history is loaded LATER — together with and
+            # BELOW the welcome banner — so the banner always sits at the top
+            # instead of being interleaved after the previous session's turns
+            # (the "welcome appears in the middle of the conversation" bug).
 
         except ValueError:
             # Session doesn't exist, create it
@@ -746,8 +746,11 @@ class PromptChainApp(App):
                 "Shortcuts: Ctrl+C or Ctrl+D to exit"
             ),
         )
+        # Welcome banner FIRST, then any prior session history BENEATH it — one
+        # load so the banner is always the top item (fixes the welcome-in-the-
+        # middle ordering bug on an existing session).
         chat_view = self.query_one("#chat-view", ChatView)
-        chat_view.add_message(welcome_msg)
+        chat_view.load_messages([welcome_msg, *self.session.messages])
 
         # Update status bar with active agent's model and router mode indicator (T039, T061)
         status_bar = self.query_one("#status-bar", StatusBar)
