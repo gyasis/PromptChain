@@ -250,3 +250,45 @@ def test_sio_derivable_from_transcript(tmp_path):
     assert len(error_results) >= 1, (
         "expected ≥1 tool_result with status='error' when TOOL_CALL_ERROR is present"
     )
+
+
+# ---------------------------------------------------------------------------
+# T023 — Module-level import guard (FR-008: emit-not-reuse)
+# ---------------------------------------------------------------------------
+
+def test_emitter_has_no_mlflow_or_sio_imports():
+    """Statically assert that transcript_emitter and _transcript_redaction never
+    import mlflow or sio at module level (FR-008, emit-not-reuse)."""
+    import ast
+    import pathlib
+
+    import promptchain.observability.transcript_emitter as tem
+    import promptchain.observability._transcript_redaction as red
+
+    def _collect_top_level_modules(path: pathlib.Path) -> set:
+        tree = ast.parse(path.read_text())
+        mods: set = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    mods.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    mods.add(node.module.split(".")[0])
+        return mods
+
+    emitter_mods = _collect_top_level_modules(pathlib.Path(tem.__file__))
+    assert "mlflow" not in emitter_mods, (
+        f"transcript_emitter must not import mlflow; found modules: {emitter_mods}"
+    )
+    assert "sio" not in emitter_mods, (
+        f"transcript_emitter must not import sio; found modules: {emitter_mods}"
+    )
+
+    redaction_mods = _collect_top_level_modules(pathlib.Path(red.__file__))
+    assert "mlflow" not in redaction_mods, (
+        f"_transcript_redaction must not import mlflow; found modules: {redaction_mods}"
+    )
+    assert "sio" not in redaction_mods, (
+        f"_transcript_redaction must not import sio; found modules: {redaction_mods}"
+    )

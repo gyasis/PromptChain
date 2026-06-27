@@ -214,11 +214,13 @@ class TranscriptEmitter:
             line["correction_count"] = 0
             line["positive_signal_count"] = 0
             line["sidechain_count"] = 0
+            line["schema_version"] = SCHEMA_VERSION
 
         elif line_type == "chain_error":
             line["stop_reason"] = md.get("stop_reason") or "error"
             line["error"] = self._safe_value(md.get("error"))
             line["outcome"] = "error"
+            line["schema_version"] = SCHEMA_VERSION
 
         return line
 
