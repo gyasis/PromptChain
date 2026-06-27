@@ -42,12 +42,12 @@ Single-project library. New code under `promptchain/profiler/`; flat tests `test
 
 ### Tests (W2) — write FIRST, must FAIL
 
-- [ ] T002 [P] [W2] [python-pro] [tests/test_profiler_item_bank.py] FAILING tests for `ProbeItem` validation (`a>0`, `0≤c<1`, known `dimension`), `ItemBank.synthetic(...)` producing items with KNOWN (a,b,c), `ItemBank.filter_quality(...)` (variance≥1%, accuracy≤95%, point-biserial≥0.1), `by_dimension(...)`, and that an uncalibrated/empty bank is flagged (`calibrated=False`).
+- [x] T002 [P] [W2] [python-pro] [tests/test_profiler_item_bank.py] FAILING tests for `ProbeItem` validation (`a>0`, `0≤c<1`, known `dimension`), `ItemBank.synthetic(...)` producing items with KNOWN (a,b,c), `ItemBank.filter_quality(...)` (variance≥1%, accuracy≤95%, point-biserial≥0.1), `by_dimension(...)`, and that an uncalibrated/empty bank is flagged (`calibrated=False`).
 
 ### Implementation (W3)
 
-- [ ] T003 [W3] [python-pro] [promptchain/profiler/item_bank.py] Implement `ProbeItem`, `ItemBank` (`synthetic`, `filter_quality`, `by_dimension`, `calibrated`) per data-model.md → T002 green.
-- [ ] T004 [P] [W3] [python-pro] [promptchain/profiler/jacket.py] Implement the dataclasses `SkillEstimate`, `ProbeResponse`, `Jacket`, `CapabilityProfile` with `to_dict`/`from_dict` per data-model.md + contracts/profile-schema.md (defaults/nullable fields; `schema_version`). Round-trips exercised by US1/US2 tests downstream.
+- [x] T003 [W3] [python-pro] [promptchain/profiler/item_bank.py] Implement `ProbeItem`, `ItemBank` (`synthetic`, `filter_quality`, `by_dimension`, `calibrated`) per data-model.md → T002 green.
+- [x] T004 [P] [W3] [python-pro] [promptchain/profiler/jacket.py] Implement the dataclasses `SkillEstimate`, `ProbeResponse`, `Jacket`, `CapabilityProfile` with `to_dict`/`from_dict` per data-model.md + contracts/profile-schema.md (defaults/nullable fields; `schema_version`). Round-trips exercised by US1/US2 tests downstream.
 
 **Checkpoint**: structures + item bank ready.
 
