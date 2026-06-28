@@ -214,6 +214,23 @@ def tools_catalog():
     return {"groups": groups, "count": len(avail)}
 
 
+import re
+_VISION_RE = re.compile(
+    r"(gpt-4o|gpt-4\.1|o[134]|gemini|claude-3|claude-4|sonnet|opus|haiku|[-_]?vl\b|vision|"
+    r"llava|gemma-?3|gemma-?4|minicpm-?v|qwen.*vl|pixtral|moondream|internvl|kimi.*vision)", re.I)
+
+def _is_vision_model(model: str) -> bool:
+    """Best-effort: trust litellm's capability map, fall back to a name pattern (covers local *-vl/gemma3
+    that litellm may not know). Used only to WARN, never to block."""
+    m = model or ""
+    try:
+        if litellm.supports_vision(model=m):
+            return True
+    except Exception:
+        pass
+    return bool(_VISION_RE.search(m))
+
+
 def _proc_of(ac):
     """The persistent TUIAgenticStepProcessor inside the default agent (holds its OWN history)."""
     try:
@@ -264,8 +281,15 @@ async def chat_turn(t: Turn):
     _USAGE["prompt"] = 0; _USAGE["completion"] = 0     # accumulate this turn's tokens
     ac = _ensure_chain(model, t.tools)                 # persistent AgentChain — history carries across turns
     proc = _proc_of(ac)                                # attach this turn's screen image(s) for the vision model
+    imgs = t.images or []
+    warn_msg = None
+    if imgs and not _is_vision_model(model):           # WARN, don't block: run text-only this turn
+        imgs = []
+        warn_msg = (f"vision language model needed — '{model}' isn't a recognized vision model, so the screen "
+                    f"image was skipped this turn (text still works). Pick a vision model (gpt-4o, gemini, or a "
+                    f"local *-vl / gemma3) to let it see the screen.")
     if proc is not None:
-        proc.pending_images = t.images or []
+        proc.pending_images = imgs
     q: asyncio.Queue = asyncio.Queue()
     def cb(event_type, content):
         q.put_nowait({"type": event_type, "content": str(content)})
@@ -276,6 +300,8 @@ async def chat_turn(t: Turn):
 
     async def gen():
         yield f"data: {json.dumps({'type': 'start', 'content': model})}\n\n"
+        if warn_msg:
+            yield f"data: {json.dumps({'type': 'warning', 'content': warn_msg})}\n\n"
         # THE REAL TUI TURN: run_chat_turn_async(message, streaming_callback=cb) — appends to
         # _conversation_history and auto-includes prior turns (agent_chain.py:2516/2522/2550).
         task = asyncio.create_task(ac.run_chat_turn_async(prompt, streaming_callback=cb))
