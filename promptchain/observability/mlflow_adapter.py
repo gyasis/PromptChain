@@ -60,7 +60,7 @@ def initialize_mlflow(
     Initialize MLflow with tracking URI and experiment.
 
     Args:
-        tracking_uri: MLflow tracking server URI (default: ./mlruns)
+        tracking_uri: MLflow tracking URI (default: sqlite:///mlflow.db)
         experiment_name: Name of the experiment (default: PromptChain)
 
     Returns:

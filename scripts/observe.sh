@@ -53,7 +53,7 @@ if [ -f "$REPO_ROOT/.env" ]; then
 fi
 
 # Default MLflow config (project-local)
-export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-file://$REPO_ROOT/mlruns}"
+export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-sqlite:///$REPO_ROOT/mlflow.db}"
 export PROMPTCHAIN_MLFLOW_BACKGROUND="${PROMPTCHAIN_MLFLOW_BACKGROUND:-1}"
 
 LOG="$RUN_DIR/output.log"

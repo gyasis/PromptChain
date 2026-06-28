@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default configuration values
 DEFAULT_MLFLOW_ENABLED = False
-DEFAULT_TRACKING_URI = "http://localhost:5000"
+DEFAULT_TRACKING_URI = "sqlite:///mlflow.db"
 DEFAULT_EXPERIMENT_NAME = "promptchain-cli"
 DEFAULT_BACKGROUND_LOGGING = True
 
