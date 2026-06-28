@@ -32,6 +32,7 @@ from ..utils.file_context_manager import FileContextManager
 from ..utils.output_formatter import OutputFormatter
 from .activity_log_viewer import ActivityLogViewer
 from .approval_screen import ApprovalScreen
+from .model_chooser_screen import ModelChooserScreen
 from .autocomplete_popup import AutocompletePopup
 from .chat_view import ChatView, MessageItem
 from .lingua_client import LinguaCompressor
@@ -226,6 +227,7 @@ class PromptChainApp(App):
         ("ctrl+l", "toggle_log_view", "Activity Logs"),
         ("ctrl+o", "toggle_observe", "Observe"),  # T118: Toggle observe panel
         ("ctrl+t", "toggle_thinking", "Thinking"),  # Toggle thinking/tool detail
+        ("ctrl+n", "choose_model", "Model"),  # Open the model chooser
     ]
 
     # App-level command palette (Ctrl+P). Complements inline '/' parsing in
@@ -654,6 +656,49 @@ class PromptChainApp(App):
             Message(
                 role="system",
                 content=f"[dim]Thinking/tool detail {state} (Ctrl+T to toggle)[/dim]",
+            )
+        )
+
+    def action_choose_model(self) -> None:
+        """Open the interactive model chooser (Ctrl+N or /model).
+
+        On pick, the chosen model is applied to the active agent for this
+        session (in-memory, like /agent use) and the chain is rebuilt. The
+        chooser also seeds ``self._model_catalog`` with its freshly-fetched
+        catalog so ``_model_call_params`` routes the pick (api_base/api_key).
+        """
+        if not self.session:
+            return
+        active = self.session.agents.get(self.session.active_agent or "")
+        current = active.model_name if active else self.session.default_model
+        self.push_screen(ModelChooserScreen(current=current), self._on_model_chosen)
+
+    def _on_model_chosen(self, entry: Optional[Any]) -> None:
+        """Apply a model picked in the chooser to the active agent."""
+        if not entry or not self.session:
+            return  # cancelled
+        from ..models import Message
+
+        agent = self.session.agents.get(self.session.active_agent or "")
+        if agent:
+            agent.model_name = entry.model_name
+        else:
+            self.session.default_model = entry.model_name
+        # Force chain re-creation so the next message uses the new model.
+        self.agent_chain = None
+        try:
+            self.query_one("#status-bar", StatusBar).update_session_info(
+                model_name=entry.model_name
+            )
+        except Exception:
+            pass
+        self.query_one("#chat-view", ChatView).add_message(
+            Message(
+                role="system",
+                content=(
+                    f"[green]Model switched to[/green] [bold]{entry.model_name}[/bold]"
+                    f" [dim]({entry.source})[/dim] for this session."
+                ),
             )
         )
 
@@ -2649,6 +2694,10 @@ class PromptChainApp(App):
                     ),
                 )
                 chat_view.add_message(help_msg)
+
+        elif command.strip() in ("/model", "/models") or command.startswith("/model "):
+            # Open the interactive model chooser (same as Ctrl+N).
+            self.action_choose_model()
 
         elif command.startswith("/agent"):
             # Handle agent commands
