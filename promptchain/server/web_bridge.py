@@ -267,6 +267,25 @@ def session_new():
     return {"ok": True, "turns": 0}
 
 
+class WorkDir(BaseModel):
+    path: str
+
+_WORKDIR = {"path": str(pathlib.Path.cwd())}
+
+@app.get("/session/workdir")
+def get_workdir():
+    return {"path": _WORKDIR["path"]}
+
+@app.post("/session/workdir")
+def set_workdir(w: WorkDir):
+    """Root the agent's file tools (they use os.getcwd()) in the chosen folder — process-wide chdir."""
+    p = os.path.expanduser(w.path or "")
+    if p and os.path.isdir(p):
+        os.chdir(p); _WORKDIR["path"] = os.getcwd()
+        return {"ok": True, "path": _WORKDIR["path"]}
+    return {"ok": False, "path": _WORKDIR["path"], "error": "not a directory"}
+
+
 @app.get("/session/state")
 def session_state():
     ac = _AC["chain"]; proc = _proc_of(ac) if ac else None
