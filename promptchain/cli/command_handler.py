@@ -71,6 +71,11 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
         "description": "Delete a saved session",
         "usage": "/session delete <name>",
     },
+    # Model chooser
+    "/model": {
+        "description": "Open the model chooser (local · cloud · OpenAI/Gemini)",
+        "usage": "/model",
+    },
     # Agent commands
     "/agent": {"description": "Show current agent info", "usage": "/agent"},
     "/agent list": {
