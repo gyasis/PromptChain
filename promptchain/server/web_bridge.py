@@ -91,16 +91,32 @@ import tempfile, pathlib
 from promptchain.cli.tui_processor import TUIAgenticStepProcessor
 from promptchain.cli.session_manager import SessionManager
 from promptchain.utils.agent_chain import AgentChain
+# Lookout is a READ-AND-ANSWER screen assistant, not an autonomous executor. Use an answer-first
+# foundation so "what do you see?" is answered directly instead of triggering file/task tools.
+_FOUNDATION = (
+    "You are Lookout, an on-screen assistant. The user shows you a screen image and/or text context "
+    "and asks about it. ANSWER the question directly and concisely from what is visible. "
+    "Do NOT create files, write task lists, or run commands unless the user EXPLICITLY asks you to "
+    "perform such an action. For 'what do you see / what is this / explain' questions, just describe "
+    "the screen — prefer a direct answer over tool use."
+)
+
+# Keep the SessionManager instance so the blackboard/delegation tools can be wired to it. Without
+# this, write_to_blackboard fails with "Session manager not initialized. Call set_session_manager first."
 try:
-    _SESSION = SessionManager(sessions_dir=tempfile.mkdtemp(prefix="lookout-pc-")).create_session(
-        name="lookout", working_directory=pathlib.Path.cwd())
-    _FOUNDATION = _SESSION.agents["default"].instruction_chain[0]   # the real foundation/execution prompt
-    print(f"[bridge] foundation prompt from real session ({len(_FOUNDATION)} chars)")
+    _SM = SessionManager(sessions_dir=tempfile.mkdtemp(prefix="lookout-pc-"))
+    _SESSION = _SM.create_session(name="lookout", working_directory=pathlib.Path.cwd())
+    from promptchain.cli.tools.library import (
+        set_blackboard_session_manager,
+        set_delegation_session_manager,
+    )
+    if set_blackboard_session_manager:
+        set_blackboard_session_manager(_SM)
+    if set_delegation_session_manager:
+        set_delegation_session_manager(_SM)
+    print("[bridge] answer-first foundation; session manager wired (blackboard+delegation)")
 except Exception as e:
-    print(f"[bridge] session foundation unavailable ({e}); using fallback objective")
-    _FOUNDATION = ("You are an EXECUTION agent, not an explanation agent. COMPLETE tasks by USING TOOLS "
-                   "(file_read/file_write/file_edit, terminal_execute, sandbox_*, ripgrep_search). Use multi-hop "
-                   "reasoning. ONLY respond with results after completing the task with tools.")
+    print(f"[bridge] session manager unavailable ({e}); blackboard/delegation tools disabled")
 
 # ===== FAITHFUL TUI ENGINE PORT =====
 # The real TUI keeps ONE AgentChain alive for the session and calls run_chat_turn_async() per turn;
@@ -128,7 +144,9 @@ def _build_agent_chain(model: str, tool_names):
     )
     chain = PromptChain(models=[{"name": model, "params": {"max_completion_tokens": 1024}}],
                         instructions=[proc], verbose=False)
-    names = list(tool_names) if tool_names else list(_TOOL_FN.keys())
+    # Default = NO tools → pure answer mode (Lookout screen Q&A). Agentic execution is opt-in: the
+    # caller passes an explicit `tools` list to enable file/task/terminal tools for an action request.
+    names = list(tool_names) if tool_names else []
     for n in names:
         tm = _TOOL_FN.get(n)
         if tm is not None and getattr(tm, "function", None) is not None:
