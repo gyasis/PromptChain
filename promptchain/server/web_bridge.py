@@ -180,13 +180,13 @@ def _catalog():
     """Models the bridge can drive via litellm, filtered to the API keys actually present.
     Model switching is PER-TURN (passed to /chat/turn) — no bridge restart needed."""
     out = []
-    # Ollama (Mac Studio / local) — PromptChain's own host, live from OLLAMA_HOST (needs OLLAMA_API_BASE set)
-    host = os.environ.get("OLLAMA_HOST", "http://192.168.0.159:11434")
+    # Ollama — endpoint is configurable via OLLAMA_HOST (localhost, a LAN box, or a remote URL).
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     try:
         with urllib.request.urlopen(host + "/api/tags", timeout=3) as r:
             for m in json.load(r).get("models", []):
                 n = m["name"]
-                out.append({"id": f"ollama/{n}", "label": n, "provider": "ollama · Mac Studio", "note": "local"})
+                out.append({"id": f"ollama/{n}", "label": n, "provider": "ollama", "note": "local"})
     except Exception:
         pass
     # OpenAI (litellm, verified)
