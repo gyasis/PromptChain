@@ -28,15 +28,24 @@ class MLXCaller:
     expects) — the only normalization, and it's explicit/ours. False → raw concatenation of contents.
     """
 
-    def __init__(self, model_path, default_params=None, use_chat_template=True):
+    def __init__(self, model_path, default_params=None, use_chat_template=True,
+                 governor=None, est_gb=None):
         self.model_path = model_path
         self.default_params = dict(default_params or {})
         self.use_chat_template = use_chat_template
+        # governor = OPTIONAL duck-typed admission hook (any object with .lease(model, est_gb) -> lease
+        # with .release()); e.g. promptchain.utils.governor_client.GovernorClient. None => ungoverned.
+        self.governor = governor
+        self.est_gb = est_gb
         self._model = None
         self._tok = None
+        self._lease = None
 
     def _ensure_loaded(self):
         if self._model is None:
+            if self.governor is not None and self._lease is None:
+                # reserve memory BEFORE loading, so a shared host (Mac Studio) doesn't over-commit
+                self._lease = self.governor.lease(self.model_path, self.est_gb or 4.0)
             try:
                 from mlx_lm import load
             except ImportError as e:  # pragma: no cover - env-dependent (Apple Silicon only)
@@ -46,6 +55,20 @@ class MLXCaller:
                 ) from e
             self._model, self._tok = load(self.model_path)
         return self._model, self._tok
+
+    def close(self):
+        """Release the governor lease (if any) and drop the model reference."""
+        if self._lease is not None:
+            self._lease.release()
+            self._lease = None
+        self._model = None
+        self._tok = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
 
     def build_prompt(self, messages, tokenizer=None) -> str:
         """Turn messages into the prompt string. With use_chat_template, apply the tokenizer's chat

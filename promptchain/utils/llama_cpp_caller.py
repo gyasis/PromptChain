@@ -45,7 +45,7 @@ class LlamaCppCaller:
     """
 
     def __init__(self, model_path, n_ctx=8192, n_gpu_layers=-1, chat_format=None,
-                 default_params=None, grammar=None, verbose=False):
+                 default_params=None, grammar=None, verbose=False, governor=None, est_gb=None):
         self.model_path = model_path
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers          # -1 = offload all layers to Metal/GPU
@@ -53,10 +53,26 @@ class LlamaCppCaller:
         self.default_params = dict(default_params or {})
         self.grammar_default = grammar            # GBNF string or None (None = raw)
         self.verbose = verbose
+        # governor = OPTIONAL duck-typed admission hook (.lease(model, est_gb) -> lease.release()).
+        # None => ungoverned. est_gb auto-estimated from the GGUF file size when not given.
+        self.governor = governor
+        self.est_gb = est_gb
         self._llm = None                          # lazy-loaded Llama instance
+        self._lease = None
+
+    def _estimate_gb(self):
+        if self.est_gb is not None:
+            return self.est_gb
+        import os
+        try:
+            return round(os.path.getsize(self.model_path) / 1e9 * 1.15, 2)  # file size + ~15% overhead
+        except OSError:
+            return 4.0
 
     def _ensure_loaded(self):
         if self._llm is None:
+            if self.governor is not None and self._lease is None:
+                self._lease = self.governor.lease(self.model_path, self._estimate_gb())
             try:
                 from llama_cpp import Llama
             except ImportError as e:  # pragma: no cover - env-dependent
@@ -69,6 +85,19 @@ class LlamaCppCaller:
                               n_gpu_layers=self.n_gpu_layers, chat_format=self.chat_format,
                               verbose=self.verbose)
         return self._llm
+
+    def close(self):
+        """Release the governor lease (if any) and drop the model."""
+        if self._lease is not None:
+            self._lease.release()
+            self._lease = None
+        self._llm = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
 
     def resolve(self, params=None, grammar=_UNSET):
         """Merge params and resolve the grammar to use (per-call arg overrides the instance default).
