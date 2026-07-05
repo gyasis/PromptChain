@@ -77,7 +77,7 @@ def above_noise(control_scores, treatment_scores, min_reps=3, p_threshold=0.05):
         p = float(stats.ttest_ind(treatment_scores, control_scores, equal_var=False).pvalue)
     except Exception:
         pass
-    if p is not None:
+    if p is not None and p == p:                 # p == p is False for NaN (near-zero variance -> fall back)
         ok = (p < p_threshold) and (delta > 0)
         msg = f"delta={delta:+.2f} (base {cm:.1f}±{csd:.1f}), Welch p={p:.3f} (sig if < {p_threshold} & delta>0)"
     else:
