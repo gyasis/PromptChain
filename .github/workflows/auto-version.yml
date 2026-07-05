@@ -1,0 +1,28 @@
+name: auto-version
+
+# Auto-version on merge to main. PromptChain uses setuptools_scm (version derives from git tags), so
+# creating a tag IS the release. This reads CONVENTIONAL COMMITS since the last tag and creates the next
+# semver tag: feat: -> minor, fix: -> patch, "BREAKING CHANGE"/! -> major. Merges with no such commit
+# create no tag (default_bump: false). See docs/RELEASING.md.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  autotag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # full history so the tagger can read commits since the last tag
+      - name: Create version tag from conventional commits
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: false       # only bump on feat/fix/BREAKING — no tag on docs/chore/ci
+          release_branches: main
+          tag_prefix: v
