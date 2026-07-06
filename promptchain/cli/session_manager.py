@@ -482,6 +482,9 @@ class SessionManager:
         # Create messages file (empty JSONL)
         messages_file = session_dir / "messages.jsonl"
         messages_file.touch()
+        # Nothing persisted yet — the first save appends all messages (see
+        # save_session's append-only logic).
+        session._persisted_count = 0
 
         # Insert session into database
         conn = sqlite3.connect(self.db_path)
@@ -676,6 +679,9 @@ class SessionManager:
                     for line in f:
                         if line.strip():
                             session.messages.append(Message.from_jsonl(line))
+            # Everything just loaded is already on disk — so append-only saves
+            # (see save_session) only write messages added after this point.
+            session._persisted_count = len(session.messages)
 
             # ✅ Phase 3: Initialize ActivityLogger for loaded session
             # Reconnects to existing activity log database
@@ -854,12 +860,25 @@ class SessionManager:
         finally:
             conn.close()
 
-        # Save messages to JSONL (append-only)
+        # Save messages to JSONL — append-only. Conversation history only ever
+        # grows (messages are appended, never edited in place), so we append the
+        # tail written since the last save instead of rewriting the whole file
+        # each time. That turns per-turn saving from O(n) into O(new) and avoids
+        # the O(n^2) cost of rewriting a long transcript on every turn.
+        # Full rewrite is used only as a fallback: the file is missing, or the
+        # in-memory list is SHORTER than what we already persisted (a clear /
+        # compaction shrank it) — in which case the on-disk copy is stale.
         messages_file = self.sessions_dir / session.id / "messages.jsonl"
+        persisted = getattr(session, "_persisted_count", 0)
+        total = len(session.messages)
+        full_rewrite = persisted > total or not messages_file.exists()
         try:
-            with open(messages_file, "w") as f:
-                for message in session.messages:
+            mode = "w" if full_rewrite else "a"
+            start = 0 if full_rewrite else persisted
+            with open(messages_file, mode) as f:
+                for message in session.messages[start:]:
                     f.write(message.to_jsonl() + "\n")
+            session._persisted_count = total
         except Exception as e:
             # Log file writing error
             try:

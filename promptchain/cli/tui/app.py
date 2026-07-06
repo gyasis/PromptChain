@@ -3053,9 +3053,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -3130,9 +3128,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -3215,9 +3211,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -3300,9 +3294,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -3402,9 +3394,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -3487,9 +3477,7 @@ class PromptChainApp(App):
                 chat_view.add_message(result_msg)
 
                 # Add to session history
-                if self.session:
-                    self.session.messages.append(Message(role="user", content=command))
-                    self.session.messages.append(result_msg)
+                self._record_command_turn(command, result_msg)
             else:
                 error_msg = Message(
                     role="system",
@@ -4266,6 +4254,25 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             status_bar.update_session_info(
                 active_agent=agent_name, model_name=active_agent.model_name
             )
+
+    def _record_command_turn(self, command: str, result_msg: "Message") -> None:
+        """Persist a slash-command turn (user command + its result) to history.
+
+        These bypass ``session.add_message`` because ``result_msg`` is a prebuilt
+        Message object also handed to the chat view, so appending directly keeps
+        one object across UI + history. But that also skips add_message's
+        autosave bookkeeping — so bump the counter for the two messages and run
+        check_autosave here, otherwise command turns wouldn't count toward the
+        auto-save threshold and could be lost on a non-clean exit.
+        """
+        if not self.session:
+            return
+        self.session.messages.append(Message(role="user", content=command))
+        self.session.messages.append(result_msg)
+        self.session.messages_since_save = (
+            getattr(self.session, "messages_since_save", 0) + 2
+        )
+        self.session.check_autosave(self.session_manager)
 
     async def handle_user_message(self, content: str):
         """Handle user message (non-command) with AgentChain integration (T032-T034).
