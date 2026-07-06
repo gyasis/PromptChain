@@ -4780,6 +4780,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         # Update status bar
         status_bar.update_session_info(message_count=len(self.session.messages))
 
+        # Persist the turn now. check_autosave() flushes to SQLite + messages.jsonl
+        # once the message/time threshold is met, so history survives a non-clean
+        # exit (Ctrl+C, terminal close, os._exit backstop) instead of only being
+        # saved on /exit. Without this the built-in auto-save never fires.
+        self.session.check_autosave(self.session_manager)
+
     async def _handle_workflow_message(self, content: str, workflow: "WorkflowState"):
         """Handle message when workflow is active (T091).
 
@@ -5004,6 +5010,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         # Update status bar message count
         status_bar.update_session_info(message_count=len(self.session.messages))
 
+        # Persist the workflow turn now (see handle_user_message) so history
+        # survives a non-clean exit rather than only saving on /exit.
+        self.session.check_autosave(self.session_manager)
+
     async def _display_system_message(self, message: str) -> None:
         """Display system message in chat with styling (T042).
 
@@ -5083,6 +5093,22 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         """Quit (Ctrl+D / quit binding): arm the failsafe, then exit cleanly."""
         self._arm_hard_exit()
         self.exit()
+
+    async def on_unmount(self) -> None:
+        """Textual teardown hook — the ACTUAL lifecycle event Textual fires.
+
+        ``on_exit`` (below) holds the intended shutdown save + MLflow flush, but
+        ``on_exit`` is not a Textual event name (App has no such hook in Textual
+        8.x), so Textual never invoked it and the transcript was only persisted
+        when the user literally typed ``/exit``. Ctrl+D/action_quit and Ctrl+C
+        quit without saving. Delegating here wires that cleanup to every exit
+        path before the ``_arm_hard_exit`` os._exit backstop can fire.
+        """
+        try:
+            await self.on_exit()
+        except Exception:
+            # Never let a teardown error hang the exit.
+            pass
 
     async def on_exit(self):
         """Handle app exit - save session and cleanup observers."""
