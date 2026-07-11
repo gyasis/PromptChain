@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-11
+
 ### Added
+- **`agent_comms`** (`promptchain.patterns.agent_comms`) — a new package: every
+  agent-to-agent communication pattern (dyad, sequential pipeline, moderated group,
+  broadcast, handoff routing, FSM, nesting) as **static control flow with agentic
+  participants**. Each agent is a true `AgenticStepProcessor` (its own reason+tool loop,
+  `tools=[...]`); the mesh — selector / router / termination — is pure Callables, so a
+  model never drives orchestration. Includes a tunable **orchestrator**: the static
+  `group()` + `by_capability()` (route by declared agent capabilities), or an agentic
+  manager agent via `orchestrator()` with `select` / `steer` / `full` authority and
+  capability-aware **open-question forwarding** (a question left "in the air" is routed to
+  whoever can answer it); plus `captain()` (a sub-team presented as one agent), `dyad` /
+  `pipeline` / `group` / `broadcast` / `as_agent`, the G4 selector menu, and `EchoAgent`
+  for offline control-flow tests. See `promptchain/patterns/agent_comms/README.md`,
+  `tests/test_agent_comms.py` (16 offline, no LLM), `examples/agent_comms_demo.py`.
 - **`ExternalLoop`** (`promptchain.utils.external_loop`) — a deterministic external
   loop, the external analog of `AgenticStepProcessor`'s internal loop. Always loops
   with a **required, default-on guard** (`max_iters` always-on + optional `max_seconds`
