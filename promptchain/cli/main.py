@@ -211,6 +211,13 @@ def setup_logging(
     help="Model to start the session with (overrides the active agent's model, "
     "e.g., 'openai/gpt-4o' or 'ollama/qwen3'). Applies for this launch only.",
 )
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume the session's prior conversation. Default: start FRESH — a session "
+    "never replays its history unless you pass --resume.",
+)
 @click.version_option(version=__version__, prog_name="promptchain")
 @click.pass_context
 def main(
@@ -221,6 +228,7 @@ def main(
     verbose: bool,
     dev: bool,
     model: Optional[str],
+    resume: bool,
 ):
     """PromptChain - Interactive terminal interface for LLM conversations.
 
@@ -255,7 +263,7 @@ def main(
 
     # If no subcommand invoked, launch the TUI (default behavior)
     if ctx.invoked_subcommand is None:
-        _launch_tui(session, sessions_dir, config, verbose, dev, model)
+        _launch_tui(session, sessions_dir, config, verbose, dev, model, resume)
 
 
 @track_session()
@@ -266,6 +274,7 @@ def _launch_tui(
     verbose: bool,
     dev: bool,
     model: Optional[str] = None,
+    resume: bool = False,
 ):
     """Launch the interactive TUI application."""
     # Initialize MLflow observability
@@ -328,6 +337,7 @@ def _launch_tui(
                     config=base_config,  # Config already includes settings from YAML
                     verbose_mode=verbose,  # T118: Verbose observability mode
                     model_override=model,  # CLI --model: override agent model this launch
+                    resume=resume,  # --resume: replay prior history (default: fresh)
                 )
         except ImportError as e:
             raise click.ClickException(

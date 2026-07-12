@@ -241,6 +241,7 @@ class PromptChainApp(App):
         config: Optional["Config"] = None,
         verbose_mode: bool = False,
         model_override: Optional[str] = None,
+        resume: bool = False,
         *args,
         **kwargs,
     ):
@@ -256,6 +257,9 @@ class PromptChainApp(App):
         """
         super().__init__(*args, **kwargs)
         self.session_name = session_name
+        # --resume: replay the session's prior conversation on startup. Default False —
+        # a session NEVER resumes its history unless explicitly asked (user preference).
+        self.resume = resume
         self.verbose_mode = verbose_mode  # T118: Verbose observability mode
         self.model_override = model_override  # CLI --model (this-launch override)
 
@@ -809,7 +813,12 @@ class PromptChainApp(App):
             else tool_count
         )
 
-        session_status = "New session created" if is_new_session else "Session loaded"
+        if is_new_session:
+            session_status = "New session created"
+        elif self.resume:
+            session_status = "Session resumed"
+        else:
+            session_status = "Session opened (fresh — use --resume to restore history)"
 
         # Wire config.performance.history_max_tokens to session
         self.session.history_max_tokens = self.config.performance.history_max_tokens
@@ -832,7 +841,21 @@ class PromptChainApp(App):
         # load so the banner is always the top item (fixes the welcome-in-the-
         # middle ordering bug on an existing session).
         chat_view = self.query_one("#chat-view", ChatView)
-        chat_view.load_messages([welcome_msg, *self.session.messages])
+        if self.resume:
+            # explicit opt-in: replay the full prior conversation beneath the banner
+            chat_view.load_messages([welcome_msg, *self.session.messages])
+        else:
+            # default: FRESH view — prior history is NOT replayed (still saved on disk,
+            # restorable with --resume). This is what the user always wants by default.
+            chat_view.load_messages([welcome_msg])
+            if self.session.messages:
+                chat_view.add_message(Message(
+                    role="system",
+                    content=(
+                        f"[dim]{len(self.session.messages)} prior message(s) hidden — "
+                        f"relaunch with --resume to restore them.[/dim]"
+                    ),
+                ))
 
         # Update status bar with active agent's model and router mode indicator (T039, T061)
         status_bar = self.query_one("#status-bar", StatusBar)
