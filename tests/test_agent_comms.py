@@ -142,6 +142,16 @@ def test_by_capability_static_routing():
     assert first("Hello everyone") == "A"            # no match -> round-robin fallback (first)
 
 
+def test_orchestrator_on_turn_hook():
+    # on_turn fires once per completed subagent turn (used to stream to a UI / TUI dock)
+    A, B, C = _abc()
+    mgr = EchoAgent("MGR", ["A :: x", "B :: x", "DONE"])
+    seen = []
+    Orchestrator("Boss", manager=mgr, authority="steer", max_rounds=10,
+                 on_turn=lambda msg, ctx: seen.append(msg.role)).run_group([A, B, C], "go")
+    assert seen == ["A", "B"]
+
+
 if __name__ == "__main__":
     import sys
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
