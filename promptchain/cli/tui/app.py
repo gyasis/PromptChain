@@ -2926,6 +2926,9 @@ class PromptChainApp(App):
         elif command == "/patterns":
             await self._handle_patterns_help()
 
+        elif command.startswith("/task"):
+            await self._handle_task_command(command)
+
         else:
             from ..models import Message
 
@@ -2934,6 +2937,123 @@ class PromptChainApp(App):
                 content=f"Unknown command: {command}\nType /help for available commands.",
             )
             chat_view.add_message(error_msg)
+
+    async def _handle_task_command(self, command: str):
+        """Handle /task — launch subagents (an agent_comms orchestrator) to work a task.
+
+        Usage: /task "goal" [--authority=select|steer|full] [--rounds=8]
+                            [--agents=a,b,c] [--static]
+        Each configured session agent becomes a true agent_comms participant (an
+        AgenticStepProcessor). The agentic orchestrator (default) or the static
+        capability-router drives them; each completed turn streams to the task dock, and
+        only the final synthesis is committed to chat (turns stay in the dock to avoid
+        bloating the conversation context).
+        """
+        from ..models import Message
+
+        chat_view = self.query_one("#chat-view", ChatView)
+
+        try:
+            from promptchain.patterns.agent_comms import (
+                agent as make_agent,
+                orchestrator,
+                group,
+                by_capability,
+                max_turns,
+            )
+        except ImportError as e:
+            chat_view.add_message(Message(role="system", content=f"✗ agent_comms unavailable: {e}"))
+            return
+
+        parsed = self._parse_pattern_command(command)
+        if parsed["error"]:
+            chat_view.add_message(Message(
+                role="system",
+                content=(f"Error: {parsed['error']}\n"
+                         'Usage: /task "goal" [--authority=steer] [--rounds=8] [--agents=a,b,c] [--static]'),
+            ))
+            return
+        goal = parsed["query"]
+        opts = parsed["options"]
+
+        # Roster: all configured session agents, or a subset via --agents=a,b,c
+        if not self.session or not self.session.agents:
+            chat_view.add_message(Message(
+                role="system",
+                content="No agents configured. Create some with /agent create <name> ... first.",
+            ))
+            return
+        wanted = opts.get("agents")
+        if isinstance(wanted, str):
+            wanted = [wanted]
+        roster = [a for n, a in self.session.agents.items() if not wanted or n in wanted]
+        if len(roster) < 2:
+            avail = ", ".join(self.session.agents)
+            chat_view.add_message(Message(
+                role="system",
+                content=f"/task needs at least 2 agents (got {len(roster)}). Available: {avail}",
+            ))
+            return
+
+        # Map each session Agent -> an agent_comms participant (a true AgenticStepProcessor).
+        def _persona(a):
+            if getattr(a, "instruction_chain", None):
+                p = a.instruction_chain[0]
+                return p if isinstance(p, str) else str(p)
+            return getattr(a, "description", "") or f"an agent named {a.name}"
+
+        participants = [
+            make_agent(
+                name=a.name,
+                persona=_persona(a),
+                model=a.model_name,
+                capabilities=(getattr(a, "metadata", None) or {}).get("capabilities", []),
+            )
+            for a in roster
+        ]
+
+        # default "full" so the manager both steers each turn AND writes a final
+        # synthesis (the synthesis is what we commit to chat — locked decision).
+        authority = opts.get("authority", "full")
+        if authority not in ("select", "steer", "full"):
+            authority = "full"
+        rounds = int(opts.get("rounds", 8))
+        use_static = bool(opts.get("static", False))
+
+        # Stream each COMPLETED subagent turn into the task dock (NOT chat).
+        def on_turn(msg, ctx):
+            self._add_task_internal_step("tool_call", f"{msg.role} ▸ {msg.content}")
+
+        names = ", ".join(a.name for a in participants)
+        mode = "static · by-capability" if use_static else f"agentic manager · {authority}"
+        chat_view.add_message(Message(
+            role="system",
+            content=f"▸ /task — {len(participants)} subagents [{names}] · {mode}\n  goal: {goal}",
+        ))
+
+        try:
+            # MUST use the async variants — the sync run()/run_group() call asyncio.run()
+            # internally and would crash inside the Textual event loop.
+            if use_static:
+                transcript = await group(
+                    participants, by_capability(), term=[max_turns(rounds)],
+                    on_turn=on_turn, max_turns=rounds,
+                ).run_async(goal)
+            else:
+                transcript = await orchestrator(
+                    "Coordinator", authority=authority, max_rounds=rounds, on_turn=on_turn,
+                ).run_group_async(participants, goal)
+
+            synthesis = transcript[-1].content if transcript else "(no output)"
+            result_msg = Message(role="assistant", content=synthesis)
+            chat_view.add_message(result_msg)
+            self._add_task_internal_step("tool_result", f"task complete · {len(transcript)} turns")
+            if self.session:
+                self.session.messages.append(Message(role="user", content=command))
+                self.session.messages.append(result_msg)
+        except Exception as e:
+            chat_view.add_message(Message(role="system", content=f"✗ /task error: {e}"))
+            self._add_task_internal_step("error", str(e))
 
     def _parse_pattern_command(self, command: str) -> dict:
         """Parse pattern command into query and options.

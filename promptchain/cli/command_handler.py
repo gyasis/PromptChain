@@ -236,6 +236,10 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
         "usage": '/speculate "context" [--min-confidence=0.7] [--prefetch=N]',
     },
     "/patterns": {"description": "Show pattern commands help", "usage": "/patterns"},
+    "/task": {
+        "description": "Launch subagents to work a task (agent_comms orchestrator)",
+        "usage": '/task "goal" [--authority=steer] [--rounds=8] [--agents=a,b,c] [--static]',
+    },
 }
 
 

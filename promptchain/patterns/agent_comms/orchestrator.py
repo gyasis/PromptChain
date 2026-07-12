@@ -34,12 +34,16 @@ class Orchestrator:
 
     def __init__(self, name: str, persona: str = _DEFAULT_PERSONA,
                  model: str = DEFAULT_MODEL, max_internal_steps: int = 3,
-                 authority: str = "full", max_rounds: int = 8, manager=None):
+                 authority: str = "full", max_rounds: int = 8, manager=None,
+                 on_turn=None):
         if authority not in _AUTHORITY:
             raise ValueError(f"authority must be one of {_AUTHORITY}")
         self.name = name
         self.authority = authority
         self.max_rounds = max_rounds
+        # Optional per-completed-turn callback `on_turn(msg, ctx)` (mirrors Group) — used
+        # to stream each subagent's turn to a UI live (e.g. the TUI /task dock).
+        self.on_turn = on_turn
         # The manager is a true agent with an ORCHESTRATOR objective (it runs the team,
         # it does NOT do their work). `model`/`max_internal_steps` = its intelligence.
         self.manager = manager or LLMAgent(
@@ -81,6 +85,8 @@ class Orchestrator:
             if steer and directive.strip():
                 t.append(Msg(f"{self.name}→{nxt.name}", directive.strip()))
             await nxt.say_async(t, ctx)
+            if self.on_turn:
+                self.on_turn(t[-1], ctx)
             return True
 
         return t, step
@@ -109,15 +115,18 @@ class Orchestrator:
 
 def orchestrator(name: str, persona: str = _DEFAULT_PERSONA, model: str = DEFAULT_MODEL,
                  max_internal_steps: int = 3, authority: str = "full",
-                 max_rounds: int = 8, manager=None) -> Orchestrator:
+                 max_rounds: int = 8, manager=None, on_turn=None) -> Orchestrator:
     """An agentic orchestrator (manager agent). See :class:`Orchestrator`.
 
     >>> # dumb agents -> smart orchestrator that steers every turn:
     >>> orchestrator("M", model="openai/gpt-4o", max_internal_steps=6, authority="full")
     >>> # capable agents -> simple orchestrator:
     >>> orchestrator("M", authority="select")
+    >>> # stream each turn to a UI:
+    >>> orchestrator("M", on_turn=lambda msg, ctx: dock.add(f"{msg.role}: {msg.content}"))
     """
-    return Orchestrator(name, persona, model, max_internal_steps, authority, max_rounds, manager)
+    return Orchestrator(name, persona, model, max_internal_steps, authority, max_rounds,
+                        manager, on_turn)
 
 
 def captain(name: str, team: List, goal: str,
