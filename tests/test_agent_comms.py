@@ -152,6 +152,14 @@ def test_orchestrator_on_turn_hook():
     assert seen == ["A", "B"]
 
 
+def test_group_run_async():
+    # run_async runs on the current event loop (for TUIs); same result as sync run
+    import asyncio
+    A, B, C = _abc()
+    t = asyncio.run(group([A, B, C], round_robin(), max_turns=3).run_async("go"))
+    assert [m.role for m in t if m.role in {"A", "B", "C"}] == ["A", "B", "C"]
+
+
 if __name__ == "__main__":
     import sys
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

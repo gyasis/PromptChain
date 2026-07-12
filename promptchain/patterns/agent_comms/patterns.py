@@ -30,7 +30,7 @@ class Group:
         self.on_turn = on_turn
         self.max_turns = max_turns
 
-    def run(self, goal: str, ctx: Optional[MeshContext] = None) -> Transcript:
+    def _prep(self, goal: str, ctx):
         ctx = ctx or MeshContext(participants=[a.name for a in self.agents])
         t: Transcript = [Msg("Facilitator", goal)]
         state = {"last": None}
@@ -47,7 +47,19 @@ class Group:
                 self.on_turn(t[-1], ctx)
             return not any(stop(t, ctx) for stop in self.term)
 
+        return t, state, step
+
+    def run(self, goal: str, ctx: Optional[MeshContext] = None) -> Transcript:
+        """Run synchronously (top-level / script use)."""
+        t, state, step = self._prep(goal, ctx)
         ExternalLoop(max_iters=self.max_turns).run_sync(step, state)
+        return t
+
+    async def run_async(self, goal: str, ctx: Optional[MeshContext] = None) -> Transcript:
+        """Async variant — use when running INSIDE an event loop (e.g. a Textual TUI),
+        where the sync ``run()`` would ``asyncio.run()`` a second loop and crash."""
+        t, state, step = self._prep(goal, ctx)
+        await ExternalLoop(max_iters=self.max_turns).run(step, state)
         return t
 
 
