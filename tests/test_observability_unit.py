@@ -12,6 +12,7 @@ Tests cover:
 
 import pytest
 import asyncio
+import json
 import time
 import os
 from unittest.mock import Mock, patch
@@ -768,6 +769,51 @@ def clean_context():
     set_current_run(None)
     yield
     set_current_run(None)
+
+
+class TestRoutingMetadataShapes:
+    """extract_routing_metadata must tolerate every shape a router can return.
+
+    Regression: @track_routing passes the ROUTER'S RETURN VALUE to this extractor
+    (decorators.py:404). AgentChain's function-router contract returns a JSON
+    *string* like '{"chosen_agent": "miner"}' — that reached `params[key]` and
+    raised "TypeError: string indices must be integers"; a router returning None
+    raised "TypeError: argument of type 'NoneType' is not iterable". @track_routing
+    re-raises, so merely enabling observability broke every
+    AgentChain(execution_mode="router") pipeline. Observability must never be able
+    to fail the thing it observes.
+    """
+
+    def test_dict_result_unchanged(self):
+        from promptchain.observability.extractors import extract_routing_metadata
+        out = extract_routing_metadata(
+            {"chosen_agent": "miner", "strategy": "single_agent_dispatch"})
+        assert out["chosen_agent"] == "miner"
+        assert out["strategy"] == "single_agent_dispatch"
+
+    def test_json_string_result_is_parsed(self):
+        """The AgentChain function-router contract shape."""
+        from promptchain.observability.extractors import extract_routing_metadata
+        out = extract_routing_metadata(json.dumps({"chosen_agent": "taste"}))
+        assert out["chosen_agent"] == "taste"
+
+    def test_none_result_returns_empty_not_raise(self):
+        from promptchain.observability.extractors import extract_routing_metadata
+        assert extract_routing_metadata(None) == {}
+
+    def test_free_text_result_returns_empty_not_raise(self):
+        from promptchain.observability.extractors import extract_routing_metadata
+        assert extract_routing_metadata("routing this to miner") == {}
+
+    def test_bytes_json_result_is_parsed(self):
+        from promptchain.observability.extractors import extract_routing_metadata
+        out = extract_routing_metadata(json.dumps({"chosen_agent": "reviser"}).encode())
+        assert out["chosen_agent"] == "reviser"
+
+    def test_non_mapping_json_returns_empty(self):
+        from promptchain.observability.extractors import extract_routing_metadata
+        assert extract_routing_metadata(json.dumps([1, 2, 3])) == {}
+        assert extract_routing_metadata(42) == {}
 
 
 # =============================================================================
