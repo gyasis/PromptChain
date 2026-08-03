@@ -202,6 +202,7 @@ class AgenticStepProcessor:
         self,
         objective: str,
         max_internal_steps: int = 5,
+        max_tool_rounds: int = 40,
         model_name: Optional[str] = None,
         model_params: Optional[Dict[str, Any]] = None,
         history_mode: str = "minimal",
@@ -327,6 +328,15 @@ class AgenticStepProcessor:
 
         self.objective = objective
         self.max_internal_steps = max_internal_steps
+        # Hard bound on tool rounds within ONE agentic step. `max_internal_steps`
+        # bounds REASONING iterations only: after tools execute, the ReAct loop
+        # `continue`s without incrementing step_num (see the inner `while True`),
+        # so a model that keeps emitting tool calls is unbounded in wall-clock.
+        # Observed: a tool the model could not call correctly was retried 44 times
+        # at ~2-3s each, consuming a 20-minute job budget and producing nothing —
+        # every internal iteration counter still read "1/12". Default is ~3x the
+        # busiest legitimate step observed, so normal runs are unaffected.
+        self.max_tool_rounds = max(1, int(max_tool_rounds))
         self.model_name = model_name
         self.model_params = model_params or {}
         self.history_mode = history_mode
@@ -1069,6 +1079,7 @@ class AgenticStepProcessor:
         last_tool_msgs: List[Dict[str, Any]] = []
         clarification_attempts = 0
         max_clarification_attempts = 3
+        tool_rounds = 0          # bounds the inner ReAct loop (see self.max_tool_rounds)
 
         for step_num in range(self.max_internal_steps):
             # Check for interrupt request at start of each step
@@ -1853,6 +1864,29 @@ class AgenticStepProcessor:
                             )
 
                         # After tool(s) executed, continue inner while loop (do not increment step_num)
+                        # BOUND (see self.max_tool_rounds): step_num is deliberately not
+                        # incremented here, so without this counter the loop is unbounded —
+                        # a model stuck re-calling a tool it cannot call correctly spins
+                        # until the caller's wall-clock budget dies, with no error and the
+                        # iteration counter frozen at 1/N. Force a final answer instead.
+                        tool_rounds += 1
+                        if tool_rounds >= self.max_tool_rounds:
+                            logger.warning(
+                                f"[AgenticStepProcessor] Tool-round budget exhausted "
+                                f"({tool_rounds}/{self.max_tool_rounds}) in step "
+                                f"{step_num + 1}/{self.max_internal_steps}. The model kept "
+                                f"issuing tool calls without converging; forcing a final "
+                                f"answer. Raise max_tool_rounds if this is legitimate work."
+                            )
+                            internal_history.append({
+                                "role": "user",
+                                "content": (
+                                    "SYSTEM: tool-call budget exhausted for this step. Stop "
+                                    "calling tools and reply NOW with your final answer, "
+                                    "using only what you already have."
+                                ),
+                            })
+                            break      # leave the inner ReAct loop; the outer step continues
                         continue
                     else:
                         # No tool calls, check for content or clarify
