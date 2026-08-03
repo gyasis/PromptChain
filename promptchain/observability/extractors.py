@@ -10,6 +10,7 @@ FR-015: Automatic parameter extraction for MLflow tags
 """
 
 import inspect
+import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
 
@@ -138,6 +139,31 @@ def extract_routing_metadata(params: Dict[str, Any]) -> Dict[str, Any]:
         'confidence', 'decision_confidence',
         'refined_query', 'router_reasoning'
     }
+
+    # Tolerate every shape a router can legitimately return.
+    #
+    # @track_routing passes the ROUTER'S RETURN VALUE here (decorators.py:404), and
+    # AgentChain's own function-router contract is to return a JSON *string* such as
+    # '{"chosen_agent": "miner"}'. That string reached `params[key]` and raised
+    # "TypeError: string indices must be integers"; a router returning None raised
+    # "TypeError: argument of type 'NoneType' is not iterable". Either killed the whole
+    # run through @track_routing's re-raise, so enabling observability broke any
+    # AgentChain(execution_mode="router") pipeline — observability must never be able to
+    # fail the thing it observes.
+    if params is None:
+        return {}
+    if isinstance(params, (bytes, bytearray)):
+        try:
+            params = params.decode("utf-8", "ignore")
+        except Exception:
+            return {}
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except (ValueError, TypeError):
+            return {}          # free-text router output carries no structured decision
+    if not isinstance(params, dict):
+        return {}
 
     extracted = {}
     for key in routing_keys:
