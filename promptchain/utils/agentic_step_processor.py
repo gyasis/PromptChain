@@ -90,6 +90,24 @@ class HistoryMode(str, Enum):
     )
 
 
+def append_text_to_content(content, extra: str):
+    """Append `extra` text to a message's content WITHOUT destroying multimodal parts.
+
+    If content is a plain string -> string concat (legacy behaviour). If content is a
+    multimodal list (e.g. [{type:text}, {type:image_url}]), append to the first text part
+    and preserve every image_url block. This keeps vision working through blackboard/TAO
+    state injection that previously did f"{msg['content']}..." and would stringify the list.
+    """
+    if isinstance(content, list):
+        out = list(content)
+        for i, part in enumerate(out):
+            if isinstance(part, dict) and part.get("type") == "text":
+                out[i] = {"type": "text", "text": (part.get("text", "") + extra)}
+                return out
+        return [{"type": "text", "text": extra}] + out
+    return f"{content or ''}{extra}"
+
+
 def get_function_name_from_tool_call(tool_call) -> Optional[str]:
     """
     Safely extract function name from different tool_call object formats.
@@ -349,6 +367,9 @@ class AgenticStepProcessor:
         )
         self.streaming_callback = streaming_callback  # Real-time streaming of reasoning
         self.reasoning_profile = reasoning_profile  # #2: how this model exposes reasoning
+        # Multimodal: data-URI / image_url strings to attach to THIS turn's first user message
+        # (consumed once when run_async builds it). Set by the caller right before run_async.
+        self.pending_images: List[str] = []
         self.step_timeout = step_timeout  # Timeout for each LLM call
         self.conversation_history: List[Dict[str, Any]] = (
             []
@@ -1058,14 +1079,20 @@ class AgenticStepProcessor:
             context=None,
         )
         system_message = {"role": "system", "content": system_prompt}
-        user_message = (
-            {
-                "role": "user",
-                "content": f"The initial input for this step is: {initial_input}",
-            }
-            if initial_input
-            else None
-        )
+        # Multimodal: if images were attached for this turn, build an OpenAI-style content
+        # array (text + image_url blocks) so a vision model SEES the pixels; else plain string.
+        _imgs = getattr(self, "pending_images", None) or []
+        if initial_input and _imgs:
+            _content = [{"type": "text", "text": f"The initial input for this step is: {initial_input}"}]
+            for _u in _imgs:
+                _content.append({"type": "image_url", "image_url": {"url": _u}})
+            user_message = {"role": "user", "content": _content}
+            self.pending_images = []   # one-shot — consume so later turns aren't re-injected
+            logger.info(f"[AgenticStepProcessor] Attached {len(_imgs)} image(s) to first user message")
+        elif initial_input:
+            user_message = {"role": "user", "content": f"The initial input for this step is: {initial_input}"}
+        else:
+            user_message = None
         internal_history.append(system_message)
         if user_message:
             internal_history.append(user_message)
@@ -1147,7 +1174,7 @@ class AgenticStepProcessor:
                         system_message,
                         {
                             "role": "user",
-                            "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}",
+                            "content": append_text_to_content(user_message['content'] if user_message else '', f"\n\nCURRENT STATE:\n{blackboard_summary}"),
                         },
                     ]
                 elif self.history_mode == HistoryMode.MINIMAL.value:
@@ -1793,7 +1820,7 @@ class AgenticStepProcessor:
                                 system_message,
                                 {
                                     "role": "user",
-                                    "content": f"{user_message['content'] if user_message else ''}\n\nCURRENT STATE:\n{blackboard_summary}",
+                                    "content": append_text_to_content(user_message['content'] if user_message else '', f"\n\nCURRENT STATE:\n{blackboard_summary}"),
                                 },
                             ]
                             logger.debug(
