@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tau_airline-000",
+    "category": "tau_airline",
+    "duration_s": 6.0,
+    "error_count": 0,
+    "errors": [],
+    "pane_tail": "\n\n\n\n\n\n            API: 0 | . Context: 0/64000 | (0%)\n ^l Activity Logs  ^o Observe  ^t Thinking     ▏^p palette"
+  },
+  {
+    "id": "tau_retail-000",
+    "category": "tau_retail",
+    "duration_s": 6.0,
+    "error_count": 0,
+    "errors": [],
+    "pane_tail": "\n\n\n\n\n\n            API: 0 | . Context: 0/64000 | (0%)\n ^l Activity Logs  ^o Observe  ^t Thinking     ▏^p palette"
+  },
+  {
+    "id": "tau_retail_dev-000",
+    "category": "tau_retail_dev",
+    "duration_s": 6.0,
+    "error_count": 0,
+    "errors": [],
+    "pane_tail": "\n\n\n\n\n\n            API: 0 | . Context: 0/64000 | (0%)\n ^l Activity Logs  ^o Observe  ^t Thinking     ▏^p palette"
+  },
+  {
+    "id": "tau_airline-001",
+    "category": "tau_airline",
+    "duration_s": 6.0,
+    "error_count": 0,
+    "errors": [],
+    "pane_tail": "later flight to go back to Newark that day, and if not\npossible, the earliest flight the next day. Your current\nreturn flight departs 3pm. You do not accept JFK, only\n\n\n\n            API: 0 | . Context: 0/64000 | (0%)\n ^l Activity Logs  ^o Observe  ^t Thinking     ▏^p palette"
+  },
+  {
+    "id": "tau_retail-001",
+    "category": "tau_retail",
+    "duration_s": 6.0,
+    "error_count": 0,
+    "errors": [],
+    "pane_tail": "clicky, RGB backlight, full size, you'd rather only\nexchange the thermostat. You are detail-oriented and want\nto make sure everything is addressed in one go.\n\n\n\n            API: 0 | . Context: 0/64000 | (0%)\n ^l Activity Logs  ^o Observe  ^t Thinking     ▏^p palette"
+  }
+]

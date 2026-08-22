@@ -220,6 +220,7 @@ class AgenticStepProcessor:
         self,
         objective: str,
         max_internal_steps: int = 5,
+        max_tool_rounds: int = 40,
         model_name: Optional[str] = None,
         model_params: Optional[Dict[str, Any]] = None,
         history_mode: str = "minimal",
@@ -255,6 +256,10 @@ class AgenticStepProcessor:
         instructions: Optional[List[str]] = None,
         prompt_builder: Optional["BasePromptBuilder"] = None,
         workflow_pattern: Literal["standard", "react"] = "standard",
+        # Reasoning extraction (#2): model_catalog reasoning profile so a
+        # reasoning model's internal thinking is surfaced as a "thinking" stream
+        # event. None → the extractor's graceful all-surfaces fallback.
+        reasoning_profile: Optional[Dict[str, Any]] = None,
     ):
         """
         Initializes the agentic step.
@@ -341,6 +346,15 @@ class AgenticStepProcessor:
 
         self.objective = objective
         self.max_internal_steps = max_internal_steps
+        # Hard bound on tool rounds within ONE agentic step. `max_internal_steps`
+        # bounds REASONING iterations only: after tools execute, the ReAct loop
+        # `continue`s without incrementing step_num (see the inner `while True`),
+        # so a model that keeps emitting tool calls is unbounded in wall-clock.
+        # Observed: a tool the model could not call correctly was retried 44 times
+        # at ~2-3s each, consuming a 20-minute job budget and producing nothing —
+        # every internal iteration counter still read "1/12". Default is ~3x the
+        # busiest legitimate step observed, so normal runs are unaffected.
+        self.max_tool_rounds = max(1, int(max_tool_rounds))
         self.model_name = model_name
         self.model_params = model_params or {}
         self.history_mode = history_mode
@@ -352,6 +366,7 @@ class AgenticStepProcessor:
             user_input_queue  # Async queue for mid-execution user input
         )
         self.streaming_callback = streaming_callback  # Real-time streaming of reasoning
+        self.reasoning_profile = reasoning_profile  # #2: how this model exposes reasoning
         # Multimodal: data-URI / image_url strings to attach to THIS turn's first user message
         # (consumed once when run_async builds it). Set by the caller right before run_async.
         self.pending_images: List[str] = []
@@ -642,6 +657,40 @@ class AgenticStepProcessor:
 
         except Exception as e:
             logger.debug(f"Failed to emit token usage: {e}")
+
+    def _emit_reasoning(self, response_message: Any) -> Any:
+        """#2: surface a reasoning model's INTERNAL reasoning as a ``thinking``
+        stream event (it lands in the TUI's collapsible reasoning block), and
+        strip any ``<think>…</think>`` from the message content so the visible
+        answer stays clean. Profile-driven (``self.reasoning_profile``) with a
+        graceful all-surfaces fallback. No-op for non-reasoning models.
+
+        Returns the (possibly content-cleaned) message so the caller can keep
+        using it for history/answer extraction.
+        """
+        if not self.streaming_callback:
+            return response_message
+        try:
+            from .reasoning_extractor import extract_reasoning
+
+            reasoning, cleaned = extract_reasoning(
+                response_message, self.reasoning_profile
+            )
+            if reasoning:
+                self._stream_event("thinking", reasoning)
+            if cleaned is not None:
+                # Rewrite content in place so the downstream answer excludes the
+                # <think> block (only fires when tags were actually present).
+                if isinstance(response_message, dict):
+                    response_message["content"] = cleaned
+                else:
+                    try:
+                        setattr(response_message, "content", cleaned)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"Reasoning extraction skipped: {e}")
+        return response_message
 
     def request_interrupt(self) -> None:
         """Request graceful interruption of the current execution.
@@ -1057,6 +1106,7 @@ class AgenticStepProcessor:
         last_tool_msgs: List[Dict[str, Any]] = []
         clarification_attempts = 0
         max_clarification_attempts = 3
+        tool_rounds = 0          # bounds the inner ReAct loop (see self.max_tool_rounds)
 
         for step_num in range(self.max_internal_steps):
             # Check for interrupt request at start of each step
@@ -1148,6 +1198,8 @@ class AgenticStepProcessor:
 
                 # Track token usage
                 self._emit_token_usage(response_message)
+                # #2: surface internal reasoning + strip <think> from content.
+                response_message = self._emit_reasoning(response_message)
 
                 # Add assistant's response to history
                 internal_history.append(
@@ -1247,6 +1299,8 @@ class AgenticStepProcessor:
 
                     # Extract and emit token usage for real-time display
                     self._emit_token_usage(response_message)
+                    # #2: surface internal reasoning + strip <think> from content.
+                    response_message = self._emit_reasoning(response_message)
 
                     # Add more detailed debugging
                     if isinstance(response_message, dict):
@@ -1557,8 +1611,10 @@ class AgenticStepProcessor:
                                         f"Tool result content: {tool_result_content[:150]}..."
                                     )
 
-                                    # Stream tool result event
-                                    result_preview = str(tool_result_content)[:500]
+                                    # Stream tool result event. Keep enough of
+                                    # the result that the TUI can render a code
+                                    # preview / diff (not just a one-liner).
+                                    result_preview = str(tool_result_content)[:4000]
                                     self._stream_event(
                                         "tool_result",
                                         f"{function_name} completed: {result_preview}",
@@ -1835,6 +1891,29 @@ class AgenticStepProcessor:
                             )
 
                         # After tool(s) executed, continue inner while loop (do not increment step_num)
+                        # BOUND (see self.max_tool_rounds): step_num is deliberately not
+                        # incremented here, so without this counter the loop is unbounded —
+                        # a model stuck re-calling a tool it cannot call correctly spins
+                        # until the caller's wall-clock budget dies, with no error and the
+                        # iteration counter frozen at 1/N. Force a final answer instead.
+                        tool_rounds += 1
+                        if tool_rounds >= self.max_tool_rounds:
+                            logger.warning(
+                                f"[AgenticStepProcessor] Tool-round budget exhausted "
+                                f"({tool_rounds}/{self.max_tool_rounds}) in step "
+                                f"{step_num + 1}/{self.max_internal_steps}. The model kept "
+                                f"issuing tool calls without converging; forcing a final "
+                                f"answer. Raise max_tool_rounds if this is legitimate work."
+                            )
+                            internal_history.append({
+                                "role": "user",
+                                "content": (
+                                    "SYSTEM: tool-call budget exhausted for this step. Stop "
+                                    "calling tools and reply NOW with your final answer, "
+                                    "using only what you already have."
+                                ),
+                            })
+                            break      # leave the inner ReAct loop; the outer step continues
                         continue
                     else:
                         # No tool calls, check for content or clarify

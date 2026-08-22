@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default configuration values
 DEFAULT_MLFLOW_ENABLED = False
-DEFAULT_TRACKING_URI = "http://localhost:5000"
+DEFAULT_TRACKING_URI = "sqlite:///mlflow.db"
 DEFAULT_EXPERIMENT_NAME = "promptchain-cli"
 DEFAULT_BACKGROUND_LOGGING = True
 
@@ -49,10 +49,15 @@ def _get_config_file_path() -> Optional[Path]:
     Returns:
         Path to config file if found, None otherwise
     """
-    config_locations = [
-        Path.cwd() / ".promptchain.yml",
-        Path.home() / ".promptchain.yml",
-    ]
+    config_locations = []
+    try:
+        # Path.cwd() raises FileNotFoundError if the working directory was deleted
+        # (e.g. launched from a dir that no longer exists) — don't let that crash
+        # startup/shutdown; just skip the cwd-relative config location.
+        config_locations.append(Path.cwd() / ".promptchain.yml")
+    except (FileNotFoundError, OSError):
+        pass
+    config_locations.append(Path.home() / ".promptchain.yml")
 
     for config_path in config_locations:
         if config_path.exists():

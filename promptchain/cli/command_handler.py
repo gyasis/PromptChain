@@ -71,6 +71,11 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
         "description": "Delete a saved session",
         "usage": "/session delete <name>",
     },
+    # Model chooser
+    "/model": {
+        "description": "Open the model chooser (local · cloud · OpenAI/Gemini)",
+        "usage": "/model",
+    },
     # Agent commands
     "/agent": {"description": "Show current agent info", "usage": "/agent"},
     "/agent list": {
@@ -231,6 +236,10 @@ COMMAND_REGISTRY: Dict[str, Dict[str, str]] = {
         "usage": '/speculate "context" [--min-confidence=0.7] [--prefetch=N]',
     },
     "/patterns": {"description": "Show pattern commands help", "usage": "/patterns"},
+    "/task": {
+        "description": "Launch subagents to work a task (agent_comms orchestrator)",
+        "usage": '/task "goal" [--authority=steer] [--rounds=8] [--agents=a,b,c] [--static]',
+    },
 }
 
 

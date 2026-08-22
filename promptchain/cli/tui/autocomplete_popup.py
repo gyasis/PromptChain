@@ -17,7 +17,7 @@ class SuggestionItem(Static):
     SuggestionItem {
         height: 1;
         padding: 0 1;
-        background: $surface;
+        background: #000000;
     }
     SuggestionItem.highlighted {
         background: $accent;
@@ -57,7 +57,7 @@ class AutocompletePopup(Widget):
         max-width: 60;
         height: auto;
         max-height: 10;
-        background: $surface;
+        background: #000000;
         border: solid $primary;
         padding: 0;
         display: none;

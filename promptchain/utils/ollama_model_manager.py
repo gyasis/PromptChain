@@ -391,4 +391,4 @@ class OllamaModelManager(AbstractModelManager):
 # Register the Ollama manager with the factory
 ModelManagerFactory.register_manager(ModelProvider.OLLAMA, OllamaModelManager)
 
-logger.info("Registered OllamaModelManager with ModelManagerFactory")
+logger.debug("Registered OllamaModelManager with ModelManagerFactory")

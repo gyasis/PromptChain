@@ -1,12 +1,77 @@
 """ChatView widget for displaying conversation messages."""
 
 import asyncio
+import re
 from typing import Any, List, Optional, Union
 
 import pyperclip
 from rich.console import Console, ConsoleOptions, Group, RenderResult
-from rich.markdown import Markdown
+from rich.markdown import Heading, Markdown
+from rich.padding import Padding
+from rich.syntax import Syntax
 from rich.text import Text
+
+# Map a file extension → a Pygments lexer name so we can syntax-highlight code
+# that a read/write tool returns — WE detect + style it (the agent never formats).
+_EXT_LEXER = {
+    "py": "python", "pyi": "python", "js": "javascript", "mjs": "javascript",
+    "ts": "typescript", "jsx": "jsx", "tsx": "tsx", "java": "java", "go": "go",
+    "rs": "rust", "cpp": "cpp", "cc": "cpp", "c": "c", "h": "c", "hpp": "cpp",
+    "rb": "ruby", "php": "php", "sh": "bash", "bash": "bash", "zsh": "bash",
+    "json": "json", "yaml": "yaml", "yml": "yaml", "toml": "toml", "ini": "ini",
+    "md": "markdown", "html": "html", "css": "css", "scss": "scss", "sql": "sql",
+    "xml": "xml", "svelte": "html", "vue": "html", "lua": "lua", "r": "r",
+}
+
+
+def _lexer_for_path(path: Optional[str]) -> str:
+    if not path or "." not in path:
+        return "text"
+    return _EXT_LEXER.get(path.rsplit(".", 1)[-1].lower(), "text")
+
+
+def _esc(s: str) -> str:
+    return str(s).replace("[", "\\[").replace("]", "\\]")
+
+
+# Strip Rich-style markup TAGS (e.g. a tool result that already carries
+# [bold]…[/bold] / [dim] / [#hex]) so they don't leak into the chat as literal
+# escaped brackets ([bold\]). Only removes things shaped like Rich tags.
+_MARKUP_TAG = re.compile(r"\[/?[a-zA-Z#][^\[\]]*\]")
+
+
+def _strip_markup(s: str) -> str:
+    return _MARKUP_TAG.sub("", str(s))
+
+
+def _parse_file_read(result: str):
+    """If ``result`` is the file_read summary, return (path, code_preview)."""
+    if not result or not result.lstrip().startswith("[FILE READ]"):
+        return None, None
+    first = result.splitlines()[0]
+    path = first.replace("[FILE READ]", "").strip()
+    if "Preview:" in result:
+        code = result.split("Preview:", 1)[1].strip("\n")
+        return path, code
+    return path, None
+
+
+def _is_diffish(text: str) -> bool:
+    n = sum(1 for ln in text.splitlines() if ln[:1] in ("+", "-"))
+    return n >= 2
+
+
+def _render_diff(text: str) -> Text:
+    """Color a unified-diff-ish blob: + added (green), - removed (red)."""
+    out = Text()
+    for ln in text.splitlines():
+        if ln.startswith("+"):
+            out.append(ln + "\n", style="#7ee787")
+        elif ln.startswith("-"):
+            out.append(ln + "\n", style="#f47067")
+        else:
+            out.append(ln + "\n", style="#6b7480")
+    return out
 from textual import events
 from textual.message import Message as TextualMessage
 from textual.reactive import reactive
@@ -18,6 +83,27 @@ from ..models import Message
 # high-volume streaming breadcrumbs that can be toggled off to declutter chat.
 # Errors are intentionally NOT included: they always stay visible.
 DETAIL_EVENT_TYPES = {"thinking", "tool_call", "tool_result"}
+
+
+class _ChatHeading(Heading):
+    """Render markdown headings as clean bold-accent text.
+
+    Rich's default boxes an h1 in a full-width HEAVY panel, which is far too
+    loud for a chat TUI (and adds a background-ish frame the dark theme avoids).
+    We render every heading as left-aligned bold teal text instead.
+    """
+
+    def __rich_console__(self, console, options):  # type: ignore[override]
+        text = self.text
+        text.justify = "left"
+        text.stylize("bold #4ec9b0")
+        yield text
+
+
+class ChatMarkdown(Markdown):
+    """Markdown tuned for the dark chat TUI: plain accent headings, no h1 box."""
+
+    elements = {**Markdown.elements, "heading_open": _ChatHeading}
 
 
 def _looks_like_markdown(text: str) -> bool:
@@ -119,9 +205,18 @@ class MessageItem(ListItem):
             self.spin_task = None
 
     def on_click(self, event: events.Click):
-        """Click handler - disabled for normal terminal selection."""
-        # Selection disabled - allow normal terminal text selection
-        pass
+        """Click handler.
+
+        For collapsible reasoning/tool BLOCKS (#2): toggle expanded/collapsed in
+        place. For all other messages: disabled, so normal terminal text
+        selection still works.
+        """
+        meta = getattr(self.message, "metadata", None) or {}
+        if meta.get("block"):
+            meta["collapsed"] = not meta.get("collapsed", False)
+            # Re-measure: collapsed is one line, expanded is N — needs layout.
+            self.refresh(layout=True)
+            event.stop()
 
     def on_key(self, event) -> None:
         """Handle key events for copy shortcut."""
@@ -144,10 +239,134 @@ class MessageItem(ListItem):
         except Exception:
             pass
 
+    def _render_block(self, meta: dict) -> Union[Text, Group]:
+        """Render a collapsible reasoning/tool block (#2).
+
+        Collapsed -> a single truncated summary line (``▸ … · click to expand``).
+        Expanded  -> the full body as rich bullet points (one per streamed line).
+        The app mutates ``meta`` (lines / collapsed / summary) then refreshes us,
+        so we always read live from metadata rather than caching at construction.
+        """
+        if meta.get("collapsed", False):
+            summary = meta.get("summary") or self.message.content
+            try:
+                return Text.from_markup(summary)
+            except Exception:
+                return Text(summary)
+
+        kind = meta.get("block_kind")
+        parts: List[Any] = []
+        # Dynamic header: an animated spinner glyph while the block is still
+        # "running" (the app ticks meta["spinner"]); otherwise the static type
+        # glyph. Signals "still working", not frozen/paused.
+        spin = meta.get("spinner") if meta.get("running") else None
+        if kind == "reasoning":
+            parts.append(Text.from_markup("[dim]INTERNAL REASONING[/]"))  # section label
+            glyph = spin or "★"
+            parts.append(Text.from_markup(f"[dim italic]{glyph} reasoning[/]"))
+        elif kind == "tool":
+            parts.append(Text.from_markup("[dim]FUNCTION · TOOL CALL[/]"))  # section label
+            name = meta.get("tool_name", "tool")
+            glyph = spin or "⚙"
+            # Per-call metadata (mockup: "142ms · ok"): timing + colored status.
+            meta_md = ""
+            tms = meta.get("time_ms")
+            if tms is not None:
+                meta_md += f"[dim]  {tms}ms[/]"
+            status = meta.get("status")
+            if status:
+                col = "#7ee787" if status == "ok" else "#f47067"
+                meta_md += f"[dim] · [/][{col}]{status}[/]"
+            parts.append(Text.from_markup(f"[bold #e5c07b]{glyph} {name}[/]{meta_md}"))
+        elif kind == "subtasks":
+            parts.append(Text.from_markup("[dim]SUBTASKS[/]"))  # section label
+            tasks = meta.get("tasks") or []
+            done = sum(1 for t in tasks if t.get("status") == "completed")
+            parts.append(Text.from_markup(
+                f"[#c792ea]≡ Tasks[/][dim]  {done}/{len(tasks)}[/]"))
+        else:
+            header = meta.get("expanded_header")
+            if header:
+                try:
+                    parts.append(Text.from_markup(header))
+                except Exception:
+                    parts.append(Text(str(header)))
+
+        if kind == "reasoning":
+            # Word-for-word, ITALIC reasoning (reasoning == thinking). Number the
+            # model's own reasoning lines, but don't double-number "Step N" status.
+            for i, ln in enumerate(meta.get("lines") or [], 1):
+                mark = "" if ln.lstrip().lower().startswith("step ") else f"{i}. "
+                try:
+                    parts.append(Text.from_markup(f"  [dim italic]{mark}{ln}[/]"))
+                except Exception:
+                    parts.append(Text(f"  {mark}{ln}", style="dim italic"))
+        elif kind == "tool":
+            parts.extend(self._render_tool_body(meta))
+        elif kind == "subtasks":
+            for t in meta.get("tasks") or []:
+                st = t.get("status")
+                c = _esc(str(t.get("content", "")))
+                if st == "completed":
+                    parts.append(Text.from_markup(f"  [#7ee787]✓[/] [dim]{c}[/]"))
+                elif st == "in_progress":
+                    parts.append(Text.from_markup(f"  [#c6ccd6]▸ {c}[/]"))
+                elif st == "skipped":
+                    parts.append(Text.from_markup(f"  [dim strike]✗ {c}[/]"))
+                else:
+                    parts.append(Text.from_markup(f"  [dim]○ {c}[/]"))
+        else:
+            for ln in meta.get("lines") or []:
+                try:
+                    parts.append(Text.from_markup(f"  • {ln}"))
+                except Exception:
+                    parts.append(Text(f"  • {ln}"))
+
+        if not parts:
+            return Text("")
+        return Group(*parts)
+
+    def _render_tool_body(self, meta: dict) -> List[Any]:
+        """Render a tool call's body RICHLY — syntax-highlighted code for file
+        reads, colored +/- diffs for edits, else the result as dim text. We
+        recognise the shape ourselves; the agent never formats anything."""
+        parts: List[Any] = []
+        args = meta.get("tool_args_str") or ""
+        if args:
+            parts.append(Text.from_markup(f"  [dim]{_esc(args)}[/]"))
+        result = meta.get("result_raw")
+        if not result:
+            return parts
+        path, code = _parse_file_read(result)
+        if code is not None:
+            lexer = _lexer_for_path(path or meta.get("file_path"))
+            try:
+                parts.append(Padding(
+                    Syntax(code, lexer, theme="ansi_dark", line_numbers=True,
+                           word_wrap=True, background_color="#000000"),
+                    (0, 0, 0, 2)))
+            except Exception:
+                parts.append(Text(code, style="dim"))
+        elif _is_diffish(result):
+            parts.append(Padding(_render_diff(result), (0, 0, 0, 2)))
+        else:
+            # Strip any Rich markup the tool result already carries (e.g. the
+            # task-list tool's [bold]Tasks (N/M)[/bold]) so it renders clean
+            # instead of leaking literal [bold\] brackets into the chat.
+            txt = _strip_markup(result)
+            txt = txt if len(txt) <= 2000 else txt[:2000] + " …"
+            parts.append(Text.from_markup(f"  [dim]{_esc(txt)}[/]"))
+        return parts
+
     def render(self) -> Union[Text, Group]:
         """Render the message with markdown support for assistant messages."""
         # Indentation is handled by the gutter + padding in app CSS now.
         prefix_text = Text("")
+
+        # Collapsible reasoning/tool block (#2) — handled before role dispatch.
+        _meta = getattr(self.message, "metadata", None) or {}
+        if _meta.get("block"):
+            return self._render_block(_meta)
 
         # For system messages, content might already be formatted - render directly
         if self.message.role == "system":
@@ -183,7 +402,9 @@ class MessageItem(ListItem):
             if _has_significant_formatting(content):
                 # Render as markdown - this properly handles newlines and formatting
                 try:
-                    md = Markdown(content)
+                    # ansi_dark code theme → code uses the terminal's own dark
+                    # background instead of Pygments' gray box (no highlight).
+                    md = ChatMarkdown(content, code_theme="ansi_dark")
                     return Group(prefix_text, role_text, md)
                 except Exception:
                     # Fallback: render content as separate Text to preserve newlines
@@ -287,6 +508,25 @@ class ChatView(ListView):
         except ValueError:
             pass
         return removed
+
+    def item_for(self, message: Message) -> Optional["MessageItem"]:
+        """Return the MessageItem widget backing ``message`` (by identity), or None."""
+        for item in self.children:
+            if isinstance(item, MessageItem) and item.message is message:
+                return item
+        return None
+
+    def refresh_block(self, message: Message) -> None:
+        """Re-render the collapsible block backing ``message`` after its
+        metadata (lines / collapsed / summary) was mutated in place (#2)."""
+        item = self.item_for(message)
+        if item is not None:
+            item.refresh(layout=True)
+            # Keep the freshly-grown block in view while it streams.
+            try:
+                self.scroll_end(animate=False)
+            except Exception:
+                pass
 
     def clear_messages(self):
         """Clear all messages from the view."""

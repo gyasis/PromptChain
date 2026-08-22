@@ -37,6 +37,7 @@ Usage:
 import time
 import logging
 import inspect
+from collections.abc import Mapping
 from functools import wraps
 from typing import Callable, Optional, List, Any, Dict
 
@@ -62,6 +63,70 @@ from .extractors import (
 from .mlflow_adapter import is_available, set_experiment
 
 logger = logging.getLogger(__name__)
+
+
+def _log_token_usage(result: Any, args: tuple) -> bool:
+    """Log prompt/completion/total token metrics for one LLM call. True if any logged.
+
+    Tries three shapes in order, because the ONE shape the original code handled is
+    the one PromptChain never actually produces:
+
+      1. ``result.usage``     — a raw LiteLLM/OpenAI response object.
+      2. ``result["usage"]``  — the same, already dict-ified.
+      3. ``last_prompt_tokens`` / ``last_completion_tokens`` on the bound instance
+         (``args[0]``) — THE REAL PATH.
+
+    Why (3) exists: this decorator is applied to ``PromptChain.run_model_async``,
+    whose own docstring states it returns "the message dictionary
+    (response['choices'][0]['message'])". ``usage`` lives on the RESPONSE, one level
+    above the message — so ``hasattr(result, "usage")`` was ALWAYS False and token
+    metrics were never recorded for ANY consumer. Measured before this fix: 3,163
+    MLflow runs logged, zero token metrics. It failed silently — ``init_mlflow()``
+    reports success and runs appear in the UI; only the numbers are absent.
+
+    ``run_model_async`` already computes usage and stores it on the instance, so (3)
+    just reads what is there. Deliberately NOT fixed by attaching ``usage`` to the
+    returned message: that dict is appended to conversation history and sent back to
+    the provider, so an extra key risks breaking strict APIs. The message contract
+    stays untouched.
+    """
+    def _num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    usage = getattr(result, "usage", None)
+    if usage is None and isinstance(result, Mapping):
+        usage = result.get("usage")
+
+    prompt = completion = total = None
+    if usage is not None:
+        if isinstance(usage, Mapping):
+            prompt = _num(usage.get("prompt_tokens"))
+            completion = _num(usage.get("completion_tokens"))
+            total = _num(usage.get("total_tokens"))
+        else:
+            prompt = _num(getattr(usage, "prompt_tokens", None))
+            completion = _num(getattr(usage, "completion_tokens", None))
+            total = _num(getattr(usage, "total_tokens", None))
+
+    if prompt is None and completion is None and args:
+        inst = args[0]
+        prompt = _num(getattr(inst, "last_prompt_tokens", None))
+        completion = _num(getattr(inst, "last_completion_tokens", None))
+
+    if total is None and (prompt is not None or completion is not None):
+        total = (prompt or 0.0) + (completion or 0.0)
+
+    logged = False
+    for key, val in (("prompt_tokens", prompt),
+                     ("completion_tokens", completion),
+                     ("total_tokens", total)):
+        if val is not None:
+            queue_log_metric(key, val)
+            logged = True
+    return logged
 
 
 def track_llm_call(
@@ -147,14 +212,8 @@ def track_llm_call(
                     queue_log_metric("execution_time_seconds", execution_time)
                     queue_set_tag("status", "success")
 
-                    # Extract token counts from result if available
-                    if hasattr(result, 'usage'):
-                        if hasattr(result.usage, 'prompt_tokens'):
-                            queue_log_metric("prompt_tokens", float(result.usage.prompt_tokens))
-                        if hasattr(result.usage, 'completion_tokens'):
-                            queue_log_metric("completion_tokens", float(result.usage.completion_tokens))
-                        if hasattr(result.usage, 'total_tokens'):
-                            queue_log_metric("total_tokens", float(result.usage.total_tokens))
+                    # Extract token counts (response obj / mapping / instance fallback)
+                    _log_token_usage(result, args)
 
                     return result
 
@@ -198,13 +257,8 @@ def track_llm_call(
                     queue_log_metric("execution_time_seconds", execution_time)
                     queue_set_tag("status", "success")
 
-                    if hasattr(result, 'usage'):
-                        if hasattr(result.usage, 'prompt_tokens'):
-                            queue_log_metric("prompt_tokens", float(result.usage.prompt_tokens))
-                        if hasattr(result.usage, 'completion_tokens'):
-                            queue_log_metric("completion_tokens", float(result.usage.completion_tokens))
-                        if hasattr(result.usage, 'total_tokens'):
-                            queue_log_metric("total_tokens", float(result.usage.total_tokens))
+                    # Extract token counts (response obj / mapping / instance fallback)
+                    _log_token_usage(result, args)
 
                     return result
 
@@ -676,7 +730,7 @@ def init_mlflow() -> None:
         No exceptions - logs warnings if MLflow unavailable
     """
     if not is_enabled():
-        logger.info("MLflow tracking disabled via environment variable")
+        logger.debug("MLflow tracking disabled via environment variable")
         return
 
     if not is_available():

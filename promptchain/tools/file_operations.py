@@ -139,7 +139,13 @@ class FileOperations:
             command = f"sed -i 's/{old_escaped}/{new_escaped}/g' {self._quote_path(path)}"
 
             self.terminal(command)
-            return f"✅ File edited successfully: {path}"
+            # Return a unified-style diff (old → new). This is both the success
+            # signal AND what the TUI colors as a +/- diff; it's more useful to
+            # the agent than a bare "success" string.
+            diff_lines = [f"- {ln}" for ln in old_text.split("\n")]
+            diff_lines += [f"+ {ln}" for ln in new_text.split("\n")]
+            diff = "\n".join(diff_lines)
+            return f"[FILE EDIT] {path}\n{diff}"
 
         except Exception as e:
             return f"❌ Exception in file_edit: {e}"

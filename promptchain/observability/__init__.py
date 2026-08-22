@@ -21,6 +21,7 @@ Public API:
 
 # Always import MLflowObserver (has built-in graceful degradation)
 from .mlflow_observer import MLflowObserver
+from .transcript_emitter import TranscriptEmitter, TranscriptEmitterConfig
 
 try:
     # Import decorators and lifecycle functions
@@ -81,4 +82,6 @@ __all__ = [
     "init_mlflow",
     "shutdown_mlflow",
     "MLflowObserver",
+    "TranscriptEmitter",
+    "TranscriptEmitterConfig",
 ]

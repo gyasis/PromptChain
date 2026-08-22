@@ -394,6 +394,17 @@ class SessionManager:
         session_id = str(uuid.uuid4())
         now = time.time()
 
+        # Default agent's tool list = the tools ACTUALLY registered (the old
+        # hardcoded list named tools that don't exist — create_sandbox/code_*).
+        # app.py injects the live registry tools into the chain regardless; this
+        # field drives the displayed tool count, so it must reflect reality.
+        try:
+            from promptchain.cli.tools import registry as _registry
+            import promptchain.cli.tools.library.registration  # noqa: F401  (ensure tools registered)
+            default_tool_names = sorted(_registry.list_tools())
+        except Exception:
+            default_tool_names = []
+
         # Create default agent with agentic capabilities (AgenticStepProcessor)
         # instruction_chain triggers multi-hop reasoning in app.py:1040
         default_agent = Agent(
@@ -402,40 +413,15 @@ class SessionManager:
             description="Default agent with agentic reasoning and tool access",
             created_at=now,
             instruction_chain=[
-                "You are an EXECUTION agent, not an explanation agent. Your job is to COMPLETE tasks by USING TOOLS, not by explaining how to do them.\n\n"
-                "CRITICAL RULES:\n"
-                "1. NEVER explain what tools to use - ACTUALLY USE THEM\n"
-                "2. For code execution: ALWAYS use sandbox_provision_uv or sandbox_provision_docker to create isolated environments\n"
-                "3. For file operations: ALWAYS use file_write, file_read, file_edit tools\n"
-                "4. For terminal commands: ALWAYS use terminal_execute tool\n"
-                "5. Use multi-hop reasoning: Call multiple tools in sequence to complete complex tasks\n"
-                "6. If a task requires packages: provision sandbox → install packages → execute code → return results\n"
-                "7. ONLY respond with results after completing the task using tools\n\n"
-                "Available sandbox tools: sandbox_provision_uv, sandbox_provision_docker, sandbox_execute, sandbox_list, sandbox_cleanup\n"
-                "Example: User asks for pygame script → provision_uv sandbox → install pygame → write script → execute → show output\n\n"
-                "COMPLETE the user's request by EXECUTING it with tools. DO NOT explain how to do it."
+                # The grounded foundation (TUI_FOUNDATION_PROMPT, via DynamicTUIPromptGenerator)
+                # now carries all execution discipline — act-don't-explain, plan-first, use-tools,
+                # surgical edits, show-results, paths/security. So this objective stays a CONCISE
+                # role; the verbose "EXECUTION agent" rules block was removed (it duplicated and
+                # competed with the foundation when injected into the {objective} slot).
+                "You are the user's software-engineering agent in this terminal session. "
+                "Complete each request the user sends by using the available tools."
             ],
-            tools=[  # All 19 registered tools available
-                "create_sandbox",
-                "list_sandboxes",
-                "delete_sandbox",
-                "execute_in_sandbox",
-                "get_sandbox_status",
-                "code_reader",
-                "code_writer",
-                "code_editor",
-                "code_analyzer",
-                "code_search",
-                "code_refactor",
-                "code_test_generator",
-                "code_doc_generator",
-                "code_complexity",
-                "code_security_scan",
-                "code_formatter",
-                "dependency_analyzer",
-                "ast_analyzer",
-                "linter",
-            ],
+            tools=default_tool_names,  # the actually-registered tools (see above)
             history_config=HistoryConfig(
                 enabled=True,
                 max_tokens=8000,  # Generous limit for agentic reasoning
@@ -496,6 +482,9 @@ class SessionManager:
         # Create messages file (empty JSONL)
         messages_file = session_dir / "messages.jsonl"
         messages_file.touch()
+        # Nothing persisted yet — the first save appends all messages (see
+        # save_session's append-only logic).
+        session._persisted_count = 0
 
         # Insert session into database
         conn = sqlite3.connect(self.db_path)
@@ -690,6 +679,9 @@ class SessionManager:
                     for line in f:
                         if line.strip():
                             session.messages.append(Message.from_jsonl(line))
+            # Everything just loaded is already on disk — so append-only saves
+            # (see save_session) only write messages added after this point.
+            session._persisted_count = len(session.messages)
 
             # ✅ Phase 3: Initialize ActivityLogger for loaded session
             # Reconnects to existing activity log database
@@ -868,12 +860,25 @@ class SessionManager:
         finally:
             conn.close()
 
-        # Save messages to JSONL (append-only)
+        # Save messages to JSONL — append-only. Conversation history only ever
+        # grows (messages are appended, never edited in place), so we append the
+        # tail written since the last save instead of rewriting the whole file
+        # each time. That turns per-turn saving from O(n) into O(new) and avoids
+        # the O(n^2) cost of rewriting a long transcript on every turn.
+        # Full rewrite is used only as a fallback: the file is missing, or the
+        # in-memory list is SHORTER than what we already persisted (a clear /
+        # compaction shrank it) — in which case the on-disk copy is stale.
         messages_file = self.sessions_dir / session.id / "messages.jsonl"
+        persisted = getattr(session, "_persisted_count", 0)
+        total = len(session.messages)
+        full_rewrite = persisted > total or not messages_file.exists()
         try:
-            with open(messages_file, "w") as f:
-                for message in session.messages:
+            mode = "w" if full_rewrite else "a"
+            start = 0 if full_rewrite else persisted
+            with open(messages_file, mode) as f:
+                for message in session.messages[start:]:
                     f.write(message.to_jsonl() + "\n")
+            session._persisted_count = total
         except Exception as e:
             # Log file writing error
             try:

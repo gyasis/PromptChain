@@ -249,7 +249,23 @@ class MCPHelper:
                     self.logger.debug(
                         f"Attempting stdio connection for server '{server_id}'..."
                     )
-                    stdio_conn_manager = stdio_client(server_params)
+                    # Redirect the child's stderr to a per-server log file so its
+                    # noise (DeprecationWarnings, docket.worker / mcp.server INFO,
+                    # etc.) doesn't bleed into the TUI. Keep a reference so the fd
+                    # isn't garbage-collected (which would close it) mid-session.
+                    _mcp_log_dir = os.path.join(
+                        os.path.expanduser("~"), ".promptchain", "logs"
+                    )
+                    os.makedirs(_mcp_log_dir, exist_ok=True)
+                    _errlog = open(
+                        os.path.join(_mcp_log_dir, f"mcp-{server_id}.err.log"),
+                        "a",
+                        encoding="utf-8",
+                    )
+                    if not hasattr(self, "_mcp_errlogs"):
+                        self._mcp_errlogs = []
+                    self._mcp_errlogs.append(_errlog)
+                    stdio_conn_manager = stdio_client(server_params, errlog=_errlog)
                     # Ensure self.exit_stack is not None before using it
                     if self.exit_stack is None:
                         self.logger.error(
