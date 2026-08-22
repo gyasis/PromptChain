@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promptchain.dev/schemas/transcript-line.schema.json",
+  "title": "PromptChain JSONL Transcript Line",
+  "description": "One event line of a PromptChain run transcript. F1 (SIO Output Integration) locked contract — F2 (Model Profiler) and the SIO harness adapter depend on this shape. additionalProperties is permitted so the schema can grow additively without breaking readers.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["type", "ts", "session_id", "seq"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "chain_start",
+        "chain_end",
+        "chain_error",
+        "step_start",
+        "step_end",
+        "step_error",
+        "model_call",
+        "tool_call",
+        "tool_result",
+        "agentic_step",
+        "signal"
+      ]
+    },
+    "ts": { "type": "string", "format": "date-time" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 0 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "chain_start" } } },
+      "then": {
+        "required": ["project", "cwd"],
+        "properties": {
+          "project": { "type": "string" },
+          "cwd": { "type": "string" },
+          "instructions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "chain_end" } } },
+      "then": {
+        "required": ["outcome", "duration_s", "totals"],
+        "properties": {
+          "outcome": { "const": "success" },
+          "duration_s": { "type": "number", "minimum": 0 },
+          "totals": { "$ref": "#/$defs/usage" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "chain_error" } } },
+      "then": {
+        "required": ["outcome", "error", "duration_s"],
+        "properties": {
+          "outcome": { "const": "error" },
+          "error": { "type": "string" },
+          "duration_s": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "model_call" } } },
+      "then": {
+        "required": ["model", "usage"],
+        "properties": {
+          "model": { "type": "string", "minLength": 1, "description": "= SIO session_metrics.model_used (F2 linchpin)" },
+          "usage": { "$ref": "#/$defs/usage" },
+          "stop_reason": { "type": ["string", "null"] },
+          "phase": { "type": "string", "enum": ["start", "end", "error"] },
+          "error": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "tool_call" } } },
+      "then": {
+        "required": ["tool", "call_id"],
+        "properties": {
+          "tool": { "type": "string" },
+          "call_id": { "type": "string" },
+          "arguments": { "type": "object", "description": "redacted before write" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "tool_result" } } },
+      "then": {
+        "required": ["tool", "call_id", "is_error"],
+        "properties": {
+          "tool": { "type": "string" },
+          "call_id": { "type": "string" },
+          "is_error": { "type": "boolean" },
+          "result": { "description": "redacted + size-capped; any JSON type" },
+          "truncated": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "signal" } } },
+      "then": {
+        "required": ["signal"],
+        "properties": {
+          "signal": { "type": "string", "enum": ["error", "correction", "positive", "sidechain"] }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "cache_read": { "type": "integer", "minimum": 0 },
+        "cache_create": { "type": "integer", "minimum": 0 },
+        "cost_usd": { "type": ["number", "null"] }
+      }
+    }
+  }
+}
