@@ -10,9 +10,11 @@ Discovery contract:
 - The skill source-of-truth lives INSIDE the package at
   `promptchain/data/skills/promptchain.md` (so it's shipped by
   `pip install promptchain`).
-- The harness expects skills at `~/.claude/skills/<name>.md` (or the
-  user-specified path).
-- Default install: SYMLINK from `~/.claude/skills/promptchain.md` →
+- The harness requires DIRECTORY-form skills:
+  `~/.claude/skills/<name>/SKILL.md`. A flat `~/.claude/skills/<name>.md`
+  is silently ignored by the loader — it installs without error and then
+  never loads, so it must not be the default.
+- Default install: SYMLINK from `~/.claude/skills/promptchain/SKILL.md` →
   the bundled file. Updates to the package automatically flow through.
 - `--copy` opts into a hard copy if the user wants to edit locally
   without affecting the package.
@@ -34,7 +36,9 @@ from typing import Optional
 import click
 
 
-SKILL_NAME = "promptchain.md"
+SKILL_NAME = "promptchain.md"      # filename of the bundled source file
+SKILL_DIR_NAME = "promptchain"     # directory the harness loads the skill from
+SKILL_TARGET_NAME = "SKILL.md"     # filename the harness looks for inside it
 
 
 def _bundled_skill_path() -> Path:
@@ -72,7 +76,8 @@ def _backup_existing(target: Path) -> Optional[Path]:
     "--target",
     type=click.Path(path_type=Path),
     default=None,
-    help="Where to install the skill. Default: ~/.claude/skills/promptchain.md",
+    help="Where to install the skill. Default: "
+    "~/.claude/skills/promptchain/SKILL.md",
 )
 @click.option(
     "--copy",
@@ -101,14 +106,30 @@ def install_skill(
 ) -> None:
     """Install the PromptChain skill into your Claude Code harness.
 
-    By default, symlinks the bundled skill into ~/.claude/skills/promptchain.md
-    so the harness picks it up at session start. Use --copy for a hard copy.
+    By default, symlinks the bundled skill into
+    ~/.claude/skills/promptchain/SKILL.md so the harness picks it up at
+    session start. Use --copy for a hard copy.
+
+    Directory-form is required: a flat ~/.claude/skills/promptchain.md is
+    silently ignored by the loader.
     """
     src = _bundled_skill_path()
 
     if target is None:
-        target = Path.home() / ".claude" / "skills" / SKILL_NAME
+        target = (
+            Path.home() / ".claude" / "skills" / SKILL_DIR_NAME / SKILL_TARGET_NAME
+        )
     target = target.expanduser()
+
+    # A flat install from an older version shadows nothing but is dead weight
+    # the loader ignores; retire it so the user is not left believing it works.
+    legacy = Path.home() / ".claude" / "skills" / SKILL_NAME
+    if legacy.exists() or legacy.is_symlink():
+        if dry_run:
+            click.echo(f"Would retire legacy flat skill at: {legacy}")
+        else:
+            legacy_backup = _backup_existing(legacy)
+            click.echo(f"Retired legacy flat skill → {legacy_backup}")
 
     click.echo(f"Source: {src}")
     click.echo(f"Target: {target}")

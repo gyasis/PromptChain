@@ -7,6 +7,8 @@ Covers:
 - --copy creates a real file (not a symlink) with the same content
 - Idempotent: re-running on an already-correct symlink is a no-op
 - --force overwrites without backup
+- The DEFAULT target (no --target) is directory-form, not flat
+- A legacy flat install is retired out of the way
 """
 from __future__ import annotations
 
@@ -109,3 +111,59 @@ def test_force_overwrites_without_backup(tmp_path: Path):
     today = date.today().isoformat()
     no_backup = target.with_suffix(target.suffix + f".bak.{today}")
     assert not no_backup.exists(), "--force should NOT create a backup"
+
+
+def test_default_target_is_directory_form(tmp_path: Path, monkeypatch):
+    """No --target: must install to ~/.claude/skills/promptchain/SKILL.md.
+
+    Regression guard. Every other test passes --target explicitly, so the
+    default path was never exercised — which is how a flat
+    ~/.claude/skills/promptchain.md default shipped. The harness silently
+    ignores flat <name>.md, so that default installed a skill that never
+    loaded, with no error to signal it.
+    """
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    runner = CliRunner()
+    result = runner.invoke(install_skill, [])
+    assert result.exit_code == 0, result.output
+
+    expected = tmp_path / ".claude" / "skills" / "promptchain" / "SKILL.md"
+    assert expected.is_symlink(), f"default target is not directory-form: {expected}"
+    assert expected.resolve() == _bundled_skill_path().resolve()
+
+    flat = tmp_path / ".claude" / "skills" / "promptchain.md"
+    assert not flat.exists(), "default install must not create the flat form"
+
+
+def test_legacy_flat_install_is_retired(tmp_path: Path, monkeypatch):
+    """An older flat install is moved aside, not left to look installed."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    flat = tmp_path / ".claude" / "skills" / "promptchain.md"
+    flat.parent.mkdir(parents=True, exist_ok=True)
+    flat.write_text("STALE FLAT SKILL")
+
+    runner = CliRunner()
+    result = runner.invoke(install_skill, [])
+    assert result.exit_code == 0, result.output
+
+    assert not flat.exists(), "legacy flat skill was left in place"
+    backup = flat.with_suffix(flat.suffix + f".bak.{date.today().isoformat()}")
+    assert backup.exists(), "legacy flat skill was deleted instead of backed up"
+    assert backup.read_text() == "STALE FLAT SKILL"
+
+    expected = tmp_path / ".claude" / "skills" / "promptchain" / "SKILL.md"
+    assert expected.is_symlink()
+
+
+def test_dry_run_does_not_retire_legacy(tmp_path: Path, monkeypatch):
+    """--dry-run must not touch an existing flat install."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    flat = tmp_path / ".claude" / "skills" / "promptchain.md"
+    flat.parent.mkdir(parents=True, exist_ok=True)
+    flat.write_text("STALE FLAT SKILL")
+
+    runner = CliRunner()
+    result = runner.invoke(install_skill, ["--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert flat.read_text() == "STALE FLAT SKILL", "dry-run modified the legacy file"

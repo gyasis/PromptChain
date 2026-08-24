@@ -16,6 +16,7 @@ core_requirements = [
     "pyyaml>=6.0",              # YAML configuration files
     "jsonschema>=4.17",         # YAML schema validation
     "nest-asyncio>=1.5.0",      # Async support for nested event loops
+    "numpy>=1.21.0",            # Embeddings/similarity in utils.memo_store
 ]
 
 setup(

@@ -10,6 +10,7 @@ httpx>=0.25.0            # HTTP requests
 pyyaml>=6.0              # YAML configuration files
 jsonschema>=4.17         # YAML schema validation
 nest-asyncio>=1.5.0      # Async support for nested event loops
+numpy>=1.21.0            # Embeddings/similarity in utils.memo_store
 
 # Note: asyncio is part of Python standard library (3.4+) and doesn't need to be installed
 # Note: 'mcp' package should be installed separately as it's not on PyPI
