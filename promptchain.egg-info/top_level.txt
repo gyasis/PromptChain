@@ -1,4 +1,0 @@
-athena-lightrag
-draft_comparison
-promptchain
-tests
