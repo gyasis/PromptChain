@@ -979,11 +979,14 @@ class PromptChainApp(App):
             try:
                 if event.event_type == ExecutionEventType.MODEL_CALL_START:
                     # LLM call started
-                    model = event.data.get("model_name", "unknown")
-                    messages = event.data.get("messages", [])
+                    # model_name is a top-level ExecutionEvent field, not metadata
+                    model = event.model_name or "unknown"
+                    # Emitters only send message_count in metadata, never the
+                    # messages themselves (promptchaining.py MODEL_CALL_START)
+                    message_count = event.metadata.get("message_count", 0)
                     prompt_preview = (
-                        str(messages[-1] if messages else "")[:100]
-                        if messages
+                        f"{message_count} messages"
+                        if message_count
                         else "Empty prompt"
                     )
                     self.observe_panel.log_entry(
@@ -992,20 +995,32 @@ class PromptChainApp(App):
 
                 elif event.event_type == ExecutionEventType.MODEL_CALL_END:
                     # LLM call completed
-                    model = event.data.get("model_name", "unknown")
-                    usage = event.data.get("usage", {})
-                    response = event.data.get("response", "")
+                    model = event.model_name or "unknown"
+                    # Token counts live in metadata["tokens_used"]; the response
+                    # text itself is never emitted (promptchaining.py MODEL_CALL_END)
+                    usage = event.metadata.get("tokens_used") or {}
+                    response = ""
                     response_preview = (
                         str(response)[:100] if response else "No response"
                     )
 
-                    # Format token info
-                    prompt_tokens = usage.get("prompt_tokens", 0)
-                    completion_tokens = usage.get("completion_tokens", 0)
-                    total_tokens = usage.get("total_tokens", 0)
-                    token_info = (
-                        f"({prompt_tokens}p + {completion_tokens}c = {total_tokens}t)"
-                    )
+                    # Distinguish "no tokens" from "nobody told us". The
+                    # follow-up MODEL_CALL_END (promptchaining.py:2089) -- the
+                    # one that produces the final answer after a tool call --
+                    # emits no tokens_used at all. Rendering that as
+                    # "(0p + 0c = 0t)" is a confident zero for data that was
+                    # never sent, which reads as "this call was free".
+                    if not isinstance(usage, dict) or not usage:
+                        token_info = "(tokens n/a)"
+                    else:
+                        # No total_tokens key is emitted; sum the two that are.
+                        prompt_tokens = usage.get("prompt_tokens", 0) or 0
+                        completion_tokens = usage.get("completion_tokens", 0) or 0
+                        total_tokens = prompt_tokens + completion_tokens
+                        token_info = (
+                            f"({prompt_tokens}p + {completion_tokens}c "
+                            f"= {total_tokens}t)"
+                        )
 
                     self.observe_panel.log_entry(
                         "llm-response", f"[{model}] {response_preview}... {token_info}"
@@ -1013,8 +1028,9 @@ class PromptChainApp(App):
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_START:
                     # Tool call started
-                    tool_name = event.data.get("tool_name", "unknown")
-                    args_preview = str(event.data.get("arguments", ""))[:80]
+                    tool_name = event.metadata.get("tool_name", "unknown")
+                    # emitters use the metadata key "tool_args", not "arguments"
+                    args_preview = str(event.metadata.get("tool_args", ""))[:80]
                     self.observe_panel.log_entry(
                         "tool-call", f"Calling: {tool_name}({args_preview}...)"
                     )
@@ -1025,9 +1041,21 @@ class PromptChainApp(App):
 
                 elif event.event_type == ExecutionEventType.TOOL_CALL_END:
                     # Tool call completed
-                    tool_name = event.data.get("tool_name", "unknown")
-                    result = event.data.get("result", "")
-                    result_preview = str(result)[:160] if result else "No result"
+                    tool_name = event.metadata.get("tool_name", "unknown")
+                    # Only MCP tool calls emit a "result" preview
+                    # (mcp_helpers.py:716). The local-tool TOOL_CALL_END
+                    # (promptchaining.py:1958) sends result_length instead, so
+                    # report the size rather than claiming "No result" on a
+                    # call that in fact succeeded.
+                    result = event.metadata.get("result", "")
+                    if result:
+                        result_preview = str(result)[:160]
+                    elif event.metadata.get("result_length") is not None:
+                        result_preview = (
+                            f"returned {event.metadata['result_length']} chars"
+                        )
+                    else:
+                        result_preview = "No result"
                     self.observe_panel.log_entry(
                         "tool-result", f"{tool_name}: {result_preview}..."
                     )
@@ -1035,12 +1063,17 @@ class PromptChainApp(App):
 
                 elif event.event_type == ExecutionEventType.STEP_START:
                     # Chain step started
-                    step_num = event.data.get("step_index", "?")
+                    # step number is a top-level ExecutionEvent field
+                    step_num = (
+                        event.step_number if event.step_number is not None else "?"
+                    )
                     self.observe_panel.log_info(f"Step {step_num} started")
 
                 elif event.event_type == ExecutionEventType.STEP_END:
                     # Chain step completed
-                    step_num = event.data.get("step_index", "?")
+                    step_num = (
+                        event.step_number if event.step_number is not None else "?"
+                    )
                     self.observe_panel.log_info(f"Step {step_num} completed")
 
             except Exception as e:
