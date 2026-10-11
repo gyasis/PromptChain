@@ -524,6 +524,7 @@ For copy-paste working snippets, see `docs/llms/recipes/`. Each recipe is a sing
 |---|---|
 | `recipe-basic-chain.md` | One LLM step, string in / string out |
 | `recipe-function-step.md` | Mix Python functions into a chain |
+| `recipe-decision-step.md` | Typed decision step + route on measured confidence |
 | `recipe-static-chain.md` | Pure-Python chain, zero LLM calls |
 | `recipe-prompt-loader.md` | Load named prompts from disk via `PrePrompt` |
 | `recipe-tool-calling-local.md` | Multiple local tools, the LLM loop, schema generation |

@@ -32,6 +32,7 @@ Routes you to the right reference for the task at hand. **Path convention:** bel
 |---|---|
 | "Write a basic PromptChain" / "scaffold a chain" | `docs/llms/recipes/recipe-basic-chain.md` |
 | "Add a Python function to the chain" | `docs/llms/recipes/recipe-function-step.md` |
+| "Branch/classify/gate on a decision" / "typed decision" / "confidence routing" / "hunch" / "systemone" | `docs/llms/recipes/recipe-decision-step.md` |
 | "Pure Python pipeline" / "no LLM, just functions" | `docs/llms/recipes/recipe-static-chain.md` |
 | "Load named prompts" / "PrePrompt" / "prompts directory" | `docs/llms/recipes/recipe-prompt-loader.md` |
 | "Tool calling" / "register a tool" / "the LLM should call my function" | `docs/llms/recipes/recipe-tool-calling-local.md` |

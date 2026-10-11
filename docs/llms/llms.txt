@@ -16,6 +16,7 @@ PromptChain is the user's own library — not in any LLM training corpus. Read t
 
 - [Basic chain](recipes/recipe-basic-chain.md): Single LLM step, string in / string out.
 - [Function step](recipes/recipe-function-step.md): Mix Python functions into a chain.
+- [Decision step](recipes/recipe-decision-step.md): Typed decision + route on measured confidence.
 - [Static chain](recipes/recipe-static-chain.md): Pure-Python chain with zero LLM calls.
 - [Prompt loader](recipes/recipe-prompt-loader.md): Load named prompts from disk via `PrePrompt`.
 - [Local tool calling](recipes/recipe-tool-calling-local.md): Multiple local tools, the LLM loop, schema generation.
