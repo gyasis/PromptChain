@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Typed decision steps** (`promptchain.utils.decision_step`) — `decision()` asks typed
+  questions (`choice` / `boolean` / `score`) about the step input and returns a MEASURED
+  distribution + confidence from a decision backend; `route_on()` branches on it
+  (accept / review / escalate by confidence, or a per-label router). Both are Callable
+  steps (no model slot). Backends share one interface and swap by config:
+  `SystemOneBackend` (Ollama >= 0.35 `/v1/systemone`, e.g. `tev1:4b`), `hunch_backend()`
+  (the `hunch` logprob CLI, incl. vote/debias modes) and generic `CliBackend`. Model and
+  routing thresholds are required (no env defaults); out-of-set answers raise
+  `DecisionError`. See `docs/llms/recipes/recipe-decision-step.md`,
+  `tests/test_decision_step.py` (25 offline).
+
 ## [0.10.0] - 2026-07-11
 
 ### Added
