@@ -5,7 +5,7 @@ Mirrors F2's offline live smoke: no secrets, talks to a LAN ollama via litellm's
 ``ollama/<model>`` prefix + ``OLLAMA_API_BASE`` (default the Mac Studio at
 192.168.0.159). Runs the deterministic A/B harness (``promptchain.prompts.eval_ab``)
 with a REAL model runner over both arms (f3 per-model prompt vs the static base) and
-prints per-arm completion rate + the delta — the live "weak model beats static base"
+prints per-arm completion rate + the delta, each with its bootstrap CI — the live "weak model beats static base"
 demonstration that can't be a CI unit test.
 
 Run (needs the worktree on PYTHONPATH; see quickstart.md section 6):
@@ -106,12 +106,19 @@ def main(argv=None) -> int:
         return 1
 
     rates = report.per_arm_completion_rate
-    print("Per-arm completion rate:")
+    level = f"{report.ci_level:.0%} CI"
+    print(f"Per-arm completion rate ({level}, task-cluster bootstrap):")
     for arm in ("f3", "static_base"):
-        print(f"  {arm:<12} {rates.get(arm, 0.0):.2%}")
-    print(f"\nDelta (f3 - static_base): {report.delta:+.2%}")
+        lo, hi = report.per_arm_ci.get(arm, (0.0, 0.0))
+        print(f"  {arm:<12} {rates.get(arm, 0.0):.2%}  [{lo:.2%}, {hi:.2%}]")
+    lo, hi = report.delta_ci
+    print(f"\nDelta (f3 - static_base): {report.delta:+.2%}  [{lo:+.2%}, {hi:+.2%}]")
     verdict = "WIN" if report.delta > 0 else ("TIE" if report.delta == 0 else "REGRESSION")
     print(f"Verdict: F3 {verdict} on {model}")
+    if lo <= 0.0 <= hi:
+        print(f"  Not significant: the delta's {level} includes 0 (could be noise).")
+    else:
+        print(f"  Significant: the delta's {level} excludes 0.")
     return 0
 
 
