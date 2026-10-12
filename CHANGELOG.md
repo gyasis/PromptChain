@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Lookout ↔ PromptChain bridge** (`promptchain/server/web_bridge.py`, `dev-bridge.sh`) —
+  FastAPI/SSE server on `127.0.0.1:7788` giving the Lookout overlay a model list and a headless
+  AgentChain chat backend (`/health`, `/models`, `/tools`, `/session/{new,state,workdir}`,
+  `/chat/turn`). Ported from the long-lived `feat/lookout-bridge` branch; its multimodal commit
+  was already on main (#59). Needs `fastapi` + `uvicorn`. See `docs/lookout_bridge.md`.
 - **Typed decision steps** (`promptchain.utils.decision_step`) — `decision()` asks typed
   questions (`choice` / `boolean` / `score`) about the step input and returns a MEASURED
   distribution + confidence from a decision backend; `route_on()` branches on it
