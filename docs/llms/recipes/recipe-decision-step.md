@@ -53,7 +53,7 @@ asyncio.run(main())
 ## Backends (swap by config, same reply shape)
 | backend | what | when |
 |---|---|---|
-| `SystemOneBackend(model="tev1:4b")` | Ollama >= 0.35 `/v1/systemone`, real classifier heads | **default** — best accuracy + calibration measured |
+| `SystemOneBackend(model="tev1:4b")` | Ollama >= 0.35 `/v1/systemone`; LM fine-tuned to emit one option letter (2–24 options) | **default** — best accuracy + calibration measured |
 | `hunch_backend(model=..., vote=6)` | `hunch` CLI, next-token logprobs from an ordinary LM | second opinion; use `vote` if you threshold on it |
 | `CliBackend([...], model=..., model_env=...)` | any CLI with `<cmd> - -q <json> --raw` | custom backends |
 
@@ -71,8 +71,8 @@ The model is **required** — there is no env-var default (R-PC4).
 
 ## Where this comes from (Jev-style decisions)
 This is the **Jev** decision model brought into PromptChain: a closed question goes to a
-decision engine, and the probability comes from the model's internals (a classifier head, or
-next-token logprobs), not from a number the model writes. PromptChain is the **caller**; the
+decision engine, and the probability comes from the model's internals (the next-token
+distribution over option letters, from a model trained for it (`tev1`) or an ordinary LM (`hunch`)), not from a number the model writes. PromptChain is the **caller**; the
 engines (`tev1` via `/v1/systemone`, the `hunch` CLI) don't know PromptChain exists. Hosted
 Jev (Vercel) is retired, and there is deliberately no backend for it.
 
