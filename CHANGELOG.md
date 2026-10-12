@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   routing thresholds are required (no env defaults); out-of-set answers raise
   `DecisionError`. See `docs/llms/recipes/recipe-decision-step.md`,
   `tests/test_decision_step.py` (25 offline).
+- **Decision-step guide** — the recipe now covers where these come from (Jev-style
+  decisions), binary vs multiclass vs score, measured label-count effects, and nested
+  decision trees; new `PROMPTCHAIN_FOR_LLMS.md` §18; nested-tree test (26 offline).
 
 ## [0.10.0] - 2026-07-11
 

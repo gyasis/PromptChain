@@ -596,6 +596,27 @@ See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for a live demo: gpt
 
 ---
 
+## 18. Typed decisions (Jev-style) — shipped 2026-10-11
+
+`promptchain.utils.decision_step` brings Jev-style decisions into chains: ask a **closed**
+question about the step input and get back an answer with a **measured** confidence, then
+branch on it. PromptChain calls the decision engine; the engine knows nothing about PromptChain.
+
+- `decision(questions, backend, name)`: a Callable step (no model slot). Question types:
+  `boolean` (yes/no), `choice` (exactly one of N labels; multiclass, not multi-label),
+  `score` (ordered levels). Returns a JSON record carrying the original `state`.
+- `route_on(question, accept=, review=, on_accept=, on_review=, on_escalate=)`: accept /
+  review / escalate by confidence; `on_accept` can be `{label: branch}`. A branch can be a
+  function or a PromptChain, including one with its own `decision()` (a nested tree).
+- Backends: `SystemOneBackend(model="tev1:4b")` (default, Ollama >= 0.35 `/v1/systemone`
+  through the governed lane), `hunch_backend(model=..., vote=K)`, generic `CliBackend`.
+- The model and both thresholds are required, with no defaults. Out-of-set answers raise `DecisionError`.
+- More labels = harder: `tev1:4b` 98.3% at 6 labels, 87.5% at 20. Keep N small; nest instead.
+
+Full usage, label-count guidance and the nested-tree pattern: `recipes/recipe-decision-step.md`.
+
+---
+
 ## 16. Model selection (cheat-sheet)
 
 PromptChain delegates to LiteLLM; every model string is `"<provider>/<model>"`. The capability that matters most for chains and agentic steps is **tool-calling support** — without it, `register_tool_function`, MCP tools, and `AgenticStepProcessor` tools silently degrade to plain prompting.

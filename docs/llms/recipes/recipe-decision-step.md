@@ -69,6 +69,60 @@ The model is **required** — there is no env-var default (R-PC4).
 ```
 `state` is carried so `route_on` hands the ORIGINAL text to the chosen branch.
 
+## Where this comes from (Jev-style decisions)
+This is the **Jev** decision model brought into PromptChain: a closed question goes to a
+decision engine, and the probability comes from the model's internals (a classifier head, or
+next-token logprobs), not from a number the model writes. PromptChain is the **caller**; the
+engines (`tev1` via `/v1/systemone`, the `hunch` CLI) don't know PromptChain exists. Hosted
+Jev (Vercel) is retired, and there is deliberately no backend for it.
+
+## Binary, multiclass, or score?
+- **`boolean`**: a yes/no gate ("is this urgent?"). Chance is 50%.
+- **`choice`**: **multiclass, exactly one** of N mutually exclusive labels. Chance is 1/N.
+  It is *not* multi-label: if several things can be true at once, ask several `boolean`
+  questions in the same `decision()` step (each is answered independently, one call).
+- **`score`**: ordered levels (`["low","medium","high"]`); the value is the expected level.
+
+`confidence` is the engine's own number when it sends one (`tev1` does). Only when an engine
+returns probabilities without a confidence does the step derive it as `1 - entropy / log(N)`
+(0 = flat spread, 1 = certain, so a 50/50 boolean is 0.0). Either way, chance falls as N grows,
+so measure thresholds per task rather than reusing one across label counts.
+
+## How many labels? (measured)
+Label count is the difficulty axis, not the domain (`tev1:4b`, external banking77 sets):
+
+| labels | accuracy | ECE |
+|---|---|---|
+| 6 | 98.3% | .005 |
+| 20 | 87.5% | .098 |
+
+More labels mean more confusable neighbours and probability spread thinner, so fewer items
+clear `accept` and calibration degrades. They save calls and route more finely. Write a real
+description for each label in `criteria`: it is what the engine scores against.
+
+## Nested decision trees
+A `route_on` branch may be a PromptChain that starts with its own `decision()`, so a
+hierarchy is just composition: each level keeps N small, gets its own thresholds, and a
+low-confidence root escalates before deeper work runs.
+
+```python
+billing_tree = PromptChain(models=[], instructions=[
+    decision({"issue": {"type": "choice", "instructions": "Which billing issue?",
+                        "criteria": {"refund": "wants money back",
+                                     "invoice": "needs a document"}}},
+             backend=SystemOneBackend(model="tev1:4b"), name="billing_issue"),
+    route_on("issue", accept=0.9, review=0.6,
+             on_accept={"refund": refund_step, "invoice": invoice_step},
+             on_review=send_to_human, on_escalate=escalate),
+])
+# root: route_on("dept", ..., on_accept={"billing": billing_tree, ...})
+```
+
+Costs: errors multiply down a path (0.98 × 0.98 ≈ 0.96), each level adds a call (~0.7 s on
+`tev1:4b`), and a wrong parent sends the item into the wrong subtree. **Unmeasured:** that a
+2-level tree beats one flat 20-way question. Run both through `labdecide` before relying on
+it. Tested: `test_nested_decision_tree_routes_into_a_second_decision_chain`.
+
 ## Common failures + fix
 - **`DecisionError: answer 'sales' is not one of [...]`** — the backend returned a label outside
   `criteria`. This is raised on purpose; never mapped to a guess.

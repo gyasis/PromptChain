@@ -241,3 +241,32 @@ def test_band_helper():
     assert ds.band(0.9, 0.9, 0.6) == "accept"
     assert ds.band(0.6, 0.9, 0.6) == "review"
     assert ds.band(0.59, 0.9, 0.6) == "escalate"
+
+
+def test_nested_decision_tree_routes_into_a_second_decision_chain():
+    """A route_on branch can be a PromptChain that asks its own question (a 2-level tree)."""
+    issue_q = {"issue": {"type": "choice", "instructions": "Which billing issue?",
+                         "criteria": {"refund": "wants money back", "invoice": "needs a document"}}}
+    child_stub = StubBackend({"issue": {"choice": "refund", "confidence": 0.95}})
+    billing_tree = PromptChain(
+        models=[],
+        instructions=[
+            decision(issue_q, child_stub, "billing_issue"),
+            route_on("issue", accept=0.9, review=0.6,
+                     on_accept={"refund": lambda s: f"REFUND<{s}>",
+                                "invoice": lambda s: f"INVOICE<{s}>"},
+                     on_review=lambda s: "REVIEW", on_escalate=lambda s: "ESCALATE"),
+        ],
+    )
+    root_stub = StubBackend({"dept": {"choice": "billing", "confidence": 0.97}})
+    root = PromptChain(
+        models=[],
+        instructions=[
+            decision(DEPT, root_stub, "triage"),
+            route_on("dept", accept=0.9, review=0.6,
+                     on_accept={"billing": billing_tree, "technical": lambda s: "TECH"},
+                     on_review=lambda s: "REVIEW", on_escalate=lambda s: "ESCALATE"),
+        ],
+    )
+    assert run(root.process_prompt_async("refund my double charge")) == "REFUND<refund my double charge>"
+    assert child_stub.calls[0][0] == "refund my double charge"  # child sees the ORIGINAL text
