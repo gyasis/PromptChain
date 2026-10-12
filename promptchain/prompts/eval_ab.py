@@ -16,8 +16,9 @@ The harness only proves the MEASUREMENT is deterministic and directional; the re
 """
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from promptchain.prompts.budget import measure
 from promptchain.prompts.model_dynamic import DynamicModelPromptGenerator
@@ -104,17 +105,84 @@ class EvalResult:
     budget: Optional[int] = None
 
 
+def _percentile_interval(samples: List[float], ci_level: float) -> Tuple[float, float]:
+    """Nearest-rank percentile interval of ``samples`` at ``ci_level``."""
+    ordered = sorted(samples)
+    last = len(ordered) - 1
+    alpha = (1.0 - ci_level) / 2.0
+    return ordered[round(alpha * last)], ordered[round((1.0 - alpha) * last)]
+
+
+def _bootstrap_cis(
+    results: List[EvalResult], *, n_boot: int, ci_level: float, seed: int
+) -> Tuple[Dict[str, Tuple[float, float]], Tuple[float, float]]:
+    """Paired task-cluster percentile bootstrap for per-arm rates and the delta.
+
+    The resampling unit is the TASK, not the individual result: ``run_ab`` scores each
+    task once per budget, so its rows are not independent, and resampling rows would
+    overstate confidence. Both arms share each resampled task set, which keeps the
+    f3 - static_base delta paired. Seeded, so deterministic for identical inputs.
+    """
+    # task_id -> arm -> [passed, total]
+    clusters: Dict[str, Dict[str, List[int]]] = {}
+    for r in results:
+        counts = clusters.setdefault(r.task_id, {}).setdefault(r.arm, [0, 0])
+        counts[0] += 1 if r.passed else 0
+        counts[1] += 1
+    task_ids = sorted(clusters)
+    if not task_ids:
+        return {}, (0.0, 0.0)
+
+    arms = sorted({r.arm for r in results})
+    rng = random.Random(seed)
+    arm_samples: Dict[str, List[float]] = {arm: [] for arm in arms}
+    delta_samples: List[float] = []
+    for _ in range(n_boot):
+        sample = rng.choices(task_ids, k=len(task_ids))
+        rates: Dict[str, float] = {}
+        for arm in arms:
+            passed = sum(clusters[t].get(arm, [0, 0])[0] for t in sample)
+            total = sum(clusters[t].get(arm, [0, 0])[1] for t in sample)
+            if total:
+                rates[arm] = passed / total
+                arm_samples[arm].append(rates[arm])
+        delta_samples.append(rates.get("f3", 0.0) - rates.get("static_base", 0.0))
+
+    per_arm_ci = {
+        arm: _percentile_interval(samples, ci_level)
+        for arm, samples in arm_samples.items()
+        if samples
+    }
+    return per_arm_ci, _percentile_interval(delta_samples, ci_level)
+
+
 @dataclass
 class EvalReport:
-    """Aggregate of an A/B run: per-arm completion rate + the F3 win (delta)."""
+    """Aggregate of an A/B run: per-arm completion rate + the F3 win (delta).
+
+    ``per_arm_ci`` / ``delta_ci`` are bootstrap confidence intervals at ``ci_level``.
+    With N=5 tasks they are wide by design — a delta whose interval spans 0 is not
+    yet distinguishable from noise.
+    """
 
     results: List[EvalResult] = field(default_factory=list)
     per_arm_completion_rate: Dict[str, float] = field(default_factory=dict)
     delta: float = 0.0
+    per_arm_ci: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    delta_ci: Tuple[float, float] = (0.0, 0.0)
+    ci_level: float = 0.95
 
     @classmethod
-    def from_results(cls, results: List[EvalResult]) -> "EvalReport":
-        """Compute per-arm completion rate (passed/total) and delta = f3 - static_base."""
+    def from_results(
+        cls,
+        results: List[EvalResult],
+        *,
+        n_boot: int = 2000,
+        ci_level: float = 0.95,
+        seed: int = 0,
+    ) -> "EvalReport":
+        """Compute per-arm completion rate (passed/total), delta = f3 - static_base,
+        and their paired task-cluster bootstrap CIs (see ``_bootstrap_cis``)."""
         totals: Dict[str, int] = {}
         passed: Dict[str, int] = {}
         for r in results:
@@ -126,7 +194,17 @@ class EvalReport:
             for arm in totals
         }
         delta = rates.get("f3", 0.0) - rates.get("static_base", 0.0)
-        return cls(results=results, per_arm_completion_rate=rates, delta=delta)
+        per_arm_ci, delta_ci = _bootstrap_cis(
+            results, n_boot=n_boot, ci_level=ci_level, seed=seed
+        )
+        return cls(
+            results=results,
+            per_arm_completion_rate=rates,
+            delta=delta,
+            per_arm_ci=per_arm_ci,
+            delta_ci=delta_ci,
+            ci_level=ci_level,
+        )
 
 
 def run_ab(
