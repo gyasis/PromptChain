@@ -7,6 +7,9 @@ point it at any ollama endpoint (this machine, a box on your LAN, or a remote/ho
 
 ## Start it
 
+Requires `fastapi` and `uvicorn` in the bridge's Python (`pip install fastapi uvicorn`); they are
+not core PromptChain dependencies.
+
 ```bash
 ./dev-bridge.sh
 ```
