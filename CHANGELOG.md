@@ -26,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   task-cluster percentile bootstrap (`from_results(n_boot=2000, ci_level=0.95, seed=0)`).
   It resamples tasks, not rows, so scoring under more budgets does not narrow the
   interval. A delta whose CI reaches 0 is not yet distinguishable from noise.
-  `tests/test_dynamic_prompt_eval.py` (6 offline).
+  `tests/test_dynamic_prompt_eval.py` (6 offline). The live smoke
+  (`specs/014-dynamic-prompt-layer/scripts/ab_smoke.py`) prints each rate and the delta
+  with its CI, and says whether the delta's CI excludes 0.
 
 ## [0.10.0] - 2026-07-11
 
