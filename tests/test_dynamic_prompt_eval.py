@@ -17,6 +17,7 @@ from __future__ import annotations
 from promptchain.prompts.eval_ab import (  # noqa: E402  (import-time red expected)
     EVAL_TASKS,
     EvalReport,
+    EvalResult,
     EvalTask,
     run_ab,
 )
@@ -106,3 +107,46 @@ def test_run_ab_is_deterministic() -> None:
     r2 = run_ab(_scripted_fake, model=_MODEL, store=_store(), budgets=(1000, 300))
     assert r1.per_arm_completion_rate == r2.per_arm_completion_rate
     assert r1.delta == r2.delta
+
+
+def _mixed_results(copies: int = 2) -> list:
+    """5 tasks; f3 passes t0-t2, static_base passes t0-t1; each task scored ``copies``
+    times per arm (as ``run_ab`` does once per budget)."""
+    f3_pass, base_pass = {"t0", "t1", "t2"}, {"t0", "t1"}
+    return [
+        EvalResult(arm=arm, task_id=t, passed=t in passing)
+        for _ in range(copies)
+        for t in ("t0", "t1", "t2", "t3", "t4")
+        for arm, passing in (("f3", f3_pass), ("static_base", base_pass))
+    ]
+
+
+def test_bootstrap_ci_on_scripted_fake_is_degenerate() -> None:
+    """All-pass vs all-fail leaves no resampling uncertainty: CIs collapse."""
+    report = run_ab(_scripted_fake, model=_MODEL, store=_store(), budgets=(1000, 300))
+    assert report.per_arm_ci == {"f3": (1.0, 1.0), "static_base": (0.0, 0.0)}
+    assert report.delta_ci == (1.0, 1.0)
+    assert report.ci_level == 0.95
+
+
+def test_bootstrap_ci_brackets_estimate_and_is_deterministic() -> None:
+    """Mixed outcomes: each CI brackets its point estimate, and a +0.2 delta on 5
+    tasks is not distinguishable from noise (its interval reaches 0)."""
+    r1 = EvalReport.from_results(_mixed_results())
+    r2 = EvalReport.from_results(_mixed_results())
+    assert (r1.per_arm_ci, r1.delta_ci) == (r2.per_arm_ci, r2.delta_ci)
+
+    for arm, (lo, hi) in r1.per_arm_ci.items():
+        assert 0.0 <= lo < r1.per_arm_completion_rate[arm] < hi <= 1.0
+    lo, hi = r1.delta_ci
+    assert abs(r1.delta - 0.2) < 1e-9
+    assert lo <= 0.0 < r1.delta <= hi
+
+
+def test_bootstrap_resamples_tasks_not_rows() -> None:
+    """Scoring each task under more budgets adds rows, not evidence: the CI must not
+    narrow when every task's observations are duplicated."""
+    two = EvalReport.from_results(_mixed_results(copies=2))
+    six = EvalReport.from_results(_mixed_results(copies=6))
+    assert two.per_arm_ci == six.per_arm_ci
+    assert two.delta_ci == six.delta_ci

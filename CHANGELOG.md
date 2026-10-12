@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Decision-step guide** — the recipe now covers where these come from (Jev-style
   decisions), binary vs multiclass vs score, measured label-count effects, and nested
   decision trees; new `PROMPTCHAIN_FOR_LLMS.md` §18; nested-tree test (26 offline).
+- **Bootstrap CIs in the F3 A/B harness** (`promptchain.prompts.eval_ab`) — `EvalReport`
+  now carries `per_arm_ci`, `delta_ci` and `ci_level` from a seeded, paired
+  task-cluster percentile bootstrap (`from_results(n_boot=2000, ci_level=0.95, seed=0)`).
+  It resamples tasks, not rows, so scoring under more budgets does not narrow the
+  interval. A delta whose CI reaches 0 is not yet distinguishable from noise.
+  `tests/test_dynamic_prompt_eval.py` (6 offline).
 
 ## [0.10.0] - 2026-07-11
 
