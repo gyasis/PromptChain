@@ -24,8 +24,8 @@ model slot (R-PC2)::
 Backends share one interface (`DecisionBackend.decide`) and one reply shape, so a chain swaps
 backend by config alone:
 
-- `SystemOneBackend` — Ollama >= 0.35 `/v1/systemone` (the Jev API served locally; real
-  classifier heads such as `tev1:4b`). The measured default.
+- `SystemOneBackend` — Ollama >= 0.35 `/v1/systemone` (the Jev API served locally; e.g. `tev1:4b`,
+  an LM fine-tuned to answer with one option letter). The measured default.
 - `hunch_backend()` — the `hunch` CLI (next-token logprobs from an ordinary LM). Wrapped as a
   subprocess on purpose: improvements to `hunch` reach chains without a copy here.
 - `CliBackend` — any CLI with the `<tool> - -q <json> --raw` contract.
