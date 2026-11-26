@@ -26,7 +26,13 @@ This skill exists because **`promptchain` is not in your training data**. Withou
 
 ## What this skill does
 
-Routes you to the right reference for the task at hand. **Path convention:** below uses the repo-relative form `docs/llms/...`. If the repo is at `~/dev/projects/PromptChain/` (the maintainer's setup), prefix accordingly. From any other checkout, paths are relative to the repo root.
+Routes you to the right reference for the task at hand. **Path convention:** below uses the repo-relative form `docs/llms/...`. The repo location differs per machine, so never assume one. Find the root of the checkout the installed package runs from:
+
+```bash
+python -c "import promptchain, pathlib; print(pathlib.Path(promptchain.__file__).resolve().parents[1])"
+```
+
+On an editable install (`pip install -e`), that prints the repo root. If it prints a `site-packages` path, the package is not an editable install: ask the user where their clone is.
 
 | User intent | Read first (repo-relative) |
 |---|---|
@@ -91,7 +97,7 @@ If a mistake you make in this session is **not** in §4 above, the user will run
 
 ## Files (paths)
 
-All paths repo-relative. The maintainer's repo is at `~/dev/projects/PromptChain/`; substitute your local clone path.
+All paths repo-relative. Find the repo root with the command under "What this skill does".
 
 - Long-form reference: `docs/llms/PROMPTCHAIN_FOR_LLMS.md`
 - Recipes: `docs/llms/recipes/`
