@@ -29,12 +29,13 @@ from __future__ import annotations
 import inspect
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Awaitable, Callable, List, Optional, Sequence, Tuple, Union
 
 from .decision_step import (
     Branch,
     DecisionBackend,
+    DecisionError,
     _run_branch,
     band,
     normalize_answer,
@@ -48,9 +49,17 @@ CheckResult = Union[bool, Tuple[bool, str]]
 Check = Callable[[str, str], Union[CheckResult, Awaitable[CheckResult]]]
 
 
+def _fields_dict(obj: Any) -> dict:
+    """Dataclass fields as a dict without deep-copying values (exceptions stay as they are)."""
+    return {f.name: getattr(obj, f.name) for f in fields(obj)}
+
+
 @dataclass
 class TierAttempt:
-    """One tier's run: whether its output passed the check, and why."""
+    """One tier's run: whether its output passed the check, and why.
+
+    ``exception`` keeps the raised exception object (tier or check); ``to_dict`` omits it.
+    """
 
     tier: int
     label: str
@@ -59,6 +68,7 @@ class TierAttempt:
     elapsed_s: float
     output: Optional[str]
     error: Optional[str] = None
+    exception: Optional[BaseException] = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -77,9 +87,18 @@ class CascadeResult:
         return len(self.attempts) > 1
 
     def to_dict(self) -> dict:
-        d = asdict(self)
-        d["escalated"] = self.escalated
-        return d
+        attempts = [
+            {k: v for k, v in _fields_dict(a).items() if k != "exception"}
+            for a in self.attempts
+        ]
+        return {
+            "name": self.name,
+            "output": self.output,
+            "answered_by": self.answered_by,
+            "tier": self.tier,
+            "attempts": attempts,
+            "escalated": self.escalated,
+        }
 
 
 class CascadeExhausted(RuntimeError):
@@ -107,10 +126,26 @@ async def _run_check(check: Check, step_input: str, output: str) -> Tuple[bool, 
     res = check(step_input, output)
     if inspect.isawaitable(res):
         res = await res
-    if isinstance(res, tuple):
-        passed, reason = res
-        return bool(passed), str(reason)
-    return bool(res), ""
+    if isinstance(res, bool):
+        return res, ""
+    if isinstance(res, (tuple, list)) and len(res) == 2 and isinstance(res[0], bool):
+        return res[0], str(res[1])
+    raise TypeError(
+        f"check must return bool or (bool, reason); got {type(res).__name__}: {res!r}"
+    )
+
+
+async def _call_tier(tier: Branch, state: str) -> str:
+    """Run one tier and return its text. A tier that returns None is an error, not "None"."""
+    if hasattr(tier, "process_prompt_async"):
+        out = await tier.process_prompt_async(state)
+    else:
+        out = tier(state)
+        if inspect.isawaitable(out):
+            out = await out
+    if out is None:
+        raise ValueError("tier returned None")
+    return str(out)
 
 
 def cascade(
@@ -124,10 +159,14 @@ def cascade(
 ) -> Callable[[str], Awaitable[str]]:
     """A Callable chain step: run ``tiers`` in order until ``check`` accepts an output.
 
-    ``check(step_input, output)`` returns ``bool`` or ``(bool, reason)`` and may be async.
-    Returns the accepted output as plain text. The returned step exposes the latest run as
-    ``step.last_result``; under concurrent calls that attribute holds whichever run finished
-    last, so concurrent callers read ``on_result`` instead.
+    ``check(step_input, output)`` returns ``bool`` or ``(bool, reason)`` and may be async; any
+    other return type raises ``TypeError``. Returns the accepted output as plain text.
+
+    Every run ends with one ``CascadeResult``: it is stored on ``step.last_result`` and passed
+    to ``on_result``. A run where the check raised ends with no answer before the exception
+    propagates. A run answered by ``on_exhausted`` has ``answered_by="on_exhausted"``. Under
+    concurrent calls ``last_result`` holds whichever run finished last, so concurrent callers
+    read ``on_result``. An ``on_result`` exception is logged and never discards the answer.
     """
     tiers = list(tiers)
     if not tiers:
@@ -139,68 +178,127 @@ def cascade(
     names = list(labels) if labels is not None else [_label_of(t, i) for i, t in enumerate(tiers)]
 
     async def _cascade_step(state: str) -> str:
+        _cascade_step.last_result = None
         attempts: List[TierAttempt] = []
 
-        def finish(output: Optional[str], index: Optional[int]) -> CascadeResult:
+        def finish(output: Optional[str], index: Optional[int], by: Optional[str] = None) -> None:
             result = CascadeResult(
                 name=name,
                 output=output,
-                answered_by=names[index] if index is not None else None,
+                answered_by=by if by is not None else (names[index] if index is not None else None),
                 tier=index,
                 attempts=attempts,
             )
             _cascade_step.last_result = result
             if on_result is not None:
-                on_result(result)
-            return result
+                try:
+                    on_result(result)
+                except Exception:
+                    logger.exception("cascade %s: on_result callback raised", name)
 
+        last_exc: Optional[BaseException] = None
         for i, tier in enumerate(tiers):
             t0 = time.time()
             try:
-                output = await _run_branch(tier, state)
-            except Exception as e:  # a failing tier escalates; the error stays on the attempt
+                output = await _call_tier(tier, state)
+            except Exception as e:  # a failing tier escalates; the exception stays on the attempt
+                last_exc = e
                 attempt = TierAttempt(
                     i, names[i], False, "tier raised", round(time.time() - t0, 3), None,
-                    error=f"{type(e).__name__}: {e}",
+                    error=f"{type(e).__name__}: {e}", exception=e,
                 )
-            else:
+                logger.warning(
+                    "cascade %s tier %d (%s) raised: %s", name, i, names[i], attempt.error,
+                    exc_info=True,
+                )
+                attempts.append(attempt)
+                continue
+            try:
                 passed, reason = await _run_check(check, state, output)
-                attempt = TierAttempt(
-                    i, names[i], passed, reason, round(time.time() - t0, 3), output
-                )
+            except Exception as e:
+                attempts.append(TierAttempt(
+                    i, names[i], False, "check raised", round(time.time() - t0, 3), output,
+                    error=f"check raised: {type(e).__name__}: {e}", exception=e,
+                ))
+                logger.error("cascade %s tier %d (%s): check raised", name, i, names[i],
+                             exc_info=True)
+                finish(None, None)
+                raise
+            attempt = TierAttempt(i, names[i], passed, reason, round(time.time() - t0, 3), output)
             attempts.append(attempt)
             logger.info(
-                "cascade %s tier %d (%s): passed=%s reason=%r error=%r",
-                name, i, names[i], attempt.passed, attempt.reason, attempt.error,
+                "cascade %s tier %d (%s): passed=%s reason=%r",
+                name, i, names[i], passed, reason,
             )
-            if attempt.passed:
-                return finish(attempt.output, i).output
+            if passed:
+                finish(output, i)
+                return output
 
-        result = finish(None, None)
         if on_exhausted is not None:
-            return await _run_branch(on_exhausted, state)
-        raise CascadeExhausted(result)
+            try:
+                fallback = await _run_branch(on_exhausted, state)
+            except Exception:
+                finish(None, None)
+                raise
+            finish(fallback, None, by="on_exhausted")
+            return fallback
+        finish(None, None)
+        raise CascadeExhausted(_cascade_step.last_result) from last_exc
 
     _cascade_step.last_result = None
     _cascade_step.__name__ = f"cascade_{name}"
     return _cascade_step
 
 
-def decision_check(backend: DecisionBackend, *, instructions: str, accept: float) -> Check:
+def _html_escape(text: str) -> str:
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _rate(value: float, what: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+        raise ValueError(f"{what} ({value!r}) must be a number within 0..1")
+
+
+def _p_true(ans: dict) -> float:
+    probs = ans.get("probabilities") or {}
+    for key in ("True", True, "true"):
+        if key in probs:
+            return float(probs[key])
+    raise DecisionError(f"min_probability needs a probability for True; answer has {ans}")
+
+
+def decision_check(
+    backend: DecisionBackend,
+    *,
+    instructions: str,
+    accept: float,
+    min_probability: Optional[float] = None,
+) -> Check:
     """A check that asks one boolean question through a decision backend.
 
-    The backend sees ``<input>…</input><output>…</output>``. The output passes when the answer
-    is True and its measured confidence is at least ``accept``.
+    The backend sees ``<input>…</input><output>…</output>``, with ``<`` and ``>`` in both
+    fields escaped. Without ``min_probability`` the output passes when the answer is True and
+    the measured confidence is at least ``accept``. A backend that reports only a probability
+    gets an entropy confidence (p=0.97 -> 0.81), so ``accept=0.9`` then needs p >= 0.988.
+    With ``min_probability`` the output passes when the answer is True and the probability of
+    True is at least ``min_probability``; ``accept`` is not consulted.
     """
-    if not 0 <= accept <= 1:
-        raise ValueError(f"accept ({accept}) must be within 0..1")
+    _rate(accept, "accept")
+    if min_probability is not None:
+        _rate(min_probability, "min_probability")
     questions = {"ok": {"type": "boolean", "instructions": instructions}}
     validate_questions(questions)
 
     async def _check(step_input: str, output: str) -> Tuple[bool, str]:
-        state = f"<input>{step_input}</input><output>{output}</output>"
+        state = f"<input>{_html_escape(step_input)}</input><output>{_html_escape(output)}</output>"
         reply = await backend.decide(state, questions)
-        ans = normalize_answer("ok", questions["ok"], (reply.get("answers") or {}).get("ok"))
+        if not isinstance(reply, dict) or not isinstance(reply.get("answers"), dict):
+            raise DecisionError(f"backend reply has no answers dict: {reply!r}")
+        ans = normalize_answer("ok", questions["ok"], reply["answers"].get("ok"))
+        if min_probability is not None:
+            p = _p_true(ans)
+            passed = ans["value"] is True and p >= min_probability
+            return passed, f"value={ans['value']} p_true={p} min_probability={min_probability}"
         which = band(ans["confidence"], accept, accept)
         passed = ans["value"] is True and which == "accept"
         return passed, f"value={ans['value']} confidence={ans['confidence']} band={which}"

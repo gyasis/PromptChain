@@ -2,7 +2,7 @@
 id: recipe-cascade
 title: Verify-then-escalate cascade (cheap model first, frontier only on failure)
 when: A step can often be answered by a cheap model or function, an output check can tell good from bad, and you want to pay for the expensive tier only when the check fails.
-api_version: 0.10.0+
+api_version: 0.6.1+
 ---
 
 # Cascade
@@ -61,62 +61,101 @@ PromptChain(models=["openai/gpt-4.1"], instructions=["{input}"])], check=..., na
 
 - Signature `check(step_input: str, output: str)`, in that order. `step_input` is the text
   the cascade step received. `output` is the tier's text.
-- Return `True`/`False`, or `(bool, reason)`. The reason lands on `TierAttempt.reason`.
+- Return a `bool`, or a 2-item tuple/list `(bool, reason)` whose first item is a `bool`. Any
+  other return value (a string, `None`, an int) raises `TypeError`. The reason lands on
+  `TierAttempt.reason`.
 - The check may be sync or `async`.
 - **A check that raises propagates out of the cascade.** A broken verifier is never read as
-  pass or fail, and no later tier runs. Catch inside the check if you want a verdict.
+  pass or fail, and no later tier runs. The cascade first stores the failure on the tier run
+  (`error="check raised: ..."`), ends the run with no answer (`last_result`, `on_result`),
+  and re-raises. Catch inside the check if you want a verdict.
 - A **tier** that raises is different: the cascade stores the exception on `TierAttempt.error`
-  (`"ExcType: message"`) and the cascade escalates.
+  (`"ExcType: message"`) and on `TierAttempt.exception`, then moves on to the next tier. A tier that returns
+  `None` also escalates, with `error` set.
 
-Ready-made check: `decision_check(backend, instructions=..., accept=0.9)`. It asks one boolean
-question through a decision backend (see `recipe-decision-step`) with the state
-`<input>...</input><output>...</output>`. The output passes when the answer is True and the
-measured confidence is at least `accept`.
+Ready-made check: `decision_check(backend, *, instructions, accept, min_probability=None)`.
+It asks one boolean question through a decision backend (see `recipe-decision-step`) with the
+state `<input>...</input><output>...</output>`; the cascade escapes `<` and `>` inside both fields to
+`&lt;` and `&gt;`. Without `min_probability`, the output passes when the answer is True and
+the measured **confidence** is at least `accept`.
+
+Confidence is not the probability. A backend that gives only p(True) yields an entropy
+confidence. Examples: p=0.9 gives 0.53, p=0.95 gives 0.71, p=0.97 gives 0.81.
+With `accept=0.9` the output then needs p >= 0.988.
+
+To threshold on the probability itself, pass `min_probability`.
+The output then passes when the answer is True and p(True) is at least that value.
+The check ignores `accept` in that mode. `accept` and `min_probability` must be numbers within
+0..1; the function rejects booleans. A malformed backend reply raises `DecisionError`.
 
 ```python
 from promptchain.utils.decision_step import SystemOneBackend
 from promptchain.utils.cascade import decision_check
 
-check = decision_check(SystemOneBackend(model="tev1:4b"),
-                       instructions="Does the output fully answer the input?", accept=0.9)
+backend = SystemOneBackend(model="tev1:4b")
+by_confidence = decision_check(backend, instructions="Does the output fully answer the input?",
+                               accept=0.9)
+by_probability = decision_check(backend, instructions="Does the output fully answer the input?",
+                                accept=0.9, min_probability=0.95)
 ```
 
-Test-based check: run the output in an executor and pass on exit code 0.
+Test-based check: extract the code from the model text, run the tests in an executor, and
+pass on exit code 0. The check is async and runs the blocking executor in a worker thread so
+the event loop stays free. `LocalExecutor` runs on the host with no sandbox: use it for
+**trusted code only**. For untrusted model output use `DockerExecutor` (same `write_file` and
+`run` interface; see `promptchain.utils.docker_executor`).
 
 ```python
-from promptchain.utils.test_loop_chain import LocalExecutor   # trusted code only, no sandbox
+import asyncio
+from promptchain.utils.test_loop_chain import LocalExecutor, extract_code   # trusted code only
 
-def tests_pass(step_input: str, output: str):
+TESTS = "from solution import f\ndef test_f():\n    assert f(2) == 4\n"
+
+def _run_tests(code: str):
     with LocalExecutor() as ex:
-        ex.write_file("solution.py", output)
-        ex.write_file("test_solution.py", "from solution import f\ndef test_f():\n    assert f(2) == 4\n")
+        ex.write_file("solution.py", code)
+        ex.write_file("test_solution.py", TESTS)
         res = ex.run("python -m pytest -q test_solution.py")
     return res.exit_code == 0, res.output[-200:]
+
+async def tests_pass(step_input: str, output: str):
+    code = extract_code(output, "python")          # drops the code fence and prose
+    return await asyncio.to_thread(_run_tests, code)
 ```
 
 Do not use `CoVeVerifier` as a check: it verifies tool calls only and passes a plain text answer.
 
 ## Reading the result
 
-`step.last_result` is a `CascadeResult` after every run:
+Pass `on_result=callable`: it receives one `CascadeResult` per run, also when the run ends in
+`CascadeExhausted`, in a check error, or in an `on_exhausted` answer. An `on_result` exception
+does not discard the answer; the cascade logs it. Each tier run logs one line on
+`promptchain.utils.cascade` (`warning` with traceback when a tier raises).
+
+```python
+results = []
+step = cascade([cheap, frontier], check=check, name="answer", on_result=results.append)
+```
+
+`step.last_result` holds the latest `CascadeResult` (reset to `None` at the start of each
+run). Under concurrent calls of one step it holds whichever run finished last, so concurrent
+callers read `on_result` instead.
 
 | field | meaning |
 |---|---|
-| `name`, `output` | cascade name; accepted text (`None` if exhausted) |
-| `answered_by`, `tier` | label and index of the passing tier (`None` if exhausted) |
-| `attempts` | list of `TierAttempt(tier, label, passed, reason, elapsed_s, output, error)` |
+| `name`, `output` | cascade name; the returned text (`None` when the run produced no answer) |
+| `answered_by`, `tier` | label and index of the passing tier; `answered_by="on_exhausted"` with `tier=None` for a fallback answer |
+| `attempts` | list of `TierAttempt(tier, label, passed, reason, elapsed_s, output, error, exception)` |
 | `escalated` | property: more than one tier ran |
-| `to_dict()` | JSON-serialisable dict, includes `escalated` |
-
-Under concurrent calls of one step, `last_result` holds the run that finished last. Pass
-`on_result=callable` to receive each `CascadeResult` in turn. Each tier run also logs one
-`logger.info` line on `promptchain.utils.cascade`.
+| `to_dict()` | JSON-serialisable dict, includes `escalated`, omits `exception` |
 
 ## When every tier fails
 
 - `on_exhausted=<Branch>` runs on the original input and the cascade returns its text.
-- Without it, the cascade raises `CascadeExhausted`. `exc.result` holds every tier run, so tier
-  errors (an expired key, a timeout) stay visible there and in `str(exc)`.
+- Without it, the cascade raises `CascadeExhausted`, chained (`__cause__`) to the last tier
+  exception. `exc.result` holds every tier run, so tier errors (an expired key, a timeout)
+  stay visible there, in `exc.result.attempts[i].exception` and in `str(exc)`.
+- The cascade records the `on_exhausted` answer: `answered_by="on_exhausted"`, `output` set.
 
 ## Defaults and limits
 
