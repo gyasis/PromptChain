@@ -149,13 +149,13 @@ agentic = AgenticStepProcessor(
 Or use the alias `TUIAgenticStepProcessor` if you want the old behaviour with no kwargs:
 
 ```python
-from promptchain.utils.agentic_step_processor import TUIAgenticStepProcessor   # if exported
+from promptchain.cli.tui_processor import TUIAgenticStepProcessor
 ```
 
 ## Common failures + fix
 
 - **Two-tier routing doesn't activate** — `fallback_model` is `None`. Pass it explicitly.
 - **Blackboard breaks your prompt** — Phase 2 changes tool-result format. Re-test after enabling.
-- **CoVe rejects every tool call** — `cove_confidence_threshold=0.7` is too high for your task; lower to 0.5 and observe.
+- **CoVe rejects every tool call** — the verifier sees only the tool name, schema and arguments, not your objective. Set `verifier_context="..."` to say why the tool list is safe (see `recipe-cove-verifier`). Do not lower `cove_confidence_threshold` to 0.5 or below: that also approves calls when the verifier errors.
 - **Agent stuck and checkpointing doesn't help** — `max_internal_steps` is too low (rollback consumes budget). Bump to 15-20.
 - **TAO + dry-run output is noisy** — don't combine with `verbose=True` unless you need the full trace; the loop already structures the output.

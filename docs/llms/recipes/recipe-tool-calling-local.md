@@ -127,7 +127,7 @@ No manual loop required.
 
 Both `chain.add_tools(schemas)` and `chain.register_tool_function(func)` now validate that every schema name has a matching registered function. Mismatch raises `ValueError` at registration time — no more cryptic `Missing parameter 'tool_call_id'` errors from OpenAI later.
 
-```python
+```text
 chain.add_tools([{"type": "function", "function": {"name": "my_tool", ...}}])
 def my_tool_func(...): ...                       # ← name mismatch!
 chain.register_tool_function(my_tool_func)       # ← raises ValueError now
