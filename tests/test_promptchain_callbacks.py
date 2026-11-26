@@ -278,10 +278,12 @@ class TestPromptChainCallbackExecution:
         # Extract event types in order
         event_types = [e.event_type for e in event_collector]
 
-        # Expected order: CHAIN_START, STEP_START, STEP_END, CHAIN_END
+        # A function step is bracketed by FUNCTION_CALL_START/END inside STEP_START/STEP_END
         expected_order = [
             ExecutionEventType.CHAIN_START,
             ExecutionEventType.STEP_START,
+            ExecutionEventType.FUNCTION_CALL_START,
+            ExecutionEventType.FUNCTION_CALL_END,
             ExecutionEventType.STEP_END,
             ExecutionEventType.CHAIN_END
         ]
