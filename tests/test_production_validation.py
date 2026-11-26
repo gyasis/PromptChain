@@ -15,6 +15,7 @@ Test Coverage:
 
 import pytest
 import asyncio
+import json
 import time
 import os
 from typing import List, Dict, Any
@@ -27,11 +28,34 @@ from promptchain.utils.execution_callback import CallbackManager
 from promptchain.utils.execution_history_manager import ExecutionHistoryManager
 
 
-# Skip all tests if no API key is available
+# The root conftest mocks the model unless PC_LIVE_TESTS=1; only a live run needs a key.
 pytestmark = pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OpenAI API key required for production validation"
+    os.getenv("PC_LIVE_TESTS") == "1" and not os.getenv("OPENAI_API_KEY"),
+    reason="OpenAI API key required for live production validation"
 )
+
+LIVE = os.getenv("PC_LIVE_TESTS") == "1"
+
+# A real gpt-3.5 call takes roughly this long; the "<10%" overhead targets are
+# 10% of it. Against the instant mock a ratio is meaningless, so the mocked runs
+# assert the same budget as absolute milliseconds per call.
+REFERENCE_CALL_MS = 500.0
+OVERHEAD_BUDGET_MS = REFERENCE_CALL_MS * 0.10
+
+
+def single_agent_chain(name, chain, **kwargs):
+    """AgentChain that runs one agent directly (pipeline mode with a single agent)."""
+    return AgentChain(
+        agents={name: chain},
+        agent_descriptions={name: f"{name} agent"},
+        execution_mode="pipeline",
+        **kwargs,
+    )
+
+
+def history_entries(history_manager):
+    """Entries held by an ExecutionHistoryManager, parsed from its JSON rendering."""
+    return json.loads(history_manager.get_formatted_history(format_style="full_json"))
 
 
 class ProductionCallbackTracker:
@@ -60,7 +84,8 @@ class ProductionCallbackTracker:
 class TestProductionChainValidation:
     """End-to-end validation with real LLM calls."""
 
-    def test_basic_chain_with_callbacks_and_metadata(self):
+    @pytest.mark.asyncio
+    async def test_basic_chain_with_callbacks_and_metadata(self):
         """Test complete chain execution with callbacks via AgentChain."""
         tracker = ProductionCallbackTracker()
 
@@ -78,14 +103,10 @@ class TestProductionChainValidation:
         chain.register_callback(tracker.callback)
 
         # Create AgentChain for metadata support
-        agent_chain = AgentChain(
-            agents={"analyzer": chain},
-            execution_mode="single_agent",
-            verbose=True
-        )
+        agent_chain = single_agent_chain("analyzer", chain, verbose=True)
 
         # Execute with metadata
-        result = agent_chain.process_input("17", return_metadata=True)
+        result = await agent_chain.process_input("17", return_metadata=True)
 
         # Validate execution
         assert result is not None
@@ -150,11 +171,12 @@ class TestProductionChainValidation:
 
         history_manager.add_entry("agent_output", result, source="chain")
 
-        # Validate history - get_formatted_history returns list of dicts
-        history = history_manager.get_formatted_history(format_style='chat')
-        assert len(history) == 2
-        assert history[0]['role'] == 'user'
-        assert history[1]['role'] == 'assistant'
+        # Validate history - the entries, in order, and the chat rendering
+        entries = history_entries(history_manager)
+        assert [e["type"] for e in entries] == ["user_input", "agent_output"]
+        chat_lines = history_manager.get_formatted_history(format_style='chat').splitlines()
+        assert chat_lines[0].startswith("User:")
+        assert any(line.startswith("Agent (chain):") for line in chat_lines[1:])
 
         # Validate callbacks still work
         assert len(tracker.events) >= 2
@@ -166,7 +188,7 @@ class TestProductionAgentChainValidation:
     """Validate AgentChain in production scenarios."""
 
     @pytest.mark.asyncio
-    async def test_agent_chain_with_router_and_callbacks(self):
+    async def test_agent_chain_with_router_and_callbacks(self, mock_llm):
         """Test multi-agent system with router and event tracking."""
         tracker = ProductionCallbackTracker()
 
@@ -219,12 +241,22 @@ Choose the most appropriate agent and return JSON:
         analyzer_agent.register_callback(tracker.callback)
         solver_agent.register_callback(tracker.callback)
 
+        # The mock model answers the router prompt with a routing decision.
+        if mock_llm is not None:
+            mock_llm.reply = lambda kwargs: (
+                '{"chosen_agent": "solver", "refined_query": "What is 7 times 8?"}'
+                if "Available agents" in str(kwargs.get("messages"))
+                else "56"
+            )
+
         # Execute with router (process_input is async)
         result = await agent_chain.process_input("What is 7 times 8?")
 
         # Validate execution
         assert result is not None
         assert len(tracker.events) > 0
+        if mock_llm is not None:
+            assert result == "56"
 
         # Should have routed to solver
         assert tracker.get_event_count(ExecutionEventType.CHAIN_START) >= 1
@@ -261,7 +293,8 @@ class TestProductionErrorHandling:
         # Working callback should still receive events
         assert len(tracker.events) > 0
 
-    def test_metadata_extraction_with_minimal_model(self):
+    @pytest.mark.asyncio
+    async def test_metadata_extraction_with_minimal_model(self):
         """Test metadata works even with minimal model responses."""
         chain = PromptChain(
             models=["openai/gpt-3.5-turbo"],
@@ -269,13 +302,9 @@ class TestProductionErrorHandling:
             verbose=True
         )
 
-        agent_chain = AgentChain(
-            agents={"simple": chain},
-            execution_mode="single_agent",
-            verbose=True
-        )
+        agent_chain = single_agent_chain("simple", chain, verbose=True)
 
-        result = agent_chain.process_input("test", return_metadata=True)
+        result = await agent_chain.process_input("test", return_metadata=True)
 
         # Even minimal execution should have metadata
         assert result is not None
@@ -289,7 +318,15 @@ class TestProductionPerformance:
     """Validate performance characteristics and overhead."""
 
     def test_callback_overhead_measurement(self):
-        """Measure overhead of callbacks vs baseline (target: <5%)."""
+        """Measure overhead of callbacks vs baseline (target: <10% of a real call)."""
+        calls = 3 if LIVE else 30
+
+        def time_per_call(chain):
+            chain.process_prompt("warm-up")  # exclude one-time setup from the timing
+            start = time.perf_counter()
+            for i in range(calls):
+                chain.process_prompt(f"test {i}")
+            return (time.perf_counter() - start) / calls
 
         # Baseline without callbacks
         chain_baseline = PromptChain(
@@ -297,11 +334,7 @@ class TestProductionPerformance:
             instructions=["Echo: {input}"],
             verbose=False
         )
-
-        start = time.time()
-        for i in range(3):
-            chain_baseline.process_prompt(f"test {i}")
-        baseline_time = time.time() - start
+        baseline_time = time_per_call(chain_baseline)
 
         # With callbacks
         tracker = ProductionCallbackTracker()
@@ -311,67 +344,72 @@ class TestProductionPerformance:
             verbose=False
         )
         chain_with_callbacks.register_callback(tracker.callback)
+        callback_time = time_per_call(chain_with_callbacks)
 
-        start = time.time()
-        for i in range(3):
-            chain_with_callbacks.process_prompt(f"test {i}")
-        callback_time = time.time() - start
+        overhead_ms = (callback_time - baseline_time) * 1000
+        overhead_percent = (overhead_ms / (baseline_time * 1000)) * 100
 
-        # Calculate overhead percentage
-        if baseline_time > 0:
-            overhead_percent = ((callback_time - baseline_time) / baseline_time) * 100
+        print(f"\nPerformance Results (per call):")
+        print(f"  Baseline: {baseline_time * 1000:.2f}ms")
+        print(f"  With callbacks: {callback_time * 1000:.2f}ms")
+        print(f"  Overhead: {overhead_ms:.2f}ms ({overhead_percent:.1f}%)")
+
+        if LIVE:
+            # Real model latency dominates the baseline, so the ratio is meaningful.
+            assert overhead_percent < 10, f"Callback overhead too high: {overhead_percent:.1f}%"
         else:
-            overhead_percent = 0
-
-        print(f"\nPerformance Results:")
-        print(f"  Baseline time: {baseline_time:.2f}s")
-        print(f"  With callbacks: {callback_time:.2f}s")
-        print(f"  Overhead: {overhead_percent:.1f}%")
-
-        # Assert overhead is acceptable (allowing some variance due to network)
-        assert overhead_percent < 10, f"Callback overhead too high: {overhead_percent:.1f}%"
+            # The mocked model returns instantly, so the baseline is ~1ms and a ratio
+            # only measures the callback machinery. Hold the absolute cost per call
+            # to the same budget: 10% of a real call.
+            assert overhead_ms < OVERHEAD_BUDGET_MS, (
+                f"Callback overhead too high: {overhead_ms:.2f}ms per call "
+                f"(budget {OVERHEAD_BUDGET_MS:.0f}ms)"
+            )
 
         # Verify callbacks actually fired
         assert len(tracker.events) > 0
 
-    def test_metadata_extraction_performance(self):
+    @pytest.mark.asyncio
+    async def test_metadata_extraction_performance(self):
         """Test that metadata extraction has minimal impact."""
+        calls = 3 if LIVE else 30
         chain = PromptChain(
             models=["openai/gpt-3.5-turbo"],
             instructions=["Respond: {input}"],
             verbose=False
         )
 
-        agent_chain = AgentChain(
-            agents={"responder": chain},
-            execution_mode="single_agent",
-            verbose=False
-        )
+        agent_chain = single_agent_chain("responder", chain, verbose=False)
+        await agent_chain.process_input("warm-up")  # exclude one-time setup from the timing
 
         # Without metadata
-        start = time.time()
-        for _ in range(3):
-            agent_chain.process_input("test")
-        without_metadata = time.time() - start
+        start = time.perf_counter()
+        for _ in range(calls):
+            await agent_chain.process_input("test")
+        without_metadata = (time.perf_counter() - start) / calls
 
         # With metadata
-        start = time.time()
-        for _ in range(3):
-            agent_chain.process_input("test", return_metadata=True)
-        with_metadata = time.time() - start
+        start = time.perf_counter()
+        for _ in range(calls):
+            await agent_chain.process_input("test", return_metadata=True)
+        with_metadata = (time.perf_counter() - start) / calls
 
-        # Metadata should add negligible overhead
-        if without_metadata > 0:
-            metadata_overhead = ((with_metadata - without_metadata) / without_metadata) * 100
+        overhead_ms = (with_metadata - without_metadata) * 1000
+        metadata_overhead = (overhead_ms / (without_metadata * 1000)) * 100
+
+        print(f"\nMetadata Performance (per call):")
+        print(f"  Without metadata: {without_metadata * 1000:.2f}ms")
+        print(f"  With metadata: {with_metadata * 1000:.2f}ms")
+        print(f"  Overhead: {overhead_ms:.2f}ms ({metadata_overhead:.1f}%)")
+
+        if LIVE:
+            assert metadata_overhead < 10, f"Metadata overhead too high: {metadata_overhead:.1f}%"
         else:
-            metadata_overhead = 0
-
-        print(f"\nMetadata Performance:")
-        print(f"  Without metadata: {without_metadata:.2f}s")
-        print(f"  With metadata: {with_metadata:.2f}s")
-        print(f"  Overhead: {metadata_overhead:.1f}%")
-
-        assert metadata_overhead < 10, f"Metadata overhead too high: {metadata_overhead:.1f}%"
+            # Instant mocked model: see test_callback_overhead_measurement.
+            assert overhead_ms < OVERHEAD_BUDGET_MS, (
+                f"Metadata overhead too high: {overhead_ms:.2f}ms per call "
+                f"(budget {OVERHEAD_BUDGET_MS:.0f}ms)"
+            )
 
 
 @pytest.mark.integration
@@ -418,7 +456,9 @@ class TestProductionLongRunning:
 
         # Check history is properly formatted
         formatted_history = history_manager.get_formatted_history(format_style='chat')
-        assert len(formatted_history) == 10
+        assert len(history_entries(history_manager)) == 10
+        assert formatted_history.count("User:") == 5
+        assert formatted_history.count("Agent (chain):") == 5
 
     @pytest.mark.asyncio
     async def test_concurrent_chains_with_callbacks(self):
@@ -462,7 +502,8 @@ class TestProductionLongRunning:
 class TestProductionFeatureIntegration:
     """Validate complete feature integration."""
 
-    def test_all_features_together(self):
+    @pytest.mark.asyncio
+    async def test_all_features_together(self):
         """Test chain with ALL observability features enabled simultaneously."""
         # Setup all components
         tracker = ProductionCallbackTracker()
@@ -483,17 +524,13 @@ class TestProductionFeatureIntegration:
         chain.register_callback(tracker.callback)
 
         # Create AgentChain for metadata support
-        agent_chain = AgentChain(
-            agents={"analyzer": chain},
-            execution_mode="single_agent",
-            verbose=True
-        )
+        agent_chain = single_agent_chain("analyzer", chain, verbose=True)
 
         # Execute with metadata and history tracking
         user_input = "What is the capital of France?"
         history_manager.add_entry("user_input", user_input, source="test")
 
-        result = agent_chain.process_input(user_input, return_metadata=True)
+        result = await agent_chain.process_input(user_input, return_metadata=True)
 
         history_manager.add_entry("agent_output", result.response, source="chain")
 
@@ -511,21 +548,23 @@ class TestProductionFeatureIntegration:
         assert tracker.get_event_count(ExecutionEventType.CHAIN_START) >= 1
 
         # 4. Step storage
-        assert len(chain.step_outputs) == 2
+        # step_outputs also holds the initial input as step_0
+        model_steps = [o for o in chain.step_outputs.values() if o["type"] == "model"]
+        assert len(model_steps) == 2
 
         # 5. History management
-        history = history_manager.get_formatted_history(format_style='chat')
-        assert len(history) == 2
+        history = history_entries(history_manager)
+        assert [e["type"] for e in history] == ["user_input", "agent_output"]
 
         # 6. Event metadata correlation
-        models_in_events = tracker.get_metadata_values("model_name")
+        models_in_events = [e.model_name for e in tracker.events]
         assert any(m is not None for m in models_in_events)
 
         print("\n✅ ALL FEATURES VALIDATED TOGETHER:")
         print(f"  - Execution: {len(result.response)} chars")
         print(f"  - Metadata: agent={result.agent_name}, time={result.execution_time_ms}ms")
         print(f"  - Callbacks: {len(tracker.events)} events")
-        print(f"  - Steps: {len(chain.step_outputs)} stored")
+        print(f"  - Steps: {len(model_steps)} stored")
         print(f"  - History: {len(history)} entries")
 
 
