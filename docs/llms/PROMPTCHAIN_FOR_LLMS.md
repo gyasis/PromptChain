@@ -636,11 +636,14 @@ roles:
   supervisor: <provider/model>                                    # plain string: provider/model as usual
   state_agent: {model: <tag>, endpoint: gov-ollama}              # a role on the governor Ollama lane
   judge:       {model: <alias>, endpoint: gov-llamacpp}          # a role on the llamacpp lane
+  router:      {model: <tag>, endpoint: gov-ollama, think: false}  # a thinking model with reasoning off
 ```
 
 Precedence for one component: **explicit argument > `roles.<role>` > `default` (required roles only) > error**. An optional role never reads `default`: its feature stays off until the role is set or an argument is passed, so setting `default` cannot start extra paid calls. A required role that nothing supplies raises `ValueError` naming the parameter, the role key and the file path.
 
 A role value (and `default`) is a string or a mapping `{model, endpoint}`. An endpoint is `api_base` plus an optional `provider` (passed to litellm as `custom_llm_provider`); an unknown endpoint name is an error that names the role and the endpoint. Endpoints hold no `num_ctx` or `max_tokens`. An explicit model argument carries no endpoint. In code: `resolve_model_spec(role, explicit, required=, param=)` returns `ModelSpec(model, api_base, extra_kwargs, source)`; `.as_model()` gives a value for `PromptChain(models=[...])` (a `{"name", "params"}` dict when an endpoint applies); `resolve_model(...)` returns the string only. The CLI and TUI apply the file's `default` (and `config.json`'s `default_model`) by model name only; they do not apply endpoints. `lightrag` and `lightrag_embedding` also take the name only.
+
+`think: true|false` in a role or `default` mapping switches a thinking model's reasoning for that role. Each endpoint takes its own switch and silently ignores the other one at HTTP 200, so PromptChain sends the right one: `think` for an Ollama endpoint, `extra_body.chat_template_kwargs.enable_thinking` for an endpoint with `provider: openai` (llama-server). Leave it out to keep the model's own behaviour. Routing, classification and extraction rarely need reasoning; turn it off there. Measure the result: check that the reply carries no `reasoning_content`. The CLI and TUI do not apply it, because they apply the model name only.
 
 | Role | Need | Component and parameter |
 |---|---|---|

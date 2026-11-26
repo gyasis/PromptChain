@@ -8,10 +8,12 @@ component asks for its model by role::
       <name>: {api_base: <url>, provider: <litellm provider>}
     roles:
       supervisor: <provider/model>
-      summarizer: {model: <name>, endpoint: <name>}
+      summarizer: {model: <name>, endpoint: <name>, think: false}
 
 A role value (and ``default``) is either a model string or a mapping with
-``model`` and an optional ``endpoint`` naming an entry of ``endpoints``. An
+``model``, an optional ``endpoint`` naming an entry of ``endpoints``, and an
+optional ``think`` (true/false) that switches a thinking model's reasoning on or
+off with the switch that endpoint takes. An
 endpoint turns into litellm call kwargs (``api_base``, and
 ``custom_llm_provider`` when it names a ``provider``). :func:`resolve_model_spec`
 returns them with the model; :func:`resolve_model` returns the model string only.
@@ -94,7 +96,8 @@ class ModelSpec:
     """A resolved model and where it runs.
 
     ``source`` is ``arg``, ``role`` or ``default``. ``extra_kwargs`` carries
-    litellm kwargs other than ``api_base`` (``custom_llm_provider``).
+    litellm kwargs other than ``api_base`` (``custom_llm_provider`` and the
+    thinking switch). ``think`` is the configured thinking setting, or None.
     """
 
     model: str
@@ -102,6 +105,7 @@ class ModelSpec:
     api_base: Optional[str] = None
     extra_kwargs: Dict[str, Any] = field(default_factory=dict)
     endpoint: Optional[str] = None
+    think: Optional[bool] = None
 
     @property
     def params(self) -> Dict[str, Any]:
@@ -175,14 +179,19 @@ def _parse_endpoints(raw: object, path: Path) -> Dict[str, Dict[str, Any]]:
 def _parse_spec(
     value: object, where: str, source: str, endpoints: Dict[str, Dict[str, Any]], path: Path
 ) -> Optional[ModelSpec]:
+    think: Optional[bool] = None
     if isinstance(value, dict):
-        extra = sorted(set(value) - {"model", "endpoint"})
+        extra = sorted(set(value) - {"model", "endpoint", "think"})
         if extra:
             raise ModelConfigError(
-                f"{path}: {where} has unsupported key(s) {extra}; allowed: model, endpoint"
+                f"{path}: {where} has unsupported key(s) {extra}; allowed: model, endpoint, think"
             )
         model = _text(value.get("model"), f"{where}.model", path)
         endpoint = _text(value.get("endpoint"), f"{where}.endpoint", path)
+        if "think" in value:
+            think = value["think"]
+            if not isinstance(think, bool):
+                raise ModelConfigError(f"{path}: {where}.think must be true or false")
     else:
         model, endpoint = _text(value, where, path), None
     if not model:
@@ -190,7 +199,7 @@ def _parse_spec(
             raise ModelConfigError(f"{path}: {where} names endpoint {endpoint!r} but no model")
         return None
     if not endpoint:
-        return ModelSpec(model=model, source=source)
+        return ModelSpec(model=model, source=source, extra_kwargs=_think_kwargs(think, None), think=think)
     if endpoint not in endpoints:
         known = ", ".join(sorted(endpoints)) or "none defined"
         raise ModelConfigError(
@@ -198,9 +207,25 @@ def _parse_spec(
         )
     ep = endpoints[endpoint]
     extra_kwargs = {"custom_llm_provider": ep["provider"]} if ep["provider"] else {}
+    extra_kwargs.update(_think_kwargs(think, ep["provider"]))
     return ModelSpec(
-        model=model, source=source, api_base=ep["api_base"], extra_kwargs=extra_kwargs, endpoint=endpoint
+        model=model, source=source, api_base=ep["api_base"], extra_kwargs=extra_kwargs,
+        endpoint=endpoint, think=think,
     )
+
+
+def _think_kwargs(think: Optional[bool], provider: Optional[str]) -> Dict[str, Any]:
+    """litellm kwargs that switch thinking on or off for one call.
+
+    Each endpoint takes its own switch and ignores the other at HTTP 200: Ollama
+    takes ``think``; an OpenAI-compatible llama-server takes
+    ``chat_template_kwargs.enable_thinking``. ``None`` sends nothing, so the
+    model's own behaviour applies."""
+    if think is None:
+        return {}
+    if provider == "openai":
+        return {"extra_body": {"chat_template_kwargs": {"enable_thinking": think}}}
+    return {"think": think}
 
 
 def _parse(path: Path) -> ModelsConfig:
@@ -331,7 +356,7 @@ def show_text() -> str:
         f"models config: {cfg.path} ({'found' if cfg.path.is_file() else 'not found'})",
         f"default: {d.model if d else '(unset)'}" + (f" @ {d.api_base}" if d and d.api_base else ""),
         "",
-        f"{'role':<24}{'need':<10}{'model':<34}{'source':<9}endpoint",
+        f"{'role':<24}{'need':<10}{'model':<34}{'source':<9}{'think':<7}endpoint",
     ]
     for name, required, spec in describe():
         where = ""
@@ -339,7 +364,8 @@ def show_text() -> str:
             where = f"{spec.endpoint or ''} {spec.api_base}".strip()
         lines.append(
             f"{name:<24}{'required' if required else 'optional':<10}"
-            f"{spec.model if spec else '-':<34}{spec.source if spec else 'unset':<9}{where}"
+            f"{spec.model if spec else '-':<34}{spec.source if spec else 'unset':<9}"
+            f"{_think_label(spec):<7}{where}"
         )
     lines += [
         "",
@@ -347,6 +373,12 @@ def show_text() -> str:
         "Optional roles ignore `default`; they stay off until their own role is set.",
     ]
     return "\n".join(lines)
+
+
+def _think_label(spec: Optional[ModelSpec]) -> str:
+    if spec is None or spec.think is None:
+        return "-"
+    return "on" if spec.think else "off"
 
 
 def template_text() -> str:
@@ -361,6 +393,7 @@ def template_text() -> str:
         "default:",
         "",
         "# Where a model runs (optional). A role may then be {model: <name>, endpoint: <name>}.",
+        "# Add think: false to a mapping to turn a thinking model's reasoning off for that role.",
         "# endpoints:",
         "#   my-ollama:   {api_base: \"http://<host>:<port>/<path>\"}",
         "#   my-llamacpp: {api_base: \"http://<host>:<port>/<path>/v1\", provider: openai}",
