@@ -1747,6 +1747,14 @@ class PromptChain:
                                 "tools_available": (
                                     len(available_tools) if available_tools else 0
                                 ),
+                                **(
+                                    {
+                                        "prompt_messages": list(messages_for_llm),
+                                        "tools": step_tools,
+                                    }
+                                    if self.callback_manager.callbacks
+                                    else {}
+                                ),
                             },
                         )
                     )
@@ -1804,6 +1812,11 @@ class PromptChain:
                                         response_message_dict.get("tool_calls")
                                     ),
                                     "success": True,
+                                    **(
+                                        {"response_message": response_message_dict}
+                                        if self.callback_manager.callbacks
+                                        else {}
+                                    ),
                                 },
                             )
                         )
@@ -2050,6 +2063,16 @@ class PromptChain:
                                     "params": step_model_params,
                                     "is_followup": True,
                                     "tool_results_count": len(tool_results_messages),
+                                    **(
+                                        {
+                                            "prompt_messages": list(
+                                                messages_for_follow_up
+                                            ),
+                                            "tools": available_tools,
+                                        }
+                                        if self.callback_manager.callbacks
+                                        else {}
+                                    ),
                                 },
                             )
                         )
@@ -2094,6 +2117,13 @@ class PromptChain:
                                         "execution_time_ms": followup_call_duration_ms,
                                         "is_followup": True,
                                         "success": True,
+                                        **(
+                                            {
+                                                "response_message": final_response_message_dict
+                                            }
+                                            if self.callback_manager.callbacks
+                                            else {}
+                                        ),
                                     },
                                 )
                             )
