@@ -7,7 +7,9 @@ Sizes are never sent: no num_ctx, no num_predict.
 from __future__ import annotations
 
 import json
+import re
 import time
+import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Iterator, Optional
@@ -17,6 +19,21 @@ CHAT_PATH = "/llm/ollama/api/chat"
 SHOW_PATH = "/llm/ollama/api/show"
 
 Opener = Callable[..., Any]
+
+
+class GovernorRefusal(RuntimeError):
+    """The governor answered 503 (e.g. ``model_too_large``). Never retried: recorded as DROPPED."""
+
+    def __init__(self, body: dict, raw: str):
+        self.body, self.raw = body, raw
+        self.code = body.get("code")
+        text = f"{body.get('reason', '')} {body.get('error', '')}"
+        m = re.search(r"est ([\d.]+)\s*GB", text)
+        self.est_gb = float(m.group(1)) if m else None
+        m = re.search(r"ceiling ([\d.]+)\s*GB", text)
+        self.ceiling_gb = float(m.group(1)) if m else None
+        self.retry_after_s = body.get("retry_after_s")
+        super().__init__(f"governor 503 {self.code}: {body.get('error') or raw[:200]}")
 
 
 @dataclass(frozen=True)
@@ -46,9 +63,12 @@ def is_resident(tag: str, pressure: dict) -> bool:
     return tag in resident_tenants(pressure)
 
 
-def gate_decision(tag: str, mem_gb_at_ctx: Optional[float], budget: dict, pressure: dict) -> GateDecision:
-    """Admit a model only if it is resident, or fits the live budget with no queue/stop.
+def gate_decision(tag: str, mem_gb_at_ctx: Optional[float], budget: dict, pressure: dict,
+                  governor_est_gb: Optional[float] = None) -> GateDecision:
+    """Admit a model only if the live state allows it. Resident models need 0 GB more,
+    but every other check (all_stop, level, queue) still applies.
 
+    A governor-supplied estimate (from a refusal) overrides the catalog's ``mem_gb_at_ctx``.
     Never evicts anything: a model that does not fit is DROPPED, not made room for.
     """
     free = budget.get("free_budget_gb")
@@ -56,25 +76,28 @@ def gate_decision(tag: str, mem_gb_at_ctx: Optional[float], budget: dict, pressu
     queue = budget.get("queue") or []
     all_stop = bool(budget.get("all_stop"))
     resident = is_resident(tag, pressure)
+    catalog_need = governor_est_gb if governor_est_gb is not None else mem_gb_at_ctx
+    need = 0.0 if resident else catalog_need
 
     def verdict(ok: bool, reason: str) -> GateDecision:
-        return GateDecision(tag, ok, reason, resident, mem_gb_at_ctx, free, level, len(queue), all_stop)
+        return GateDecision(tag, ok, reason, resident, need, free, level, len(queue), all_stop)
 
-    if resident:
-        return verdict(True, "already resident")
-    if mem_gb_at_ctx is None:
-        return verdict(False, "need unknown: no mem_gb_at_ctx in catalog")
-    if free is None or level is None:
-        return verdict(False, "governor state unavailable")
     if all_stop:
         return verdict(False, "all_stop is set")
+    if level is None or free is None:
+        return verdict(False, "governor state unavailable")
     if level != "ok":
         return verdict(False, f"pressure level {level!r} is not 'ok'")
     if queue:
         return verdict(False, f"governor queue not empty ({len(queue)})")
-    if mem_gb_at_ctx > free:
-        return verdict(False, f"needs {mem_gb_at_ctx} GB > free_budget {free} GB")
-    return verdict(True, f"fits: needs {mem_gb_at_ctx} GB <= free_budget {free} GB")
+    if need is None:
+        return verdict(False, "need unknown: no mem_gb_at_ctx in catalog")
+    if need > free:
+        return verdict(False, f"needs {need} GB > free_budget {free} GB")
+    if resident:
+        return verdict(True, "already resident; all checks pass")
+    src = "governor estimate" if governor_est_gb is not None else "catalog"
+    return verdict(True, f"fits: needs {need} GB ({src}) <= free_budget {free} GB")
 
 
 def snapshot(budget: dict, pressure: dict) -> dict:
@@ -107,7 +130,17 @@ class GovernorClient:
             headers={"Content-Type": "application/json"} if data else {},
             method="POST" if data else "GET",
         )
-        return self._open(req, timeout=timeout)
+        try:
+            return self._open(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code != 503:
+                raise
+            raw = e.read().decode("utf-8", "replace")
+            try:
+                body = json.loads(raw)
+            except ValueError:
+                body = {}
+            raise GovernorRefusal(body if isinstance(body, dict) else {}, raw) from e
 
     def get_json(self, path: str) -> dict:
         with self._request(path, None, self.connect_timeout * 2) as r:
@@ -118,6 +151,16 @@ class GovernorClient:
 
     def pressure(self) -> dict:
         return self.get_json("/pressure")
+
+    def digest(self, tag: str) -> Optional[str]:
+        """The model digest. /api/show carries none on this ollama, so it comes from /api/tags."""
+        try:
+            for m in self.get_json("/llm/ollama/api/tags").get("models", []):
+                if tag in (m.get("name"), m.get("model")):
+                    return m.get("digest")
+        except Exception:
+            return None
+        return None
 
     def show(self, tag: str) -> dict:
         with self._request(SHOW_PATH, {"model": tag}, 30) as r:
@@ -151,6 +194,22 @@ class StreamResult:
     load_s: Optional[float] = None
     done_reason: Optional[str] = None
     error: Optional[str] = None
+    done: bool = False
+
+    @property
+    def failed(self) -> bool:
+        """A stream that errored, never finished, or hit the length limit is a failure, not a result."""
+        return bool(self.error) or not self.done or self.done_reason == "length"
+
+    @property
+    def failure_reason(self) -> Optional[str]:
+        if self.error:
+            return f"error: {self.error}"
+        if not self.done:
+            return "no done chunk"
+        if self.done_reason == "length":
+            return "done_reason=length"
+        return None
 
 
 def consume_stream(chunks: Iterator[dict], clock: Callable[[], float] = time.monotonic) -> StreamResult:
@@ -181,6 +240,7 @@ def consume_stream(chunks: Iterator[dict], clock: Callable[[], float] = time.mon
             if res.ttft_content_s is None:
                 res.ttft_content_s = now
         if ch.get("done"):
+            res.done = True
             res.prompt_tokens = ch.get("prompt_eval_count")
             res.output_tokens = ch.get("eval_count")
             res.done_reason = ch.get("done_reason")
@@ -193,13 +253,29 @@ def consume_stream(chunks: Iterator[dict], clock: Callable[[], float] = time.mon
     return res
 
 
-def append_measurement(path, record: dict) -> None:
-    """Append one JSON line to the measurements store (never the profile JSON)."""
+ROTATE_BYTES = 10 * 1024 * 1024
+ROTATE_KEEP = 3
+
+
+def _rotate(p, max_bytes: int, keep: int) -> None:
+    """store.jsonl -> store.jsonl.1 -> .2 -> .3; the oldest is overwritten."""
+    if not p.exists() or p.stat().st_size < max_bytes:
+        return
+    for i in range(keep - 1, 0, -1):
+        src = p.with_name(f"{p.name}.{i}")
+        if src.exists():
+            src.replace(p.with_name(f"{p.name}.{i + 1}"))
+    p.replace(p.with_name(f"{p.name}.1"))
+
+
+def append_measurement(path, record: dict, max_bytes: int = ROTATE_BYTES, keep: int = ROTATE_KEEP) -> None:
+    """Append one JSON line to the measurements store (never the profile JSON); size-rotated."""
     import os
     from pathlib import Path
 
     p = Path(os.path.expanduser(str(path)))
     p.parent.mkdir(parents=True, exist_ok=True)
+    _rotate(p, max_bytes, keep)
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 

@@ -1,13 +1,15 @@
+import netguard  # noqa: F401  (must stay first: installs the network allow-list before promptchain loads litellm)
 import json
 import os
+import shutil
 import sys
 import time
+import uuid
 from pathlib import Path
 
-import promptchain.profiler.netguard as netguard
-from promptchain.profiler.governor import GovernorClient, gate_decision, is_resident, snapshot
-from promptchain.profiler.latency_probe import summarize, run_latency_probe
-from promptchain.profiler.tool_probe import run_tool_probe
+from promptchain.profiler.governor import GovernorClient, GovernorRefusal, gate_decision, is_resident, snapshot
+from promptchain.profiler.latency_probe import RunContext, repo_git_sha, run_latency_probe, summarize
+from promptchain.profiler.tool_probe import load_source, run_tool_probe
 
 from promptchain.observability import init_mlflow; init_mlflow()
 
@@ -20,6 +22,7 @@ COHORT = [
     "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_XL",
 ]
 BUDGET_S = 45 * 60
+RUN_ID = uuid.uuid4().hex
 OUT = Path(os.environ.get("PROBE_OUT", "/tmp/probe-pilot-results.json"))
 CATALOG = json.load(open(os.path.expanduser("~/.config/ollama-cloud/local-models.json")))
 CATALOG_MD = open(os.path.expanduser("~/.config/ollama-cloud/local-models.md")).read()
@@ -40,7 +43,7 @@ def wait_until_gone(client, tag, limit_s=200):
 def main():
     t_start = time.time()
     client = GovernorClient()
-    results = {"before": {"budget": client.budget(), "pressure": client.pressure(), "meters_tail": meters_tail()},
+    results = {"run_id": RUN_ID, "before": {"budget": client.budget(), "pressure": client.pressure(), "meters_tail": meters_tail()},
                "models": {}}
     by_name = {m["name"]: m for m in CATALOG["models"]}
     prev = None
@@ -66,15 +69,28 @@ def main():
         try:
             show = client.show(tag)
             caps = show.get("capabilities") or []
-            quant = (show.get("details") or {}).get("quantization_level")
-            row.update(status="RAN", capabilities=caps, quant=quant, catalog_caps=entry["capabilities"])
-            lat = run_latency_probe(client, tag, quant=quant or tag.rsplit(":", 1)[-1], capabilities=caps, gate=gate)
+            ctx = RunContext(run_id=RUN_ID, git_sha=repo_git_sha(), bfcl_revision=load_source().get("revision"),
+                             digest=show.get("digest") or client.digest(tag))
+            row.update(status="RAN", capabilities=caps, quant_show=(show.get("details") or {}).get("quantization_level"),
+                       digest=ctx.digest, catalog_caps=entry["capabilities"])
+            lat = run_latency_probe(client, tag, show=show, capabilities=caps, ctx=ctx, gate=gate)
             row["latency"] = summarize(lat)
-            row["latency_calls"] = [{"size": r["input_size"], "warm": r["warm"], **r["metrics"]} for r in lat]
+            row["latency_calls"] = [{"size": r["input_size"], "repeat": r["repeat"], "warm": r["warm"],
+                                     "status": r["status"], "leak": r["thinking_leak"], **r["metrics"]} for r in lat]
             print(f"[{tag}] latency {row['latency']}", flush=True)
-            tool = run_tool_probe(client, tag, quant=quant or tag.rsplit(":", 1)[-1], capabilities=caps, gate=gate)
+            tool = run_tool_probe(client, tag, show=show, capabilities=caps, n_simple=3, n_irrelevance=2,
+                                  ctx=ctx, gate=gate)
             row["tool"] = tool
             print(f"[{tag}] tool {tool.get('summary')}", flush=True)
+        except GovernorRefusal as e:
+            # The governor's own estimate replaces the catalog need; recorded, never retried.
+            live = gate_decision(tag, entry.get("mem_gb_at_ctx"), client.budget(), client.pressure(),
+                                 governor_est_gb=e.est_gb)
+            row["status"] = "DROPPED"
+            row["refusal"] = {"code": e.code, "est_gb": e.est_gb, "ceiling_gb": e.ceiling_gb, "msg": str(e),
+                              "retry_after_s": e.retry_after_s, "catalog_mem_gb_at_ctx": entry.get("mem_gb_at_ctx"),
+                              "live_free_budget_gb": live.free_budget_gb}
+            print(f"[{tag}] DROPPED by governor: {e}", flush=True)
         except Exception as e:  # recorded, never retried
             row["status"] = "FAILED"
             row["error"] = repr(e)
