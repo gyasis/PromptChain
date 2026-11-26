@@ -28,7 +28,7 @@ def multiply_by_two(number: str) -> str:
         return "Please provide a valid number"
 
 
-async def test_mode(mode: str):
+async def run_mode(mode: str):
     """Quick test of a history mode."""
     print(f"\n{'='*60}")
     print(f"Testing mode: {mode}")
@@ -100,7 +100,7 @@ async def main():
 
     # Test each mode
     for mode in ["minimal", "progressive", "kitchen_sink"]:
-        success = await test_mode(mode)
+        success = await run_mode(mode)
         results[mode] = success
 
     # Summary

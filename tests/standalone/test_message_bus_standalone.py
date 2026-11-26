@@ -21,7 +21,7 @@ def load_module(name, filepath):
 
 
 # Load the communication modules
-base_path = Path(__file__).parent / "promptchain" / "cli" / "communication"
+base_path = Path(__file__).resolve().parents[2] / "promptchain" / "cli" / "communication"
 
 handlers = load_module(
     "promptchain.cli.communication.handlers",
