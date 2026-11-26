@@ -123,8 +123,8 @@ ANTHROPIC_API_KEY=your_anthropic_key
 ```
 
 ### Model Specification
-- Strings: `"openai/gpt-4"`, `"anthropic/claude-3-sonnet-20240229"`
-- Dicts: `{"name": "openai/gpt-4", "params": {"temperature": 0.5}}`
+- Strings: `"ollama_chat/glm-5.3-flash:cloud"` (LiteLLM `provider/model`; there is no default model, the caller always names one)
+- Dicts: `{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5}}`
 
 ### Function Integration
 Functions must:

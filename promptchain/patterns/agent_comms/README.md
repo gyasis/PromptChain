@@ -118,7 +118,7 @@ C = agent("C", "researcher", capabilities=["data", "churn"], tools=[lookup_metri
 group([A, B, C], by_capability(), term=[quorum(3)]).run("We found a vulnerability")
 
 # AGENTIC orchestrator — a manager AGENT (ASP) runs the group (AG2 GroupChatManager):
-boss = orchestrator("Boss", model="openai/gpt-4o", authority="steer")  # smart, for dumb agents
+boss = orchestrator("Boss", model="ollama_chat/glm-5.3-flash:cloud", authority="steer")  # smart, for dumb agents
 t = boss.run_group([A, B, C], "what's our churn, and is Friday risky?")  # open Q -> routed to C
 #   authority: "select" (pick next speaker) | "steer" (+ per-turn directive) | "full" (+ synthesis)
 
@@ -143,7 +143,7 @@ assert [m.role for m in t if m.role != "Facilitator"] == ["A", "B", "C", "A"]
 ```
 
 See `tests/test_agent_comms.py` (13 offline tests) and `examples/agent_comms_demo.py`
-(live, real `PromptChain` workers on `gpt-4o-mini`).
+(live, real `PromptChain` workers on the model you pass).
 
 ## Design mandate
 

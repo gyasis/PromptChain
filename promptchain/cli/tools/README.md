@@ -241,7 +241,7 @@ def analyze_data(data: str) -> str:
 
 # Create chain with registered tools
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze the following: {input}"]
 )
 

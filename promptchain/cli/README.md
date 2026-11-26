@@ -257,7 +257,7 @@ $ promptchain --session my-project
 $ promptchain --session code-review
 
 # Create specialized agents
-> /agent create reviewer --model anthropic/claude-3-opus-20240229 --description "Code review expert"
+> /agent create reviewer --model ollama_chat/glm-5.3-flash:cloud --description "Code review expert"
 > /agent create coder --model openai/gpt-4 --description "Code generation specialist"
 > /agent create tester --model openai/gpt-4 --description "Test writing specialist"
 
@@ -323,7 +323,7 @@ $ promptchain --session code-review
 [Test failures displayed]
 
 # Analyze with specialized agent
-> /agent create debugger --model anthropic/claude-3-opus-20240229
+> /agent create debugger --model ollama_chat/glm-5.3-flash:cloud
 > /agent use debugger
 > @tests/test_api.py @src/api.py Why is test_auth failing?
 [Agent analyzes both files and test output to identify root cause]
@@ -347,7 +347,7 @@ $ promptchain --session code-review
 ### Default Configuration
 ```json
 {
-  "default_model": "openai/gpt-4",
+  "default_model": "ollama_chat/glm-5.3-flash:cloud",
   "default_agent": "default",
   "sessions_dir": null,
   "ui": {
@@ -368,7 +368,7 @@ $ promptchain --session code-review
 ### Configuration Options
 
 **General Settings:**
-- `default_model` - Default LiteLLM model string (e.g., `"openai/gpt-4"`, `"anthropic/claude-3-sonnet-20240229"`)
+- `default_model` - LiteLLM `provider/model` string for new sessions. No built-in value: when it is unset, the CLI asks you to pick a model.
 - `default_agent` - Name of default agent to use (default: `"default"`)
 - `sessions_dir` - Custom sessions directory path (default: `~/.promptchain/sessions`)
 
@@ -557,28 +557,8 @@ def _get_or_create_agent_chain(self, agent_name: str):
 
 ### Model Support
 
-**Via LiteLLM (100+ models):**
-
-OpenAI:
-```
-openai/gpt-4o
-openai/gpt-4-turbo
-openai/gpt-4
-openai/gpt-3.5-turbo
-```
-
-Anthropic:
-```
-anthropic/claude-3-opus-20240229
-anthropic/claude-3-sonnet-20240229
-anthropic/claude-3-haiku-20240307
-```
-
-Google:
-```
-gemini/gemini-pro
-gemini/gemini-pro-vision
-```
+**Via LiteLLM:** any `provider/model` string LiteLLM accepts, for example `ollama_chat/glm-5.3-flash:cloud`.
+PromptChain has no built-in model. Retired provider models fail at call time, so pick one from the provider's current list.
 
 Local Models (Ollama):
 ```
