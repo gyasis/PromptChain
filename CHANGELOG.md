@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Pattern config fields and validation** (`promptchain/integrations/lightrag/`):
+  `SpeculativeConfig.max_cache_size` bounds the result cache (oldest entry evicted first; default
+  None keeps it unbounded). `LightRAGSpeculativeExecutor.invalidate_cache(query, mode=None)` drops
+  cached results, and `check_cache` now emits `pattern.speculative.cache_hit` / `cache_miss`.
+  `BranchingConfig.modes` picks the query modes to branch over. `HybridSearchConfig.weights` sets
+  per-technique weights for LINEAR fusion. `SpeculativeConfig`, `BranchingConfig`,
+  `HybridSearchConfig`, `MultiHopConfig` and `QueryExpansionConfig` now raise `ValueError` for
+  out-of-range or empty values (`history_window`, `hypothesis_count`, `max_hops`,
+  `max_expansions_per_strategy`, unknown modes or techniques, weights that miss a technique or
+  do not sum to 1.0). Defaults are unchanged.
 - **Profiler probes on the llamacpp lane** (`promptchain/profiler/governor.py`,
   `LlamacppGovernorClient`). A cohort entry `llamacpp:<alias>` runs the latency and BFCL tool
   probes through the governor's `/llm/llamacpp/v1/chat/completions`. The client turns thinking
@@ -41,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/test_dynamic_prompt_eval.py` (6 offline). The live smoke
   (`specs/014-dynamic-prompt-layer/scripts/ab_smoke.py`) prints each rate and the delta
   with its CI, and says whether the delta's CI excludes 0.
+
+### Fixed
+- `LightRAGHybridSearcher` returns `success=False` when every technique fails, and LINEAR fusion
+  no longer divides by zero on an empty technique list. `LightRAGBranchingThoughts` skips the
+  judge call when no hypothesis was generated and reports a `warning` in `metadata`.
 
 ## [0.10.0] - 2026-07-11
 
