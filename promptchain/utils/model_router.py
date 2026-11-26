@@ -14,8 +14,11 @@ A failed call logs ONE warning, and the plan uses the most able model. ``plan`` 
 ``asyncio.wait_for`` cannot stop a blocking call that already runs in an executor thread
 (``SystemOneBackend`` is one), so give the backend its own short ``timeout`` as well.
 
-The module imports the profiler, and scipy through ``irt``, only when a profile or a
-probability is needed. It imports numpy only inside ``DifficultyLink.fit``.
+The module does not import the profiler until a stored profile or a probability is needed.
+It imports numpy inside ``DifficultyLink.fit``. ``import promptchain`` already loads numpy
+and scipy, so those two are not lazy.
+
+``asyncio.CancelledError`` from the caller's task propagates. The router does not swallow it.
 """
 
 from __future__ import annotations
@@ -25,10 +28,10 @@ import inspect
 import json
 import logging
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import (
-    Any, Awaitable, Callable, Dict, Iterable, List, Mapping, Optional, Sequence,
+    Any, Awaitable, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple,
 )
 
 from promptchain.utils.decision_step import (
@@ -41,6 +44,7 @@ from promptchain.utils.decision_step import (
 logger = logging.getLogger(__name__)
 
 DIFFICULTY_QUESTION = "difficulty"
+MIN_FIT_OUTCOMES = 30
 
 
 # --------------------------------------------------------------------------- difficulty
@@ -114,15 +118,20 @@ def decision_difficulty(
             weighted = 0.0
             for key, p in probs.items():
                 i = _level_index(key, levels)
-                if i is None or not isinstance(p, (int, float)) or p < 0:
+                if i is None or not isinstance(p, (int, float)) or not math.isfinite(p) or p < 0:
                     continue
                 mass += p
                 weighted += p * i
             if mass > 0:
                 index = weighted / mass
                 dist = dict(probs)
+            else:
+                logger.debug("model_router: no probability key maps to a level in %s; "
+                             "using the score", list(probs))
         if index is None:
             index = float(ans["value"])
+            if not math.isfinite(index):
+                raise DecisionError(f"difficulty score {ans['value']!r} is not finite")
         index = min(max(index, 0.0), float(top))
         return Difficulty(
             value=index / top,
@@ -131,6 +140,8 @@ def decision_difficulty(
             distribution=dist,
         )
 
+    # ModelRouter reads this to compare the backend timeout with its own bound.
+    _difficulty.backend = backend  # type: ignore[attr-defined]
     return _difficulty
 
 
@@ -175,16 +186,25 @@ class DifficultyLink:
     def fit(cls, outcomes: Iterable[Any]) -> "DifficultyLink":
         """Fit by logistic regression (IRLS) on ``(theta, difficulty, passed)`` records.
 
-        Accepts ``RoutingOutcome`` or any object with those three attributes. Raises
-        ``ValueError`` on fewer than 3 records, a single outcome class, fewer than two distinct
-        thetas or difficulties, or a non-positive discrimination ``a`` (a link in which a
-        stronger model is not more likely to pass is not a usable link).
+        Accepts ``RoutingOutcome`` or any object with those three attributes; ``passed`` must be
+        a bool. Raises ``ValueError`` on fewer than ``MIN_FIT_OUTCOMES`` records, a single outcome
+        class, fewer than two distinct thetas or difficulties, no convergence, perfectly
+        separable data (the parameters are then unidentified), a degenerate result
+        (``a < 1e-6`` or ``|alpha|`` or ``|beta|`` above 1e3), or a non-positive discrimination
+        ``a`` (stronger models must pass more often). Logs a warning when ``beta <= 0``: harder
+        tasks then do not lower the pass probability, so difficulty carries no signal.
         """
         import numpy as np
 
-        rows = [(float(o.theta), float(o.difficulty), 1.0 if o.passed else 0.0) for o in outcomes]
-        if len(rows) < 3:
-            raise ValueError(f"fit needs at least 3 outcomes, got {len(rows)}")
+        rows = []
+        for o in outcomes:
+            if not isinstance(o.passed, (bool, np.bool_)):
+                raise ValueError(f"fit: passed must be a bool, got {o.passed!r}")
+            rows.append((float(o.theta), float(o.difficulty), 1.0 if o.passed else 0.0))
+        if len(rows) < MIN_FIT_OUTCOMES:
+            raise ValueError(
+                f"fit needs at least {MIN_FIT_OUTCOMES} outcomes, got {len(rows)}"
+            )
         data = np.asarray(rows, dtype=float)
         theta, d, y = data[:, 0], data[:, 1], data[:, 2]
         if not np.all(np.isfinite(data)):
@@ -197,6 +217,7 @@ class DifficultyLink:
         x = np.column_stack([np.ones_like(theta), theta, d])
         w = np.zeros(3)
         ridge = 1e-6
+        converged = False
         for _ in range(100):
             z = np.clip(x @ w, -30.0, 30.0)
             p = 1.0 / (1.0 + np.exp(-z))
@@ -205,15 +226,34 @@ class DifficultyLink:
             step = np.linalg.solve(hess, grad)
             w = w + step
             if np.max(np.abs(step)) < 1e-9:
+                converged = True
                 break
+        if not converged:
+            raise ValueError("fit: IRLS did not converge (data are likely separable)")
+        z = x @ w
+        if np.all((z > 0) == (y == 1.0)):
+            raise ValueError(
+                "fit: the outcomes are perfectly separable, so a, alpha and beta are not "
+                "identified; collect more mixed outcomes"
+            )
         w0, a, w2 = (float(v) for v in w)
         if not (math.isfinite(a) and a > 0):
             raise ValueError(
                 f"fit: discrimination a={a:.4g} is not positive; stronger models are not "
                 "passing more often in this data, so no usable link exists"
             )
-        z = x @ w
-        return cls(a=a, alpha=-w0 / a, beta=-w2 / a, n=len(rows), auroc=_auroc(z, y))
+        alpha, beta = -w0 / a, -w2 / a
+        if a < 1e-6 or abs(alpha) > 1e3 or abs(beta) > 1e3:
+            raise ValueError(
+                f"fit: degenerate parameters a={a:.3g}, alpha={alpha:.3g}, beta={beta:.3g}; "
+                "the data are separable or carry no signal"
+            )
+        if beta <= 0:
+            logger.warning(
+                "model_router: fitted beta=%.3g <= 0; harder tasks do not lower P(pass), "
+                "so the difficulty score carries no signal for this data", beta
+            )
+        return cls(a=a, alpha=alpha, beta=beta, n=len(rows), auroc=_auroc(z, y))
 
 
 def _auroc(score: Any, y: Any) -> Optional[float]:
@@ -266,9 +306,18 @@ class ModelRouter:
     """Choose a model per task. ``models`` run cheapest first, most able last.
 
     ``threshold`` is the P(pass) a model must reach to be chosen; set it per task family from
-    an evaluation, not a global value. ``timeout_s`` bounds the difficulty call. Abilities come
-    from ``abilities[model]``, else from a stored profile (``store_path``) using ``dimension``
-    or, when ``dimension`` is None, the mean theta over the capability dimensions.
+    an evaluation, not a global value. ``timeout_s`` bounds the difficulty call and must be
+    finite and positive. Abilities come from ``abilities[model]``, else from a stored profile
+    (``store_path``) using ``dimension`` or, when ``dimension`` is None, the mean theta over the
+    capability dimensions.
+
+    With ``link=None`` the router does not call the difficulty source: without a link the
+    difficulty cannot change the choice. To collect difficulty values before a link exists,
+    call the difficulty function yourself when you record outcomes.
+
+    If the difficulty function carries a ``backend`` (``decision_difficulty`` does) whose
+    ``timeout`` exceeds ``timeout_s``, the constructor logs a warning. A hung backend then keeps
+    its executor threads busy after the router has moved on; see the recipe.
     """
 
     def __init__(
@@ -290,8 +339,8 @@ class ModelRouter:
             raise ValueError(f"ModelRouter models must be unique: {models}")
         if not 0.0 < threshold <= 1.0:
             raise ValueError(f"threshold must be in (0, 1], got {threshold}")
-        if not timeout_s or timeout_s <= 0:
-            raise ValueError(f"timeout_s must be > 0, got {timeout_s}")
+        if not (isinstance(timeout_s, (int, float)) and math.isfinite(timeout_s) and timeout_s > 0):
+            raise ValueError(f"timeout_s must be a finite number > 0, got {timeout_s!r}")
         self.models = models
         self.threshold = threshold
         self.timeout_s = timeout_s
@@ -300,48 +349,81 @@ class ModelRouter:
         self.abilities = dict(abilities or {})
         self.store_path = store_path
         self.dimension = dimension
-        self._profiler: Any = None
-        self._profile_notes: Dict[str, str] = {}
+        self._warned: set = set()
+        backend_timeout = getattr(getattr(difficulty, "backend", None), "timeout", None)
+        if isinstance(backend_timeout, (int, float)) and backend_timeout > timeout_s:
+            logger.warning(
+                "model_router: backend timeout %ss exceeds timeout_s %ss; a hung backend "
+                "keeps executor threads busy and can delay asyncio.run exit up to %ss. "
+                "Set the backend timeout at or below timeout_s.",
+                backend_timeout, timeout_s, backend_timeout,
+            )
+
+    def _warn_once(self, key: str, msg: str, *args: Any) -> None:
+        if key not in self._warned:
+            self._warned.add(key)
+            logger.warning(msg, *args)
 
     # ---- abilities
 
-    def _theta_from_store(self, model: str) -> Optional[float]:
+    def _read_store(self) -> dict:
+        """The stored profiles keyed by model id; {} when absent. Warns once on a corrupt file."""
         if self.store_path is None:
-            return None
+            return {}
         try:
-            if self._profiler is None:
-                from promptchain.profiler.probe import ModelProfiler
+            from promptchain.profiler.store import ProfileStore
 
-                self._profiler = ModelProfiler(store_path=self.store_path)
-            profile = self._profiler.get_profile(model)
-            if profile is None or not profile.skills:
-                return None
+            store = ProfileStore(self.store_path)
+            profiles = store.load().get("profiles") or {}
+            if not profiles and store.path.exists() and store.path.stat().st_size > 0:
+                self._warn_once(
+                    "store", "model_router: profile store %s exists but holds no readable "
+                    "profiles (corrupt or empty); abilities fall back to explicit values",
+                    store.path,
+                )
+            return profiles
+        except Exception as e:  # a bad store never blocks routing
+            self._warn_once("store-err", "model_router: profile store unreadable: %s", e)
+            return {}
+
+    def _ability(self, model: str, profiles: dict) -> "Tuple[Optional[float], Optional[str]]":
+        """(theta, note) for one model. A note is attached to the plan reason."""
+        if model in self.abilities:
+            try:
+                value = float(self.abilities[model])
+            except (TypeError, ValueError):
+                return None, "invalid ability"
+            return (value, None) if math.isfinite(value) else (None, "invalid ability")
+        raw = profiles.get(model)
+        if raw is None:
+            return None, None
+        try:
+            from promptchain.profiler.jacket import CapabilityProfile
+
+            profile = CapabilityProfile.from_dict(raw)
+            if not profile.skills:
+                return None, None
             if self.dimension is not None:
                 skill = profile.skills.get(self.dimension)
-                if skill is None:
-                    return None
-                skills = [skill]
+                skills = [skill] if skill is not None else []
             else:
                 from promptchain.profiler.item_bank import CAPABILITY_DIMENSIONS
 
                 skills = [s for d, s in profile.skills.items() if d in CAPABILITY_DIMENSIONS]
-                if not skills:
-                    skills = list(profile.skills.values())
-            if any(s.low_precision for s in skills):
-                self._profile_notes[model] = "low_precision"
-            return sum(s.theta for s in skills) / len(skills)
-        except Exception as e:  # a bad store never blocks routing
-            logger.warning("model_router: profile lookup failed for %s: %s", model, e)
-            return None
-
-    def _theta(self, model: str) -> Optional[float]:
-        if model in self.abilities:
-            return float(self.abilities[model])
-        return self._theta_from_store(model)
+                skills = skills or list(profile.skills.values())
+            if not skills:
+                return None, None
+            theta = sum(s.theta for s in skills) / len(skills)
+            note = "low_precision theta" if any(s.low_precision for s in skills) else None
+            return (theta, note) if math.isfinite(theta) else (None, "invalid ability")
+        except Exception as e:
+            self._warn_once(f"profile-{model}", "model_router: profile for %s unreadable: %s",
+                            model, e)
+            return None, None
 
     # ---- plan
 
-    async def _score(self, task: str) -> "tuple[Optional[Difficulty], Optional[str]]":
+    async def _score(self, task: str) -> "Tuple[Optional[Difficulty], Optional[str]]":
         if self.difficulty is None:
             return None, "no difficulty source configured"
         try:
@@ -357,42 +439,58 @@ class ModelRouter:
         return None, msg
 
     async def plan(self, task: str) -> RoutePlan:
-        """Pick a model for ``task``. Never raises."""
+        """Pick a model for ``task``. Never raises; a cancelled caller still gets CancelledError."""
         models = self.models
         last = models[-1]
         try:
-            diff, diff_err = await self._score(task)
-            thetas = {m: self._theta(m) for m in models}
-            p: Dict[str, Optional[float]] = {m: None for m in models}
-            degraded: Optional[str] = diff_err
-            if degraded is None and self.link is None:
+            needs_store = any(m not in self.abilities for m in models)
+            profiles = self._read_store() if needs_store else {}
+            thetas: Dict[str, Optional[float]] = {}
+            notes: List[str] = []
+            for m in models:
+                thetas[m], note = self._ability(m, profiles)
+                if note:
+                    notes.append(f"{m}: {note}")
+            known = [t for t in thetas.values() if t is not None]
+            missing = [m for m in models if thetas[m] is None]
+            if known != sorted(known):
+                self._warn_once("order", "model_router: abilities are not non-decreasing in "
+                                "list order %s; models should run cheapest to most able", models)
+                notes.append("abilities not non-decreasing in list order")
+            if missing and len(missing) < len(models):
+                notes.append(f"no ability for {missing}")
+            tail = f" ({'; '.join(notes)})" if notes else ""
+            top = thetas[last] is not None and thetas[last] >= max(known)
+            fallback = f"{'most able model' if top else 'last model in the list'} {last}"
+
+            diff: Optional[Difficulty] = None
+            degraded: Optional[str] = None
+            if self.link is None:
                 degraded = "no link: fit a DifficultyLink on outcome data"
+            else:
+                diff, degraded = await self._score(task)
+            p: Dict[str, Optional[float]] = {m: None for m in models}
             if degraded is None and diff is not None:
                 for m in models:
                     if thetas[m] is not None:
                         p[m] = self.link.p_success(thetas[m], diff.value)
-            notes = [f"{m}: low_precision theta" for m in models if self._profile_notes.get(m)]
-            tail = f" ({'; '.join(notes)})" if notes else ""
 
             if degraded is not None:
                 return RoutePlan(last, [last], p, diff, degraded,
-                                 f"degraded, using most able model {last}: {degraded}{tail}")
-            missing = [m for m in models if thetas[m] is None]
+                                 f"degraded, using {fallback}: {degraded}{tail}")
             for m in models:
                 if p[m] is not None and p[m] >= self.threshold:
-                    order = models[models.index(m):]
-                    return RoutePlan(m, order, p, diff, None,
+                    return RoutePlan(m, models[models.index(m):], p, diff, None,
                                      f"{m} is the first model with P(pass)={p[m]:.3f} "
                                      f">= {self.threshold}{tail}")
             why = (f"no ability for {missing}" if len(missing) == len(models)
                    else f"no model reaches P(pass) >= {self.threshold}")
-            return RoutePlan(last, [last], p, diff, None,
-                             f"{why}; using most able model {last}{tail}")
+            return RoutePlan(last, [last], p, diff, None, f"{why}; using {fallback}{tail}")
         except Exception as e:  # last-resort guard: planning must not stop a chain
             logger.warning("model_router: planning failed: %s: %s", type(e).__name__, e)
             return RoutePlan(last, [last], {m: None for m in models}, None,
                              f"planning failed: {type(e).__name__}: {e}",
-                             f"degraded, using most able model {last}")
+                             f"degraded, using last model in the list {last}")
 
 
 def route_model(
@@ -426,26 +524,58 @@ def route_model(
 
 
 def write_outcomes(outcomes: Iterable[RoutingOutcome], path: Any, *, append: bool = True) -> int:
-    """Write one JSON object per line; return the count written."""
+    """Write one JSON object per line; return the count written.
+
+    Serializes every record first, so a record with NaN or infinity raises ``ValueError``
+    before anything is written. On append, a missing final newline in the file is added first.
+    """
+    lines = []
+    for i, o in enumerate(outcomes):
+        try:
+            lines.append(json.dumps(asdict(o), ensure_ascii=False, allow_nan=False))
+        except ValueError as e:
+            raise ValueError(f"outcome {i}: {e} (difficulty and theta must be finite)") from e
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    n = 0
+    lead = ""
+    if append and p.exists() and p.stat().st_size > 0:
+        with open(p, "rb") as fh:
+            fh.seek(-1, 2)
+            if fh.read(1) != b"\n":
+                lead = "\n"
     with open(p, "a" if append else "w", encoding="utf-8") as fh:
-        for o in outcomes:
-            fh.write(json.dumps(asdict(o), ensure_ascii=False) + "\n")
-            n += 1
-    return n
+        fh.write(lead + "".join(line + "\n" for line in lines))
+    return len(lines)
+
+
+def _is_number(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
 def read_outcomes(path: Any) -> List[RoutingOutcome]:
-    """Read a JSONL file written by ``write_outcomes``. Raises ``ValueError`` naming the line."""
+    """Read a JSONL file written by ``write_outcomes``.
+
+    Raises ``ValueError`` naming the line when a record is malformed: ``passed`` must be a
+    bool, ``difficulty`` and ``theta`` finite numbers, the other fields strings.
+    """
     out: List[RoutingOutcome] = []
     with open(path, "r", encoding="utf-8") as fh:
         for lineno, line in enumerate(fh, 1):
             if not line.strip():
                 continue
             try:
-                out.append(RoutingOutcome(**json.loads(line)))
+                rec = RoutingOutcome(**json.loads(line))
+                if not isinstance(rec.passed, bool):
+                    raise ValueError(f"passed must be a bool, got {rec.passed!r}")
+                for name in ("difficulty", "theta"):
+                    if not _is_number(getattr(rec, name)):
+                        raise ValueError(f"{name} must be a finite number, got {getattr(rec, name)!r}")
+                for name in ("task_id", "task", "difficulty_source", "model", "source", "reason"):
+                    if not isinstance(getattr(rec, name), str):
+                        raise ValueError(f"{name} must be a string")
             except (ValueError, TypeError) as e:
                 raise ValueError(f"{path}:{lineno}: bad outcome record: {e}") from e
+            rec.difficulty = float(rec.difficulty)
+            rec.theta = float(rec.theta)
+            out.append(rec)
     return out
