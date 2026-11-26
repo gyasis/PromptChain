@@ -14,6 +14,7 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple,
 
 from rich.console import Console
 from rich.markdown import Markdown
+from promptchain.utils.model_roles import resolve_model_spec
 from rich.syntax import Syntax
 from rich.theme import Theme
 
@@ -126,11 +127,13 @@ class AgentChain:
         self.synthesizer_config = kwargs.get(
             "synthesizer_config", None
         )  # For broadcast mode
-        if self.synthesizer_config and not self.synthesizer_config.get("model"):
-            raise ValueError(
-                "synthesizer_config requires a 'model' key: name the model that "
-                "synthesizes broadcast responses (or omit synthesizer_config to "
-                "concatenate them)."
+        self._synthesizer_spec = None
+        if self.synthesizer_config:
+            self._synthesizer_spec = resolve_model_spec(
+                "synthesizer",
+                self.synthesizer_config.get("model"),
+                required=True,
+                param="synthesizer_config['model']",
             )
 
         # Cache configuration - from dict
@@ -275,12 +278,12 @@ class AgentChain:
                 from promptchain.utils.orchestrator_supervisor import \
                     OrchestratorSupervisor
 
-                supervisor_model = kwargs.get("supervisor_model")
-                if not supervisor_model:
-                    raise ValueError(
-                        "use_supervisor=True requires `supervisor_model`: pass "
-                        "supervisor_model=<model name> to AgentChain."
-                    )
+                supervisor_spec = resolve_model_spec(
+                    "supervisor",
+                    kwargs.get("supervisor_model"),
+                    required=True,
+                    param="supervisor_model",
+                )
 
                 # Create supervisor with strategy preference
                 self.orchestrator_supervisor = OrchestratorSupervisor(
@@ -288,7 +291,8 @@ class AgentChain:
                     log_event_callback=self.logger.log_run if log_dir else None,
                     dev_print_callback=None,  # Can be set later via kwargs
                     max_reasoning_steps=kwargs.get("supervisor_max_steps", 8),
-                    model_name=supervisor_model,
+                    model_name=supervisor_spec.model,
+                    model_params=supervisor_spec.params,
                     strategy_preference=self.supervisor_strategy,
                 )
 
@@ -1996,7 +2000,7 @@ class AgentChain:
                         results_json = json.dumps(processed_results)
 
                         # Extract config
-                        synth_model = self.synthesizer_config["model"]
+                        synth_model = self._synthesizer_spec.as_model()
                         synth_prompt_template = self.synthesizer_config.get(
                             "prompt",
                             "Synthesize these agent responses: {agent_responses}",

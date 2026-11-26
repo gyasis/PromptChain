@@ -14,6 +14,7 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from promptchain.utils.execution_events import (ExecutionEvent,
                                                 ExecutionEventType)
 from promptchain.utils.promptchaining import PromptChain
+from promptchain.utils.model_roles import resolve_model_spec
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class OrchestratorSupervisor:
         max_reasoning_steps: int = 8,
         model_name: Optional[str] = None,
         strategy_preference: str = "adaptive",  # ✅ NEW: Strategy guidance
+        model_params: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the orchestrator supervisor.
@@ -48,7 +50,10 @@ class OrchestratorSupervisor:
             log_event_callback: Callback for logging events
             dev_print_callback: Callback for --dev mode terminal output
             max_reasoning_steps: Max internal reasoning steps for AgenticStepProcessor
-            model_name: Model to use for reasoning (required, no default)
+            model_name: Model to use for reasoning. Falls back to ``roles.supervisor``
+                (or ``default``) in the models file.
+            model_params: litellm kwargs for that model (for example ``api_base``).
+                Taken from the models file when the model comes from it.
             strategy_preference: Strategy to guide orchestrator behavior:
                 - "adaptive": Let orchestrator decide (multi-hop reasoning, default)
                 - "prefer_single": Bias toward single-agent dispatch when possible
@@ -57,11 +62,9 @@ class OrchestratorSupervisor:
                 - "conservative": Only use multi-agent when absolutely necessary
                 - "aggressive": Use multi-agent plans liberally
         """
-        if not model_name:
-            raise ValueError(
-                "OrchestratorSupervisor requires `model_name`: pass the model "
-                "that runs the routing reasoning."
-            )
+        spec = resolve_model_spec("supervisor", model_name, required=True, param="model_name")
+        model_name = spec.model
+        model_params = model_params if model_params is not None else spec.params
         self.agent_descriptions = agent_descriptions
         self.log_event_callback = log_event_callback
         self.dev_print_callback = dev_print_callback
@@ -86,6 +89,7 @@ class OrchestratorSupervisor:
             objective=objective,
             max_internal_steps=max_reasoning_steps,
             model_name=model_name,
+            model_params=model_params,
             history_mode="progressive",  # Critical for multi-hop reasoning
         )
 
