@@ -1,7 +1,11 @@
-"""Shared fixtures for pattern adapter tests."""
+"""Shared fixtures for pattern adapter tests.
+
+Patterns report events through ``add_event_handler``; ``event_collector.collect``
+has the handler signature ``(event_type, data)``.
+"""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock
 from typing import List, Dict, Any
 
 
@@ -40,27 +44,6 @@ def mock_lightrag_core():
 
 
 @pytest.fixture
-def mock_search_interface():
-    """Mock SearchInterface for query expansion tests."""
-    mock = AsyncMock()
-
-    mock.multi_query_search = AsyncMock(return_value={
-        "results": [
-            {"text": "Result 1", "score": 0.9, "id": "1"},
-            {"text": "Result 2", "score": 0.8, "id": "2"},
-            {"text": "Result 3", "score": 0.7, "id": "3"}
-        ],
-        "metadata": {"queries_used": 3}
-    })
-
-    mock.search = AsyncMock(return_value={
-        "results": [{"text": "Single result", "score": 0.85, "id": "s1"}]
-    })
-
-    return mock
-
-
-@pytest.fixture
 def event_collector():
     """Collect events emitted by patterns for testing."""
     events = []
@@ -89,75 +72,3 @@ def event_collector():
     collector = EventCollector()
     yield collector
     collector.clear()
-
-
-@pytest.fixture
-def mock_llm():
-    """Mock LLM for scoring and generation tasks."""
-    mock = AsyncMock()
-
-    # Mock for hypothesis scoring
-    mock.generate = AsyncMock(return_value='{"scores": [0.9, 0.7, 0.8]}')
-
-    # Mock for query expansion
-    mock.expand_query = AsyncMock(return_value=[
-        "expanded query 1",
-        "expanded query 2",
-        "expanded query 3"
-    ])
-
-    return mock
-
-
-@pytest.fixture
-def sample_search_results():
-    """Sample search results for testing."""
-    return [
-        {
-            "text": "The quick brown fox jumps over the lazy dog",
-            "score": 0.95,
-            "id": "doc1",
-            "metadata": {"source": "test"}
-        },
-        {
-            "text": "A fast auburn canine leaps above a sleepy hound",
-            "score": 0.85,
-            "id": "doc2",
-            "metadata": {"source": "test"}
-        },
-        {
-            "text": "Programming is the art of solving problems",
-            "score": 0.75,
-            "id": "doc3",
-            "metadata": {"source": "test"}
-        }
-    ]
-
-
-@pytest.fixture
-def mock_cache():
-    """Mock cache for speculative execution tests."""
-    cache_storage = {}
-
-    class MockCache:
-        def __init__(self):
-            self.storage = cache_storage
-
-        async def get(self, key: str):
-            return self.storage.get(key)
-
-        async def set(self, key: str, value: Any, ttl: int = None):
-            self.storage[key] = {
-                "value": value,
-                "ttl": ttl
-            }
-
-        async def delete(self, key: str):
-            self.storage.pop(key, None)
-
-        def clear(self):
-            self.storage.clear()
-
-    cache = MockCache()
-    yield cache
-    cache.clear()
