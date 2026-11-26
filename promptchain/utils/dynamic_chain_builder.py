@@ -500,8 +500,13 @@ class DynamicChainBuilder:
         model_name = (
             model_config
             if isinstance(model_config, str)
-            else model_config.get("model", "gpt-4")
+            else model_config.get("model")
         )
+        if not model_name:
+            raise ValueError(
+                "A model step needs a model: give the step's model config a "
+                "'model' key (or pass the model name as a string)."
+            )
         params = {}
         if isinstance(model_config, dict):
             params = {k: v for k, v in model_config.items() if k != "model"}

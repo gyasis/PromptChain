@@ -235,12 +235,12 @@ class AgenticStepProcessor:
         enable_summarization: bool = True,  # Enable history summarization
         summarize_every_n: int = 5,  # Summarize after N iterations
         summarize_token_threshold: float = 0.7,  # Summarize when tokens exceed this % of max
-        summarizer_model: str = "openai/gpt-4.1-mini-2025-04-14",  # Model for summarization
+        summarizer_model: Optional[str] = None,  # Model for summarization; None = summarization off
         preserve_last_n_turns: int = 2,  # Keep last N turns verbatim when summarizing
         # Two-tier model routing parameters (Phase 1: Quick Wins)
         fallback_model: Optional[
             Union[str, Dict[str, Any]]
-        ] = None,  # Fast/cheap model: "openai/gpt-4o-mini" or {"name": ..., "params": {...}}
+        ] = None,  # Fast/cheap model name or {"name": ..., "params": {...}}
         enable_two_tier_routing: bool = False,  # Enable intelligent model routing (default: off for backward compatibility)
         # Blackboard Architecture parameters (Phase 2: Token Optimization - 80% reduction)
         enable_blackboard: bool = False,  # Enable Blackboard structured state (default: off for backward compatibility)
@@ -289,12 +289,14 @@ class AgenticStepProcessor:
                               Event types: "thinking", "tool_call", "tool_result", "answer"
             step_timeout: (Optional) Timeout for each LLM call in seconds (default: 120.0 = 2 min).
                          Prevents hanging when LLM or tools don't respond. Set to None to disable.
-            enable_summarization: Enable smart history summarization (default: True)
+            enable_summarization: Enable smart history summarization (default: True; it runs
+                only when summarizer_model is also set)
             summarize_every_n: Summarize after every N iterations (default: 5)
             summarize_token_threshold: Summarize when tokens exceed this % of max_context_tokens (default: 0.7)
-            summarizer_model: LLM model for summarization (default: gpt-4.1-mini)
+            summarizer_model: (Optional) LLM model for history summarization. None turns
+                summarization off, even when enable_summarization is True.
             preserve_last_n_turns: Keep last N turns verbatim when summarizing (default: 2)
-            fallback_model: (Optional) Fast/cheap model for simple tasks (e.g., "openai/gpt-4o-mini").
+            fallback_model: (Optional) Fast, cheap model for simple tasks.
                           When enable_two_tier_routing is True, simple tasks route to this model.
                           Expected cost: ~10x cheaper, latency: ~2-3x faster than primary model.
                           Also the CoVe verifier model. A model on another provider than the step's model
@@ -406,7 +408,7 @@ class AgenticStepProcessor:
         if self.enable_two_tier_routing and not self.fallback_model:
             logger.warning(
                 "⚠️  Two-tier routing enabled but no fallback_model specified. "
-                "Disabling two-tier routing. Set fallback_model (e.g., 'openai/gpt-4o-mini') to enable."
+                "Disabling two-tier routing. Set fallback_model to enable."
             )
             self.enable_two_tier_routing = False
 
@@ -735,7 +737,7 @@ class AgenticStepProcessor:
         Returns:
             True if summarization should trigger
         """
-        if not self.enable_summarization:
+        if not self.enable_summarization or not self.summarizer_model:
             return False
 
         # Only applicable for progressive/kitchen_sink modes

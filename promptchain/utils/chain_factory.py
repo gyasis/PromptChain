@@ -77,14 +77,15 @@ class ChainFactory:
         self,
         base_path: Optional[str] = None,
         auto_setup: bool = True,
-        default_model: str = "openai/gpt-4.1-mini-2025-04-14",
+        default_model: Optional[str] = None,
     ):
         """Initialize ChainFactory.
 
         Args:
             base_path: Base path for chain storage (default: ~/.promptchain)
             auto_setup: Automatically create directory structure
-            default_model: Default LLM model for chains
+            default_model: LLM model for chains that name none (None = the chain
+                must carry its own llm_model, or the executor needs a default_model)
         """
         self.base_path = Path(base_path or self.DEFAULT_BASE_PATH)
         self.chains_path = self.base_path / self.CHAINS_DIR

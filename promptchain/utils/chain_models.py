@@ -103,9 +103,9 @@ class ChainDefinition(BaseModel):
 
     # Execution config
     mode: ChainMode = Field(default=ChainMode.STRICT, description="Execution mode")
-    llm_model: str = Field(
-        default="openai/gpt-4.1-mini-2025-04-14",
-        description="LLM model for prompt steps"
+    llm_model: Optional[str] = Field(
+        default=None,
+        description="LLM model for prompt steps; None defers to the executor's default_model"
     )
     guardrails: Guardrails = Field(default_factory=Guardrails)
 
@@ -299,7 +299,7 @@ class ChainCall:
 
     Usage in PromptChain:
         chain = PromptChain(
-            models=["openai/gpt-4.1-mini-2025-04-14"],
+            models=[my_model],
             instructions=[
                 "Analyze: {input}",
                 ChainCall("query-optimizer:v1.0"),  # Executes chain

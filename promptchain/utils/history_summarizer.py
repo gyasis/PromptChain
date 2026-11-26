@@ -3,7 +3,7 @@
 Provides LLM-powered summarization of conversation history to prevent
 context window overflow while preserving critical information.
 
-Uses a fast/cheap model (gpt-4.1-mini) to compress old conversation turns
+Uses a fast, cheap model of the caller's choice to compress old conversation turns
 into concise summaries, preserving errors, decisions, and key tool results.
 """
 
@@ -61,22 +61,30 @@ class HistorySummarizer:
     preserving critical information like errors, decisions, and results.
 
     Attributes:
-        model: LiteLLM model string for summarization (default: gpt-4.1-mini)
+        model: LiteLLM model string for summarization (required, no default)
         max_summary_tokens: Maximum tokens for the summary output
         encoding: Tiktoken encoding for token counting
     """
 
     def __init__(
         self,
-        model: str = "openai/gpt-4.1-mini-2025-04-14",
+        model: Optional[str] = None,
         max_summary_tokens: int = 500,
     ):
         """Initialize the history summarizer.
 
         Args:
-            model: LiteLLM model string for summarization
+            model: LiteLLM model string for summarization (required)
             max_summary_tokens: Maximum tokens for summary output
+
+        Raises:
+            ValueError: If ``model`` is not given.
         """
+        if not model:
+            raise ValueError(
+                "HistorySummarizer requires `model`: pass a LiteLLM model string "
+                "for summarization."
+            )
         self.model = model
         self.max_summary_tokens = max_summary_tokens
 

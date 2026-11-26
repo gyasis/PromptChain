@@ -67,7 +67,7 @@ class ChainExecutor:
     def __init__(
         self,
         factory: Optional[ChainFactory] = None,
-        default_model: str = "openai/gpt-4.1-mini-2025-04-14",
+        default_model: Optional[str] = None,
         verbose: bool = False,
         track_executions: bool = True,
         max_nested_depth: int = 5,
@@ -76,7 +76,8 @@ class ChainExecutor:
 
         Args:
             factory: ChainFactory for resolving nested chains
-            default_model: Default LLM model for prompt steps
+            default_model: LLM model for chains that carry no llm_model. Executing
+                a prompt or agentic step with neither raises ChainExecutionError
             verbose: Enable verbose logging
             track_executions: Track execution records for analytics
             max_nested_depth: Maximum chain nesting depth
@@ -93,6 +94,18 @@ class ChainExecutor:
 
         # Registered functions for function steps
         self._registered_functions: Dict[str, Callable] = {}
+
+    def _resolve_model(self, chain: ChainDefinition, step: ChainStepDefinition) -> str:
+        """Return the chain's llm_model, else this executor's default_model."""
+        model = chain.llm_model or self.default_model
+        if not model:
+            raise ChainExecutionError(
+                "No LLM model: set llm_model on the chain or pass default_model "
+                "to ChainExecutor",
+                step_id=step.id,
+                chain_vin=chain.vin,
+            )
+        return model
 
     def register_function(self, name: str, func: Callable[[str], str]):
         """Register a function for use in function steps.
@@ -314,7 +327,7 @@ class ChainExecutor:
 
         # Create minimal PromptChain for single step
         mini_chain = PromptChain(
-            models=[chain.llm_model], instructions=[prompt], verbose=self.verbose
+            models=[self._resolve_model(chain, step)], instructions=[prompt], verbose=self.verbose
         )
 
         result = await mini_chain.process_prompt_async(input_data)
@@ -403,7 +416,7 @@ class ChainExecutor:
         processor = AgenticStepProcessor(  # type: ignore[call-arg]
             objective=step.objective,
             max_internal_steps=step.max_steps or 5,
-            model_name=chain.llm_model,
+            model_name=self._resolve_model(chain, step),
             verbose=self.verbose,
         )
 

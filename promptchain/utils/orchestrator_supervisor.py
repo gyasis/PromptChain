@@ -37,7 +37,7 @@ class OrchestratorSupervisor:
         log_event_callback: Optional[Callable] = None,
         dev_print_callback: Optional[Callable] = None,
         max_reasoning_steps: int = 8,
-        model_name: str = "openai/gpt-4.1-mini",
+        model_name: Optional[str] = None,
         strategy_preference: str = "adaptive",  # ✅ NEW: Strategy guidance
     ):
         """
@@ -48,7 +48,7 @@ class OrchestratorSupervisor:
             log_event_callback: Callback for logging events
             dev_print_callback: Callback for --dev mode terminal output
             max_reasoning_steps: Max internal reasoning steps for AgenticStepProcessor
-            model_name: Model to use for reasoning
+            model_name: Model to use for reasoning (required, no default)
             strategy_preference: Strategy to guide orchestrator behavior:
                 - "adaptive": Let orchestrator decide (multi-hop reasoning, default)
                 - "prefer_single": Bias toward single-agent dispatch when possible
@@ -57,6 +57,11 @@ class OrchestratorSupervisor:
                 - "conservative": Only use multi-agent when absolutely necessary
                 - "aggressive": Use multi-agent plans liberally
         """
+        if not model_name:
+            raise ValueError(
+                "OrchestratorSupervisor requires `model_name`: pass the model "
+                "that runs the routing reasoning."
+            )
         self.agent_descriptions = agent_descriptions
         self.log_event_callback = log_event_callback
         self.dev_print_callback = dev_print_callback

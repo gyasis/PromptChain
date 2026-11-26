@@ -325,7 +325,7 @@ def register_file_tools(agent, include_efficient: bool = True) -> None:
         >>> from promptchain import PromptChain
         >>> from promptchain.tools.file_tool_registry import register_file_tools
         >>>
-        >>> agent = PromptChain(models=["openai/gpt-4"], instructions=["..."])
+        >>> agent = PromptChain(models=["<provider/model>"], instructions=["..."])
         >>> register_file_tools(agent)  # Now has all 12 file operation tools
     """
     # Determine which tools to register
@@ -427,7 +427,7 @@ def create_agent_with_file_tools(
     all file operation tools in one step.
 
     Args:
-        models: List of model names (e.g., ["openai/gpt-4"])
+        models: List of model names (e.g., ["<provider/model>"])
         instructions: List of instructions for the agent
         include_efficient: Whether to include efficient editing tools
         **kwargs: Additional arguments passed to PromptChain constructor
@@ -439,7 +439,7 @@ def create_agent_with_file_tools(
         >>> from promptchain.tools.file_tool_registry import create_agent_with_file_tools
         >>>
         >>> coding_agent = create_agent_with_file_tools(
-        ...     models=["openai/gpt-4"],
+        ...     models=["<provider/model>"],
         ...     instructions=["Write Python code: {input}"],
         ...     verbose=True
         ... )
@@ -465,7 +465,7 @@ if __name__ == "__main__":
     print("   from promptchain import PromptChain")
     print("   from promptchain.tools.file_tool_registry import register_file_tools")
     print("")
-    print("   agent = PromptChain(models=['openai/gpt-4'], instructions=[...])")
+    print("   agent = PromptChain(models=['<provider/model>'], instructions=[...])")
     print("   register_file_tools(agent)  # Adds all 12 file tools")
 
     print("\n2. Factory Function:")
@@ -474,7 +474,7 @@ if __name__ == "__main__":
     )
     print("")
     print("   agent = create_agent_with_file_tools(")
-    print("       models=['openai/gpt-4'],")
+    print("       models=['<provider/model>'],")
     print("       instructions=['Code generation: {input}']")
     print("   )")
 

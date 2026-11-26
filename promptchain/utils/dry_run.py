@@ -14,7 +14,7 @@ Key Concepts:
 - Confidence Tracking: Monitor prediction accuracy to calibrate agent confidence
 
 Usage:
-    predictor = DryRunPredictor(llm_runner, model_name="openai/gpt-4o-mini")
+    predictor = DryRunPredictor(llm_runner, model_name=my_model)
 
     # Predict outcome before execution
     prediction = await predictor.predict_outcome(
@@ -80,7 +80,7 @@ class DryRunPredictor:
 
         Args:
             llm_runner: Async function that calls LLM (same signature as AgenticStepProcessor.llm_runner)
-            model_name: Model to use for prediction (recommend fast/cheap model like gpt-4o-mini)
+            model_name: Model to use for prediction (a fast, cheap model is enough)
         """
         self.llm_runner = llm_runner
         self.model_name = model_name

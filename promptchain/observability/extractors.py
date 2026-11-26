@@ -32,7 +32,7 @@ def extract_function_args(func: Callable, args: tuple, kwargs: dict) -> Dict[str
     Example:
         >>> def example(model: str, temperature: float = 0.7):
         ...     pass
-        >>> extract_function_args(example, ("gpt-4",), {"temperature": 0.9})
+        >>> extract_function_args(example, ("model-a",), {"temperature": 0.9})
         {'model': 'gpt-4', 'temperature': 0.9}
     """
     try:
@@ -59,7 +59,7 @@ def extract_llm_params(params: Dict[str, Any]) -> Dict[str, Any]:
         Dictionary of LLM parameters (model, temperature, etc.)
 
     Example:
-        >>> params = {"model": "gpt-4", "temperature": 0.7, "verbose": True}
+        >>> params = {"model": "model-a", "temperature": 0.7, "verbose": True}
         >>> extract_llm_params(params)
         {'model': 'gpt-4', 'temperature': '0.7'}
     """
@@ -290,7 +290,7 @@ def extract_all_metadata(params: Dict[str, Any]) -> Dict[str, Any]:
 
     Example:
         >>> params = {
-        ...     "model": "gpt-4",
+        ...     "model": "model-a",
         ...     "temperature": 0.7,
         ...     "objective": "Analyze code",
         ...     "selected_agent": "analyzer"

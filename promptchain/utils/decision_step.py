@@ -13,7 +13,7 @@ model slot (R-PC2)::
     triage = decision(
         {"dept": {"type": "choice", "instructions": "Which team owns this ticket?",
                   "criteria": {"billing": "charges, refunds", "technical": "bugs, errors"}}},
-        backend=SystemOneBackend(model="tev1:4b"),
+        backend=SystemOneBackend(model=my_decision_model),
         name="triage",
     )
     route = route_on("dept", accept=0.9, review=0.6,
@@ -24,8 +24,7 @@ model slot (R-PC2)::
 Backends share one interface (`DecisionBackend.decide`) and one reply shape, so a chain swaps
 backend by config alone:
 
-- `SystemOneBackend` — Ollama >= 0.35 `/v1/systemone` (the Jev API served locally; e.g. `tev1:4b`,
-  an LM fine-tuned to answer with one option letter). The measured default.
+- `SystemOneBackend` — Ollama >= 0.35 `/v1/systemone` (the Jev API served locally; a model fine-tuned to answer with one option letter).
 - `hunch_backend()` — the `hunch` CLI (next-token logprobs from an ordinary LM). Wrapped as a
   subprocess on purpose: improvements to `hunch` reach chains without a copy here.
 - `CliBackend` — any CLI with the `<tool> - -q <json> --raw` contract.

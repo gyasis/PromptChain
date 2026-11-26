@@ -12,7 +12,7 @@ Key Concepts:
 - Suggested Modifications: LLM can propose safer parameter values
 
 Usage:
-    verifier = CoVeVerifier(llm_runner, model_name="openai/gpt-4o-mini")
+    verifier = CoVeVerifier(llm_runner, model_name=my_model)
 
     result = await verifier.verify_tool_call(
         tool_name="delete_file",
