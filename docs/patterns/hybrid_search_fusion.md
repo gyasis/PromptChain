@@ -48,6 +48,7 @@ class HybridSearchConfig(PatternConfig):
     rrf_k: int = 60                    # RRF constant (standard: 60)
     top_k: int = 10                    # Number of results to return
     normalize_scores: bool = True       # Normalize scores before fusion
+    weights: Optional[Dict[SearchTechnique, float]] = None  # LINEAR fusion weights; must cover every technique and sum to 1.0
 ```
 
 ### HybridSearchResult
@@ -93,6 +94,7 @@ config = HybridSearchConfig(
     techniques=[SearchTechnique.LOCAL, SearchTechnique.GLOBAL],
     fusion_algorithm=FusionAlgorithm.LINEAR,
     normalize_scores=True,  # Normalize before weighting
+    weights={SearchTechnique.LOCAL: 0.7, SearchTechnique.GLOBAL: 0.3},  # omit for equal weights
 )
 ```
 

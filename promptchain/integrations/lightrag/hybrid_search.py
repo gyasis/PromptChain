@@ -66,6 +66,14 @@ class HybridSearchConfig(PatternConfig):
         rrf_k: K parameter for RRF algorithm (default: 60).
         top_k: Number of top results to return after fusion.
         normalize_scores: Whether to normalize scores before fusion.
+        weights: Per-technique weights for LINEAR fusion. Must cover every
+            configured technique and sum to 1.0. None weights all techniques
+            equally. Other fusion algorithms ignore it.
+
+    Raises:
+        ValueError: If techniques is empty or holds a non-SearchTechnique
+            value, or if weights do not cover the techniques or do not sum
+            to 1.0.
     """
 
     techniques: List[SearchTechnique] = field(
@@ -75,6 +83,24 @@ class HybridSearchConfig(PatternConfig):
     rrf_k: int = 60
     top_k: int = 10
     normalize_scores: bool = True
+    weights: Optional[Dict[SearchTechnique, float]] = None
+
+    def __post_init__(self) -> None:
+        if not self.techniques:
+            raise ValueError("techniques must not be empty")
+        invalid = [t for t in self.techniques if not isinstance(t, SearchTechnique)]
+        if invalid:
+            raise ValueError(
+                f"Invalid technique {invalid}; use SearchTechnique members"
+            )
+        if self.weights is not None:
+            missing = [t for t in self.techniques if t not in self.weights]
+            if missing:
+                raise ValueError(
+                    f"weights missing for techniques: {[t.value for t in missing]}"
+                )
+            if abs(sum(self.weights[t] for t in self.techniques) - 1.0) > 1e-6:
+                raise ValueError("weights must sum to 1.0")
 
 
 @dataclass
@@ -160,6 +186,21 @@ class LightRAGHybridSearcher(BasePattern):
 
         # Execute all techniques in parallel
         technique_results = await self._execute_techniques(query, **kwargs)
+
+        if not technique_results:
+            execution_time_ms = (time.perf_counter() - start_time) * 1000
+            self.emit_event(
+                "pattern.hybrid_search.failed",
+                {"query": query, "reason": "all techniques failed"},
+            )
+            return HybridSearchResult(
+                pattern_id=self.config.pattern_id,
+                success=False,
+                result=[],
+                execution_time_ms=execution_time_ms,
+                query=query,
+                errors=["Every configured search technique failed"],
+            )
 
         self.emit_event(
             "pattern.hybrid_search.fusing",
@@ -404,6 +445,14 @@ class LightRAGHybridSearcher(BasePattern):
         """
         final_top_k = top_k if top_k is not None else self.config.top_k
 
+        if not technique_results:
+            return [], [], {}
+
+        if weights is None and self.config.weights is not None:
+            raw = [self.config.weights[tr.technique] for tr in technique_results]
+            total = sum(raw)
+            # Renormalise when failed techniques dropped out of the results.
+            weights = [w / total for w in raw] if total > 0 else None
         if weights is None:
             weights = [1.0 / len(technique_results)] * len(technique_results)
 

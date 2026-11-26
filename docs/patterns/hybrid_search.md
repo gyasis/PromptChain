@@ -106,9 +106,15 @@ HybridSearchConfig(
     fusion_algorithm=FusionAlgorithm.RRF,
     rrf_k=60,
     top_k=10,
-    normalize_scores=True
+    normalize_scores=True,
+    weights=None   # {SearchTechnique: float} for LINEAR fusion; sums to 1.0
 )
 ```
+
+`techniques` must be a non-empty list of `SearchTechnique` members. `weights`, when set,
+must name every configured technique and sum to 1.0; otherwise `HybridSearchConfig`
+raises `ValueError`. When a technique fails at run time, the remaining weights are
+renormalised. If every technique fails, the result has `success=False`.
 
 ## Events
 
