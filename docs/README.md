@@ -47,7 +47,7 @@ PromptChain has no default model. Name the model in your code, or set per-role m
 - [Safety features](SAFETY_FEATURES.md).
 - [Simple agent user chat](simple_agent_user_chat.md).
 - Multi-agent references: [message bus](multiagent/MESSAGE_BUS_QUICK_REFERENCE.md), [mental models](multiagent/MENTAL_MODELS_QUICK_REFERENCE.md), [imports](multiagent/MULTIAGENT_IMPORT_QUICK_REFERENCE.md), [tasks and blackboard commands](multiagent/TASKS_BLACKBOARD_QUICK_REFERENCE.md).
-- [Architecture vision](architecture/ARCHITECTURE_VISION.md) and the [durable, verified TUI loop proposal](architecture/tui_agent_durable_verified_loop.md) (design drafts; check the code before you rely on them).
+- [Durable, verified TUI loop proposal](architecture/tui_agent_durable_verified_loop.md) (open design, partly built; check the code before you rely on it). The older [architecture vision](archive/architecture/ARCHITECTURE_VISION.md) is archived.
 
 ## MCP
 
