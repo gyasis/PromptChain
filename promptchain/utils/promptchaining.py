@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from litellm import acompletion, completion, stream_chunk_builder
 
 from promptchain.observability import track_llm_call
+from promptchain.utils.model_roles import resolve_model_spec
 
 # CORRECTED: Standard Python import syntax
 # Assuming preprompt.py and other .py files are in the same directory or package
@@ -923,10 +924,14 @@ class PromptChain:
                     params = {k: v for k, v in params.items() if k not in _PROVIDER_PARAM_KEYS}
                 model_name = model
             if not model_name:
-                raise ValueError(
-                    "No model for the agentic step: pass `models` to PromptChain or "
-                    "`model_name` to AgenticStepProcessor."
+                spec = resolve_model_spec(
+                    "agentic_step",
+                    None,
+                    required=True,
+                    param="model_name",
                 )
+                model_name = spec.model
+                params = {**spec.params, **params}
 
             logger.debug(
                 f"[Agentic Callback] Running LLM: {model_name} with {len(messages)} messages. Tools: {len(tools) if tools else 0}"
