@@ -24,12 +24,12 @@ promptchain
 
 ## 🎨 Agent Templates (4 Pre-Configured)
 
-| Template | Model | History | Token Savings | Best For |
+| Template | Suggested model | History | Token Savings | Best For |
 |----------|-------|---------|---------------|----------|
 | **terminal** | ollama_chat/glm-5.3-flash:cloud | 0 tokens | **60%** | Shell commands, quick tasks |
 | **coder** | ollama_chat/glm-5.3-flash:cloud | 4000 tokens | **40%** | Development, coding, debugging |
-| **analyst** | ollama_chat/glm-5.3-flash:cloud | 8000 tokens | **20%** | Data analysis, statistics |
-| **researcher** | ollama_chat/glm-5.3-flash:cloud | 8000 tokens | **20%** | Research, multi-hop reasoning |
+| **analyst** | ollama_chat/glm-5.3:cloud | 8000 tokens | **20%** | Data analysis, statistics |
+| **researcher** | ollama_chat/glm-5.3:cloud | 8000 tokens | **20%** | Research, multi-hop reasoning |
 
 ```bash
 # Create from template

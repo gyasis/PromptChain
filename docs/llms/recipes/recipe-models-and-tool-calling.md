@@ -12,16 +12,17 @@ PromptChain delegates LLM calls to **LiteLLM**, so every model string is `"<prov
 ## A. The string format (LiteLLM convention)
 
 ```python
-"ollama_chat/glm-5.3-flash:cloud"                       # OpenAI
-"ollama_chat/glm-5.3-flash:cloud"     # Anthropic
+"ollama_chat/glm-5.3:cloud"                # Ollama (cloud tag, large)
+"ollama_chat/glm-5.3-flash:cloud"          # Ollama (cloud tag, fast)
+"ollama_chat/gemma4:12b"                   # Ollama (local)
+"openai/<model_id>"                        # OpenAI
+"anthropic/<model_id>"                     # Anthropic
 "gemini/gemini-2.5-pro"                    # Google Gemini (NOT "google/...")
-"ollama/llama3.1:8b"                       # Ollama (local)
-"ollama/qwen2.5:7b"                        # Ollama
 "openrouter/<model_id>"                    # OpenRouter
 "groq/<model_id>"                          # Groq
 ```
 
-**Common mistake:** dropping the provider prefix (`"ollama_chat/glm-5.3-flash:cloud"` instead of `"ollama_chat/glm-5.3-flash:cloud"`). Always provider-prefix.
+**Common mistake:** dropping the provider prefix (`"glm-5.3:cloud"` instead of `"ollama_chat/glm-5.3:cloud"`). Always provider-prefix.
 
 ## B. Tool-calling capability matrix
 
@@ -29,31 +30,24 @@ This table reflects what's stable and broadly true. **Always verify against the 
 
 | Provider | Tool-calling reliability | Notes |
 |---|---|---|
-| **OpenAI** (`ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud*`, `ollama_chat/glm-5.3-flash:cloud`) | ⭐⭐⭐ Strongest | The reference implementation. The repo's own comment: `"Using OpenAI for reliable tool calling"`. Pick OpenAI when the agent must reliably call tools. |
-| **Anthropic** (`ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `claude-opus-*`) | ⭐⭐⭐ Strong | Native tool use. Slightly different schema under the hood; LiteLLM normalises it. |
+| **OpenAI** (`openai/<model_id>`) | ⭐⭐⭐ Strongest | The reference implementation. The repo's own comment: `"Using OpenAI for reliable tool calling"`. Pick OpenAI when the agent must reliably call tools. |
+| **Anthropic** (`anthropic/<model_id>`) | ⭐⭐⭐ Strong | Native tool use. Slightly different schema under the hood; LiteLLM normalises it. |
 | **Gemini** (`gemini/gemini-2.5-pro`, `gemini-1.5-flash-8b`, `gemini-2.0-flash-exp`) | ⭐⭐ Good but variable | `gemini-2.5-pro` and `1.5-flash-8b` support tool calling; some experimental models do not. The repo uses Gemini for cost-saving (`fallback_model="gemini/gemini-1.5-flash-8b"` is 33x cheaper than 2.5-pro). |
-| **Ollama** (`ollama/llama3.1`, `ollama/qwen2.5`, `ollama/mistral-nemo`, etc.) | ⭐ Model-dependent | **Most Ollama models DO NOT support tool-calling.** Models that do (as of late 2025): `llama3.1`, `qwen2.5`, `mistral-nemo`, `command-r`. Models that don't (or only partially): older `llama2`, `phi`, `gemma:2b`, etc. |
+| **Ollama** (`ollama_chat/glm-5.3:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/gemma4:12b`, etc.) | ⭐ Model-dependent | **Not every Ollama model supports tool-calling.** Read the model's `capabilities` (the generated catalog, or `/api/show`) and use only models that list `tools`. Embedding models and older small models often do not. |
 | **LocalAI / Llamacpp** | ⭐ Same as Ollama | Capability tracks the underlying GGUF model, not the runtime. |
 | **OpenRouter** | ⭐⭐ Depends on routed model | If OpenRouter routes to OpenAI/Anthropic/Gemini, capability matches that. |
 
 ## C. What the repo's own examples use (provable, ground truth)
 
-Mined from `examples/*.py` — these are the model strings the package's own canonical examples actually run:
+The package's examples name a model explicitly (there is no library default). Typical strings:
 
 ```text
 ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud
-ollama_chat/glm-5.3-flash:cloud   # default in promptchain/utils/chain_builder.py
 gemini/gemini-2.0-flash-exp
 gemini/gemini-2.5-pro
-gemini/gemini-1.5-flash-8b       # cheapest Gemini, 33x cheaper than 2.5-pro
 ```
 
-**No Ollama models appear in `examples/`** — the package supports them via `OllamaModelManager` but doesn't ship Ollama examples. If you're using Ollama, see §E below.
+`ollama_chat/<tag>` (cloud and local Ollama tags) is the form the examples use. The model-manager helpers (`OllamaModelManager`) are optional; see §E below.
 
 ## C2. Naming models once: the models file
 
@@ -100,12 +94,12 @@ A role value (and `default`) is a string or a mapping `{model, endpoint}`. An en
 ```
 Does this step / chain register tool-calling functions, MCP tools, or use AgenticStepProcessor with tools?
 ├─ YES → Pick a tool-calling-capable model:
-│        ├─ Reliability matters most  → ollama_chat/glm-5.3-flash:cloud or ollama_chat/glm-5.3-flash:cloud
+│        ├─ Reliability matters most  → a model whose catalog capabilities list `tools` (e.g. ollama_chat/glm-5.3:cloud)
 │        ├─ Cost matters most         → gemini/gemini-1.5-flash-8b ($0.0375/1M)
-│        ├─ Big context window needed → gemini/gemini-2.5-pro (1M ctx) or ollama_chat/glm-5.3-flash:cloud (200K)
-│        └─ Local / offline           → ollama/llama3.1 or ollama/qwen2.5 (verify model card says "tools")
+│        ├─ Big context window needed → gemini/gemini-2.5-pro (1M ctx) or ollama_chat/glm-5.3:cloud (1M ctx, per the catalog)
+│        └─ Local / offline           → ollama_chat/gemma4:12b (catalog lists tools, thinking, vision)
 └─ NO (pure string-template chain, no tools) →
-         Any model works. Optimize for cost: ollama_chat/glm-5.3-flash:cloud or gemini/gemini-1.5-flash-8b.
+         Any model works. Optimize for cost: ollama_chat/glm-5.3-flash:cloud, a local model, or gemini/gemini-1.5-flash-8b.
 ```
 
 ## E. Using Ollama — extra wiring
@@ -137,14 +131,13 @@ If the response is a structured tool call, you're good. If it's a plain English 
 
 ## F. Two-tier routing — the right pairings
 
-`AgenticStepProcessor` Phase 1 (`enable_two_tier_routing=True`) needs a `model_name` (primary) and `fallback_model` (cheap). Best-tested pairings from the repo:
+`AgenticStepProcessor` Phase 1 (`enable_two_tier_routing=True`) needs a `model_name` (primary) and `fallback_model` (cheaper or faster). Example pairings (check each model's capabilities first):
 
-| Primary | Fallback | Cost ratio | Both tool-calling? |
-|---|---|---|---|
-| `gemini/gemini-2.5-pro` | `gemini/gemini-1.5-flash-8b` | 33x | ✅ |
-| `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 5x | ✅ |
-| `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 22x | ✅ (ollama_chat/glm-5.3-flash:cloud = reasoning model) |
-| `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | ~12x | ✅ |
+| Primary | Fallback | Both tool-calling? |
+|---|---|---|
+| `gemini/gemini-2.5-pro` | `gemini/gemini-1.5-flash-8b` | ✅ |
+| `ollama_chat/glm-5.3:cloud` | `ollama_chat/glm-5.3-flash:cloud` | ✅ (catalog: both list tools and thinking) |
+| `ollama_chat/glm-5.3:cloud` | `ollama_chat/gemma4:12b` | ✅ (fallback runs locally; catalog lists tools) |
 
 Mixing providers in a two-tier setup works but requires both API keys present.
 
@@ -152,7 +145,7 @@ Mixing providers in a two-tier setup works but requires both API keys present.
 
 Run **`python scripts/check_keys.py`** to verify every configured key works AND list which models your account actually has access to. Output lands in `scripts/scratch/api-status.md` (gitignored). Use `--no-probe` for a free env-presence check that doesn't burn quota.
 
-This is the fastest fix for "I picked `ollama_chat/glm-5.3-flash:cloud` and got 'model not found'" — the probe lists what your key actually sees.
+This is the fastest fix for "I picked a model tag and got 'model not found'" — the probe lists what your key actually sees.
 
 ## H. Required env vars per provider
 
@@ -167,9 +160,9 @@ This is the fastest fix for "I picked `ollama_chat/glm-5.3-flash:cloud` and got 
 
 ## Common failures + fix
 
-- **`litellm.BadRequestError: model='ollama_chat/glm-5.3-flash:cloud' not found`** — missing provider prefix. Use `"ollama_chat/glm-5.3-flash:cloud"`.
+- **`litellm.BadRequestError: model='glm-5.3:cloud' not found`** — missing provider prefix. Use `"ollama_chat/glm-5.3:cloud"`.
 - **Tool-call function never executes, agent just hallucinates a response in plain text** — the chosen model doesn't support tool-calling. Switch to one of the ⭐⭐⭐ entries in §B.
-- **Two-tier routing produces garbage on simple sub-tasks** — your `fallback_model` is too weak (e.g. `phi:2b`). Use a fallback that still supports the language complexity of the task; `ollama_chat/glm-5.3-flash:cloud` and `gemini-1.5-flash-8b` are safe defaults.
+- **Two-tier routing produces garbage on simple sub-tasks** — your `fallback_model` is too weak (e.g. a model under 2B parameters). Use a fallback that still supports the language complexity of the task; a same-family smaller model such as `ollama_chat/glm-5.3-flash:cloud` is a reasonable starting point.
 - **Ollama model loaded but inference is slow/OOM** — enable `model_management` with `auto_unload_models=True` so models swap out between steps.
 - **`API key not found`** for Gemini despite `GEMINI_API_KEY` being set — LiteLLM expects `GOOGLE_API_KEY`. Rename it (or `export GOOGLE_API_KEY="$GEMINI_API_KEY"` in your shell).
 

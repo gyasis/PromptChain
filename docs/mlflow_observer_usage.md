@@ -361,7 +361,7 @@ observer = MLflowObserver(experiment_name="multi-agent-system")
 # Create agents
 researcher = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
 coder = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
-reviewer = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
+reviewer = PromptChain(models=["ollama_chat/glm-5.3:cloud"], ...)
 
 # Multi-agent chain
 agent_chain = AgentChain(

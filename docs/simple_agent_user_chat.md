@@ -152,7 +152,7 @@ async def main():
 | Agent Name   | Model Name                | api_base                        | Use Case                |
 |--------------|--------------------------|----------------------------------|-------------------------|
 | qa_agent     | ollama/deepseek-r1:70b   | http://192.168.1.159:11434      | Local/remote Ollama     |
-| math_agent   | ollama_chat/glm-5.3-flash:cloud            | https://api.openai.com/v1       | OpenAI cloud            |
+| math_agent   | ollama_chat/glm-5.3-flash:cloud            | https://ollama.com              | Ollama cloud            |
 | code_agent   | ollama/codellama         | http://localhost:11434          | Local Ollama            |
 | ...          | ...                      | ...                              | ...                     |
 

@@ -86,7 +86,7 @@ We've implemented **OrchestratorSupervisor** as a core library class in PromptCh
    - Added `use_supervisor` parameter (default: False)
    - Added `supervisor_strategy` parameter (default: "adaptive")
    - Added `supervisor_max_steps` parameter (default: 8)
-   - Added `supervisor_model` parameter (default: "ollama_chat/glm-5.3-flash:cloud")
+   - Added `supervisor_model` parameter (required when `use_supervisor=True`)
    - Automatic OrchestratorSupervisor initialization when `use_supervisor=True`
    - Backward compatible - existing code unchanged
 
@@ -203,7 +203,7 @@ agent_chain = AgentChain(
     use_supervisor=True,
     supervisor_strategy="adaptive",
     supervisor_max_steps=10,  # More reasoning steps for complex tasks
-    supervisor_model="ollama_chat/glm-5.3-flash:cloud",  # Use more powerful model
+    supervisor_model="ollama_chat/glm-5.3:cloud",  # Use more powerful model
     router_strategy="static_plan",
     cache_config={"name": "my_session", "path": "./cache"},
     log_dir="./logs",

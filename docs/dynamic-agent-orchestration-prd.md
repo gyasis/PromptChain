@@ -13,7 +13,7 @@ This PRD outlines the implementation of a **Dynamic Agent Orchestration System**
 - ✅ **Zero Breaking Changes**: All existing AgentChain functionality preserved
 - ✅ **Seamless Integration**: Extend existing classes, no duplicate code
 - ✅ **Revolutionary Scoring**: Dynamic, adaptive agent selection system
-- ✅ **Top Model Integration**: GPT-4.1, Claude 4 Opus, Gemini 2.5 Pro
+- ✅ **Top Model Integration**: GLM-5.3 Flash, Claude 4 Opus, Gemini 2.5 Pro
 - ✅ **Code Efficiency**: Minimal lines of code for maximum functionality
 
 ## 🏗️ Current State Analysis
@@ -126,7 +126,7 @@ class AgentBuilder:
     def __init__(self, config=None):
         self.config = config or self._default_config()
         self.top_models = {
-            'gpt4.1': 'ollama_chat/glm-5.3-flash:cloud',
+            'glm_flash': 'ollama_chat/glm-5.3-flash:cloud',
             'claude_opus': 'anthropic/claude-4-opus-20240229',
             'gemini_pro': 'google/gemini-2.5-pro'
         }
@@ -151,9 +151,9 @@ class AgentBuilder:
         """
         Intelligent model selection based on task requirements
         """
-        # GPT-4.1: Best for coding, structured tasks, efficiency
+        # glm_flash: fast cloud model, good for coding and structured tasks
         if 'coding' in capabilities or 'structured' in task_description:
-            return self.top_models['gpt4.1']
+            return self.top_models['glm_flash']
         
         # Claude Opus: Best for reasoning, complex logic, long context
         elif 'reasoning' in capabilities or 'complex' in task_description:
@@ -163,8 +163,8 @@ class AgentBuilder:
         elif 'multimodal' in capabilities or 'real-time' in task_description:
             return self.top_models['gemini_pro']
         
-        # Default to GPT-4.1 for balanced performance
-        return self.top_models['gpt4.1']
+        # Default to glm_flash for balanced performance
+        return self.top_models['glm_flash']
 ```
 
 ## 🔧 Technical Architecture
@@ -272,12 +272,10 @@ SCORING_PROFILES = {
 ### **Model Selection Strategy**
 ```python
 TOP_MODELS = {
-    'gpt4.1': {
+    'glm_flash': {
         'model_id': 'ollama_chat/glm-5.3-flash:cloud',
         'strengths': ['coding', 'structured_tasks', 'efficiency', 'instruction_following'],
-        'context_window': 128000,
-        'cost_per_1k_tokens': 0.03,
-        'latency_ms': 200
+        'context_window': None,  # read from the model catalog
     },
     'claude_opus': {
         'model_id': 'anthropic/claude-4-opus-20240229',
@@ -514,7 +512,7 @@ def test_dynamic_agent_creation():
 - ✅ **Zero Breaking Changes**: 100% backward compatibility
 - ✅ **Performance**: <5% overhead for existing functionality
 - ✅ **Code Efficiency**: <500 additional lines of code
-- ✅ **Model Integration**: Top 3 models (GPT-4.1, Claude Opus, Gemini Pro)
+- ✅ **Model Integration**: Top 3 models (GLM-5.3 Flash, Claude Opus, Gemini Pro)
 
 ### **Functional Metrics**
 - ✅ **Dynamic Creation**: 90% success rate for agent creation

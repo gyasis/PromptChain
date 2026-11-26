@@ -159,7 +159,7 @@ selected = blackboard.read(f"branching.{branching.config.pattern_id}.selected")
 | `hypothesis_count` | int | 3 | Number of hypotheses to generate (>= 1) |
 | `modes` | List[str] | None | Query modes to branch over, cycled to reach `hypothesis_count`. Any of `"local"`, `"global"`, `"hybrid"`; None uses all three. Invalid or empty lists raise `ValueError` |
 | `generator_model` | str | None | Model for hypothesis generation (uses LightRAG default if None) |
-| `judge_model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for judging hypotheses |
+| `judge_model` | str | None | Model to use for judging hypotheses |
 | `diversity_threshold` | float | 0.3 | Minimum diversity between hypotheses (0.0-1.0) |
 | `record_outcomes` | bool | True | Whether to record outcomes for future learning |
 | `pattern_id` | str | auto | Unique identifier for this pattern instance |
@@ -249,7 +249,7 @@ config = BranchingConfig(hypothesis_count=6)
 # For critical decisions: 9+ hypotheses with strict judging
 config = BranchingConfig(
     hypothesis_count=9,
-    judge_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3:cloud",
     diversity_threshold=0.5
 )
 ```
@@ -260,11 +260,8 @@ config = BranchingConfig(
 # Fast judging (less accurate)
 config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 
-# Balanced judging (recommended)
-config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
-
-# High-quality judging (slower, more expensive)
-config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
+# High-quality judging (slower)
+config = BranchingConfig(judge_model="ollama_chat/glm-5.3:cloud")
 ```
 
 ### Error Handling
@@ -341,7 +338,7 @@ outcomes.append({
 ### Cost Optimization
 
 ```python
-# Use cheaper models for generation
+# Use fast models for generation
 config = BranchingConfig(
     generator_model="ollama_chat/glm-5.3-flash:cloud",
     judge_model="ollama_chat/glm-5.3-flash:cloud",
@@ -351,7 +348,7 @@ config = BranchingConfig(
 # Use expensive models only for judging
 config = BranchingConfig(
     generator_model=None,  # Use LightRAG default
-    judge_model="ollama_chat/glm-5.3-flash:cloud",  # High-quality judging
+    judge_model="ollama_chat/glm-5.3:cloud",  # High-quality judging
     hypothesis_count=3,
 )
 ```

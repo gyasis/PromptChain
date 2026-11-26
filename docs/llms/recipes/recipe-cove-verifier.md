@@ -103,7 +103,7 @@ async def tool_executor(call):
 async def main():
     step = AgenticStepProcessor(
         objective="Inspect the config and clean up the backup",
-        model_name="ollama_chat/glm-5.3-flash:cloud",
+        model_name="ollama_chat/glm-5.3:cloud",
         max_internal_steps=3,
         enable_cove=True,
         cove_confidence_threshold=0.7,       # skip calls below this

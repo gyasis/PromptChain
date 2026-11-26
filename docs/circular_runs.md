@@ -78,7 +78,7 @@ def transform_for_next_iteration(output: str, history: list) -> str:
 
 # Create a chain with history-aware circular processing
 advanced_chain = PromptChain(
-    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3:cloud"],
     instructions=[
         "Analyze and improve this content: {input}",
         "Refine the improvements further: {input}"

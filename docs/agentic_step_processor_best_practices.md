@@ -651,7 +651,7 @@ def create_research_synthesis_chain():
         'primary': AgenticStepProcessor(
             objective="Primary comprehensive research",
             max_internal_steps=10,
-            model_name="ollama_chat/glm-5.3-flash:cloud"
+            model_name="ollama_chat/glm-5.3:cloud"
         ),
         'validation': AgenticStepProcessor(
             objective="Validate and cross-check findings",

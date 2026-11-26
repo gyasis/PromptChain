@@ -14,14 +14,14 @@ not core PromptChain dependencies.
 ./dev-bridge.sh
 ```
 
-It prints e.g. `[dev-bridge] <dir>  model=ollama_chat/glm-5.3-flash:cloud  ollama=http://localhost:11434  port=7788`.
+It prints e.g. `[dev-bridge] <dir>  model=<BRIDGE_MODEL or unset>  ollama=http://localhost:11434  port=7788`.
 
 ## Configuration (environment variables)
 
 | Var | Default | Purpose |
 |---|---|---|
 | `OLLAMA_HOST` | `http://localhost:11434` | Which ollama the bridge lists + drives. **This is the "where do the local models live" switch.** |
-| `BRIDGE_MODEL` | `ollama_chat/glm-5.3-flash:cloud` | Default model when the caller doesn't specify one. |
+| `BRIDGE_MODEL` | unset | Model for a turn when the caller doesn't send one. Without either, a turn is refused. |
 | `BRIDGE_PORT` | `7788` | Port the bridge listens on (loopback only). |
 | `BRIDGE_PYTHON` | `$HOME/miniconda3/bin/python` (falls back to `python3`) | Interpreter that has `promptchain` installed. |
 | `OPENAI_API_KEY` / other provider keys | — | Enable the matching cloud models in the list (via litellm). |

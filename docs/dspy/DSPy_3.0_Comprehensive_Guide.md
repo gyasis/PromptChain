@@ -5,7 +5,7 @@
 > **Key Changes in DSPy 3.0:**
 > - `dspy.OpenAI` is **DEPRECATED** - Always use `dspy.LM("provider/model")` instead
 > - Unified `dspy.LM()` interface for all providers (OpenAI, Anthropic, Gemini, etc.)
-> - Model format: `"provider/model-name"` (e.g., `"ollama_chat/glm-5.3-flash:cloud"` - **RECOMMENDED: Best value in Dec 2025**)
+> - Model format: `"provider/model-name"` (e.g., `"ollama_chat/glm-5.3-flash:cloud"`)
 
 ## Executive Summary
 
@@ -32,7 +32,6 @@
 8. [Best Practices](#best-practices)
 9. [Training Diagram](#training-diagram)
 10. [Code Examples](#code-examples)
-11. [Model Pricing Reference](#model-pricing-reference-december-2025)
 
 ---
 
@@ -49,36 +48,16 @@ pip install -U datasets
 pip install mlflow>=2.20  # For tracing and monitoring
 ```
 
-### Model Recommendations (December 2025)
+### Model Recommendations
 
-**⭐ Best Value Models (Recommended for Most Use Cases):**
-
-1. **GPT-4o-mini (OpenAI)** - ⭐ **RECOMMENDED**
-   - **Cost:** $0.15/$0.60 per 1M tokens (input/output)
-   - **Performance:** Near GPT-4 level, **60%+ cheaper than GPT-3.5-turbo**
-   - **Context:** 128K tokens
-   - **Use:** General purpose, best value for most tasks
+1. **Fast cloud model** - general purpose, tool calling, thinking, vision
    - **Model string:** `"ollama_chat/glm-5.3-flash:cloud"`
 
-2. **Claude 3.5 Haiku (Anthropic)** - Fast & Cheap
-   - **Cost:** $0.80/$4 per 1M tokens
-   - **Performance:** Fast, cost-effective
-   - **Use:** High-throughput tasks, simple reasoning
-   - **Model string:** `"ollama_chat/glm-5.3-flash:cloud"`
+2. **Strong cloud model** - harder reasoning, 1M-token context
+   - **Model string:** `"ollama_chat/glm-5.3:cloud"`
 
-3. **Grok (xAI)** - Cheapest Option
-   - **Cost:** $0.20/$0.50 per 1M tokens (cheapest!)
-   - **Use:** Budget-constrained projects
-   - **Model string:** `"xai/grok-beta"` (if available via LiteLLM)
-
-**High Performance Models (When Quality > Cost):**
-
-- **GPT-4o (OpenAI):** $2.50/$10 per 1M tokens - Best overall performance
-- **Claude 3.5 Sonnet (Anthropic):** $3/$15 per 1M tokens - Excellent reasoning
-
-**⚠️ Avoid in 2025:**
-- ❌ **GPT-3.5-turbo** - More expensive AND worse than GPT-4o-mini
-- ❌ Older Claude models - Newer versions are better value
+3. **Small local model** - runs on your own hardware, 128K-token context
+   - **Model string:** `"ollama_chat/gemma4:12b"`
 
 **Environment Configuration:**
 
@@ -94,18 +73,13 @@ os.environ["OPENAI_API_KEY"] = "your-key-here"
 # Configure the Language Model (DSPy 3.0 - Use dspy.LM, NOT dspy.OpenAI)
 # dspy.OpenAI is DEPRECATED - always use dspy.LM with provider/model format
 
-# RECOMMENDED (Dec 2025): GPT-4o-mini - Best value: 60%+ cheaper than GPT-3.5-turbo, better performance
-lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # $0.15/$0.60 per 1M tokens - BEST VALUE!
+# Fast cloud model
+lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")
 
-# Alternative cheap options (Dec 2025):
-# lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # Fast & cheap: $0.80/$4 per 1M tokens
-# lm = dspy.LM("xai/grok-beta")  # Cheapest: $0.20/$0.50 per 1M tokens (if available)
+# Alternatives:
+# lm = dspy.LM("ollama_chat/glm-5.3:cloud")  # stronger, for harder tasks
+# lm = dspy.LM("ollama_chat/gemma4:12b")  # small local model
 
-# For higher performance (when needed):
-# lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # $2.50/$10 per 1M tokens - best performance
-# lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # $3/$15 per 1M tokens
-
-# With API key: lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud", api_key="YOUR_API_KEY")
 dspy.configure(lm=lm)
 
 # Optional: Enable caching
@@ -818,7 +792,7 @@ optimizer = BootstrapFinetune(
 compiled_module = optimizer.compile(
     module,
     trainset=trainset,
-    target="ollama_chat/glm-5.3-flash:cloud"  # Model to finetune
+    target="ollama_chat/gemma4:12b"  # Model to finetune
 )
 ```
 
@@ -1293,16 +1267,15 @@ class RobustQA(dspy.Module):
 
 ### 8. Monitor API Usage & Choose Cost-Effective Models
 ```python
-# Use GPT-4o-mini for development and most tasks (60%+ cheaper than GPT-3.5-turbo!)
-lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # Best value in Dec 2025
+# Use the fast model for development and most tasks
+lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")
 
-# Only use expensive models when you need maximum performance
-# lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")  # Only for critical tasks
+# Only use the strong model when you need maximum performance
+# lm = dspy.LM("ollama_chat/glm-5.3:cloud")  # Only for critical tasks
 ```
 - Use caching to reduce redundant calls
 - Set budget limits for optimization runs
 - Log all API calls for cost tracking
-- **Use GPT-4o-mini instead of GPT-3.5-turbo** - it's cheaper AND better!
 
 ### 9. Document Your Signatures
 ```python
@@ -1507,7 +1480,6 @@ from dspy.teleprompt import BootstrapFewShot
 from dspy.evaluate import answer_exact_match
 
 # Configure LM (DSPy 3.0 - Use dspy.LM)
-# GPT-4o-mini: Best value in Dec 2025 - cheaper AND better than GPT-3.5-turbo
 lm = dspy.LM("ollama_chat/glm-5.3-flash:cloud")
 dspy.configure(lm=lm)
 
@@ -1673,17 +1645,6 @@ for name, prompt_info in all_prompts.items():
 - **DSPy Version**: 3.0+
 - **Last Updated**: December 2025
 - **Compatibility**: Python 3.8+, Works with OpenAI, Anthropic, and other LiteLLM-compatible providers
-
-## Model Pricing Reference (December 2025)
-
-| Model | Input (per 1M tokens) | Output (per 1M tokens) | Best For |
-|-------|----------------------|----------------------|----------|
-| **GPT-4o-mini** ⭐ | $0.15 | $0.60 | **Best value - recommended for most tasks** |
-| Grok (xAI) | $0.20 | $0.50 | Cheapest option |
-| Claude 3.5 Haiku | $0.80 | $4.00 | Fast, cost-effective |
-| GPT-4o | $2.50 | $10.00 | Highest performance |
-| Claude 3.5 Sonnet | $3.00 | $15.00 | Excellent reasoning |
-| ~~GPT-3.5-turbo~~ | ~~$0.50~~ | ~~$1.50~~ | ❌ **Avoid - more expensive than GPT-4o-mini!** |
 
 ---
 

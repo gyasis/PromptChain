@@ -1543,7 +1543,7 @@ class SelfConsistentJudge:
     def evaluate(self, example, pred, trace=None):
         scores = []
 
-        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3-flash:cloud", temperature=self.temperature)):
+        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3:cloud", temperature=self.temperature)):
             for _ in range(self.num_samples):
                 result = self.judge(
                     question=example.question,
@@ -1623,8 +1623,8 @@ class CostOptimizedEvaluation:
         if fast_result.assessment_answer in [True, False]:
             return 1.0 if fast_result.assessment_answer else 0.0
 
-        # Stage 2: Uncertain cases get expensive model
-        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3-flash:cloud", temperature=0.2)):
+        # Stage 2: Uncertain cases get the stronger model
+        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3:cloud", temperature=0.2)):
             accurate_result = self.accurate_judge(
                 question=example.question,
                 response=pred.answer,

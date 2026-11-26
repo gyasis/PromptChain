@@ -37,7 +37,7 @@ The Prompt Engineer is a specialized component of PromptChain designed for itera
    ```python
    # Improves prompts based on feedback
    improver = PromptChain(
-       models=["ollama_chat/glm-5.3-flash:cloud"],
+       models=["ollama_chat/glm-5.3:cloud"],
        instructions=["""You are a prompt engineering expert. Your task is to improve the given prompt based on specific feedback.
 
            IMPORTANT: Do NOT change the core purpose or domain of the prompt. Maintain the original intent and subject matter.
@@ -169,8 +169,8 @@ python -m promptchain.utils.prompt_engineer \
 | `--output-file` | str | None | File to save the final prompt to | `--output-file prompt.txt` |
 | `--task` | str | None | Task description for prompt creation | `--task "Generate SQL queries"` |
 | `--initial-prompt` | str | None | Initial prompt to improve | `--initial-prompt "Write a story..."` |
-| `--evaluator-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
-| `--improver-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--evaluator-model` | str | required (no default) | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--improver-model` | str | evaluator model | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3:cloud"` |
 | `--test` | bool | False | Enable prompt testing | `--test` |
 | `--test-inputs` | List[str] | None | Comma-separated test inputs | `--test-inputs "input1,input2,input3"` |
 | `--focus` | str | "all" | Focus area for improvements | `--focus clarity` |
@@ -189,7 +189,7 @@ python -m promptchain.utils.prompt_engineer \
 python -m promptchain.utils.prompt_engineer \
     -i \
     --evaluator-model "ollama_chat/glm-5.3-flash:cloud" \
-    --improver-model "ollama_chat/glm-5.3-flash:cloud"
+    --improver-model "ollama_chat/glm-5.3:cloud"
 ```
 
 3. **Full Testing Configuration**
@@ -417,8 +417,8 @@ engineer.evaluator.add_debug_callbacks({
 | `--verbose` | bool | False | Enable detailed logging | `--verbose` |
 | `--task` | str | None | Task description for prompt creation | `--task "Generate SQL queries"` |
 | `--initial-prompt` | str | None | Initial prompt to improve (use "-" for stdin) | `--initial-prompt "Write a story..."` |
-| `--evaluator-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
-| `--improver-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--evaluator-model` | str | required (no default) | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--improver-model` | str | evaluator model | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3:cloud"` |
 | `--test` | bool | False | Enable prompt testing | `--test` |
 | `--test-inputs` | List[str] | None | Test inputs for prompt testing | `--test-inputs "input1,input2,input3"` |
 | `--focus` | str | "all" | Focus area for improvements | `--focus clarity` |
@@ -470,7 +470,7 @@ engineer.evaluator.add_debug_callbacks({
 
 ### Evaluator Model
 
-Default: `ollama_chat/glm-5.3-flash:cloud`
+Required; there is no default.
 
 Parameters can be specified as a JSON object:
 ```bash
@@ -479,16 +479,16 @@ Parameters can be specified as a JSON object:
 
 ### Improver Model
 
-Default: `ollama_chat/glm-5.3-flash:cloud`
+Defaults to the evaluator model.
 
 Parameters can be specified as a JSON object:
 ```bash
---improver-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5, "max_tokens": 2000}}'
+--improver-model '{"name": "ollama_chat/glm-5.3:cloud", "params": {"temperature": 0.5, "max_tokens": 2000}}'
 ```
 
 ### Creator Models
 
-Default: `["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"]`
+Default: none. Pass the model names yourself, for example `["ollama_chat/glm-5.3:cloud", "ollama_chat/glm-5.3-flash:cloud"]`.
 
 Can be specified as comma-separated list in interactive mode:
 ```bash
@@ -562,7 +562,7 @@ python -m promptchain.utils.prompt_engineer \
 ```bash
 python -m promptchain.utils.prompt_engineer \
     --evaluator-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.7}}' \
-    --improver-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"max_tokens": 2000}}' \
+    --improver-model '{"name": "ollama_chat/glm-5.3:cloud", "params": {"max_tokens": 2000}}' \
     --techniques style_mimicking:technical comparative_answering:pros_cons
 ```
 

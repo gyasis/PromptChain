@@ -110,7 +110,7 @@ Just add `tool_scope: List[str]` to `AgenticStepProcessor.__init__`. Sequential 
 
 Multi-model chains are the production pattern (cost optimization via two-tier routing, capability optimization via specialist + generalist pairing). Without per-step tool scoping, the framework forces users to choose between:
 
-- All steps must use a tool-strong model (cost — ollama_chat/glm-5.3-flash:cloud for everything when ollama_chat/glm-5.3-flash:cloud would do)
+- All steps must use a tool-strong model (cost — ollama_chat/glm-5.3:cloud for everything when ollama_chat/glm-5.3-flash:cloud would do)
 - Wrap weak-tool steps in Python functions (loses the abstraction the framework provides)
 - Don't use specialists at all (loses domain expertise — medical, legal, code)
 

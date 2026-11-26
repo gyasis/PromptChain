@@ -126,7 +126,7 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
 }
 ```
 
-### 2. Azure OpenAI (GPT-5, GPT-4, etc.)
+### 2. Azure OpenAI (your own deployments)
 
 ```json
 {
@@ -137,10 +137,9 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_key": "YOUR_AZURE_OPENAI_API_KEY",
       "api_version": "2024-02-15-preview",
       "models": [
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud",
-        "gpt-35-turbo"
+        "YOUR_LARGE_DEPLOYMENT",
+        "YOUR_LONG_CONTEXT_DEPLOYMENT",
+        "YOUR_SMALL_DEPLOYMENT"
       ],
       "transformer": {
         "use": []
@@ -148,10 +147,10 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
     }
   ],
   "Router": {
-    "default": "azure,ollama_chat/glm-5.3-flash:cloud",
-    "background": "azure,gpt-35-turbo",
-    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
-    "longContext": "azure,ollama_chat/glm-5.3-flash:cloud"
+    "default": "azure,YOUR_LARGE_DEPLOYMENT",
+    "background": "azure,YOUR_SMALL_DEPLOYMENT",
+    "think": "azure,YOUR_LARGE_DEPLOYMENT",
+    "longContext": "azure,YOUR_LONG_CONTEXT_DEPLOYMENT"
   }
 }
 ```
@@ -159,33 +158,39 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
 **Azure Configuration Notes:**
 - Replace `YOUR_RESOURCE_NAME` with your Azure OpenAI resource name
 - API key format: `YOUR_AZURE_OPENAI_API_KEY`
-- For GPT-5, ensure your Azure subscription has access to the model
+- Model names are the deployment names you created in Azure, not catalog model names
+- Ensure your Azure subscription has access to the model behind each deployment
 - API version may need to be updated based on Azure OpenAI service version
 
-### 3. GPT-5 via OpenRouter
+### 3. Ollama Cloud Models (through the local Ollama daemon)
+
+A signed-in local Ollama daemon serves `:cloud` tags and forwards them to Ollama Cloud, so the router talks to the same local endpoint for both.
 
 ```json
 {
   "Providers": [
     {
-      "name": "openrouter",
-      "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
-      "api_key": "sk-or-v1-your-key",
+      "name": "ollama",
+      "api_base_url": "http://localhost:11434/v1/chat/completions",
+      "api_key": "ollama",
       "models": [
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud"
+        "glm-5.3:cloud",
+        "glm-5.3-flash:cloud"
       ]
     }
   ],
   "Router": {
-    "default": "openrouter,ollama_chat/glm-5.3-flash:cloud",
-    "background": "openrouter,ollama_chat/glm-5.3-flash:cloud"
+    "default": "ollama,glm-5.3-flash:cloud",
+    "background": "ollama,glm-5.3-flash:cloud",
+    "think": "ollama,glm-5.3:cloud",
+    "longContext": "ollama,glm-5.3:cloud"
   }
 }
 ```
 
-### 4. Multi-Provider Configuration (Gemini + GPT-5 + Azure)
+Both models report tool calling and thinking in the model catalog. `glm-5.3-flash:cloud` is the smaller, faster variant of the `glm-5.3:cloud` family and also reports vision. The router uses the plain Ollama tag (`glm-5.3:cloud`); the `ollama_chat/` prefix belongs to LiteLLM and PromptChain model strings only.
+
+### 4. Multi-Provider Configuration (Gemini + Ollama Cloud + Azure)
 
 ```json
 {
@@ -200,9 +205,7 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_key": "sk-or-v1-your-openrouter-key",
       "models": [
         "google/gemini-2.5-pro-preview",
-        "google/gemini-2.5-flash-preview",
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud"
+        "google/gemini-2.5-flash-preview"
       ]
     },
     {
@@ -211,8 +214,7 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_key": "YOUR_AZURE_KEY",
       "api_version": "2024-02-15-preview",
       "models": [
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud"
+        "YOUR_LARGE_DEPLOYMENT"
       ]
     },
     {
@@ -228,7 +230,7 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
   "Router": {
     "default": "openrouter,google/gemini-2.5-pro-preview",
     "background": "openrouter,google/gemini-2.5-flash-preview",
-    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
+    "think": "azure,YOUR_LARGE_DEPLOYMENT",
     "longContext": "openrouter,google/gemini-2.5-pro-preview",
     "longContextThreshold": 60000
   }
@@ -270,17 +272,15 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_base_url": "http://localhost:11434/v1/chat/completions",
       "api_key": "ollama",
       "models": [
-        "llama3",
-        "mistral",
-        "codellama",
-        "qwen2.5-coder"
+        "gemma4:12b",
+        "glm-5.3-flash:cloud"
       ]
     }
   ],
   "Router": {
-    "default": "ollama,llama3",
-    "background": "ollama,mistral",
-    "think": "ollama,llama3"
+    "default": "ollama,gemma4:12b",
+    "background": "ollama,gemma4:12b",
+    "think": "ollama,glm-5.3-flash:cloud"
   }
 }
 ```
@@ -307,11 +307,11 @@ During a Claude Code session, switch models dynamically:
 # Switch to Gemini
 /model openrouter,google/gemini-2.5-pro-preview
 
-# Switch to GPT-5 on Azure
-/model azure,ollama_chat/glm-5.3-flash:cloud
+# Switch to an Azure deployment
+/model azure,YOUR_LARGE_DEPLOYMENT
 
-# Switch to local Ollama model
-/model ollama,qwen2.5-coder:latest
+# Switch to a local Ollama model
+/model ollama,gemma4:12b
 
 # Switch to DeepSeek
 /model deepseek,deepseek-reasoner
@@ -350,8 +350,8 @@ The `Router` section defines which model to use for different task types:
 {
   "Router": {
     "default": "openrouter,google/gemini-2.5-flash-preview",  // Fast, cheap
-    "background": "ollama,mistral",                          // Free, local
-    "think": "azure,ollama_chat/glm-5.3-flash:cloud",                                  // Powerful, expensive
+    "background": "ollama,gemma4:12b",                       // Local, no per-token charge
+    "think": "ollama,glm-5.3:cloud",                         // Large cloud model, thinking
     "longContext": "openrouter,google/gemini-2.5-pro-preview" // Long context
   }
 }
@@ -431,7 +431,7 @@ Then reference in config:
 ```bash
 curl -X GET "https://openrouter.ai/api/v1/models" \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" | \
-  grep -i "gemini\|ollama_chat/glm-5.3-flash:cloud"
+  grep -i "gemini"
 ```
 
 **Azure OpenAI:**
@@ -460,8 +460,8 @@ curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"
 ## Cost Optimization Strategies
 
 ### Strategy 1: Tiered Model Usage
-- Simple tasks → Fast/cheap models (Gemini Flash, GPT-3.5)
-- Complex tasks → Powerful models (GPT-5, Gemini Pro)
+- Simple tasks → Fast, small models (Gemini Flash, a small local model)
+- Complex tasks → Large models (`glm-5.3:cloud`, Gemini Pro)
 - Background tasks → Local models (Ollama)
 
 ### Strategy 2: Context-Aware Routing
@@ -473,9 +473,9 @@ curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"
 ```json
 {
   "Router": {
-    "default": "openrouter,google/gemini-2.5-flash-preview",  // $0.075/1M tokens
-    "think": "azure,ollama_chat/glm-5.3-flash:cloud",                                    // $5/1M tokens
-    "background": "ollama,llama3"                              // Free
+    "default": "ollama,glm-5.3-flash:cloud",   // Fast cloud model
+    "think": "ollama,glm-5.3:cloud",           // Larger cloud model, used only for hard tasks
+    "background": "ollama,gemma4:12b"          // Local, no per-token charge
   }
 }
 ```
@@ -519,11 +519,10 @@ model_list:
       model: gemini/gemini-2.5-pro
       api_key: os.environ/GOOGLE_API_KEY
   
-  - model_name: ollama_chat/glm-5.3-flash:cloud
+  - model_name: glm-5.3
     litellm_params:
-      model: ollama_chat/glm-5.3-flash:cloud
-      api_base: https://YOUR_RESOURCE.openai.azure.com
-      api_key: os.environ/AZURE_OPENAI_API_KEY
+      model: ollama_chat/glm-5.3:cloud
+      api_base: http://localhost:11434
 ```
 
 ---
@@ -548,14 +547,14 @@ Based on multi-hop research and analysis:
 
 - **Gemini 2.5 Pro**: Excellent for long-context tasks, competitive pricing
 - **Gemini 2.5 Flash**: Fast responses, cost-effective for routine tasks
-- **GPT-5**: Strong reasoning, best for complex problem-solving
+- **glm-5.3:cloud**: Large Ollama Cloud model with tool calling and thinking, 1M-token context (per the model catalog)
 - **DeepSeek**: Specialized for coding tasks, cost-effective
-- **Ollama Models**: Free, local, good for privacy-sensitive tasks
+- **Local Ollama models** (for example `gemma4:12b`): run on your hardware, good for privacy-sensitive tasks
 
 ### Routing Strategy Recommendations
 
-1. **Development Workflow**: Use fast models (Gemini Flash) for quick iterations, powerful models (GPT-5) for architecture decisions
-2. **Code Review**: Use reasoning models (DeepSeek Reasoner, GPT-5)
+1. **Development Workflow**: Use fast models (Gemini Flash) for quick iterations, a larger model (`glm-5.3:cloud`) for architecture decisions
+2. **Code Review**: Use reasoning models (DeepSeek Reasoner, `glm-5.3:cloud`)
 3. **Documentation**: Use long-context models (Gemini Pro)
 4. **Testing**: Use local models (Ollama) for privacy-sensitive code
 
@@ -586,9 +585,7 @@ Based on multi-hop research and analysis:
       "api_key": "${OPENROUTER_API_KEY}",
       "models": [
         "google/gemini-2.5-pro-preview",
-        "google/gemini-2.5-flash-preview",
-        "ollama_chat/glm-5.3-flash:cloud",
-        "ollama_chat/glm-5.3-flash:cloud"
+        "google/gemini-2.5-flash-preview"
       ]
     },
     {
@@ -596,7 +593,7 @@ Based on multi-hop research and analysis:
       "api_base_url": "https://my-resource.openai.azure.com/openai/deployments",
       "api_key": "${AZURE_OPENAI_API_KEY}",
       "api_version": "2024-02-15-preview",
-      "models": ["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"]
+      "models": ["YOUR_LARGE_DEPLOYMENT"]
     },
     {
       "name": "deepseek",
@@ -608,13 +605,13 @@ Based on multi-hop research and analysis:
       "name": "ollama",
       "api_base_url": "http://localhost:11434/v1/chat/completions",
       "api_key": "ollama",
-      "models": ["llama3", "qwen2.5-coder"]
+      "models": ["gemma4:12b", "glm-5.3:cloud"]
     }
   ],
   "Router": {
     "default": "openrouter,google/gemini-2.5-flash-preview",
-    "background": "ollama,llama3",
-    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
+    "background": "ollama,gemma4:12b",
+    "think": "ollama,glm-5.3:cloud",
     "longContext": "openrouter,google/gemini-2.5-pro-preview",
     "longContextThreshold": 60000
   }
@@ -623,7 +620,7 @@ Based on multi-hop research and analysis:
 
 This configuration provides:
 - ✅ Gemini integration (via OpenRouter)
-- ✅ GPT-5 support (Azure + OpenRouter)
+- ✅ Azure deployments and Ollama Cloud models
 - ✅ Cost optimization (tiered routing)
 - ✅ Local fallback (Ollama)
 - ✅ Specialized coding models (DeepSeek)
@@ -633,7 +630,7 @@ This configuration provides:
 ## Conclusion
 
 Claude Code Router enables flexible, cost-effective AI coding assistance by:
-- Supporting multiple providers (Gemini, GPT-5, Azure, etc.)
+- Supporting multiple providers (Gemini, Ollama Cloud, Azure, etc.)
 - Intelligent routing based on task complexity
 - Dynamic model switching
 - Cost optimization through strategic model selection
