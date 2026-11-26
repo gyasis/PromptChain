@@ -28,9 +28,6 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 from .types import Msg, Transcript, render
 
-DEFAULT_MODEL = "openai/gpt-4o-mini"
-
-
 def _tool_schema(func: Callable) -> dict:
     """Auto-derive an OpenAI/litellm tool schema from a plain function's signature +
     docstring. Params are typed as strings (good enough for simple tools) — override by
@@ -49,10 +46,15 @@ def _tool_schema(func: Callable) -> dict:
 class LLMAgent:
     """A true agent: an ``AgenticStepProcessor`` wrapped as a discussion participant."""
 
-    def __init__(self, name: str, persona: str, model: str = DEFAULT_MODEL,
+    def __init__(self, name: str, persona: str, model: Optional[str] = None,
                  tools: Optional[List[Callable]] = None, max_internal_steps: int = 4,
                  one_sentence: bool = True, objective: Optional[str] = None,
                  capabilities: Optional[List[str]] = None):
+        if not model:
+            raise ValueError(
+                f"LLMAgent {name!r} requires `model`: pass a model name "
+                f"(for example 'provider/model')."
+            )
         self.name = name
         self.persona = persona
         # Declared skills — used by capability-based selection (by_capability) and by an
@@ -108,13 +110,13 @@ class LLMAgent:
         return self._clean(await self.chain.process_prompt_async(text))
 
 
-def agent(name: str, persona: str, model: str = DEFAULT_MODEL,
+def agent(name: str, persona: str, model: Optional[str] = None,
           tools: Optional[List[Callable]] = None, max_internal_steps: int = 4,
           capabilities: Optional[List[str]] = None, **kw) -> LLMAgent:
-    """A true agent in one line::
+    """A true agent in one line. ``model`` is required; there is no default::
 
-        A = agent("A", "a cautious engineer", capabilities=["risk", "security"])
-        C = agent("C", "a researcher", tools=[lookup_metric])   # give it real tools
+        A = agent("A", "a cautious engineer", model=my_model, capabilities=["risk", "security"])
+        C = agent("C", "a researcher", model=my_model, tools=[lookup_metric])   # give it real tools
     """
     return LLMAgent(name, persona, model=model, tools=tools,
                     max_internal_steps=max_internal_steps, capabilities=capabilities, **kw)

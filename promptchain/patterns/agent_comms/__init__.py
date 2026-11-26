@@ -43,7 +43,7 @@ Quick start
 """
 from promptchain.utils.external_loop import ExternalLoop  # G10 (re-exported)
 
-from .agents import DEFAULT_MODEL, EchoAgent, LLMAgent, agent
+from .agents import EchoAgent, LLMAgent, agent
 from .orchestrator import Orchestrator, captain, orchestrator
 from .patterns import Group, as_agent, broadcast, dyad, group, pipeline
 from .routing import cond_rule, keyword_rule, llm_rule, router, sel_from_router
@@ -54,7 +54,7 @@ from .types import AccessibilityGate, MeshContext, Msg, render, speakers
 
 __all__ = [
     # agents
-    "agent", "LLMAgent", "EchoAgent", "DEFAULT_MODEL",
+    "agent", "LLMAgent", "EchoAgent",
     # patterns
     "group", "Group", "dyad", "pipeline", "broadcast", "as_agent",
     # orchestrators (static group() above; agentic manager agent here)

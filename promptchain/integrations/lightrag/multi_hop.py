@@ -55,7 +55,9 @@ class MultiHopConfig(PatternConfig):
     Attributes:
         max_hops: Maximum number of retrieval hops to perform.
         max_sub_questions: Maximum number of sub-questions to generate.
-        synthesizer_model: Model to use for answer synthesis (uses default if None).
+        synthesizer_model: Model for question decomposition and answer synthesis.
+            None turns both LLM steps off: no decomposition, and sub-answers
+            are concatenated.
         decompose_first: Whether to decompose the question before retrieval.
 
     Raises:
@@ -309,8 +311,12 @@ Return the sub-questions in JSON format:
 ]
 """
 
+        model = self.multi_hop_config.synthesizer_model
+        if not model:
+            logger.info("No synthesizer_model set, skipping decomposition")
+            return []
+
         try:
-            model = self.multi_hop_config.synthesizer_model or "openai/gpt-4o-mini"
             response = await acompletion(
                 model=model,
                 messages=[{"role": "user", "content": decomposition_prompt}],
@@ -456,8 +462,11 @@ Sub-answers:
             "\nProvide a unified, coherent answer that integrates all sub-answers:"
         )
 
+        model = self.multi_hop_config.synthesizer_model
+        if not model:
+            return "\n\n".join(sub_answers.values())
+
         try:
-            model = self.multi_hop_config.synthesizer_model or "openai/gpt-4o-mini"
             response = await acompletion(
                 model=model,
                 messages=[{"role": "user", "content": synthesis_prompt}],

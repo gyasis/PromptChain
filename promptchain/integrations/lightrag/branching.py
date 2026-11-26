@@ -44,7 +44,8 @@ class BranchingConfig(PatternConfig):
     Attributes:
         hypothesis_count: Number of hypotheses to generate (default: 3).
         generator_model: Model to use for hypothesis generation (None = use LightRAG default).
-        judge_model: Model to use for judging hypotheses (default: "openai/gpt-4o").
+        judge_model: Model to use for judging hypotheses. None turns the LLM judge
+            off: each hypothesis keeps its own confidence as its score.
         diversity_threshold: Minimum diversity between hypotheses (0.0-1.0).
         record_outcomes: Whether to record outcomes for future learning.
         modes: Query modes to branch over, cycled when hypothesis_count exceeds
@@ -57,7 +58,7 @@ class BranchingConfig(PatternConfig):
 
     hypothesis_count: int = 3
     generator_model: Optional[str] = None
-    judge_model: str = "openai/gpt-4o"
+    judge_model: Optional[str] = None
     diversity_threshold: float = 0.3
     record_outcomes: bool = True
     modes: Optional[List[str]] = None
@@ -445,6 +446,18 @@ class LightRAGBranchingThoughts(BasePattern):
                 "hypothesis_count": len(hypotheses),
             },
         )
+
+        if not self.config.judge_model:
+            return [
+                HypothesisScore(
+                    hypothesis_id=h.hypothesis_id,
+                    score=h.confidence,
+                    reasoning="LLM judge off (no judge_model), using default confidence",
+                    strengths=["Generated successfully"],
+                    weaknesses=["Not evaluated by LLM judge"],
+                )
+                for h in hypotheses
+            ]
 
         # Create judge prompt
         judge_prompt = self._create_judge_prompt(problem, hypotheses)

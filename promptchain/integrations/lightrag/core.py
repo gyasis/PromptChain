@@ -18,10 +18,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LightRAGConfig:
-    """Configuration for LightRAG integration."""
+    """Configuration for LightRAG integration.
+
+    ``model_name`` and ``embedding_model`` have no defaults; the caller names
+    them. They are validated when LightRAG is first used.
+    """
     working_dir: str = "./lightrag_data"
-    model_name: str = "openai/gpt-4o-mini"
-    embedding_model: str = "text-embedding-3-small"
+    model_name: Optional[str] = None
+    embedding_model: Optional[str] = None
     max_tokens: int = 4000
     chunk_size: int = 1000
     chunk_overlap: int = 200
@@ -68,6 +72,17 @@ class LightRAGIntegration:
         """Lazy initialization of hybridrag components."""
         if self._initialized:
             return
+
+        if not self.config.model_name:
+            raise ValueError(
+                "LightRAGConfig.model_name is required: name the LLM model "
+                "(for example 'provider/model') when constructing LightRAGConfig."
+            )
+        if not self.config.embedding_model:
+            raise ValueError(
+                "LightRAGConfig.embedding_model is required: name the embedding "
+                "model when constructing LightRAGConfig."
+            )
 
         from hybridrag.src.lightrag_core import HybridLightRAGCore
         from hybridrag.src.search_interface import SearchInterface
@@ -157,7 +172,8 @@ class LightRAGIntegration:
             query: The search query.
             objective: Optional objective for the search (defaults to answering query).
             max_steps: Maximum number of reasoning steps.
-            model_name: Model to use for agentic reasoning.
+            model_name: Model to use for agentic reasoning (falls back to
+                ``config.model_name``, which must then be set).
             **kwargs: Additional arguments passed to SearchInterface.agentic_search.
 
         Returns:
