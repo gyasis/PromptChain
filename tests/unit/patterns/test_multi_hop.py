@@ -1,236 +1,212 @@
-"""Unit tests for LightRAGMultiHop pattern adapter."""
+"""Unit tests for LightRAGMultiHop.
+
+The pattern optionally decomposes a question into sub-questions (one LLM
+call), hands the question to ``SearchInterface.agentic_search`` and
+synthesises the returned answer. ``agentic_search`` is a single opaque call:
+it returns ``answer`` and ``steps_taken`` and nothing per step. The search
+interface is an ``AsyncMock`` and ``litellm.acompletion`` is patched, so no
+network call happens.
+
+Already covered by tests/test_multi_hop_pattern.py (not repeated here):
+initialisation, decomposition parsing, synthesis, unanswered aspects,
+decompose-first on/off, the error path, the Blackboard hand-off.
+"""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch
-from promptchain.integrations.lightrag.multi_hop import LightRAGMultiHop
+
+from promptchain.integrations.lightrag.multi_hop import (
+    LightRAGMultiHop,
+    MultiHopConfig,
+    MultiHopResult,
+)
+from promptchain.patterns.base import BasePattern
+
+SYNTH_MODEL = "test-provider/synth-model"
+
+
+@pytest.fixture
+def search():
+    mock = AsyncMock()
+    mock.agentic_search.return_value = {"answer": "the answer", "steps_taken": 3}
+    return mock
+
+
+def make_pattern(search, **config_kwargs):
+    config_kwargs.setdefault("decompose_first", False)
+    with patch("promptchain.integrations.lightrag.multi_hop.HYBRIDRAG_AVAILABLE", True):
+        return LightRAGMultiHop(search, MultiHopConfig(**config_kwargs))
+
+
+def llm_returning(payload):
+    response = MagicMock()
+    response.choices = [MagicMock()]
+    response.choices[0].message.content = json.dumps(payload)
+    return AsyncMock(return_value=response)
 
 
 @pytest.mark.asyncio
-class TestLightRAGMultiHop:
-    """Test suite for multi-hop reasoning pattern."""
+class TestAgenticSearchDelegation:
+    async def test_question_and_hop_budget_reach_agentic_search(self, search):
+        pattern = make_pattern(search, max_hops=4)
 
-    async def test_initialization(self, mock_lightrag_core):
-        """Test pattern initializes correctly."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
+        result = await pattern.execute(question="Who built X?")
 
-        assert pattern.lightrag_core == mock_lightrag_core
-        assert pattern.max_hops == 3
-        assert pattern.pattern_name == "multi_hop_reasoning"
+        search.agentic_search.assert_awaited_once()
+        kwargs = search.agentic_search.await_args.kwargs
+        assert kwargs["query"] == "Who built X?"
+        assert kwargs["max_steps"] == 4
+        assert "Who built X?" in kwargs["objective"]
+        assert result.unified_answer == "the answer"
 
-    async def test_agentic_search_delegation(self, mock_lightrag_core):
-        """Test delegation to agentic_search method."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=5
-        )
+    async def test_hop_count_comes_from_the_search_result(self, search):
+        pattern = make_pattern(search, max_hops=5)
 
-        mock_lightrag_core.agentic_search.return_value = {
-            "results": ["hop1 result", "hop2 result"],
-            "metadata": {"hops": 2, "reasoning_chain": ["q1", "q2"]}
-        }
+        result = await pattern.execute(question="q")
 
-        result = await pattern.execute(query="complex question requiring multiple hops")
+        assert result.hops_executed == 3
+        assert result.metadata["max_hops_configured"] == 5
 
-        mock_lightrag_core.agentic_search.assert_called_once()
-        assert "results" in result
-        assert result["metadata"]["hops"] == 2
+    async def test_execute_kwarg_overrides_configured_max_hops(self, search):
+        pattern = make_pattern(search, max_hops=5)
 
-    async def test_question_decomposition(self, mock_lightrag_core):
-        """Test decomposition of complex questions into sub-questions."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
+        result = await pattern.execute(question="q", max_hops=2)
 
-        with patch.object(pattern, '_decompose_question', new_callable=AsyncMock) as mock_decompose:
-            mock_decompose.return_value = [
-                "sub-question 1",
-                "sub-question 2",
-                "sub-question 3"
+        assert search.agentic_search.await_args.kwargs["max_steps"] == 2
+        assert result.metadata["max_hops_configured"] == 2
+
+    async def test_sub_questions_are_listed_in_the_objective(self, search):
+        pattern = make_pattern(search, decompose_first=True, synthesizer_model=SYNTH_MODEL)
+        payload = {
+            "sub_questions": [
+                {"question_id": "sq1", "question_text": "Who is the inventor?"},
+                {"question_id": "sq2", "question_text": "Where was the inventor born?"},
             ]
-
-            result = await pattern.execute(
-                query="What is the capital of the country where the inventor of the telephone was born?"
-            )
-
-            mock_decompose.assert_called_once()
-            assert "sub_questions" in result or "reasoning_chain" in result.get("metadata", {})
-
-    async def test_hop_tracking(self, mock_lightrag_core):
-        """Test tracking of reasoning hops."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=4
-        )
-
-        mock_lightrag_core.agentic_search.return_value = {
-            "results": ["final answer"],
-            "metadata": {
-                "hops": 3,
-                "reasoning_chain": [
-                    "Where was Alexander Graham Bell born?",
-                    "What country is Scotland in?",
-                    "What is the capital of the United Kingdom?"
-                ]
-            }
         }
 
-        result = await pattern.execute(query="test")
+        with patch("litellm.acompletion", new=llm_returning(payload)) as llm:
+            result = await pattern.execute(question="Where was the inventor born?")
 
-        metadata = result.get("metadata", {})
-        assert "hops" in metadata
-        assert metadata["hops"] <= pattern.max_hops
-        assert "reasoning_chain" in metadata
+        assert llm.await_args.kwargs["model"] == SYNTH_MODEL
+        objective = search.agentic_search.await_args.kwargs["objective"]
+        assert "- Who is the inventor?" in objective
+        assert [sq.question_id for sq in result.sub_questions] == ["sq1", "sq2"]
+        assert all(sq.answer == "the answer" for sq in result.sub_questions)
 
-    async def test_max_hops_limit(self, mock_lightrag_core):
-        """Test that max_hops limit is respected."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=2
-        )
+    async def test_no_decomposition_means_no_llm_call(self, search):
+        pattern = make_pattern(search, decompose_first=False)
 
-        # Mock exceeding max hops
-        mock_lightrag_core.agentic_search.return_value = {
-            "results": ["partial result"],
-            "metadata": {
-                "hops": 2,
-                "max_hops_reached": True,
-                "reasoning_chain": ["q1", "q2"]
-            }
+        with patch("litellm.acompletion", new=AsyncMock()) as llm:
+            result = await pattern.execute(question="q")
+
+        llm.assert_not_awaited()
+        assert result.sub_questions == []
+        assert result.sub_answers == {"main": "the answer"}
+
+    async def test_max_sub_questions_caps_decomposition(self, search):
+        pattern = make_pattern(search, decompose_first=True, max_sub_questions=1)
+        payload = {
+            "sub_questions": [
+                {"question_id": f"sq{i}", "question_text": f"Q{i}"} for i in range(4)
+            ]
         }
 
-        result = await pattern.execute(query="very complex question")
+        with patch("litellm.acompletion", new=llm_returning(payload)):
+            result = await pattern.execute(question="q")
 
-        assert result["metadata"]["hops"] <= 2
-        assert result["metadata"].get("max_hops_reached") is True
+        assert len(result.sub_questions) == 1
 
-    async def test_intermediate_results_storage(self, mock_lightrag_core):
-        """Test storage of intermediate hop results."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3,
-            store_intermediate=True
-        )
 
-        mock_lightrag_core.agentic_search.return_value = {
-            "results": ["final"],
-            "metadata": {
-                "hops": 2,
-                "intermediate_results": [
-                    {"hop": 1, "query": "q1", "result": "r1"},
-                    {"hop": 2, "query": "q2", "result": "r2"}
-                ]
-            }
-        }
-
-        result = await pattern.execute(query="test")
-
-        assert "intermediate_results" in result.get("metadata", {})
-        intermediate = result["metadata"]["intermediate_results"]
-        assert len(intermediate) == 2
-
-    async def test_single_hop_fallback(self, mock_lightrag_core):
-        """Test fallback to single-hop for simple questions."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
-
-        with patch.object(pattern, '_needs_multi_hop', new_callable=AsyncMock) as mock_needs:
-            mock_needs.return_value = False
-
-            # Should use simple search instead of agentic
-            mock_lightrag_core.local_query.return_value = {
-                "results": ["simple answer"],
-                "metadata": {"hops": 1}
-            }
-
-            result = await pattern.execute(query="simple question")
-
-            mock_needs.assert_called_once()
-            mock_lightrag_core.local_query.assert_called_once()
-
-    async def test_event_emission_hop_started(self, mock_lightrag_core, event_collector):
-        """Test events emitted when hop starts."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
-        pattern.emit_event = event_collector.collect
-
-        await pattern.execute(query="test")
-
-        events = event_collector.get_events("pattern.multihop.hop_started")
-        assert len(events) > 0
-
-    async def test_event_emission_hop_completed(self, mock_lightrag_core, event_collector):
-        """Test events emitted when hop completes."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
-        pattern.emit_event = event_collector.collect
-
-        await pattern.execute(query="test")
-
-        events = event_collector.get_events("pattern.multihop.hop_completed")
-        assert len(events) > 0
-
-    async def test_event_emission_reasoning_complete(self, mock_lightrag_core, event_collector):
-        """Test events emitted when full reasoning completes."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
-        pattern.emit_event = event_collector.collect
-
-        await pattern.execute(query="test")
-
-        events = event_collector.get_events("pattern.multihop.complete")
-        assert len(events) > 0
-
-    async def test_max_hops_validation(self, mock_lightrag_core):
-        """Test validation of max_hops parameter."""
+class TestConfigValidation:
+    @pytest.mark.parametrize("hops", [0, -3])
+    def test_max_hops_must_be_positive(self, hops):
         with pytest.raises(ValueError, match="max_hops must be at least 1"):
-            LightRAGMultiHop(
-                lightrag_core=mock_lightrag_core,
-                max_hops=0
-            )
+            MultiHopConfig(max_hops=hops)
 
-    async def test_circular_reasoning_detection(self, mock_lightrag_core):
-        """Test detection of circular reasoning patterns."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=5,
-            detect_circular=True
-        )
+    def test_negative_sub_question_cap_is_rejected(self):
+        with pytest.raises(ValueError, match="max_sub_questions must not be negative"):
+            MultiHopConfig(max_sub_questions=-1)
 
-        mock_lightrag_core.agentic_search.return_value = {
-            "results": ["result"],
-            "metadata": {
-                "hops": 3,
-                "reasoning_chain": ["q1", "q2", "q1"],  # Circular
-                "circular_detected": True
-            }
-        }
+    def test_zero_sub_question_cap_is_allowed(self):
+        assert MultiHopConfig(max_sub_questions=0).max_sub_questions == 0
 
-        result = await pattern.execute(query="test")
+    def test_defaults_stay_valid(self):
+        config = MultiHopConfig()
+        assert (config.max_hops, config.max_sub_questions) == (5, 5)
 
-        assert result["metadata"].get("circular_detected") is True
 
-    async def test_base_pattern_interface_compliance(self, mock_lightrag_core):
-        """Test that pattern implements BasePattern interface correctly."""
-        pattern = LightRAGMultiHop(
-            lightrag_core=mock_lightrag_core,
-            max_hops=3
-        )
+@pytest.mark.asyncio
+class TestEvents:
+    async def test_event_order_for_a_run_without_decomposition(
+        self, search, event_collector
+    ):
+        pattern = make_pattern(search)
+        pattern.add_event_handler(event_collector.collect)
 
-        assert hasattr(pattern, 'execute')
-        assert hasattr(pattern, 'pattern_name')
-        assert callable(pattern.execute)
+        await pattern.execute(question="q")
 
-        result = await pattern.execute(query="test")
-        assert isinstance(result, dict)
+        assert [e["type"] for e in event_collector.get_events()] == [
+            "pattern.multi_hop.started",
+            "pattern.multi_hop.hop_completed",
+            "pattern.multi_hop.synthesizing",
+            "pattern.multi_hop.completed",
+        ]
+
+    async def test_hop_completed_event_reports_hops(self, search, event_collector):
+        pattern = make_pattern(search)
+        pattern.add_event_handler(event_collector.collect)
+
+        await pattern.execute(question="q")
+
+        data = event_collector.get_events("pattern.multi_hop.hop_completed")[0]["data"]
+        assert data["hops_executed"] == 3
+        assert data["num_sub_answers"] == 1
+
+    async def test_decomposed_event_lists_sub_questions(self, search, event_collector):
+        pattern = make_pattern(search, decompose_first=True)
+        pattern.add_event_handler(event_collector.collect)
+        payload = [{"question_id": "sq1", "question_text": "Q1"}]
+
+        with patch("litellm.acompletion", new=llm_returning(payload)):
+            await pattern.execute(question="q")
+
+        data = event_collector.get_events("pattern.multi_hop.decomposed")[0]["data"]
+        assert data["sub_questions"] == ["Q1"]
+
+    async def test_completed_event_counts_unanswered_aspects(
+        self, search, event_collector
+    ):
+        search.agentic_search.return_value = {"answer": "", "steps_taken": 1}
+        pattern = make_pattern(search, decompose_first=True)
+        pattern.add_event_handler(event_collector.collect)
+        payload = [{"question_id": "sq1", "question_text": "Q1"}]
+
+        with patch("litellm.acompletion", new=llm_returning(payload)):
+            result = await pattern.execute(question="q")
+
+        completed = event_collector.get_events("pattern.multi_hop.completed")[0]
+        assert completed["data"]["num_unanswered"] == 1
+        assert result.unanswered_aspects == ["Q1"]
+
+
+@pytest.mark.asyncio
+class TestPatternInterface:
+    async def test_implements_base_pattern_contract(self, search):
+        pattern = make_pattern(search)
+
+        assert isinstance(pattern, BasePattern)
+        result = await pattern.execute(question="q")
+        assert isinstance(result, MultiHopResult)
+        assert result.success is True
+        assert result.original_question == "q"
+        assert result.result == result.unified_answer
+
+    async def test_execute_with_timeout_wraps_the_result(self, search):
+        pattern = make_pattern(search)
+
+        result = await pattern.execute_with_timeout(question="q")
+
+        assert result.success is True
+        assert result.unified_answer == "the answer"

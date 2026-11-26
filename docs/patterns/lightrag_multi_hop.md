@@ -140,8 +140,8 @@ result = await pattern.execute(question="...")
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `max_hops` | int | 5 | Maximum retrieval hops to execute |
-| `max_sub_questions` | int | 5 | Maximum sub-questions to generate |
+| `max_hops` | int | 5 | Maximum retrieval hops to execute (>= 1, else `ValueError`) |
+| `max_sub_questions` | int | 5 | Maximum sub-questions to generate (>= 0, else `ValueError`) |
 | `synthesizer_model` | str | None | Model for answer synthesis (uses default if None) |
 | `decompose_first` | bool | True | Whether to decompose question before retrieval |
 | `emit_events` | bool | True | Enable event emission |

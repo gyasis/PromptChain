@@ -57,12 +57,21 @@ class MultiHopConfig(PatternConfig):
         max_sub_questions: Maximum number of sub-questions to generate.
         synthesizer_model: Model to use for answer synthesis (uses default if None).
         decompose_first: Whether to decompose the question before retrieval.
+
+    Raises:
+        ValueError: If max_hops is below 1 or max_sub_questions is negative.
     """
 
     max_hops: int = 5
     max_sub_questions: int = 5
     synthesizer_model: Optional[str] = None
     decompose_first: bool = True
+
+    def __post_init__(self) -> None:
+        if self.max_hops < 1:
+            raise ValueError("max_hops must be at least 1")
+        if self.max_sub_questions < 0:
+            raise ValueError("max_sub_questions must not be negative")
 
 
 @dataclass
