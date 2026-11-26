@@ -18,7 +18,7 @@ DEFAULT_GOVERNOR = "http://192.168.0.159:8799"
 CHAT_PATH = "/llm/ollama/api/chat"
 SHOW_PATH = "/llm/ollama/api/show"
 LLAMACPP_CHAT_PATH = "/llm/llamacpp/v1/chat/completions"
-LLAMACPP_MODELS_PATH = "/llm/llamacpp/v1/models"
+LLAMACPP_MODELS_PATH = "/llm/llamacpp/models"
 LLAMACPP_LOAD_WAIT_S = 300.0  # the llamacpp sidecar's own bound on a model load (LLAMACPP_START_TIMEOUT)
 
 Opener = Callable[..., Any]
