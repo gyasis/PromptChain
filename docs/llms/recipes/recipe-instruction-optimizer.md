@@ -26,7 +26,7 @@ from promptchain.utils.instruction_optimizer import (
 from promptchain.utils.instruction_optimizer import optimize_instruction_sync
 
 # Dataset: (step_input, expected) tuples, or {"input": ..., "expected": ...} dicts.
-dataset = [("2+2", "4"), ("3+3", "6"), ("5+5", "10")]
+dataset = [(f"{n}+{n}", str(2 * n)) for n in range(1, 9)]  # 8 items; fewer than ~6 cannot pass items_above_noise
 
 # Metric: (output, expected) -> float in [0, 1]. Anything else raises ValueError.
 def metric(output, expected):
@@ -51,21 +51,29 @@ for check in result.checks:
     print(check)
 ```
 
-Expected output: the variant wins (`1.0 True`), and both checks print `PASS`. The stand-in `run` is
-deterministic, so the gain is certain; a sampled model gives noisy `per_repeat_means`, and then `above_noise`
-can fail.
+Expected output: the variant wins (`1.0 True`) and every check prints `PASS`. The stand-in `run` is
+deterministic, so the gain is certain. scipy may print a `RuntimeWarning: Precision loss` because both arms
+have zero variance; it is harmless (silence it with `warnings.filterwarnings("ignore", category=RuntimeWarning)`).
 
 ## Read `checks` before trusting a win
 
-`result.checks` always holds `technique_fired(baseline.outputs, best.outputs)`: it fails when the best
-variant's outputs are byte-identical to the baseline's, so the "better" instruction changed nothing. When
-`repeats >= 3` it also holds `above_noise(baseline.per_repeat_means, best.per_repeat_means)`: it fails when
-the gain sits inside run-to-run variance. Report a win only if the checks you care about pass. With
-`repeats < 3` no noise check exists, and a single run proves nothing about a sampled model.
+`improved` is `best is not baseline and best.mean > baseline.mean`. **It ignores `checks`.** A coin-flip
+runner reports `improved=True` in about three of four runs. Trust a win only when every check passes and
+`repeats >= 3`. Each check measures one way a number can lie:
 
-Also read two more fields. `errors` counts runs that raised. Each scores 0.0, so a broken variant looks
-like a bad one, not like a crash. `dropped` lists proposed variants rejected for losing a `{placeholder}`,
-each with its reason.
+| Check | What it measures | Fails when |
+|---|---|---|
+| `technique_fired` | Share of best outputs that are byte-identical to the baseline's. | 95% or more are identical: the new instruction changed nothing. |
+| `above_noise` | Repeat means (baseline vs best), Welch test when scipy is present, else delta vs spread. | The gain sits inside run-to-run variance, or `repeats < 3` (always fails then). A deterministic runner has no variance, so any gain passes: use the next check too. |
+| `items_above_noise` | Paired exact sign test over per-item mean scores. The test skips ties. | The best does not win significantly more items than it loses (p >= 0.05). A gain on 1 of 30 items fails. Needs about 6 discordant items to pass. |
+| `no_errors` | Run exceptions in the baseline and the best. | Any run raised. An error scores 0.0, so a flaky baseline inflates the best's win. |
+
+When the baseline is the best, the first three checks report `n/a, baseline kept` and pass.
+
+Also read `errors` and `error_samples` on each variant (the first exception reprs), and `dropped`: proposed
+or hand-written variants rejected for losing or adding a `{placeholder}`, each with its reason. Each failed
+run also logs a WARNING from `promptchain.utils.instruction_optimizer`. If the baseline raises on every
+call, the function raises `RuntimeError`: the runner is broken.
 
 ## Hold out a split
 
@@ -79,19 +87,19 @@ check = optimize_instruction_sync(tuned.best.instruction, held_out, metric, run=
 ```
 
 Compare `check.best.mean` with the same measurement of the baseline on `held_out`. A tiny dataset (under
-about 20 items) overfits easily; treat its winner as a lead, not a result.
+about 20 items) overfits easily and cannot pass `items_above_noise`; treat its winner as a lead, not a result.
 
 ## Contract
 
 | Item | Rule |
 |---|---|
 | `instruction` | Baseline text. It is variant 0 and wins ties. |
-| `dataset` | Non-empty list of `(input, expected)` or `{"input", "expected"}`. |
-| `metric(output, expected)` | Returns a float in [0, 1]; NaN, out-of-range or non-numeric raises `ValueError`. |
-| `model` / `run` | Pass exactly one. `model` runs `PromptChain(models=[model], instructions=[variant])`. `run(instruction, step_input)` is an async callable. |
-| `variants` | Extra instructions to score. The optimiser removes duplicates. |
-| `proposer`, `n_proposals` | `n_proposals > 0` calls `proposer(instruction, n)` once. Proposals that lose a `{placeholder}` the baseline has go to `dropped`. |
-| `repeats` | Full passes over the dataset per variant. Use 3 or more to get `above_noise`. |
+| `dataset` | Non-empty list of `(input, expected)` pairs or `{"input", "expected"}` dicts. Any other row raises `ValueError`. |
+| `metric(output, expected)` | Returns a float in [0, 1]; a bool, NaN, an out-of-range or a non-numeric value raises `ValueError`. |
+| `model` / `run` | Pass exactly one. `model` runs `PromptChain(models=[model], instructions=[variant])`; if the baseline has no `{input}`, the optimiser appends `\n{input}` to it, because PromptChain renders the step input only through that placeholder. `run(instruction, step_input)` is an async callable. |
+| `variants` | Extra instructions to score. The optimiser removes duplicates. Each must keep exactly the baseline's `{placeholder}` set, or it goes to `dropped`. |
+| `proposer`, `n_proposals` | `n_proposals > 0` calls `proposer(instruction, n)` once. The optimiser reads at most `n` proposals. Proposals that lose or add a `{placeholder}`, or are not strings, go to `dropped`. |
+| `repeats` | Full passes over the dataset per variant. Use 3 or more: below 3, `above_noise` always fails. |
 | Result | `best`, `baseline`, `variants`, `improved` (`best is not baseline` and strictly higher mean), `dropped`, `checks`, `to_dict()`. |
 
 With `model=`, set a fixed low temperature on your model config if you want `repeats` to measure the
@@ -99,23 +107,28 @@ instruction instead of sampling noise.
 
 ## Cost
 
-Calls to the model = `N x |D| x repeats`, where `N = 1 + len(variants) + (accepted proposals)` and
-`|D|` is the dataset size. A proposer adds one call. Example: baseline + 4 variants, 30 items, 3 repeats =
-5 x 30 x 3 = 450 calls. Estimate before running (R-SPEND4) and pilot on a few items first.
+Model calls = `N x |D| x repeats`. `N` counts the scored candidates: the baseline, each distinct valid
+variant, and each distinct valid proposal (at most `n_proposals`). `|D|` is the dataset size. A proposer
+adds one call. Example: baseline + 4 variants, 30 items, 3 repeats = 5 x 30 x 3 = 450 calls. Estimate
+before running (R-SPEND4) and pilot on a few items first.
 
 ## Plug in a proposer
 
 A proposer is `async (instruction: str, n: int) -> list[str]`.
 
 ```python
+import asyncio
 from promptchain.utils.instruction_optimizer import optimize_instruction, llm_proposer
 
-result = await optimize_instruction(base, train, metric, model="openai/gpt-4o-mini",
-                                    proposer=llm_proposer("openai/gpt-4o"), n_proposals=4, repeats=3)
+async def main():
+    return await optimize_instruction(base, train, metric, model="openai/gpt-4o-mini",
+                                      proposer=llm_proposer("openai/gpt-4o"), n_proposals=4, repeats=3)
+
+result = asyncio.run(main())
 ```
 
-`llm_proposer` wraps the instruction in marker lines and asks for a JSON array; it falls back to one
-proposal per line. Your own proposer can be anything, including DSPy, imported by you (the module never
+`llm_proposer` wraps the instruction in marker lines with a random nonce and asks for a JSON array. It reads
+the first JSON array of strings in the reply (code fences allowed); else it keeps numbered or bulleted lines. Your own proposer can be anything, including DSPy, imported by you (the module never
 imports it):
 
 ```python
@@ -131,6 +144,7 @@ instructions you optimise under your control.
 
 ## Common failures + fix
 
+- **Sync wrapper inside a running loop** — `optimize_instruction_sync` does not raise there. It blocks the loop and runs your `run` on a fresh loop in a worker thread. A `run` that uses a client, lock or future from the outer loop fails on every call, and the baseline then raises `RuntimeError`. Await `optimize_instruction` from async code instead.
 - **`ValueError: pass exactly one of model= or run=`** — give one runner.
 - **`ValueError: metric must return a number in [0, 1]`** — normalise your metric; do not return bools or percentages.
 - **Every variant scores 0.0** — check `errors`; the runner is probably raising.
