@@ -17,6 +17,7 @@ import os
 import re
 import shlex
 import subprocess
+import uuid
 import tempfile
 from dataclasses import dataclass
 
@@ -122,13 +123,26 @@ class DockerExecutor:
         argv += self.extra_run_args
         return argv
 
+    def _kill_container(self, name: str) -> None:
+        """Stop a named container whose ``docker run`` client timed out (the client's death does not stop it)."""
+        for verb in (["kill", name], ["rm", "-f", name]):
+            try:
+                subprocess.run([self.docker_bin, *verb], capture_output=True, timeout=30)
+            except Exception:  # noqa: BLE001 - best-effort cleanup; the timeout result is still returned
+                pass
+
     def run(self, command: str) -> ExecResult:
-        """Run a shell ``command`` string inside the sandbox; return an ExecResult."""
-        argv = self._run_argv() + [self.image, "sh", "-c", command]
+        """Run a shell ``command`` string inside the sandbox; return an ExecResult.
+
+        The container is named so a timeout can kill it."""
+        name_args = [] if "--name" in self.extra_run_args else ["--name", f"pc-exec-{uuid.uuid4().hex[:12]}"]
+        argv = self._run_argv() + name_args + [self.image, "sh", "-c", command]
         try:
             p = subprocess.run(argv, capture_output=True, text=True, timeout=self.timeout)
             return ExecResult(p.returncode, (p.stdout or "") + (p.stderr or ""))
         except subprocess.TimeoutExpired as e:
+            if name_args:
+                self._kill_container(name_args[1])
             partial = (e.stdout or "") + (e.stderr or "") if (e.stdout or e.stderr) else ""
             return ExecResult(124, partial + f"\n[timeout after {self.timeout}s]", timed_out=True)
 

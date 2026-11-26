@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Callable
 import json
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -295,9 +296,17 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
             # Parse JSON
             result_dict = json.loads(json_str)
 
-            # Validate and extract fields
-            should_execute = bool(result_dict.get("should_execute", True))
+            # A reply must carry a real boolean verdict and a finite confidence; anything else is rejected.
+            if not isinstance(result_dict, dict):
+                return self._malformed_result("reply is not a JSON object")
+            should_execute = result_dict.get("should_execute")
+            if not isinstance(should_execute, bool):
+                return self._malformed_result(
+                    f"should_execute must be a boolean, got {should_execute!r}"
+                )
             confidence = float(result_dict.get("confidence", 0.5))
+            if not math.isfinite(confidence):
+                return self._malformed_result(f"confidence must be finite, got {confidence!r}")
 
             # Clamp confidence to [0.0, 1.0]
             confidence = max(0.0, min(1.0, confidence))
@@ -357,6 +366,18 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
                 risks=[f"Parsing error: {str(e)}"],
                 verification_reasoning="Error during parsing, allowing execution by default"
             )
+
+    @staticmethod
+    def _malformed_result(problem: str) -> VerificationResult:
+        """Fail-closed result for a reply whose verdict or confidence is unusable."""
+        logger.warning(f"[CoVe] Malformed verification reply: {problem}")
+        return VerificationResult(
+            should_execute=False,
+            confidence=0.0,
+            assumptions=[],
+            risks=[f"Malformed verification reply: {problem}"],
+            verification_reasoning=f"Malformed verification reply ({problem}); not executing",
+        )
 
     def get_stats(self) -> Dict[str, Any]:
         """

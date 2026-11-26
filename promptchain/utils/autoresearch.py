@@ -26,11 +26,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional
 
-from .test_loop_chain import GenerateFn, LoopResult, MicroPromptChain, run_coro_blocking
+from .test_loop_chain import GenerateFn, LoopResult, MicroPromptChain, is_approval, run_coro_blocking
 
 # brief -> research notes (gather stage). Return a string the build objective can use.
 ResearchFn = Callable[[str], Awaitable[str]]
-# (brief, LoopResult) -> verdict string (critic stage). "APPROVE"/"PASS" => accepted.
+# (brief, LoopResult) -> verdict string (critic stage). A first line opening with APPROVE/APPROVED, with no negation => accepted.
 CritiqueFn = Callable[[str, LoopResult], Awaitable[str]]
 
 _NOTES_MAX_CHARS = 4000  # token economy: bound the research notes folded into the objective
@@ -62,13 +62,6 @@ class ResearchResult:
             "winning_code": self.winning_code,
             "notes_chars": len(self.notes),
         }
-
-
-def _approves(verdict: str) -> bool:
-    v = (verdict or "").upper()
-    if "REJECT" in v or "FAIL" in v:
-        return False
-    return "APPROVE" in v or "PASS" in v or "ACCEPT" in v
 
 
 class AutoResearch:
@@ -137,7 +130,7 @@ class AutoResearch:
             self._log("critique stage")
             verdict = await self._critique(brief, build) or ""
 
-        verified = (build.result == "PASS") and (self._critique is None or _approves(verdict))
+        verified = (build.result == "PASS") and (self._critique is None or is_approval(verdict))
         self._log(f"verified={verified} (build={build.result}, verdict={verdict!r})")
         return ResearchResult(
             brief=brief, notes=notes, build=build, verdict=verdict, verified=verified,

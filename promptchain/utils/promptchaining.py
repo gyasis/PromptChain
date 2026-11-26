@@ -877,6 +877,7 @@ class PromptChain:
             tools: List[Dict],
             tool_choice: Optional[str] = None,
             agentic_instruction: Optional[Any] = None,
+            model: Optional[str] = None,
         ) -> Any:
             # Determine model for agentic step: use model_name if set, else default to first model
             model_name = self.models[0] if self.models else "openai/gpt-4o"  # Default
@@ -891,6 +892,9 @@ class PromptChain:
                 # Also get model_params from the AgenticStepProcessor if available
                 if hasattr(agentic_instruction, "model_params"):
                     params = agentic_instruction.model_params
+            # An explicit per-call model (the CoVe verifier passes fallback_model) wins.
+            if model:
+                model_name = model
             if not self.models:
                 logger.warning(
                     "[Agentic Callback] No models defined in PromptChain, using fallback 'openai/gpt-4o'."
@@ -1297,6 +1301,7 @@ class PromptChain:
                                 tools,
                                 tool_choice,
                                 agentic_instruction=instruction,
+                                model=model,
                             ),  # Pass the LLM runner helper. ALL params after `messages` are optional. CoVe at verification.py:137 calls with `messages=, model=` only (no tools, no tool_choice) — `tools=None` and `model=None` both default. **kwargs swallows future-proofing additions. Routing is via agentic_instruction.model_name.
                             tool_executor=tool_executor_callback,  # Pass the revised tool executor helper
                             callback_manager=self.callback_manager,  # ✅ NEW (v0.4.2): Pass callback_manager for observability

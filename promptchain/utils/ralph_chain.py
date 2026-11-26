@@ -37,6 +37,7 @@ from .external_loop import ExternalLoop
 from .test_loop_chain import (
     GenerateFn,
     extract_code,
+    is_approval,
     make_generator,
     resolve_executor,
     run_coro_blocking,
@@ -122,17 +123,18 @@ _FAILURE = """
 </last_attempt_failed>"""
 
 
-def _approves(text: str) -> bool:
-    if not text or not text.strip():
-        return False
-    return "APPROVE" in text.strip().splitlines()[0].upper()
-
-
 def _norm_sig(text: str) -> str:
-    """Normalize test output into a stagnation signature (drop digits/paths/whitespace)."""
-    t = re.sub(r"0x[0-9a-fA-F]+|\d+", "#", text or "")
+    """Normalize test output into a stagnation signature (drop digits/paths/whitespace).
+
+    The signature comes from the failure itself: the pytest ``E `` lines when present,
+    else the tail of the output. The head of the output is a banner shared by every failure.
+    """
+    text = text or ""
+    e_lines = [ln.strip() for ln in text.splitlines() if ln.lstrip().startswith("E ")]
+    body = "\n".join(e_lines) if e_lines else text[-4 * _SIG_CHARS:]
+    t = re.sub(r"0x[0-9a-fA-F]+|\d+", "#", body)
     t = re.sub(r"\s+", " ", t).strip()
-    return t[:_SIG_CHARS]
+    return t[:_SIG_CHARS] if e_lines else t[-_SIG_CHARS:]
 
 
 # --------------------------------------------------------------------------- #
@@ -250,7 +252,7 @@ class RalphChain:
                     return False
                 # thread forward: test output + critic notes (the ONLY carried state)
                 notes = out
-                if critic_out and not _approves(critic_out):
+                if critic_out and not is_approval(critic_out):
                     notes = out + "\n\nCritic notes (pre-test review):\n" + critic_out
                 st["failure"] = truncate_tail(notes)
                 st["code"] = code

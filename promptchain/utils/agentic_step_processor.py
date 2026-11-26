@@ -1378,6 +1378,7 @@ class AgenticStepProcessor:
                             else {"role": "assistant", "content": str(response_message)}
                         )
                         last_tool_msgs = []
+                        cove_skipped_msgs: List[Dict[str, Any]] = []
 
                         # Phase 3: Chain of Verification (CoVe) - verify tools before execution
                         if self.enable_cove:
@@ -1388,6 +1389,7 @@ class AgenticStepProcessor:
                             )  # guaranteed by _ensure_cove_verifier
 
                             verified_tool_calls = []
+                            requested_tool_call_count = len(tool_calls)
                             for tool_call in tool_calls:
                                 function_name = get_function_name_from_tool_call(
                                     tool_call
@@ -1474,11 +1476,25 @@ class AgenticStepProcessor:
                                         self.blackboard.add_observation(
                                             f"Skipped {function_name}: {verification.verification_reasoning[:100]}"
                                         )
+                                    # Every tool_call_id needs a tool reply, or the next request is invalid.
+                                    skipped_id = (
+                                        tool_call.get("id")
+                                        if isinstance(tool_call, dict)
+                                        else getattr(tool_call, "id", None)
+                                    )
+                                    cove_skipped_msgs.append(
+                                        {
+                                            "role": "tool",
+                                            "tool_call_id": skipped_id,
+                                            "name": function_name,
+                                            "content": f"skipped by CoVe: {verification.verification_reasoning}",
+                                        }
+                                    )
 
                             # Replace tool calls with verified subset
                             tool_calls = verified_tool_calls
                             logger.info(
-                                f"[CoVe] Verified {len(verified_tool_calls)}/{len(tool_calls)} tool calls"
+                                f"[CoVe] Verified {len(verified_tool_calls)}/{requested_tool_call_count} tool calls"
                             )
 
                         # TAO ACT phase: Wrap tool execution with MLflow span (if TAO enabled)
@@ -1811,6 +1827,9 @@ class AgenticStepProcessor:
                             logger.info(
                                 f"[TAO] Complete: THINK → ACT → OBSERVE cycle finished for iteration {step_num}"
                             )
+
+                        # Answer the tool calls CoVe skipped so no tool_call_id is left without a reply
+                        last_tool_msgs.extend(cove_skipped_msgs)
 
                         # Build llm_history based on history_mode
                         # Phase 2: Use Blackboard if enabled (70-80% token reduction)

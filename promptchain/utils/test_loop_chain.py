@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
+import sys
 import tempfile
 import threading
 import warnings
@@ -64,6 +66,23 @@ def truncate_tail(text: str, limit: int = _FAILURE_TAIL_CHARS) -> str:
     if len(text) <= limit:
         return text
     return "...[truncated]...\n" + text[-limit:]
+
+
+_NEGATION = re.compile(r"\b(NOT|CANNOT|NEVER|CAN'T|DON'T|DOESN'T|WON'T|SHOULDN'T|REJECT\w*)\b")
+
+
+def is_approval(text: str) -> bool:
+    """True iff the first line of ``text`` opens with the verdict token APPROVE or APPROVED
+    and contains no negation (NOT, CANNOT, NEVER, ``n't``) or REJECT. Leading markdown
+    punctuation is ignored. ``DO NOT APPROVE`` and ``Unacceptable`` are not approvals."""
+    lines = (text or "").strip().splitlines()
+    if not lines:
+        return False
+    first = lines[0].upper().strip()
+    m = re.match(r"[^A-Z]*([A-Z']+)", first)
+    if not m or m.group(1) not in ("APPROVE", "APPROVED"):
+        return False
+    return _NEGATION.search(first) is None
 
 
 def run_coro_blocking(coro):
@@ -126,9 +145,14 @@ def resolve_executor(executor, use_docker: bool, image: str,
     if use_docker and DockerExecutor.available():
         return DockerExecutor(image=image, network=network, timeout=timeout), True
     if use_docker:
-        warnings.warn(
+        # warn_explicit with no registry: the default filter's once-per-location dedup never applies,
+        # so every fallback warns.
+        caller = sys._getframe(1)
+        warnings.warn_explicit(
             "Docker unavailable — falling back to LocalExecutor (host, UNSANDBOXED). "
-            "Run untrusted LLM code only under Docker.", RuntimeWarning, stacklevel=2)
+            "Run untrusted LLM code only under Docker.", RuntimeWarning,
+            filename=caller.f_code.co_filename, lineno=caller.f_lineno,
+            module=caller.f_globals.get("__name__", "<unknown>"), registry=None)
     return LocalExecutor(timeout=timeout), True
 
 
