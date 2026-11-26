@@ -29,9 +29,8 @@ small prompt on every pass.
 `LocalExecutor`, which runs on the host with no sandbox**, and emits a `RuntimeWarning`
 ("Docker unavailable ... UNSANDBOXED"). Model-written code then runs as your user.
 
-- The warning fires once per process: Python shows a repeated warning from the same line only the
-  first time. Do not rely on it for later runs. Check `DockerExecutor.available()` yourself, or
-  pass `executor=DockerExecutor(...)`, which never falls back.
+- The warning fires on every fallback. To avoid the fallback, check `DockerExecutor.available()`
+  yourself, or pass `executor=DockerExecutor(...)`, which never falls back.
 - For untrusted model output, inject the executor and treat the warning as an error
   (`python -W error::RuntimeWarning`).
 - `use_docker=False` is the explicit opt-in to host execution. Use it only for trusted code, CI and tests.
@@ -43,8 +42,9 @@ small prompt on every pass.
 - `resolve_executor` builds `DockerExecutor(image, network, timeout)` only. The container runs as
   root with no memory, CPU or process limits. Inject `executor=DockerExecutor(..., memory="512m",
   pids_limit=256, user="1000:1000", read_only=True)` when that matters.
-- The Docker `timeout` ends the `docker run` process, not the container. A runaway container
-  can keep running after the loop reports `TIMEOUT`.
+- On a Docker `timeout` the executor kills the named container (`pc-exec-...`) and returns
+  `TIMEOUT` with the partial output. `LocalExecutor` runs the command in its own process group
+  and kills the whole group on `timeout`, so the shell's children do not outlive it.
 - The work dir is a read-write mount. Generated code can overwrite `deps` (your tests). It can also
   force a pass (`os._exit(0)` exits 0 before any assert runs). To catch that, check the pass count in the
   test output (for example `3 passed`). The other option is tests the code cannot reach.
@@ -179,11 +179,12 @@ print(res.result, res.iterations, res.stopped_by)   # STAGNATED 3 stagnated(entr
 | `run(objective, target_file="solution.py", *, test_command=None, deps=None, install_command=None, starting_code="", runner=None)` | `test_command` belongs to `run`, not the constructor. Passing it to `RalphChain(...)` raises `TypeError`. |
 | Returns `RalphResult` | `.result` is `PASS`, `FAIL`, `TIMEOUT`, `STAGNATED` or `NO_CODE`; `.winning_code`, `.iterations`, `.stopped_by`, `.history` (list of `RalphIteration(iteration, librarian, code, critic, passed, test_output)`). |
 | Carried between passes | Only the test output, plus the critic notes when the critic did not approve, and the last code. Prompts are rebuilt each pass. |
-| `entropy_threshold` | `k >= 1`: stop with `STAGNATED` when the last `k` failure signatures are identical. The signature is the first 240 characters of the output after masking digits and hex. Two different failures that share a long header (for example the same pytest banner) can look identical and stop the loop early. Set `entropy_threshold=0` to disable. `1` stops after the first failure. |
+| `entropy_threshold` | `k >= 1`: stop with `STAGNATED` when the last `k` failure signatures are identical. The signature comes from the pytest `E ` lines (else the output tail) after masking digits and hex. A shared banner does not make two different failures look alike. Output with no `E ` lines and the same tail still counts as a repeat. Set `entropy_threshold=0` to disable. `1` stops after the first failure. |
 
 The critic is a pre-test review. It never blocks a test run; a failed run only gets its notes
-appended to the failure text. The loop adds the notes only when the first line lacks `APPROVE`, and
-that check is a substring match, so `DO NOT APPROVE` counts as an approval.
+appended to the failure text. The loop adds the notes unless the first line is a bare approval: it opens with `APPROVE` or
+`APPROVED` (optionally after `VERDICT:`) and has no `NOT`, `NO`, `CANNOT`, `NEVER`, `n't` or
+`REJECT`. `DO NOT APPROVE`, `Not approved` and `APPROVE, no issues` get their notes appended.
 
 ## Common mistakes
 

@@ -99,23 +99,15 @@ verdict approves). With no `critique`, `verdict` is `"skipped"`.
 
 ## Verdict rule
 
-AutoResearch checks the critic verdict by substring on the upper-cased text:
+AutoResearch strips `<think>` blocks, then approves a verdict only when its first line opens
+with the token `APPROVE` or `APPROVED`, optionally after a `VERDICT:` label and markdown
+(`**Verdict:** APPROVE`). The first line must not contain `NOT`, `NO`, `CANNOT`, `NEVER`, a
+contraction ending in `n't` (`didn't`, `isn't`) or `REJECT`. It ignores later lines.
 
-1. Contains `REJECT` or `FAIL` anywhere: not approved.
-2. Otherwise contains `APPROVE`, `PASS` or `ACCEPT`: approved.
-3. Anything else: not approved.
-
-False rejects: `"APPROVE, no failures found"` (it contains `FAIL`), or any reply that quotes
-`failed`. False approves: `"DO NOT APPROVE"`, `"Not approved"` and `"Unacceptable: ..."` all
-contain `APPROVE` or `ACCEPT` and none of `REJECT` / `FAIL`. Make the critic reply with exactly
-one word, `APPROVE` or `REJECT`, and normalise it yourself in the `critique` function before
-returning it:
-
-```python
-async def critique(brief, build):
-    raw = await ask_model(...)                  # your model call
-    return "APPROVE" if raw.strip().upper() == "APPROVE" else "REJECT"
-```
+Approved: `"APPROVE"`, `"Approved."`, `"VERDICT: APPROVE"`. Not approved: `"DO NOT APPROVE"`,
+`"Not approved"`, `"Unacceptable: ..."`, `"PASS"`, `"REJECT: style"`, and also
+`"APPROVE, no failures found"` (contains `NO`). Ask the critic for the bare word `APPROVE` or
+`REJECT` on the first line, and put any explanation on the next lines.
 
 A build that passed its tests but drew a critic rejection gives `verified=False`
 while `winning_code` is still set.
@@ -142,7 +134,7 @@ async def build_tool(brief: str, tests: str) -> str:
 ```
 
 With Docker unavailable and `use_docker=True` (and no injected executor), the build falls back to
-unsandboxed host execution with a `RuntimeWarning`, shown once per process. An injected
+unsandboxed host execution with a `RuntimeWarning` on every fallback. An injected
 `DockerExecutor` never falls back. See `recipe-test-loop` for the safety notes.
 
 Cost: one build call per iteration, plus one `research` call and one `critique` call. A run makes
@@ -153,7 +145,7 @@ up to `max_iterations` plus 2 model calls.
 - **No test command.** `run` raises `ValueError` without `test_command` or `runner`. The test is the success bar; the loop cannot propose one.
 - **`AutoResearch(network="bridge")`.** `TypeError`. The kwarg is not in the constructor. Through `auto_research(...)` it lands in `run` and also raises `TypeError`.
 - **Positional args after `brief`.** `ar.run("brief", "solution.py")` raises `TypeError`; `target_file` is keyword-only here.
-- **A chatty critic.** See "Verdict rule": one `FAIL` substring rejects the build.
+- **A critic that does not lead with the verdict.** The first line must open with `APPROVE`; "Looks good, approve" is not approved.
 - **Returning the `ResearchResult` from a tool.** Return `json.dumps(res.to_dict())`.
 - **Trusting the exit code alone.** Generated code can call `os._exit(0)` before any assert runs, or rewrite the test file in the shared work dir. Print and check a pass count in the test command, or keep the tests unreachable.
 - **`run_sync` in async code.** It blocks the calling thread and the running event loop until the run ends. Use `await ar.run(...)`.

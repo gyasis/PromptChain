@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
+import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import warnings
@@ -64,6 +67,29 @@ def truncate_tail(text: str, limit: int = _FAILURE_TAIL_CHARS) -> str:
     if len(text) <= limit:
         return text
     return "...[truncated]...\n" + text[-limit:]
+
+
+_NEGATION = re.compile(r"\b(NOT|CANNOT|NEVER|NO|REJECT\w*)\b|\b\w+N'T\b")
+_THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
+
+
+def is_approval(text: str) -> bool:
+    """True iff the first line of ``text`` is an approval verdict.
+
+    The reply is first stripped of ``<think>`` blocks. The first line, in upper case, must open
+    with APPROVE or APPROVED, optionally after a ``VERDICT:`` label and markdown punctuation
+    (``**Verdict:** APPROVE``). It must not contain NOT, NO, CANNOT, NEVER, a contraction
+    ending in ``n't`` (didn't, isn't), or REJECT. Later lines are ignored. So ``APPROVE`` is an
+    approval; ``APPROVE, no failures found``, ``DO NOT APPROVE`` and ``Unacceptable`` are not.
+    """
+    lines = _THINK.sub("", text or "").strip().splitlines()
+    if not lines:
+        return False
+    first = lines[0].upper().replace("\u2019", "'").strip()
+    m = re.match(r"[^A-Z]*(?:VERDICT[^A-Z]*)?([A-Z']+)", first)
+    if not m or m.group(1) not in ("APPROVE", "APPROVED"):
+        return False
+    return _NEGATION.search(first) is None
 
 
 def run_coro_blocking(coro):
@@ -126,9 +152,14 @@ def resolve_executor(executor, use_docker: bool, image: str,
     if use_docker and DockerExecutor.available():
         return DockerExecutor(image=image, network=network, timeout=timeout), True
     if use_docker:
-        warnings.warn(
+        # warn_explicit with no registry: the default filter's once-per-location dedup never applies,
+        # so every fallback warns.
+        caller = sys._getframe(1)
+        warnings.warn_explicit(
             "Docker unavailable — falling back to LocalExecutor (host, UNSANDBOXED). "
-            "Run untrusted LLM code only under Docker.", RuntimeWarning, stacklevel=2)
+            "Run untrusted LLM code only under Docker.", RuntimeWarning,
+            filename=caller.f_code.co_filename, lineno=caller.f_lineno,
+            module=caller.f_globals.get("__name__", "<unknown>"), registry=None)
     return LocalExecutor(timeout=timeout), True
 
 
@@ -207,12 +238,21 @@ class LocalExecutor:
         # one second would otherwise re-use a stale cached bytecode (mtime+size match).
         env = dict(os.environ)
         env["PYTHONDONTWRITEBYTECODE"] = "1"
+        # The command runs in its own session so a timeout can kill the whole process group
+        # (shell=True would otherwise leave the shell's children running).
+        proc = subprocess.Popen(command, shell=True, cwd=self.work_dir, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, errors="replace", start_new_session=True)
         try:
-            p = subprocess.run(command, shell=True, cwd=self.work_dir, env=env,
-                               capture_output=True, text=True, timeout=self.timeout)
-            return ExecResult(p.returncode, (p.stdout or "") + (p.stderr or ""))
-        except subprocess.TimeoutExpired as e:
-            partial = ((e.stdout or "") + (e.stderr or "")) if (e.stdout or e.stderr) else ""
+            out, err = proc.communicate(timeout=self.timeout)
+            return ExecResult(proc.returncode, (out or "") + (err or ""))
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                proc.kill()
+            out, err = proc.communicate()
+            partial = (out or "") + (err or "")
             return ExecResult(124, partial + f"\n[timeout after {self.timeout}s]", timed_out=True)
 
 
