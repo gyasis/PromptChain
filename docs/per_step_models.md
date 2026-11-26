@@ -75,7 +75,7 @@ chain = PromptChain(
         AgenticStepProcessor(                       # ← brings its OWN model, NOT from models[]
             objective="Research and verify the summary",
             model_name="gemini/gemini-2.5-pro",
-            fallback_model="gemini/gemini-1.5-flash-8b",
+            fallback_model="gemini/gemini-2.5-flash-lite",
         ),
     ],
 )

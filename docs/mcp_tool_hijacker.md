@@ -387,7 +387,7 @@ Configure parameters once and reuse them across multiple calls:
 hijacker.set_static_params(
     "mcp_gemini_server_ask_gemini",
     temperature=0.7,
-    model="gemini-2.0-flash-001"
+    model="gemini-2.5-flash"
 )
 
 # Now only provide the varying parameters

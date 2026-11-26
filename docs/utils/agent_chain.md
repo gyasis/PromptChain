@@ -454,7 +454,7 @@ agent_history_configs = {
 
 # Optimized total: 140,000 history tokens
 # Savings: 100,000 tokens (42% reduction)
-# At $5 per 1M tokens: $0.50 saved per 100-turn session
+# At your provider's per-token price, multiply the saved tokens by it
 ```
 
 #### Example 2: Stateless vs Stateful Mix
