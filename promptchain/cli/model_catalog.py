@@ -20,7 +20,12 @@ Sources (each is best-effort — if one is unreachable it's skipped, the rest
 still build):
   1. Mac Studio local Ollama  — GET <host>/api/tags                (no auth)
   2. Ollama Cloud             — GET ollama.com/v1/models  (Bearer OLLAMA_API_KEY)
-  3. Curated OpenAI / Gemini  — static favourites, gated on key presence
+  3. Generated catalog files   — models.json / local-models.json (incl. the
+                                 llamacpp_lane) in the catalog directory
+
+The catalog directory is ``$PROMPTCHAIN_MODEL_CATALOG_DIR`` (default
+``~/.config/ollama-cloud``). The library names no model: when the files are
+missing the chooser says so and the user types any provider/model string.
 
 Zero third-party deps — stdlib ``urllib`` only.
 """
@@ -30,6 +35,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -54,6 +60,8 @@ class ModelEntry:
     api_key_env: Optional[str] = None
     reasoning: Dict = field(default_factory=lambda: {"supports": False, "extract": "none"})
     size_gb: Optional[float] = None
+    capabilities: List[str] = field(default_factory=list)
+    context_length: Optional[int] = None
 
     def params(self) -> Dict:
         """litellm call params this entry needs (api_base / api_key / enable)."""
@@ -182,43 +190,147 @@ def fetch_ollama_cloud(timeout: float = 8.0) -> List[ModelEntry]:
     return out
 
 
-_CURATED_OPENAI = ["gpt-4o", "gpt-4.1", "gpt-4.1-mini", "o1", "o3-mini"]
-_CURATED_GEMINI = ["gemini-2.5-flash", "gemini-2.5-pro"]
+CATALOG_DIR_ENV = "PROMPTCHAIN_MODEL_CATALOG_DIR"
+DEFAULT_CATALOG_DIR = "~/.config/ollama-cloud"
+CLOUD_CATALOG_FILE = "models.json"
+LOCAL_CATALOG_FILE = "local-models.json"
 
 
-def fetch_curated_api() -> List[ModelEntry]:
+def catalog_dir() -> Path:
+    """Directory holding the generated catalog files (env override, else default)."""
+    return Path(os.environ.get(CATALOG_DIR_ENV) or DEFAULT_CATALOG_DIR).expanduser()
+
+
+def no_catalog_message(path: Optional[Path] = None) -> str:
+    """Message shown when no catalog entries could be loaded."""
+    path = path or catalog_dir()
+    return (f"no model catalog found at {path}; type a provider/model string "
+            f"(set {CATALOG_DIR_ENV} to point at a catalog directory)")
+
+
+def _read_json(path: Path, problems: List[str]) -> Optional[Dict]:
+    """Parse a catalog file; record a problem and return None on any failure."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        problems.append(f"{path} not found")
+        return None
+    except (OSError, ValueError) as exc:
+        problems.append(f"{path} unreadable: {exc}")
+        return None
+    if not isinstance(data, dict):
+        problems.append(f"{path} unreadable: top level is not an object")
+        return None
+    return data
+
+
+def _catalog_reasoning(name: str, source: str, caps: List[str]) -> Dict:
+    """Reasoning profile: name heuristic first, else the catalog's own capability."""
+    prof = infer_reasoning_profile(name, source)
+    if not prof["supports"] and "thinking" in caps:
+        return {"supports": True, "extract": "reasoning_content", "tags": None,
+                "enable": {"think": True}}
+    return prof
+
+
+def _ollama_entries(data: Dict, source: str, host: str, label_prefix: str) -> List[ModelEntry]:
     out: List[ModelEntry] = []
-    if os.environ.get("OPENAI_API_KEY"):
-        for m in _CURATED_OPENAI:
-            out.append(ModelEntry(
-                label=f"OpenAI · {m}", model_name=f"openai/{m}", source="openai",
-                api_key_env="OPENAI_API_KEY",
-                reasoning=infer_reasoning_profile(m, "openai")))
-    key_env = "GEMINI_API_KEY" if os.environ.get("GEMINI_API_KEY") else (
-        "GOOGLE_API_KEY" if os.environ.get("GOOGLE_API_KEY") else None)
-    if key_env:
-        for m in _CURATED_GEMINI:
-            out.append(ModelEntry(
-                label=f"Gemini · {m}", model_name=f"gemini/{m}", source="gemini",
-                api_key_env=key_env,
-                reasoning=infer_reasoning_profile(m, "gemini")))
+    models = data.get("models")
+    for m in models if isinstance(models, list) else []:
+        name = m.get("name") if isinstance(m, dict) else None
+        caps = [c for c in (m.get("capabilities") or []) if isinstance(c, str)] if name else []
+        if not name or "embedding" in caps or not _is_chat_model(name):
+            continue
+        out.append(ModelEntry(
+            label=f"{label_prefix} · {name}",
+            model_name=f"ollama_chat/{name}",
+            source=source,
+            api_base=host,
+            reasoning=_catalog_reasoning(name, source, caps),
+            capabilities=caps,
+            context_length=m.get("context_length") if isinstance(m.get("context_length"), int) else None,
+        ))
     return out
+
+
+def _lane_entries(lane: Dict) -> List[ModelEntry]:
+    """llamacpp_lane aliases → OpenAI-compatible governor endpoint entries."""
+    src = lane.get("source")
+    if not isinstance(src, str) or not src:
+        return []
+    base = src.rstrip("/")
+    if base.endswith("/models"):
+        base = base[: -len("/models")]
+    base += "/v1"
+    out: List[ModelEntry] = []
+    models = lane.get("models")
+    for m in models if isinstance(models, list) else []:
+        alias = m.get("alias") if isinstance(m, dict) else None
+        if not alias:
+            continue
+        caps = ["completion"] + (["vision"] if m.get("vision") else [])
+        out.append(ModelEntry(
+            label=f"llama.cpp lane · {alias}",
+            model_name=f"openai/{alias}",
+            source="llamacpp",
+            api_base=base,
+            reasoning=infer_reasoning_profile(alias, "llamacpp"),
+            capabilities=caps,
+            context_length=m.get("ctx") if isinstance(m.get("ctx"), int) else None,
+        ))
+    return out
+
+
+def load_catalog_files(directory: Optional[Path] = None) -> tuple[List[ModelEntry], List[str]]:
+    """Read the generated catalog files → (entries, problems). Never raises.
+
+    Cloud tags and local tags are called as ``ollama_chat/<tag>`` against an
+    Ollama endpoint (cloud: ``$OLLAMA_HOST`` or the local daemon, which proxies
+    cloud tags; local: the ``host`` recorded in the file). Lane aliases are
+    called as ``openai/<alias>`` against the governor's OpenAI-compatible route.
+    """
+    directory = Path(directory) if directory else catalog_dir()
+    problems: List[str] = []
+    out: List[ModelEntry] = []
+    cloud = _read_json(directory / CLOUD_CATALOG_FILE, problems)
+    if cloud is not None:
+        host = os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+        if not host.startswith("http"):
+            host = "http://" + host
+        out += _ollama_entries(cloud, "ollama-cloud", host.rstrip("/"), "Ollama Cloud")
+    local = _read_json(directory / LOCAL_CATALOG_FILE, problems)
+    if local is not None:
+        host = local.get("host")
+        if isinstance(host, str) and host:
+            out += _ollama_entries(local, "ollama-local", host.rstrip("/"), "Local")
+        else:
+            problems.append(f"{directory / LOCAL_CATALOG_FILE} has no host")
+        lane = local.get("llamacpp_lane")
+        if isinstance(lane, dict):
+            out += _lane_entries(lane)
+    return out, problems
 
 
 # --------------------------------------------------------------------------- #
 # Catalog assembly + resolution
 # --------------------------------------------------------------------------- #
-def build_catalog(*, include_api: bool = True, include_local: bool = True,
+def build_catalog(*, include_files: bool = True, include_local: bool = True,
                   include_cloud: bool = True, mac_host: Optional[str] = None) -> List[ModelEntry]:
     """Build the full catalog from all reachable sources (each best-effort)."""
     cat: List[ModelEntry] = []
-    if include_api:
-        cat += fetch_curated_api()
+    if include_files:
+        cat += load_catalog_files()[0]
     if include_local:
         cat += fetch_ollama_local(mac_host)
     if include_cloud:
         cat += fetch_ollama_cloud()
-    return cat
+    seen: set = set()
+    unique: List[ModelEntry] = []
+    for e in cat:  # file entries come first and carry capabilities, so they win
+        if e.model_name not in seen:
+            seen.add(e.model_name)
+            unique.append(e)
+    return unique
 
 
 def resolve(model_or_label: str, catalog: Optional[List[ModelEntry]] = None) -> tuple[str, Dict]:
@@ -237,6 +349,8 @@ def resolve(model_or_label: str, catalog: Optional[List[ModelEntry]] = None) -> 
 
 if __name__ == "__main__":  # quick live check: `python -m promptchain.cli.model_catalog`
     cat = build_catalog()
+    if not cat:
+        print(no_catalog_message())
     by_source: Dict[str, int] = {}
     for e in cat:
         by_source[e.source] = by_source.get(e.source, 0) + 1

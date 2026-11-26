@@ -16,7 +16,6 @@ Events: start · thinking · tool_call · tool_result · answer_delta · tokens 
 import asyncio
 import json
 import os
-import urllib.request
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -145,7 +144,9 @@ def _build_agent_chain(model: str, tool_names):
         max_internal_steps=6, model_name=model, history_mode="progressive",
         progress_callback=lambda cur, mx, status="": _emit("loop", json.dumps({"cur": cur, "max": mx, "agent": model})),
     )
-    chain = PromptChain(models=[{"name": model, "params": {"max_completion_tokens": 1024}}],
+    from promptchain.cli.model_catalog import load_catalog_files, resolve
+    routing = resolve(model, load_catalog_files()[0])[1]   # api_base / key for a catalog model
+    chain = PromptChain(models=[{"name": model, "params": {"max_completion_tokens": 1024, **routing}}],
                         instructions=[proc], verbose=False)
     # Default = NO tools → pure answer mode (Lookout screen Q&A). Agentic execution is opt-in: the
     # caller passes an explicit `tools` list to enable file/task/terminal tools for an action request.
@@ -180,24 +181,17 @@ def _ensure_chain(model: str, tool_names):
 
 
 def _catalog():
-    """Models the bridge can drive via litellm, filtered to the API keys actually present.
-    Model switching is PER-TURN (passed to /chat/turn) — no bridge restart needed."""
+    """Models the bridge can drive via litellm, read from the generated catalog files
+    (see promptchain.cli.model_catalog). Model switching is PER-TURN (passed to /chat/turn)
+    — no bridge restart needed. An empty list means no catalog was found."""
+    from promptchain.cli.model_catalog import load_catalog_files
     out = []
-    # Ollama — endpoint is configurable via OLLAMA_HOST (localhost, a LAN box, or a remote URL).
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    try:
-        with urllib.request.urlopen(host + "/api/tags", timeout=3) as r:
-            for m in json.load(r).get("models", []):
-                n = m["name"]
-                out.append({"id": f"ollama/{n}", "label": n, "provider": "ollama", "note": "local"})
-    except Exception:
-        pass
-    # OpenAI (litellm, verified)
-    if os.environ.get("OPENAI_API_KEY"):
-        out += [{"id": "openai/gpt-4o-mini", "label": "GPT-4o mini", "provider": "openai", "note": "cloud · fast"},
-                {"id": "openai/gpt-4.1-mini", "label": "GPT-4.1 mini", "provider": "openai", "note": "cloud · balanced"},
-                {"id": "openai/gpt-4o", "label": "GPT-4o", "provider": "openai", "note": "cloud · strong"}]
-    # Gemini is reachable as TOOLS via the gemini MCP (ask_gemini/gemini_research), not a reasoning model here.
+    for e in load_catalog_files()[0]:
+        out.append({"id": e.model_name, "label": e.label, "provider": e.source,
+                    "note": " · ".join(filter(None, [
+                        "/".join(c for c in ("tools", "vision", "thinking") if c in e.capabilities),
+                        f"{e.context_length // 1024}k ctx" if e.context_length else ""])),
+                    "api_base": e.api_base})
     return out
 
 
@@ -213,7 +207,10 @@ def health():
 
 @app.get("/models")
 def models():
-    return {"default": DEFAULT_MODEL, "models": _catalog()}
+    from promptchain.cli.model_catalog import load_catalog_files, no_catalog_message
+    models_list = _catalog()
+    return {"default": DEFAULT_MODEL, "models": models_list,
+            "message": None if models_list else no_catalog_message()}
 
 
 @app.get("/tools")
@@ -237,13 +234,17 @@ def tools_catalog():
 
 import re
 _VISION_RE = re.compile(
-    r"(gpt-4o|gpt-4\.1|o[134]|gemini|claude-3|claude-4|sonnet|opus|haiku|[-_]?vl\b|vision|"
+    r"(gemini|claude|sonnet|opus|haiku|[-_]?vl\b|vision|"
     r"llava|gemma-?3|gemma-?4|minicpm-?v|qwen.*vl|pixtral|moondream|internvl|kimi.*vision)", re.I)
 
 def _is_vision_model(model: str) -> bool:
-    """Best-effort: trust litellm's capability map, fall back to a name pattern (covers local *-vl/gemma3
+    """Best-effort: trust the catalog's capabilities, then litellm's capability map, fall back to a name pattern (covers local *-vl/gemma3
     that litellm may not know). Used only to WARN, never to block."""
     m = model or ""
+    from promptchain.cli.model_catalog import load_catalog_files
+    for e in load_catalog_files()[0]:
+        if e.model_name == m and e.capabilities:
+            return "vision" in e.capabilities
     try:
         if litellm.supports_vision(model=m):
             return True
