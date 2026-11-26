@@ -1,239 +1,198 @@
-"""Unit tests for LightRAGQueryExpander pattern adapter."""
+"""Unit tests for LightRAGQueryExpander.
+
+The expander builds query variations (synonym, semantic, acronym,
+reformulation) from knowledge-graph context, searches the original query plus
+every variation through ``SearchInterface.multi_query_search`` and returns the
+de-duplicated results in first-seen order. Search interface and integration
+are mocks.
+
+Already covered by tests/test_query_expansion_pattern.py (not repeated here):
+the per-strategy expansion rules, multiple strategies, the sequential
+fallback, similarity filtering, context-extraction failure, strategy override.
+"""
+
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, patch
+
 from promptchain.integrations.lightrag.query_expansion import (
+    ExpansionStrategy,
     LightRAGQueryExpander,
-    ExpansionStrategy
+    QueryExpansionConfig,
 )
+from promptchain.patterns.base import BasePattern
+
+CONTEXT = {
+    "entities": [{"name": "machine learning", "type": "concept"}],
+    "relationships": [{"type": "uses", "target": "algorithms"}],
+}
+
+
+def make_expander(results=None, context=None, **config_kwargs):
+    search = MagicMock()
+    search.multi_query_search = AsyncMock(
+        return_value=results if results is not None else ["r1", "r2"]
+    )
+    search.hybrid_search = AsyncMock(return_value="sequential result")
+    integration = MagicMock()
+    integration.search = search
+    integration.extract_context = AsyncMock(
+        return_value=CONTEXT if context is None else context
+    )
+    config_kwargs.setdefault("strategies", [ExpansionStrategy.SEMANTIC])
+    expander = LightRAGQueryExpander(
+        lightrag_integration=integration, config=QueryExpansionConfig(**config_kwargs)
+    )
+    return expander, search
 
 
 @pytest.mark.asyncio
-class TestLightRAGQueryExpander:
-    """Test suite for query expansion pattern."""
+class TestSearchDelegation:
+    async def test_original_and_expansions_go_to_multi_query_search(self):
+        expander, search = make_expander()
 
-    async def test_initialization(self, mock_search_interface):
-        """Test pattern initializes correctly."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
+        result = await expander.execute(query="machine learning")
+
+        search.multi_query_search.assert_awaited_once_with(
+            queries=["machine learning", "machine learning uses algorithms"],
+            mode="hybrid",
         )
-
-        assert pattern.search_interface == mock_search_interface
-        assert pattern.expansion_strategy == ExpansionStrategy.SYNONYM
-        assert pattern.num_expansions == 3
-        assert pattern.pattern_name == "query_expansion"
-
-    async def test_synonym_expansion_strategy(self, mock_search_interface):
-        """Test synonym-based query expansion."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
-
-        with patch.object(pattern, '_expand_synonyms', new_callable=AsyncMock) as mock_expand:
-            mock_expand.return_value = [
-                "original query",
-                "synonym query 1",
-                "synonym query 2"
-            ]
-
-            result = await pattern.execute(query="test query")
-
-            mock_expand.assert_called_once_with("test query", 3)
-            assert "expanded_queries" in result
-
-    async def test_semantic_expansion_strategy(self, mock_search_interface):
-        """Test semantic-based query expansion."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SEMANTIC,
-            num_expansions=5
-        )
-
-        with patch.object(pattern, '_expand_semantic', new_callable=AsyncMock) as mock_expand:
-            mock_expand.return_value = [
-                "original query",
-                "semantic variant 1",
-                "semantic variant 2",
-                "semantic variant 3",
-                "semantic variant 4"
-            ]
-
-            result = await pattern.execute(query="machine learning")
-
-            mock_expand.assert_called_once_with("machine learning", 5)
-            assert len(result["expanded_queries"]) == 5
-
-    async def test_acronym_expansion_strategy(self, mock_search_interface):
-        """Test acronym expansion strategy."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.ACRONYM,
-            num_expansions=2
-        )
-
-        with patch.object(pattern, '_expand_acronyms', new_callable=AsyncMock) as mock_expand:
-            mock_expand.return_value = [
-                "AI artificial intelligence",
-                "AI automated intelligence"
-            ]
-
-            result = await pattern.execute(query="AI applications")
-
-            mock_expand.assert_called_once()
-            assert "expanded_queries" in result
-
-    async def test_multi_query_search_delegation(self, mock_search_interface):
-        """Test delegation to multi_query_search method."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
-
-        expanded = ["query1", "query2", "query3"]
-        with patch.object(pattern, '_expand_synonyms', new_callable=AsyncMock) as mock_expand:
-            mock_expand.return_value = expanded
-
-            result = await pattern.execute(query="test")
-
-            mock_search_interface.multi_query_search.assert_called_once()
-            call_args = mock_search_interface.multi_query_search.call_args
-            assert call_args[1]["queries"] == expanded
-
-    async def test_result_deduplication(self, mock_search_interface, sample_search_results):
-        """Test deduplication of search results from multiple queries."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
-
-        # Mock duplicate results
-        duplicate_results = sample_search_results + [sample_search_results[0]]
-        mock_search_interface.multi_query_search.return_value = {
-            "results": duplicate_results
-        }
-
-        result = await pattern.execute(query="test")
-
-        # Check deduplication by ID
-        unique_ids = set(r["id"] for r in result["results"])
-        assert len(unique_ids) == len(sample_search_results)
-
-    async def test_result_ranking_preservation(self, mock_search_interface):
-        """Test that result ranking is preserved after expansion."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SEMANTIC,
-            num_expansions=2
-        )
-
-        ranked_results = [
-            {"text": "best", "score": 0.95, "id": "1"},
-            {"text": "good", "score": 0.85, "id": "2"},
-            {"text": "ok", "score": 0.75, "id": "3"}
+        assert [eq.expanded_query for eq in result.expanded_queries] == [
+            "machine learning uses algorithms"
         ]
 
-        mock_search_interface.multi_query_search.return_value = {
-            "results": ranked_results
+    async def test_no_expansions_still_searches_the_original_query(self):
+        expander, search = make_expander(context={})
+
+        result = await expander.execute(query="test")
+
+        assert result.success is True
+        assert result.expanded_queries == []
+        search.multi_query_search.assert_awaited_once_with(
+            queries=["test"], mode="hybrid"
+        )
+        assert result.metadata["total_queries"] == 1
+
+    async def test_expansion_cap_limits_the_query_list(self):
+        context = {"relationships": [{"type": "r", "target": f"t{i}"} for i in range(6)]}
+        expander, search = make_expander(context=context, max_expansions_per_strategy=2)
+
+        await expander.execute(query="q")
+
+        queries = search.multi_query_search.await_args.kwargs["queries"]
+        assert len(queries) == 3  # original + 2 expansions
+
+    async def test_strategy_override_replaces_configured_strategies(self):
+        expander, search = make_expander()
+
+        result = await expander.execute(
+            query="what", strategies=[ExpansionStrategy.REFORMULATION]
+        )
+
+        assert {eq.strategy for eq in result.expanded_queries} == {
+            ExpansionStrategy.REFORMULATION
         }
+        assert result.metadata["strategies_used"] == ["reformulation"]
 
-        result = await pattern.execute(query="test")
 
-        # Verify scores are descending
-        scores = [r["score"] for r in result["results"]]
-        assert scores == sorted(scores, reverse=True)
+@pytest.mark.asyncio
+class TestResultOrdering:
+    async def test_duplicates_are_dropped_keeping_first_occurrence_order(self):
+        expander, _ = make_expander(results=["best", "good", "best", "ok", "good"])
 
-    async def test_expansion_count_validation(self, mock_search_interface):
-        """Test validation of num_expansions parameter."""
-        with pytest.raises(ValueError, match="num_expansions must be at least 1"):
-            LightRAGQueryExpander(
-                search_interface=mock_search_interface,
-                expansion_strategy=ExpansionStrategy.SYNONYM,
-                num_expansions=0
-            )
+        result = await expander.execute(query="q")
 
-    async def test_empty_expansion_handling(self, mock_search_interface):
-        """Test handling of empty expansion results."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
+        assert result.search_results == ["best", "good", "ok"]
+        assert result.unique_results_found == 3
 
-        with patch.object(pattern, '_expand_synonyms', new_callable=AsyncMock) as mock_expand:
-            mock_expand.return_value = []
+    async def test_ranked_input_keeps_its_ranking(self):
+        ranked = [{"id": i, "score": 1 - i / 10} for i in range(4)]
+        expander, _ = make_expander(results=ranked)
 
-            result = await pattern.execute(query="test")
+        result = await expander.execute(query="q")
 
-            # Should fall back to original query
-            assert "test" in str(result.get("expanded_queries", []))
+        assert [r["id"] for r in result.search_results] == [0, 1, 2, 3]
 
-    async def test_event_emission_expansion_complete(self, mock_search_interface, event_collector):
-        """Test events emitted when expansion completes."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
+    async def test_deduplicate_off_returns_every_result(self):
+        expander, _ = make_expander(results=["a", "a", "b"], deduplicate=False)
 
-        pattern.emit_event = event_collector.collect
+        result = await expander.execute(query="q")
 
-        await pattern.execute(query="test")
+        assert result.search_results == ["a", "a", "b"]
 
-        events = event_collector.get_events("pattern.expansion.complete")
-        assert len(events) > 0
 
-    async def test_metadata_tracking(self, mock_search_interface):
-        """Test that expansion metadata is tracked correctly."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SEMANTIC,
-            num_expansions=4
-        )
+class TestConfigValidation:
+    @pytest.mark.parametrize("count", [0, -2])
+    def test_expansion_cap_must_be_positive(self, count):
+        with pytest.raises(
+            ValueError, match="max_expansions_per_strategy must be at least 1"
+        ):
+            QueryExpansionConfig(max_expansions_per_strategy=count)
 
-        result = await pattern.execute(query="test query")
+    def test_strategies_must_not_be_empty(self):
+        with pytest.raises(ValueError, match="strategies must not be empty"):
+            QueryExpansionConfig(strategies=[])
 
-        assert "metadata" in result
-        metadata = result["metadata"]
-        assert "expansion_strategy" in metadata
-        assert metadata["expansion_strategy"] == "SEMANTIC"
-        assert "num_expansions" in metadata
+    def test_defaults_stay_valid(self):
+        config = QueryExpansionConfig()
+        assert config.strategies == [ExpansionStrategy.SEMANTIC]
+        assert config.max_expansions_per_strategy == 3
 
-    async def test_base_pattern_interface_compliance(self, mock_search_interface):
-        """Test that pattern implements BasePattern interface correctly."""
-        pattern = LightRAGQueryExpander(
-            search_interface=mock_search_interface,
-            expansion_strategy=ExpansionStrategy.SYNONYM,
-            num_expansions=3
-        )
+    def test_search_source_is_required(self):
+        with pytest.raises(ValueError, match="search_interface or lightrag_integration"):
+            LightRAGQueryExpander()
 
-        assert hasattr(pattern, 'execute')
-        assert hasattr(pattern, 'pattern_name')
-        assert callable(pattern.execute)
 
-        result = await pattern.execute(query="test")
-        assert isinstance(result, dict)
+@pytest.mark.asyncio
+class TestEventsAndInterface:
+    async def test_event_sequence(self, event_collector):
+        expander, _ = make_expander()
+        expander.add_event_handler(event_collector.collect)
 
-    async def test_all_expansion_strategies(self, mock_search_interface):
-        """Test all expansion strategies are valid."""
-        strategies = [
-            ExpansionStrategy.SYNONYM,
-            ExpansionStrategy.SEMANTIC,
-            ExpansionStrategy.ACRONYM
+        await expander.execute(query="machine learning")
+
+        assert [e["type"] for e in event_collector.get_events()] == [
+            "pattern.query_expansion.started",
+            "pattern.query_expansion.expanded",
+            "pattern.query_expansion.searching",
+            "pattern.query_expansion.completed",
         ]
 
-        for strategy in strategies:
-            pattern = LightRAGQueryExpander(
-                search_interface=mock_search_interface,
-                expansion_strategy=strategy,
-                num_expansions=2
-            )
+    async def test_completed_event_reports_counts(self, event_collector):
+        expander, _ = make_expander(results=["a", "a", "b"])
+        expander.add_event_handler(event_collector.collect)
 
-            result = await pattern.execute(query="test")
-            assert isinstance(result, dict)
-            assert "results" in result or "expanded_queries" in result
+        await expander.execute(query="machine learning")
+
+        data = event_collector.get_events("pattern.query_expansion.completed")[0]["data"]
+        assert data["unique_results"] == 2
+        assert data["total_expansions"] == 1
+
+    async def test_metadata_records_run_shape(self):
+        expander, _ = make_expander(parallel_search=True)
+
+        result = await expander.execute(query="machine learning")
+
+        assert result.metadata == {
+            "strategies_used": ["semantic"],
+            "total_queries": 2,
+            "parallel_execution": True,
+        }
+
+    async def test_search_failure_returns_a_failed_result(self):
+        expander, search = make_expander()
+        search.multi_query_search.side_effect = RuntimeError("index offline")
+
+        result = await expander.execute(query="q")
+
+        assert result.success is False
+        assert result.errors == ["index offline"]
+
+    async def test_implements_base_pattern_contract(self):
+        expander, _ = make_expander()
+
+        assert isinstance(expander, BasePattern)
+        result = await expander.execute(query="q")
+        assert result.pattern_id == expander.config.pattern_id
+        assert result.original_query == "q"
+        assert result.to_dict()["unique_results_found"] == 2

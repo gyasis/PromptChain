@@ -41,6 +41,10 @@ class QueryExpansionConfig(PatternConfig):
         min_similarity: Minimum similarity score for expansion acceptance.
         deduplicate: Whether to deduplicate results.
         parallel_search: Whether to search all expansions in parallel.
+
+    Raises:
+        ValueError: If strategies is empty or max_expansions_per_strategy is
+            below 1.
     """
 
     strategies: List[ExpansionStrategy] = field(
@@ -50,6 +54,12 @@ class QueryExpansionConfig(PatternConfig):
     min_similarity: float = 0.5
     deduplicate: bool = True
     parallel_search: bool = True
+
+    def __post_init__(self) -> None:
+        if not self.strategies:
+            raise ValueError("strategies must not be empty")
+        if self.max_expansions_per_strategy < 1:
+            raise ValueError("max_expansions_per_strategy must be at least 1")
 
 
 @dataclass
