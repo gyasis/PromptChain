@@ -71,6 +71,7 @@ class HistorySummarizer:
         self,
         model: Optional[str] = None,
         max_summary_tokens: int = 500,
+        model_params: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the history summarizer.
 
@@ -78,6 +79,8 @@ class HistorySummarizer:
             model: LiteLLM model string for summarization. Falls back to
                 ``roles.history_summarizer`` (or ``default``) in the models file.
             max_summary_tokens: Maximum tokens for summary output
+            model_params: litellm kwargs for the model (for example ``api_base``).
+                Taken from the models file when the model comes from it.
 
         Raises:
             ValueError: If no model is given and the models file supplies none.
@@ -86,7 +89,7 @@ class HistorySummarizer:
             "history_summarizer", model, required=True, param="model"
         )
         self.model = spec.model
-        self.model_params = spec.params
+        self.model_params = model_params if model_params is not None else spec.params
         self.max_summary_tokens = max_summary_tokens
 
         # Initialize tiktoken for token counting
