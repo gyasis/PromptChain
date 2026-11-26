@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import List
 
-_KNOWN = {"anthropic", "openai", "google", "qwen", "llama", "default"}
+_KNOWN = frozenset({"anthropic", "openai", "google", "qwen", "llama", "default"})
 
 def family_of(model_id: str) -> str:
     """Map a model id to its family stem.
@@ -49,12 +49,9 @@ def adapt_format(parts: List[str], family: str) -> List[str]:
     is wired) but adapt_format injects NO content — in particular NO prescriptive
     output-format directive.
 
-    Why identity (origin 2026-06-27): an earlier version prepended a per-family
-    ``FORMAT: …`` preamble. The offline live smoke showed it MEASURABLY HARMED a
-    weak model (llama3.2:1b regurgitated the prompt structure in ALL-CAPS instead
-    of solving the task → 0% vs 60% for the bare base). A family adapter must
-    normalize how the prompt is FRAMED, never dictate the model's OUTPUT format —
-    so until a genuinely helpful (non-prescriptive) per-family framing is designed
-    and validated against weak models, this is the safe identity transform.
+    Why identity: a per-family preamble that dictates output format makes weak
+    models echo the prompt structure instead of solving the task. A family
+    adapter normalizes how the prompt is FRAMED and never dictates the model's
+    OUTPUT format, so this stays the identity transform.
     """
     return list(parts)

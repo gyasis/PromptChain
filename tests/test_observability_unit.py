@@ -463,7 +463,7 @@ class TestConfiguration:
 
             # Verify defaults
             assert config_module.is_enabled() is False  # Default disabled
-            assert "localhost:5000" in config_module.get_tracking_uri()  # Default local
+            assert config_module.get_tracking_uri() == "sqlite:///mlflow.db"  # Default local sqlite store
             assert (
                 "promptchain" in config_module.get_experiment_name().lower()
             )  # Default name
