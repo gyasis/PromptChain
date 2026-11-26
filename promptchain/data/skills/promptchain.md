@@ -49,10 +49,16 @@ On an editable install (`pip install -e`), that prints the repo root. If it prin
 | "Add MLflow" / "observability" / "tracking" | `docs/llms/recipes/recipe-observability-on.md` |
 | "Self-writing chain" / "agent should build the chain" / "ChainBuilder" | `docs/llms/recipes/recipe-chain-builder.md` |
 | "Mix sequential + agentic" / "hybrid pattern" | `docs/llms/recipes/recipe-hybrid-chain.md` |
-| "Which model should I use?" / "Ollama" / "tool calling not working" / model selection / "set models once" / `~/.promptchain/models.yaml` (per-role models + endpoints) | `docs/llms/recipes/recipe-models-and-tool-calling.md` (also §16 of `PROMPTCHAIN_FOR_LLMS.md`) |
+| "Which model should I use?" / "Ollama" / "tool calling not working" / model selection | `docs/llms/recipes/recipe-models-and-tool-calling.md` (also §16 of `PROMPTCHAIN_FOR_LLMS.md`) |
+| "Configure models" / "set models once" / "model roles" / "endpoints" / "ModelSpec" / `~/.promptchain/models.yaml` / `promptchain models show` | `docs/llms/PROMPTCHAIN_FOR_LLMS.md` §16 "Naming models once: the models file" (roles table, endpoints, precedence); recipe section C2 in `recipe-models-and-tool-calling.md` |
+| "Profile a model" / "profiler" / "llamacpp lane" / "route by ability" | `docs/llms/recipes/recipe-model-router.md` (profiler probes also run on the governor llamacpp lane as `llamacpp:<alias>`) |
 | "Are my API keys working?" / "what models do I have?" / "model not found" | Run `python scripts/check_keys.py` (free env-check via `--no-probe`); see `scripts/README.md` for details |
 | "What is X?" / "how does Y work?" / API question | `docs/llms/PROMPTCHAIN_FOR_LLMS.md` (§13 has v0.6.0 / 0.6.1 BREAKING changes — read before writing v0.6.x code) |
 | Stuck / cryptic error / behaviour mismatch | Read source-of-truth files (`PROMPTCHAIN_FOR_LLMS.md` §11), check `examples/` for real usage, escalate to `gemini_debug` only after ruling out pipeline errors |
+
+## Models: PromptChain names none
+
+PromptChain has no default model. The caller names every model, or lists them once in `~/.promptchain/models.yaml` (`$PROMPTCHAIN_MODELS_CONFIG` overrides the path). The file holds `default`, `roles` and optional `endpoints` (`api_base`, `provider`). Precedence: explicit argument, then `roles.<role>`, then `default` (for roles that need a model), then an error that names the parameter, the role and the file. Optional features never switch on from `default`. Run `promptchain models init` to write a template and `promptchain models show` to see what each role resolves to. Details: `docs/llms/PROMPTCHAIN_FOR_LLMS.md` §16.
 
 ## Where the script lands (BLOCKING)
 
@@ -78,7 +84,8 @@ For ephemeral throwaways, use `scripts/scratch/` (gitignored).
 
 1. `from promptchain import AgentChain` → **wrong**. Use `from promptchain.utils.agent_chain import AgentChain`.
 2. `from promptchain import AgenticStepProcessor` → **wrong**. Use `from promptchain.utils.agentic_step_processor import AgenticStepProcessor`.
-3. `models=["glm-5.3-flash"]` → **wrong**. Use `"ollama_chat/glm-5.3-flash:cloud"`. PromptChain delegates to `litellm` which requires the `provider/model` prefix.
+3. `models=["glm-5.3-flash"]` → **wrong**. A model name needs the `provider/model` prefix, for example `"ollama_chat/glm-5.3-flash:cloud"` (check `~/.config/ollama-cloud/models.md` for a model that exists). PromptChain delegates to `litellm`, which needs the prefix.
+3a. **Relying on a default model** → **wrong**. PromptChain has no default model. If a needed model is missing, PromptChain raises `ValueError`. An optional feature stays off. Pass the model, or set a role in `~/.promptchain/models.yaml`.
 4. Counting `models` against ALL instructions → **wrong**. Only string instructions consume model slots. Functions and `AgenticStepProcessor` instances do NOT.
 5. `agent_chain.process_prompt_async(...)` → **wrong**. `AgentChain` uses `process_input(...)`. Only `PromptChain` has `process_prompt_async`.
 6. `execution_mode="broadcast"` without `synthesizer_config` → `ValueError`.
