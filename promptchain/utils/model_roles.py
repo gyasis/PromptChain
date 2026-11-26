@@ -4,9 +4,17 @@ PromptChain code names no model. The user names them in one YAML file, and each
 component asks for its model by role::
 
     default: <provider/model>        # used by required roles only
+    endpoints:                       # optional: where a model runs
+      <name>: {api_base: <url>, provider: <litellm provider>}
     roles:
       supervisor: <provider/model>
-      summarizer: <provider/model>
+      summarizer: {model: <name>, endpoint: <name>}
+
+A role value (and ``default``) is either a model string or a mapping with
+``model`` and an optional ``endpoint`` naming an entry of ``endpoints``. An
+endpoint turns into litellm call kwargs (``api_base``, and
+``custom_llm_provider`` when it names a ``provider``). :func:`resolve_model_spec`
+returns them with the model; :func:`resolve_model` returns the model string only.
 
 Resolution order for :func:`resolve_model`:
 
@@ -32,9 +40,9 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import yaml
 
@@ -82,18 +90,47 @@ class ModelNotConfiguredError(ValueError):
 
 
 @dataclass(frozen=True)
+class ModelSpec:
+    """A resolved model and where it runs.
+
+    ``source`` is ``arg``, ``role`` or ``default``. ``extra_kwargs`` carries
+    litellm kwargs other than ``api_base`` (``custom_llm_provider``).
+    """
+
+    model: str
+    source: str
+    api_base: Optional[str] = None
+    extra_kwargs: Dict[str, Any] = field(default_factory=dict)
+    endpoint: Optional[str] = None
+
+    @property
+    def params(self) -> Dict[str, Any]:
+        """The litellm call kwargs this spec adds."""
+        out = dict(self.extra_kwargs)
+        if self.api_base:
+            out["api_base"] = self.api_base
+        return out
+
+    def as_model(self) -> Union[str, Dict[str, Any]]:
+        """Return a value for PromptChain's ``models=`` list: the string, or a
+        ``{"name", "params"}`` dict when the spec carries call kwargs."""
+        return {"name": self.model, "params": self.params} if self.params else self.model
+
+
+@dataclass(frozen=True)
 class ModelsConfig:
     """Parsed models file."""
 
     path: Path
-    default: Optional[str] = None
-    roles: Optional[Dict[str, str]] = None
+    default: Optional[ModelSpec] = None
+    roles: Optional[Dict[str, ModelSpec]] = None
 
-    def role(self, name: str) -> Optional[str]:
-        return (self.roles or {}).get(name) or None
+    def role(self, name: str) -> Optional[ModelSpec]:
+        return (self.roles or {}).get(name)
 
 
 _cache: Optional[ModelsConfig] = None
+_ENDPOINT_KEYS = ("api_base", "provider")
 
 
 def config_path() -> Path:
@@ -104,12 +141,65 @@ def config_path() -> Path:
     return Path.home() / ".promptchain" / "models.yaml"
 
 
-def _clean(value: object, where: str, path: Path) -> Optional[str]:
+def _text(value: object, where: str, path: Path) -> Optional[str]:
     if value is None or value == "":
         return None
     if not isinstance(value, str):
         raise ModelConfigError(f"{path}: {where} must be a string, got {type(value).__name__}")
     return value.strip() or None
+
+
+def _parse_endpoints(raw: object, path: Path) -> Dict[str, Dict[str, Any]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ModelConfigError(f"{path}: 'endpoints' must be a mapping of name to settings")
+    out: Dict[str, Dict[str, Any]] = {}
+    for name, body in raw.items():
+        if not isinstance(body, dict):
+            raise ModelConfigError(f"{path}: endpoints.{name} must be a mapping with api_base")
+        extra = sorted(set(body) - set(_ENDPOINT_KEYS))
+        if extra:
+            raise ModelConfigError(
+                f"{path}: endpoints.{name} has unsupported key(s) {extra}; "
+                f"allowed: {', '.join(_ENDPOINT_KEYS)}"
+            )
+        api_base = _text(body.get("api_base"), f"endpoints.{name}.api_base", path)
+        if not api_base:
+            raise ModelConfigError(f"{path}: endpoints.{name}.api_base is required")
+        out[str(name)] = {"api_base": api_base, "provider": _text(body.get("provider"), f"endpoints.{name}.provider", path)}
+    return out
+
+
+def _parse_spec(
+    value: object, where: str, source: str, endpoints: Dict[str, Dict[str, Any]], path: Path
+) -> Optional[ModelSpec]:
+    if isinstance(value, dict):
+        extra = sorted(set(value) - {"model", "endpoint"})
+        if extra:
+            raise ModelConfigError(
+                f"{path}: {where} has unsupported key(s) {extra}; allowed: model, endpoint"
+            )
+        model = _text(value.get("model"), f"{where}.model", path)
+        endpoint = _text(value.get("endpoint"), f"{where}.endpoint", path)
+    else:
+        model, endpoint = _text(value, where, path), None
+    if not model:
+        if endpoint:
+            raise ModelConfigError(f"{path}: {where} names endpoint {endpoint!r} but no model")
+        return None
+    if not endpoint:
+        return ModelSpec(model=model, source=source)
+    if endpoint not in endpoints:
+        known = ", ".join(sorted(endpoints)) or "none defined"
+        raise ModelConfigError(
+            f"{path}: {where} uses unknown endpoint {endpoint!r}; endpoints defined: {known}"
+        )
+    ep = endpoints[endpoint]
+    extra_kwargs = {"custom_llm_provider": ep["provider"]} if ep["provider"] else {}
+    return ModelSpec(
+        model=model, source=source, api_base=ep["api_base"], extra_kwargs=extra_kwargs, endpoint=endpoint
+    )
 
 
 def _parse(path: Path) -> ModelsConfig:
@@ -122,12 +212,13 @@ def _parse(path: Path) -> ModelsConfig:
     if data is None:
         return ModelsConfig(path=path)
     if not isinstance(data, dict):
-        raise ModelConfigError(f"{path}: top level must be a mapping with 'default' and/or 'roles'")
-    unknown = set(data) - {"default", "roles"}
+        raise ModelConfigError(f"{path}: top level must be a mapping with 'default', 'endpoints' and/or 'roles'")
+    unknown = set(data) - {"default", "roles", "endpoints"}
     if unknown:
         raise ModelConfigError(
-            f"{path}: unknown key(s) {sorted(unknown)}; allowed keys are 'default' and 'roles'"
+            f"{path}: unknown key(s) {sorted(unknown)}; allowed keys are 'default', 'endpoints' and 'roles'"
         )
+    endpoints = _parse_endpoints(data.get("endpoints"), path)
     raw_roles = data.get("roles") or {}
     if not isinstance(raw_roles, dict):
         raise ModelConfigError(f"{path}: 'roles' must be a mapping of role name to model")
@@ -138,10 +229,11 @@ def _parse(path: Path) -> ModelsConfig:
         )
     roles = {}
     for name, value in raw_roles.items():
-        cleaned = _clean(value, f"roles.{name}", path)
-        if cleaned:
-            roles[name] = cleaned
-    return ModelsConfig(path=path, default=_clean(data.get("default"), "default", path), roles=roles)
+        spec = _parse_spec(value, f"roles.{name}", "role", endpoints, path)
+        if spec:
+            roles[name] = spec
+    default = _parse_spec(data.get("default"), "default", "default", endpoints, path)
+    return ModelsConfig(path=path, default=default, roles=roles)
 
 
 def load() -> ModelsConfig:
@@ -160,18 +252,19 @@ def reload() -> ModelsConfig:
 
 
 def configured_default() -> Optional[str]:
-    """Return the file's ``default`` model, or None."""
-    return load().default
+    """Return the file's ``default`` model string, or None."""
+    spec = load().default
+    return spec.model if spec else None
 
 
-def resolve_model(
+def resolve_model_spec(
     role: str,
     explicit: Optional[str] = None,
     *,
     required: bool,
     param: str,
-) -> Optional[str]:
-    """Return the model for ``role``.
+) -> Optional[ModelSpec]:
+    """Return the :class:`ModelSpec` for ``role``.
 
     Args:
         role: A name from :data:`ROLE_NAMES`.
@@ -187,48 +280,60 @@ def resolve_model(
     if role not in ROLE_NAMES:
         raise KeyError(f"unknown model role {role!r}; known roles: {', '.join(ROLE_NAMES)}")
     if explicit:
-        return explicit
-    from_role = load().role(role)
-    if from_role:
-        return from_role
+        return ModelSpec(model=explicit, source="arg")
+    cfg = load()
+    spec = cfg.role(role)
+    if spec:
+        return spec
     if not required:
         return None
-    default = load().default
-    if default:
-        return default
-    path = config_path()
+    if cfg.default:
+        return cfg.default
     raise ModelNotConfiguredError(
         f"No model for `{param}`: pass {param}=<provider/model>, or set roles.{role} "
-        f"(or default) in {path}."
+        f"(or default) in {config_path()}."
     )
 
 
+def resolve_model(
+    role: str,
+    explicit: Optional[str] = None,
+    *,
+    required: bool,
+    param: str,
+) -> Optional[str]:
+    """Return only the model string of :func:`resolve_model_spec`."""
+    spec = resolve_model_spec(role, explicit, required=required, param=param)
+    return spec.model if spec else None
+
+
 def describe() -> list:
-    """Return (role, required, model, source) for every role, as the file resolves them."""
+    """Return (role, required, spec-or-None) for every role, as the file resolves them."""
     cfg = load()
     rows = []
     for r in ROLES:
-        if cfg.role(r.name):
-            rows.append((r.name, r.required, cfg.role(r.name), "role"))
-        elif r.required and cfg.default:
-            rows.append((r.name, r.required, cfg.default, "default"))
-        else:
-            rows.append((r.name, r.required, None, "unset"))
+        spec = cfg.role(r.name) or (cfg.default if r.required else None)
+        rows.append((r.name, r.required, spec))
     return rows
 
 
 def show_text() -> str:
     """Render the resolved table for ``show``."""
     cfg = load()
+    d = cfg.default
     lines = [
         f"models config: {cfg.path} ({'found' if cfg.path.is_file() else 'not found'})",
-        f"default: {cfg.default or '(unset)'}",
+        f"default: {d.model if d else '(unset)'}" + (f" @ {d.api_base}" if d and d.api_base else ""),
         "",
-        f"{'role':<24}{'need':<10}{'model':<40}source",
+        f"{'role':<24}{'need':<10}{'model':<34}{'source':<9}endpoint",
     ]
-    for name, required, model, source in describe():
+    for name, required, spec in describe():
+        where = ""
+        if spec and spec.api_base:
+            where = f"{spec.endpoint or ''} {spec.api_base}".strip()
         lines.append(
-            f"{name:<24}{'required' if required else 'optional':<10}{model or '-':<40}{source}"
+            f"{name:<24}{'required' if required else 'optional':<10}"
+            f"{spec.model if spec else '-':<34}{spec.source if spec else 'unset':<9}{where}"
         )
     lines += [
         "",
@@ -249,7 +354,14 @@ def template_text() -> str:
         "# Optional roles never read it, so it cannot switch extra features on.",
         "default:",
         "",
+        "# Where a model runs (optional). A role may then be {model: <name>, endpoint: <name>}.",
+        "# endpoints:",
+        "#   my-ollama:   {api_base: \"http://<host>:<port>/<path>\"}",
+        "#   my-llamacpp: {api_base: \"http://<host>:<port>/<path>/v1\", provider: openai}",
+        "",
         "roles:",
+        "  # Example, uncomment and fill in:",
+        "  # supervisor: {model: <name>, endpoint: my-llamacpp}",
     ]
     for r in ROLES:
         lines.append(f"  # {'required' if r.required else 'optional (feature off when empty)'}: {r.component}")
