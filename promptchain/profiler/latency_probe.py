@@ -163,7 +163,7 @@ def run_latency_probe(client: GovernorClient, tag: str, *, show: Optional[dict] 
             payload["think"] = think
         res = consume_stream(client.chat_stream(payload))
         seen[size] = seen.get(size, 0) + 1
-        rec = measurement_record(kind="latency", tag=tag, show=show, endpoint=client.base + "/llm/ollama/api/chat",
+        rec = measurement_record(kind="latency", tag=tag, show=show, endpoint=client.base + client.chat_path,
                                  think=think, warm=is_resident(tag, before_p), size=size, res=res,
                                  gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
                                  extra={"repeat": seen[size]})

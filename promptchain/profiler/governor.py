@@ -12,11 +12,13 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 DEFAULT_GOVERNOR = "http://192.168.0.159:8799"
 CHAT_PATH = "/llm/ollama/api/chat"
 SHOW_PATH = "/llm/ollama/api/show"
+LLAMACPP_CHAT_PATH = "/llm/llamacpp/v1/chat/completions"
+LLAMACPP_MODELS_PATH = "/llm/llamacpp/v1/models"
 
 Opener = Callable[..., Any]
 
@@ -116,6 +118,8 @@ def snapshot(budget: dict, pressure: dict) -> dict:
 
 
 class GovernorClient:
+    chat_path = CHAT_PATH
+
     def __init__(self, base: str = DEFAULT_GOVERNOR, opener: Optional[Opener] = None,
                  connect_timeout: float = 5.0, read_timeout: float = 280.0):
         self.base = base.rstrip("/")
@@ -174,6 +178,101 @@ class GovernorClient:
                 raw = raw.strip()
                 if raw:
                     yield json.loads(raw)
+
+
+def _parse_args(text: str) -> Any:
+    """Tool-call arguments arrive as a JSON string; Ollama-shaped chunks carry the decoded object."""
+    try:
+        return json.loads(text) if text else {}
+    except ValueError:
+        return text
+
+
+def sse_to_chunks(lines: Iterable[bytes]) -> Iterator[dict]:
+    """Translate an OpenAI-style SSE stream (llama-server) into Ollama-shaped chat chunks.
+
+    Reasoning (``reasoning_content``) becomes ``message.thinking``. Tool-call fragments are
+    accumulated per index and emitted once, with decoded arguments, on the final chunk.
+    The final chunk carries llama-server's ``timings`` (ms) as Ollama's ns durations and
+    token counts; ``usage`` fills the counts when no ``timings`` object is present.
+    """
+    calls: dict[int, dict] = {}
+    finish: Optional[str] = None
+    timings: dict = {}
+    usage: dict = {}
+    for raw in lines:
+        raw = raw.strip()
+        if not raw.startswith(b"data:"):
+            continue
+        body = raw[5:].strip()
+        if body == b"[DONE]":
+            break
+        ev = json.loads(body)
+        if ev.get("error"):
+            yield {"error": ev["error"].get("message") if isinstance(ev["error"], dict) else ev["error"]}
+            return
+        timings = ev.get("timings") or timings
+        usage = ev.get("usage") or usage
+        for choice in ev.get("choices") or []:
+            delta = choice.get("delta") or {}
+            for frag in delta.get("tool_calls") or []:
+                slot = calls.setdefault(frag.get("index", 0), {"name": "", "args": ""})
+                fn = frag.get("function") or {}
+                slot["name"] += fn.get("name") or ""
+                slot["args"] += fn.get("arguments") or ""
+            msg = {"role": "assistant", "content": delta.get("content") or "",
+                   "thinking": delta.get("reasoning_content") or ""}
+            if msg["content"] or msg["thinking"]:
+                yield {"message": msg, "done": False}
+            finish = choice.get("finish_reason") or finish
+    final: dict = {"message": {"role": "assistant", "content": "", "tool_calls": [
+        {"function": {"name": c["name"], "arguments": _parse_args(c["args"])}}
+        for _, c in sorted(calls.items())]}, "done": True,
+        "done_reason": "length" if finish == "length" else (finish and "stop")}
+    if timings:
+        final.update(prompt_eval_count=timings.get("prompt_n"), eval_count=timings.get("predicted_n"),
+                     prompt_eval_duration=int((timings.get("prompt_ms") or 0) * 1e6),
+                     eval_duration=int((timings.get("predicted_ms") or 0) * 1e6))
+    else:
+        final.update(prompt_eval_count=usage.get("prompt_tokens"), eval_count=usage.get("completion_tokens"))
+    if not final["message"]["tool_calls"]:
+        del final["message"]["tool_calls"]
+    if finish is None:
+        final["done"] = False
+    yield final
+
+
+class LlamacppGovernorClient(GovernorClient):
+    """The same interface over the governor's llamacpp lane (``/llm/llamacpp/v1``).
+
+    Probes keep speaking Ollama: the request is translated to OpenAI chat-completions
+    (``think:false`` becomes ``chat_template_kwargs.enable_thinking=false``; ``options`` are
+    dropped, so no size is ever sent) and the SSE reply is translated back. llama-server
+    reports no load time, so ``load_duration`` is absent and warmth falls back to pressure.
+    """
+
+    chat_path = LLAMACPP_CHAT_PATH
+
+    def digest(self, tag: str) -> Optional[str]:
+        """The llamacpp lane exposes no digest; the alias is the stable identity."""
+        return f"llamacpp:{tag}"
+
+    def show(self, tag: str) -> dict:
+        """No /api/show on this lane. Capabilities are what the lane proves: a listed model
+        completes and reasons; ``tools`` is advertised because llama-server parses tool calls
+        from the chat template, and a model that fails to call scores 0 in the tool probe."""
+        ids = [m.get("id") for m in self.get_json(LLAMACPP_MODELS_PATH).get("data", [])]
+        return {"model": tag, "loaded": tag in ids, "digest": self.digest(tag),
+                "capabilities": ["completion", "tools", "thinking"], "details": {}}
+
+    def chat_stream(self, payload: dict) -> Iterator[dict]:
+        body: dict = {"model": payload["model"], "messages": payload["messages"], "stream": True}
+        if payload.get("tools"):
+            body["tools"] = payload["tools"]
+        if payload.get("think") is False:
+            body["chat_template_kwargs"] = {"enable_thinking": False}
+        with self._request(self.chat_path, body, self.read_timeout) as r:
+            yield from sse_to_chunks(r)
 
 
 @dataclass

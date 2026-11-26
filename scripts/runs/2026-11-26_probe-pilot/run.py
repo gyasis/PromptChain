@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from promptchain.profiler.governor import GovernorClient, GovernorRefusal, gate_decision, is_resident, snapshot
+from promptchain.profiler.governor import GovernorClient, GovernorRefusal, LlamacppGovernorClient, gate_decision, is_resident, snapshot
 from promptchain.profiler.latency_probe import RunContext, repo_git_sha, run_latency_probe, summarize
 from promptchain.profiler.tool_probe import load_source, run_tool_probe
 
@@ -21,6 +21,10 @@ COHORT = [
     "qwen3.8:27b-mtp-q4_K_M",
     "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_XL",
 ]
+if os.environ.get("PROBE_COHORT"):
+    COHORT = [t.strip() for t in os.environ["PROBE_COHORT"].split(",") if t.strip()]
+# PROBE_GATE=advisory records the local memory gate but lets the governor alone decide admission.
+GATE_ADVISORY = os.environ.get("PROBE_GATE") == "advisory"
 BUDGET_S = 45 * 60
 RUN_ID = uuid.uuid4().hex
 OUT = Path(os.environ.get("PROBE_OUT", "/tmp/probe-pilot-results.json"))
@@ -40,17 +44,60 @@ def wait_until_gone(client, tag, limit_s=200):
         time.sleep(10)
 
 
+LLAMACPP_PREFIX = "llamacpp:"
+
+
+def run_llamacpp(client, alias, key, results):
+    """Probe one llamacpp-lane model; the governor's admission is the only gate."""
+    row = {"gate": "n/a", "lane": "llamacpp", "governor": snapshot(client.budget(), client.pressure())}
+    results["models"][key] = row
+    t0 = time.time()
+    try:
+        show = client.show(alias)
+        caps = show["capabilities"]
+        ctx = RunContext(run_id=RUN_ID, git_sha=repo_git_sha(), bfcl_revision=load_source().get("revision"),
+                         digest=show["digest"])
+        row.update(status="RAN", capabilities=caps, digest=ctx.digest, listed_loaded=show["loaded"])
+        lat = run_latency_probe(client, alias, show=show, capabilities=caps, ctx=ctx, gate=None)
+        row["latency"] = summarize(lat)
+        row["latency_calls"] = [{"size": r["input_size"], "repeat": r["repeat"], "warm": r["warm"],
+                                 "status": r["status"], "leak": r["thinking_leak"], **r["metrics"]} for r in lat]
+        print(f"[{key}] latency {row['latency']}", flush=True)
+        tool = run_tool_probe(client, alias, show=show, capabilities=caps, n_simple=3, n_irrelevance=2,
+                              ctx=ctx, gate=None)
+        row["tool"] = tool
+        print(f"[{key}] tool {tool.get('summary')}", flush=True)
+    except GovernorRefusal as e:
+        row["status"] = "DROPPED"
+        row["refusal"] = {"code": e.code, "est_gb": e.est_gb, "ceiling_gb": e.ceiling_gb, "msg": str(e),
+                          "retry_after_s": e.retry_after_s}
+        print(f"[{key}] DROPPED by governor: {e}", flush=True)
+    except Exception as e:  # recorded, never retried
+        row["status"] = "FAILED"
+        row["error"] = repr(e)
+        print(f"[{key}] FAILED {e!r}", flush=True)
+    row["wall_s"] = time.time() - t0
+
+
 def main():
     t_start = time.time()
     client = GovernorClient()
+    llama_client = LlamacppGovernorClient()
     results = {"run_id": RUN_ID, "before": {"budget": client.budget(), "pressure": client.pressure(), "meters_tail": meters_tail()},
                "models": {}}
     by_name = {m["name"]: m for m in CATALOG["models"]}
     prev = None
-    for tag in COHORT:
+    for entry_name in COHORT:
         if time.time() - t_start > BUDGET_S:
-            results["models"][tag] = {"status": "NOT RUN: wall-clock budget reached"}
+            results["models"][entry_name] = {"status": "NOT RUN: wall-clock budget reached"}
             continue
+        if entry_name.startswith(LLAMACPP_PREFIX):
+            # llamacpp aliases are not in the ollama catalog: no catalog check, no local memory gate.
+            run_llamacpp(llama_client, entry_name[len(LLAMACPP_PREFIX):], entry_name, results)
+            OUT.write_text(json.dumps(results, indent=1, default=str))
+            prev = None
+            continue
+        tag = entry_name
         if f"`{tag}`" not in CATALOG_MD or tag not in by_name:
             results["models"][tag] = {"status": "SKIPPED: tag not in local-models.md"}
             continue
@@ -62,7 +109,10 @@ def main():
         row = {"gate": gate.to_dict(), "governor": snapshot(budget, pressure)}
         results["models"][tag] = row
         print(f"[{tag}] gate: {gate.admitted} {gate.reason}", flush=True)
-        if not gate.admitted:
+        if not gate.admitted and GATE_ADVISORY:
+            row["gate_overridden"] = True
+            print(f"[{tag}] gate advisory: running anyway, governor decides", flush=True)
+        elif not gate.admitted:
             row["status"] = "DROPPED"
             continue
         t0 = time.time()

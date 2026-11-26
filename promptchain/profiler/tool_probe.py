@@ -301,7 +301,7 @@ def run_tool_probe(client: GovernorClient, tag: str, *, show: Optional[dict] = N
         score = error_row(item, res.failure_reason) if res.failed else score_item(item, res.tool_calls)
         scores.append(score)
         append_measurement(store, measurement_record(
-            kind="tool", tag=tag, show=show, endpoint=client.base + "/llm/ollama/api/chat", think=think,
+            kind="tool", tag=tag, show=show, endpoint=client.base + client.chat_path, think=think,
             warm=is_resident(tag, before_p), size=None, res=res, gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
             extra={"item": {"id": item["id"], "category": item["category"], "source": BFCL_REPO,
                             "license": BFCL_LICENSE}, "score": score, "validator": validator_name()}))

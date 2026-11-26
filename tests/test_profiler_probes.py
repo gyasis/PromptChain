@@ -559,3 +559,79 @@ def test_netguard_precedes_litellm_and_strips_keys():
     r = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=120, env=env)
     assert r.stdout.splitlines()[0] == "True None None None", r.stdout + r.stderr
     assert "BLOCKED []" in r.stdout, r.stdout + r.stderr
+
+
+# ---- llamacpp lane: SSE -> Ollama-shaped chunks ----
+
+def _sse(*events):
+    return [b"data: " + json.dumps(e).encode() + b"\n\n" for e in events] + [b"data: [DONE]\n\n"]
+
+
+def _delta(**d):
+    return {"choices": [{"index": 0, "delta": d, "finish_reason": None}]}
+
+
+def _final(reason, **extra):
+    return {"choices": [{"index": 0, "delta": {}, "finish_reason": reason}], **extra}
+
+
+TIMINGS = {"prompt_n": 58, "prompt_ms": 1000.0, "predicted_n": 75, "predicted_ms": 5000.0}
+
+
+def test_sse_content_reasoning_and_timings():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    lines = _sse(_delta(role="assistant", content=None), _delta(reasoning_content="think"),
+                 _delta(reasoning_content="ing"), _delta(content="Hel"), _delta(content="lo"),
+                 _final("stop", timings=TIMINGS))
+    res = consume_stream(sse_to_chunks(lines))
+    assert res.content == "Hello" and res.thinking_chunks == 2 and res.thinking_chars == 8
+    assert res.done and not res.failed
+    assert (res.prompt_tokens, res.output_tokens) == (58, 75)
+    assert res.prefill_s == 1.0 and res.decode_s == 5.0 and res.load_s is None
+
+
+def test_sse_fragmented_tool_call_arguments():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    frag = lambda **fn: _delta(tool_calls=[{"index": 0, **({"id": "x", "type": "function"} if "name" in fn else {}),
+                                            "function": fn}])
+    lines = _sse(frag(name="get_weather", arguments="{"), frag(arguments='"city":"'), frag(arguments="Paris"),
+                 frag(arguments='"}'), _final("tool_calls", timings=TIMINGS))
+    res = consume_stream(sse_to_chunks(lines))
+    assert res.tool_calls == [{"function": {"name": "get_weather", "arguments": {"city": "Paris"}}}]
+    assert res.done and not res.failed
+
+
+def test_sse_length_and_missing_finish_are_failures():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    assert consume_stream(sse_to_chunks(_sse(_delta(content="a"), _final("length", timings=TIMINGS)))).failed
+    assert consume_stream(sse_to_chunks([b"data: " + json.dumps(_delta(content="a")).encode() + b"\n\n"])).failed
+
+
+def test_sse_usage_fallback_and_done_stops_stream():
+    from promptchain.profiler.governor import sse_to_chunks
+    lines = _sse(_delta(content="a"), _final("stop", usage={"prompt_tokens": 3, "completion_tokens": 4}))
+    last = list(sse_to_chunks(lines + [b"data: " + b"not json\n\n"]))[-1]
+    assert last["prompt_eval_count"] == 3 and last["eval_count"] == 4
+
+
+def test_llamacpp_client_translates_request_and_raises_refusal():
+    import urllib.error
+    from promptchain.profiler.governor import GovernorRefusal, LlamacppGovernorClient
+    seen = {}
+
+    def opener(req, timeout=None):
+        seen["url"], seen["body"] = req.full_url, json.loads(req.data)
+        return FakeResp(b"".join(_sse(_delta(content="ok"), _final("stop", timings=TIMINGS))))
+
+    c = LlamacppGovernorClient(opener=opener)
+    chunks = list(c.chat_stream({"model": "m", "messages": [], "think": False, "options": {"num_ctx": 1}}))
+    assert seen["url"].endswith("/llm/llamacpp/v1/chat/completions")
+    assert seen["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "options" not in seen["body"] and "think" not in seen["body"] and chunks[-1]["done"]
+    assert c.digest("m") == "llamacpp:m"
+
+    def refuse(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b'{"code":"model_too_large"}'))
+
+    with pytest.raises(GovernorRefusal):
+        list(LlamacppGovernorClient(opener=refuse).chat_stream({"model": "m", "messages": []}))
