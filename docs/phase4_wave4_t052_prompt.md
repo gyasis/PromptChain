@@ -290,7 +290,7 @@ async def test_progress_streaming():
     processor = AgenticStepProcessor(
         objective="Test streaming",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         progress_callback=lambda step, act: mock_callback("obj", 3, step, act)
     )
 

@@ -52,11 +52,11 @@ session:
   name: my-session
   working_directory: /path/to/project
   active_agent: researcher
-  default_model: openai/gpt-4
+  default_model: ollama_chat/glm-5.3-flash:cloud
 
 agents:
   researcher:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Research specialist
     tools: [web_search, mcp_filesystem_read]
     history_config:
@@ -75,7 +75,7 @@ orchestration:
   execution_mode: router
   auto_include_history: true
   router_config:
-    model: openai/gpt-4o-mini
+    model: ollama_chat/glm-5.3-flash:cloud
     timeout_seconds: 10
 ```
 
@@ -119,8 +119,8 @@ Import CLI configuration from YAML or JSON file.
 Configuration imported from production-config.yml
 
 Changes:
-  • Imported agent: researcher (openai/gpt-4)
-  • Imported agent: coder (openai/gpt-4)
+  • Imported agent: researcher (ollama_chat/glm-5.3-flash:cloud)
+  • Imported agent: coder (ollama_chat/glm-5.3-flash:cloud)
   • Imported MCP server: filesystem (stdio)
   • Updated execution mode: router
   • Skipped existing agent: default
@@ -187,7 +187,7 @@ Changes:
 
 ```bash
 # 1. Create session with custom configuration
-/agent create researcher --model openai/gpt-4 --template researcher
+/agent create researcher --model ollama_chat/glm-5.3-flash:cloud --template researcher
 /mcp add filesystem --command "npx" --args "-y,@modelcontextprotocol/server-filesystem,/path"
 
 # 2. Export configuration
@@ -219,7 +219,7 @@ Changes:
 version: "1.0"
 agents:
   researcher:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Research specialist
     tools:
       - web_search
@@ -239,7 +239,7 @@ agents:
   "version": "1.0",
   "agents": {
     "researcher": {
-      "model": "openai/gpt-4",
+      "model": "ollama_chat/glm-5.3-flash:cloud",
       "description": "Research specialist",
       "tools": ["web_search", "mcp_filesystem_read"]
     }
@@ -269,7 +269,7 @@ Import only what you need by editing the exported file:
 version: "1.0"
 agents:
   researcher:  # Only import this agent
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
 # mcp_servers: []  # Commented out - won't import
 ```
 
@@ -440,9 +440,9 @@ CommandResult(
 **1. Setup Session:**
 ```bash
 /session new data-pipeline
-/agent create researcher --model openai/gpt-4 --template researcher
-/agent create analyst --model anthropic/claude-3-sonnet-20240229 --template analyst
-/agent create coder --model openai/gpt-4 --template coder
+/agent create researcher --model ollama_chat/glm-5.3-flash:cloud --template researcher
+/agent create analyst --model ollama_chat/glm-5.3-flash:cloud --template analyst
+/agent create coder --model ollama_chat/glm-5.3-flash:cloud --template coder
 /mcp add snowflake --command mcp-server-snowflake
 /mcp add tableau --command mcp-server-tableau
 ```
@@ -470,11 +470,11 @@ session:
   name: data-pipeline
   working_directory: /home/user/projects/data
   active_agent: researcher
-  default_model: openai/gpt-4.1-mini-2025-04-14
+  default_model: ollama_chat/glm-5.3-flash:cloud
 
 agents:
   researcher:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Research specialist
     tools: [web_search, mcp_snowflake_read_query]
     history_config:
@@ -482,7 +482,7 @@ agents:
       max_tokens: 8000
 
   analyst:
-    model: anthropic/claude-3-sonnet-20240229
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Data analysis specialist
     tools: [mcp_snowflake_read_query, mcp_tableau_view_get_data]
     history_config:
@@ -490,7 +490,7 @@ agents:
       max_tokens: 8000
 
   coder:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Code generation specialist
     tools: [mcp_filesystem_read, mcp_filesystem_write]
     history_config:

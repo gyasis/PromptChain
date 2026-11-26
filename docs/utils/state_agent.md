@@ -146,7 +146,7 @@ The State Agent is integrated with the main Agent Orchestrator through:
 
 ```python
 # Create the state agent
-state_agent = create_state_agent(agent_orchestrator, verbose=True)
+state_agent = create_state_agent(agent_orchestrator, verbose=True, model_name="ollama_chat/glm-5.3-flash:cloud")
 
 # Add the state agent to the orchestrator
 agent_orchestrator.add_agent("state", state_agent)

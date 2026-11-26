@@ -122,8 +122,8 @@ ANTHROPIC_API_KEY=your_key_here
 
 ### Model Specification
 Models can be specified as:
-- Strings: `"openai/gpt-4"`, `"anthropic/claude-3-sonnet-20240229"`
-- Dicts with parameters: `{"name": "openai/gpt-4", "params": {"temperature": 0.5}}`
+- Strings: `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3-flash:cloud"`
+- Dicts with parameters: `{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5}}`
 
 ### Function Integration
 Functions must:
@@ -158,7 +158,7 @@ history_manager = ExecutionHistoryManager(
 )
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"],
     verbose=True
 )
@@ -192,12 +192,12 @@ def search_files(query: str) -> str:
 agentic_step = AgenticStepProcessor(
     objective="Find and analyze code patterns in the project",
     max_internal_steps=5,
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 # Create chain with agentic reasoning
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Prepare search strategy: {input}",
         agentic_step,  # Complex reasoning step
@@ -241,21 +241,21 @@ mcp_config = [{
 
 # Create specialized agents with different capabilities
 analyzer_agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze the data: {input}"],
     mcp_servers=mcp_config,  # Has file system access
     verbose=True
 )
 
 writer_agent = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Write comprehensive report: {input}"],
     verbose=True
 )
 
 # Router configuration with decision templates
 router_config = {
-    "models": ["openai/gpt-4o-mini"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_templates": {
         "single_agent_dispatch": """
@@ -311,7 +311,7 @@ async def complex_analysis_workflow():
     )
     
     analysis_chain = PromptChain(
-        models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+        models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             data_processor,
             "Perform detailed analysis: {input}",

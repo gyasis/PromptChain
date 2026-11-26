@@ -27,7 +27,7 @@ def log_events(event: ExecutionEvent):
 
 # Create chain with callback
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"],
     verbose=True
 )

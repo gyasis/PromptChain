@@ -99,7 +99,7 @@ print(res.winning_code)
 print([a.passed for a in res.attempts])                        # [False, True]
 ```
 
-Real use replaces `generate=` with `model="openai/gpt-4o-mini"` (any model string PromptChain
+Real use replaces `generate=` with `model="ollama_chat/glm-5.3-flash:cloud"` (any model string PromptChain
 accepts); the loop then builds a single-instruction `PromptChain` as the generator.
 
 ### MicroPromptChain contract

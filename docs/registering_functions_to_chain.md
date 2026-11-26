@@ -77,7 +77,7 @@ Use the `register_tool_function` method of the `PromptChain` to register the Pyt
 
 #### Example Registration
 ```python
-chain = PromptChain(models=["openai/gpt-4o"], instructions=["..."])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["..."])
 chain.add_tools([weather_tool_schema])
 chain.register_tool_function(get_current_weather)
 ```

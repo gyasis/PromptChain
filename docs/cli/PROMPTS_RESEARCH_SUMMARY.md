@@ -224,7 +224,7 @@ class Agent:
 ```json
 {
   "name": "Research Agent",
-  "model": "gpt-4",
+  "model": "ollama_chat/glm-5.3-flash:cloud",
   "prompt_id": "researcher",
   "strategy": "detailed",
   "description": "Comprehensive research agent",

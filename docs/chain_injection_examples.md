@@ -54,7 +54,7 @@ Provide analysis following these guidelines:
 
 # Normal Technique (List-based)
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction=BASE_INSTRUCTION,  # Will be used for each step
     technique="normal"
 )
@@ -108,7 +108,7 @@ Provide analysis following these guidelines:
 
 # Head-Tail Technique
 head_tail_builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction=BASE_INSTRUCTION,  # Used for both head and generated tasks
     technique="head-tail"
 )
@@ -152,7 +152,7 @@ def analyze_sentiment(text: str) -> str:
 
 # Create a regular chain with mixed instructions and functions
 regular_chain = PromptChain(
-    models=["openai/gpt-4"] * 3,
+    models=["ollama_chat/glm-5.3-flash:cloud"] * 3,
     instructions=[
         "Extract main points from: {input}",
         analyze_sentiment,  # Function step
@@ -174,7 +174,7 @@ from promptchain.utils.promptchaining import DynamicChainBuilder
 
 # Create dynamic builder
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction="Dynamic analysis: {input}"
 )
 
@@ -191,7 +191,7 @@ dynamic_chain = builder.create_chain(
 
 # Create the regular chain that will receive the injection
 main_chain = PromptChain(
-    models=["openai/gpt-4"] * 4,
+    models=["ollama_chat/glm-5.3-flash:cloud"] * 4,
     instructions=[
         "Initial processing: {input}",
         "Extract key information: {input}",
@@ -248,7 +248,7 @@ Analysis Guidelines:
 
 # 2. Create the dynamic builder
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction=DOCUMENT_ANALYSIS_TEMPLATE,
     technique="head-tail"
 )
@@ -377,7 +377,7 @@ Analysis Guidelines:
    # Use appropriate template based on content
    def create_specialized_chain(content_type: str, instructions: list):
        return DynamicChainBuilder(
-           base_model="openai/gpt-4",
+           base_model="ollama_chat/glm-5.3-flash:cloud",
            base_instruction=TEMPLATES[content_type],
            technique="normal"
        )

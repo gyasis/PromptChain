@@ -39,7 +39,7 @@ class Strategy:
 @dataclass
 class AgentTemplate:
     name: str                    # Template display name
-    model: str                   # LLM model (e.g., 'gpt-4')
+    model: str                   # LLM model (e.g., 'ollama_chat/glm-5.3-flash:cloud')
     prompt_id: str               # Associated prompt ID
     strategy: Optional[str]      # Optional strategy ID
     description: str             # Template description

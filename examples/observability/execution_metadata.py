@@ -21,13 +21,13 @@ def demo_agent_metadata():
 
     # Create simple agents
     analyzer_agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Analyze this request: {input}"],
         verbose=False
     )
 
     writer_agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Write a detailed response: {input}"],
         verbose=False
     )
@@ -44,7 +44,7 @@ def demo_agent_metadata():
         },
         execution_mode="router",
         router={
-            "models": ["openai/gpt-4o-mini"],
+            "models": ["ollama_chat/glm-5.3-flash:cloud"],
             "instructions": [None, "{input}"]
         },
         verbose=False
@@ -135,13 +135,13 @@ async def demo_agentic_step_metadata():
     agentic_step = AgenticStepProcessor(
         objective="Research the topic and provide key findings",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="minimal"
     )
 
     # Create chain with agentic step
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             agentic_step,  # Agentic reasoning step
             "Final summary: {input}"
@@ -259,13 +259,13 @@ def demo_comparison():
     print("=" * 70)
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Answer briefly: {input}"],
         verbose=False
     )
 
     analyzer_agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Analyze: {input}"],
         verbose=False
     )

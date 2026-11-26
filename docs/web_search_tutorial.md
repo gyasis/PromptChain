@@ -144,7 +144,7 @@ def build_search_system():
     """
     # Create builder with head-tail technique
     builder = DynamicChainBuilder(
-        base_model="openai/gpt-4",
+        base_model="ollama_chat/glm-5.3-flash:cloud",
         base_instruction=HEAD_TEMPLATE,
         technique="head-tail"
     )
@@ -165,7 +165,7 @@ def build_search_system():
     
     # Create the summary chain
     summary_chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Synthesize the following search results into a comprehensive answer: {input}"
         ],
@@ -207,7 +207,7 @@ def build_search_system():
             # Create the search chain with the function
             search_chain_id = f"search_{i+1}"
             search_chain = PromptChain(
-                models=["openai/gpt-4"],  # Won't be used for function step
+                models=["ollama_chat/glm-5.3-flash:cloud"],  # Won't be used for function step
                 instructions=[
                     f"Search for: {question}",
                     make_search_function(question)  # Inject the search function

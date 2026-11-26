@@ -43,7 +43,7 @@ agent_orchestrator = AgentChain(
     -   **Option 1: Dictionary (Default LLM Router)**
         ```python
         default_llm_router_config = {
-            "models": ["gpt-4o-mini"], # Single model for the execution step
+            "models": ["ollama_chat/glm-5.3-flash:cloud"], # Single model for the execution step
             "instructions": [None, "{input}"], # [Func placeholder, Exec template]
             "decision_prompt_template": "..." # Full prompt template string (see example)
             # Optional: other PromptChain args like 'temperature'
@@ -245,22 +245,22 @@ from promptchain import PromptChain
 
 # Define specialized agents
 terminal_agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Execute terminal command: {input}"]
 )
 
 research_agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Research topic: {input}"]
 )
 
 coding_agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Generate code: {input}"]
 )
 
 writing_agent = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Write content: {input}"]
 )
 
@@ -494,7 +494,7 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 # Agent with internal agentic reasoning
 research_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         AgenticStepProcessor(
             objective="Research topic thoroughly",
@@ -745,7 +745,7 @@ all_agents = {
 # Option 1: Default LLM Router Config
 full_decision_template = """... (prompt guiding LLM to output JSON) ..."""
 default_llm_router_config = {
-    "models": ["gpt-4o-mini"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_template": full_decision_template
 }

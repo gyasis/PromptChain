@@ -30,7 +30,7 @@ print(f"Score: {max(s.score for s in result.scores):.2f}")
 ```python
 BranchingConfig(
     hypothesis_count=3,           # Number of hypotheses to generate
-    judge_model="openai/gpt-4o",  # Model for judging
+    judge_model="ollama_chat/glm-5.3-flash:cloud",  # Model for judging
     diversity_threshold=0.3,      # Min diversity (0.0-1.0)
     timeout_seconds=30.0,         # Max execution time
     emit_events=True,             # Emit events to MessageBus
@@ -113,8 +113,8 @@ shared = blackboard.read(f"branching.{branching.config.pattern_id}.selected")
 ```python
 # Use cheaper models
 config = BranchingConfig(
-    generator_model="openai/gpt-4o-mini",
-    judge_model="openai/gpt-4o-mini",
+    generator_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     hypothesis_count=3
 )
 ```
@@ -133,7 +133,7 @@ config = BranchingConfig(timeout_seconds=15.0)
 # More hypotheses, better judge
 config = BranchingConfig(
     hypothesis_count=6,
-    judge_model="openai/gpt-4o",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     diversity_threshold=0.5
 )
 ```
@@ -189,7 +189,7 @@ result = await speculative.execute(candidates=hypotheses_text)
 ```python
 config = BranchingConfig(
     hypothesis_count=3,
-    judge_model="openai/gpt-4o-mini",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     timeout_seconds=10.0
 )
 ```
@@ -198,7 +198,7 @@ config = BranchingConfig(
 ```python
 config = BranchingConfig(
     hypothesis_count=9,
-    judge_model="openai/gpt-4o",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     diversity_threshold=0.5,
     timeout_seconds=60.0
 )
@@ -208,7 +208,7 @@ config = BranchingConfig(
 ```python
 config = BranchingConfig(
     hypothesis_count=2,
-    judge_model="openai/gpt-4o-mini",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     record_outcomes=False
 )
 ```

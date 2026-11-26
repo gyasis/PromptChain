@@ -51,7 +51,7 @@ class ActivityLogger:
   "timestamp": "2025-11-20T12:34:56.789123",
   "activity_type": "agent_output",
   "agent_name": "researcher",
-  "agent_model": "gpt-4",
+  "agent_model": "ollama_chat/glm-5.3-flash:cloud",
   "parent_activity_id": "act_20251120_123455_xyz789",
   "interaction_chain_id": "chain_20251120_123450_root",
   "depth_level": 2,
@@ -400,7 +400,7 @@ logger.log_activity(
 logger.log_activity(
     activity_type="agent_output",
     agent_name="researcher",
-    agent_model="gpt-4",
+    agent_model="ollama_chat/glm-5.3-flash:cloud",
     content={"output": "Machine learning is..."},
     metadata={"tokens_used": 150}
 )

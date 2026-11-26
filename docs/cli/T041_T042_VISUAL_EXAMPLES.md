@@ -15,7 +15,7 @@ This document provides visual examples of the router decision display and agent 
 
 **Setup**:
 - Session: "my-project"
-- Agents: 1 ("default" using gpt-4)
+- Agents: 1 ("default" using ollama_chat/glm-5.3-flash:cloud)
 - Router Mode: Disabled
 
 **Conversation**:
@@ -29,7 +29,7 @@ User: Hello, how can you help me?
 [Assistant response from default agent...]
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: my-project | Agent: default | Model: gpt-4 | Messages: 2
+│ * Session: my-project | Agent: default | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 2
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,7 +61,7 @@ User: Analyze this authentication code for security issues
 [Assistant response from coder agent analyzing code security...]
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: coder | Model: gpt-4 | Messages: 2
+│ * Session: code-review | ⚙ Agent: coder | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 2
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,7 +80,7 @@ User: Analyze this authentication code for security issues
 **Conversation (Second Message)**:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: coder | Model: gpt-4 | Messages: 2
+│ * Session: code-review | ⚙ Agent: coder | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 2
 └─────────────────────────────────────────────────────────────────┘
 
 User: Research the latest OAuth 2.1 security best practices
@@ -90,7 +90,7 @@ User: Research the latest OAuth 2.1 security best practices
 [Assistant response from researcher agent with research findings...]
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: researcher | Model: gpt-4 | Messages: 4
+│ * Session: code-review | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 4
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -115,7 +115,7 @@ User: Research the latest OAuth 2.1 security best practices
 **Conversation (Third Message)**:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: researcher | Model: gpt-4 | Messages: 4
+│ * Session: code-review | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 4
 └─────────────────────────────────────────────────────────────────┘
 
 User: Continue researching PKI certificate management standards
@@ -125,7 +125,7 @@ User: Continue researching PKI certificate management standards
 [Assistant response from researcher agent with additional research...]
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: researcher | Model: gpt-4 | Messages: 6
+│ * Session: code-review | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 6
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -144,7 +144,7 @@ User: Continue researching PKI certificate management standards
 **Conversation (Multiple Messages)**:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: researcher | Model: gpt-4 | Messages: 6
+│ * Session: code-review | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 6
 └─────────────────────────────────────────────────────────────────┘
 
 User: Write a comprehensive security audit report
@@ -166,7 +166,7 @@ User: Research OWASP Top 10 2023 changes
 [Assistant response from researcher agent with OWASP findings...]
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ * Session: code-review | ⚙ Agent: researcher | Model: gpt-4 | Messages: 12
+│ * Session: code-review | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 12
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -269,7 +269,7 @@ User: Hello
 **Status Bar with All Features**:
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│ * Session: my-project | ⚙ Agent: researcher | Model: gpt-4 | Messages: 10 | ● Tokens: 3456/8000 (43%)
+│ * Session: my-project | ⚙ Agent: researcher | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 10 | ● Tokens: 3456/8000 (43%)
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -277,7 +277,7 @@ User: Hello
 - `*` - Session active indicator (green)
 - `⚙` - Router mode active (cyan)
 - `Agent: researcher` - Currently selected agent
-- `Model: gpt-4` - Agent's model
+- `Model: ollama_chat/glm-5.3-flash:cloud` - Agent's model
 - `Messages: 10` - Conversation length
 - `● Tokens: 3456/8000 (43%)` - Token usage (green indicator)
 
@@ -293,7 +293,7 @@ User: Hello
 **Status Bar with MCP Servers**:
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-│ * Session: data-analysis | ⚙ Agent: analyst | Model: gpt-4 | Messages: 5 | MCP: ✓filesystem ✓database
+│ * Session: data-analysis | ⚙ Agent: analyst | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 5 | MCP: ✓filesystem ✓database
 └───────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

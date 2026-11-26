@@ -23,7 +23,7 @@ from promptchain import PromptChain
 
 # Create a chain that can improve content iteratively
 improvement_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         """
         Improve the following content. If it needs more improvement, return 'NEEDS_IMPROVEMENT: improved_content'.
@@ -78,7 +78,7 @@ def transform_for_next_iteration(output: str, history: list) -> str:
 
 # Create a chain with history-aware circular processing
 advanced_chain = PromptChain(
-    models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze and improve this content: {input}",
         "Refine the improvements further: {input}"
@@ -122,7 +122,7 @@ def multi_exit_condition(output: str, history: list) -> bool:
 
 # Create a chain with multiple exit points
 quality_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         """
         Improve this content and rate it (0-10):
@@ -164,7 +164,7 @@ def track_progress(output: str, history: list) -> None:
 
 # Create a chain with progress tracking
 tracked_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Improve and score: {input}"],
     circular=True,
     max_iterations=5,
@@ -250,7 +250,7 @@ def resource_chainbreaker(step: int, output: str, history: list = None) -> tuple
 
 # Example using multiple chainbreakers
 improvement_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         """
         Improve this content and rate its quality (0-1):
@@ -307,7 +307,7 @@ def combined_exit_strategy(step: int, output: str, history: list = None) -> tupl
 
 # Create chain with combined exit strategy
 advanced_chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         """
         Improve and rate the content:

@@ -27,7 +27,7 @@ async def basic_speculative_execution():
     # Initialize LightRAG
     lightrag_config = LightRAGConfig(
         working_dir="./lightrag_data",
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
     lightrag = LightRAGIntegration(config=lightrag_config)
 

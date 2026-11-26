@@ -22,7 +22,7 @@ from promptchain.utils.chain_models import ChainMode
 chain_def = (
     ChainBuilder("research-and-summarize", version="v1.0", mode=ChainMode.STRICT)
         .description("Research a topic, then produce a 5-bullet summary")
-        .llm_model("openai/gpt-4o-mini")
+        .llm_model("ollama_chat/glm-5.3-flash:cloud")
         .tags("research", "summary")
         .created_by("agent:claude-opus-4-7")
         .add_prompt("Research the topic and list 10 key facts: {input}")
@@ -50,7 +50,7 @@ from promptchain import PromptChain
 
 # Register the chain-builder tools on a PromptChain so the LLM can self-author
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["The user wants a workflow. Build it via tools: {input}"],
 )
 for fn in get_chain_builder_functions().values():

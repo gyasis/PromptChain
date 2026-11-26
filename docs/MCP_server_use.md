@@ -40,7 +40,7 @@ mcp_server_config = [
 ]
 
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze this: {input}"],
     mcp_servers=mcp_server_config,
     verbose=True
@@ -98,7 +98,7 @@ As discovered, the most reliable way to handle sequences like *resolve ID -> get
 
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"] * 3, # Model for each step
+    models=["ollama_chat/glm-5.3-flash:cloud"] * 3, # Model for each step
     instructions=[
         # Step 1: Resolve ID, parse result, output ONLY the first ID string
         "Use the 'mcp_context7_server_resolve-library-id' tool with the library name provided as input: '{input}'. "

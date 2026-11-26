@@ -5,7 +5,7 @@ PromptChain lets **every model-step run on its own model**. You do this by passi
 executes, an internal `model_index` counter walks the list — step 1 uses `models[0]`,
 step 2 uses `models[1]`, and so on.
 
-This is the mechanism behind `models=["openai/gpt-4o", "anthropic/claude-opus-4-8", ...]`.
+This is the mechanism behind `models=["ollama_chat/glm-5.3-flash:cloud", "anthropic/claude-opus-4-8", ...]`.
 It's distinct from `model_management` (which governs **VRAM load/unload** of Ollama models
 between steps — see [`model_management.md`](model_management.md)). Per-step models is purely
 *which model answers which step*.
@@ -17,7 +17,7 @@ from promptchain import PromptChain
 
 chain = PromptChain(
     models=[
-        "openai/gpt-4o",                          # step 1's model (plain string)
+        "ollama_chat/glm-5.3-flash:cloud",                          # step 1's model (plain string)
         {                                          # step 2: its own model AND its own params
             "name": "anthropic/claude-opus-4-8",
             "params": {"temperature": 0.2, "max_tokens": 2000},
@@ -25,7 +25,7 @@ chain = PromptChain(
         "ollama/qwen2.5:7b",                       # step 3's model
     ],
     instructions=[
-        "Brainstorm ideas about: {input}",         # → openai/gpt-4o
+        "Brainstorm ideas about: {input}",         # → ollama_chat/glm-5.3-flash:cloud
         "Critique the ideas: {input}",             # → claude-opus-4-8 (temp 0.2)
         "Write the final code: {input}",           # → ollama/qwen2.5:7b
     ],
@@ -34,7 +34,7 @@ chain = PromptChain(
 
 Each entry in `models` can be:
 
-- a **plain string** — `"openai/gpt-4o"` → that step runs on this model with default params.
+- a **plain string** — `"ollama_chat/glm-5.3-flash:cloud"` → that step runs on this model with default params.
 - a **dict** — `{"name": "...", "params": {...}}` → that step gets its **own model and its
   own model_params** (temperature, max_tokens, etc.). The params are passed through to the
   LiteLLM call for that step only.
@@ -52,9 +52,9 @@ Each entry in `models` can be:
 
    ```python
    PromptChain(
-       models=["openai/gpt-4o-mini"],             # one model
+       models=["ollama_chat/glm-5.3-flash:cloud"],             # one model
        instructions=["Step 1: {input}", "Step 2: {input}", "Step 3: {input}"],
-   )  # → all three steps run on gpt-4o-mini
+   )  # → all three steps run on ollama_chat/glm-5.3-flash:cloud
    ```
 
 3. **Order is execution order.** The model list is consumed in sequence by `model_index`,
@@ -69,7 +69,7 @@ excluded from the count in rule 1. A mixed chain looks like:
 
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4o"],                      # ONE entry — for the single string step below
+    models=["ollama_chat/glm-5.3-flash:cloud"],                      # ONE entry — for the single string step below
     instructions=[
         "Summarize: {input}",                      # ← consumes models[0]
         AgenticStepProcessor(                       # ← brings its OWN model, NOT from models[]

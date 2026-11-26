@@ -25,7 +25,7 @@ async def main():
     agentic = AgenticStepProcessor(
         objective="List the files in /tmp and return a one-line summary of how many are .log files.",
         max_internal_steps=8,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="progressive",      # recommended over "minimal" for multi-hop reasoning
     )
 

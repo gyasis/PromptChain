@@ -232,7 +232,7 @@ class MentalModelSelector:
     """
     Selects appropriate mental model based on task characteristics.
     """
-    def __init__(self, registry: MentalModelRegistry, llm_model: str = "gpt-4o-mini"):
+    def __init__(self, registry: MentalModelRegistry, llm_model: str = "ollama_chat/glm-5.3-flash:cloud"):
         self.registry = registry
         self.llm_model = llm_model
     
@@ -499,7 +499,7 @@ class AgentChain:
             self.mental_model_registry = MentalModelRegistry()
             self.mental_model_selector = MentalModelSelector(
                 self.mental_model_registry,
-                llm_model=kwargs.get("mental_model_selector_model", "gpt-4o-mini")
+                llm_model=kwargs.get("mental_model_selector_model", "ollama_chat/glm-5.3-flash:cloud")
             )
             
             # Add mental model tools to agents
@@ -667,7 +667,7 @@ from promptchain.utils.agent_chain import AgentChain
 
 # Create agent with mental models enabled
 agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Solve: {input}"]
 )
 

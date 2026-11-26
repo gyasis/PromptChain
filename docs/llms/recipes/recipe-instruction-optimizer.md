@@ -121,8 +121,8 @@ import asyncio
 from promptchain.utils.instruction_optimizer import optimize_instruction, llm_proposer
 
 async def main():
-    return await optimize_instruction(base, train, metric, model="openai/gpt-4o-mini",
-                                      proposer=llm_proposer("openai/gpt-4o"), n_proposals=4, repeats=3)
+    return await optimize_instruction(base, train, metric, model="ollama_chat/glm-5.3-flash:cloud",
+                                      proposer=llm_proposer("ollama_chat/glm-5.3-flash:cloud"), n_proposals=4, repeats=3)
 
 result = asyncio.run(main())
 ```

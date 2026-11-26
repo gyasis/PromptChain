@@ -42,7 +42,7 @@ For a valid head-tail implementation, the following structure is **required**:
 ```python
 # Valid Head-Tail Structure
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction=HEAD_TEMPLATE,
     technique="head-tail"  # Required technique declaration
 )
@@ -80,7 +80,7 @@ Guidelines:
 
 # Create builder with head-tail technique
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction=HEAD_TEMPLATE,
     technique="head-tail"  # Required
 )
@@ -169,7 +169,7 @@ def create_processing_sequence(builder, task, sequence_id):
     
     # Register the sequence chain with multiple processing steps
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             f"Processing sequence for task: {task}\n\n{{input}}",
             process_fn,    # Step 1: Initial processing
@@ -253,7 +253,7 @@ The execution mode parameter determines how chains are scheduled:
 ```python
 # Initialize builder with head-tail technique
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction="""
     Task Decomposition Framework
     ===========================

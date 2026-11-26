@@ -86,7 +86,7 @@ async def agentic_orchestrator_router(
         objective=routing_objective,
         max_internal_steps=5,
         history_mode="progressive",  # CRITICAL
-        model_name="openai/gpt-4o"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
     return routing_decision
 ```
@@ -94,7 +94,7 @@ async def agentic_orchestrator_router(
 **Integration:**
 ```python
 router_config = {
-    "models": ["openai/gpt-4o"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "custom_router_function": agentic_orchestrator_router,
     "instructions": [None, "{input}"]
 }
@@ -271,7 +271,7 @@ Step 3: Make decision → ✅ Has A + B → Accurate decision
 **Step 1: Current Router**
 ```python
 router_config = {
-    "models": ["openai/gpt-4"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_templates": {...}
 }
@@ -282,7 +282,7 @@ router_config = {
 from promptchain.utils.agentic_router_wrapper import agentic_orchestrator_router
 
 router_config = {
-    "models": ["openai/gpt-4o"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "custom_router_function": agentic_orchestrator_router,  # Add this
     "instructions": [None, "{input}"]
 }

@@ -17,7 +17,7 @@ Agent templates provide pre-configured agent definitions for common use cases in
 Deep research specialist with multi-hop reasoning and web search capabilities. Uses AgenticStepProcessor for 8-step autonomous research workflows.
 
 #### Configuration
-- **Model**: `openai/gpt-4`
+- **Model**: `ollama_chat/glm-5.3-flash:cloud`
 - **History**: Enabled (8000 tokens, 50 entries)
 - **Truncation**: Oldest-first
 - **Tools**:
@@ -46,7 +46,7 @@ Deep research specialist with multi-hop reasoning and web search capabilities. U
 /agent create-from-template researcher my-researcher
 
 # With custom model
-/agent create-from-template researcher my-researcher --model anthropic/claude-3-opus-20240229
+/agent create-from-template researcher my-researcher --model ollama_chat/glm-5.3-flash:cloud
 
 # Use the agent
 /agent use my-researcher
@@ -66,7 +66,7 @@ Deep research specialist with multi-hop reasoning and web search capabilities. U
 Code generation and execution specialist with AgenticStepProcessor for iterative development workflows. Optimized for coding tasks with moderate history for context retention.
 
 #### Configuration
-- **Model**: `openai/gpt-4`
+- **Model**: `ollama_chat/glm-5.3-flash:cloud`
 - **History**: Enabled (4000 tokens, 20 entries)
 - **Truncation**: Oldest-first
 - **Tools**:
@@ -112,7 +112,7 @@ Code generation and execution specialist with AgenticStepProcessor for iterative
 Data analysis and interpretation specialist with comprehensive context retention. Optimized for complex analytical workflows requiring detailed historical context.
 
 #### Configuration
-- **Model**: `openai/gpt-4`
+- **Model**: `ollama_chat/glm-5.3-flash:cloud`
 - **History**: Enabled (8000 tokens, 50 entries)
 - **Truncation**: Oldest-first
 - **Tools**:
@@ -152,10 +152,10 @@ Data analysis and interpretation specialist with comprehensive context retention
 **Token Usage**: Minimal (60% savings vs standard agent)
 
 #### Description
-Fast execution agent for command-line operations and quick tasks. History disabled for maximum token efficiency. Uses fast model (gpt-3.5-turbo) for sub-second responses.
+Fast execution agent for command-line operations and quick tasks. History disabled for maximum token efficiency. Uses fast model (ollama_chat/glm-5.3-flash:cloud) for sub-second responses.
 
 #### Configuration
-- **Model**: `openai/gpt-3.5-turbo`
+- **Model**: `ollama_chat/glm-5.3-flash:cloud`
 - **History**: **Disabled** (0 tokens, 0 entries)
 - **Token Savings**: ~60% compared to agents with history
 - **Tools**:
@@ -211,9 +211,9 @@ Fast execution agent for command-line operations and quick tasks. History disabl
 
 | Priority | Template | Model | Response Time |
 |----------|----------|-------|---------------|
-| Fastest | **Terminal** | gpt-3.5-turbo | Sub-second |
-| Moderate | **Coder** | gpt-4 | 2-5 seconds |
-| Comprehensive | **Researcher/Analyst** | gpt-4 | 5-15 seconds |
+| Fastest | **Terminal** | ollama_chat/glm-5.3-flash:cloud | Sub-second |
+| Moderate | **Coder** | ollama_chat/glm-5.3-flash:cloud | 2-5 seconds |
+| Comprehensive | **Researcher/Analyst** | ollama_chat/glm-5.3-flash:cloud | 5-15 seconds |
 
 ---
 
@@ -233,7 +233,7 @@ Fast execution agent for command-line operations and quick tasks. History disabl
 
 # Examples
 /agent create-from-template researcher my-researcher
-/agent create-from-template coder python-dev --model anthropic/claude-3-sonnet-20240229
+/agent create-from-template coder python-dev --model ollama_chat/glm-5.3-flash:cloud
 /agent create-from-template terminal bash-1 --description "Fast bash executor"
 ```
 
@@ -270,7 +270,7 @@ Fast execution agent for command-line operations and quick tasks. History disabl
 
 # Combined updates
 /agent update my-researcher \
-  --model anthropic/claude-3-opus-20240229 \
+  --model ollama_chat/glm-5.3-flash:cloud \
   --description "Specialized ML research agent" \
   --add-tools mcp_web_browser
 ```
@@ -387,7 +387,7 @@ Templates provide starting points - customize as needed:
 
 # Customize for specific needs
 /agent update my-researcher \
-  --model anthropic/claude-3-opus-20240229 \
+  --model ollama_chat/glm-5.3-flash:cloud \
   --description "ML paper specialist" \
   --add-tools mcp_web_browser
 ```
@@ -502,7 +502,7 @@ from promptchain.cli.utils.agent_templates import (
 agent = create_from_template(
     template_name="researcher",
     agent_name="my-researcher",
-    model_override="anthropic/claude-3-opus-20240229"
+    model_override="ollama_chat/glm-5.3-flash:cloud"
 )
 
 # List all templates

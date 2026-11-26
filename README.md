@@ -39,7 +39,7 @@ from promptchain import PromptChain
 
 # Generate optimized prompts for agents
 prompt_engineer = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229", "openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze this agent task: {input}",
         "Create a specialized prompt with examples and constraints: {input}"
@@ -63,7 +63,7 @@ Chain multiple LLM calls and functions for complex workflows:
 ```python
 # Sequential processing with multiple models
 chain = PromptChain(
-    models=["openai/gpt-4", "anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Extract key information from: {input}",
         "Create detailed analysis: {input}",
@@ -83,7 +83,7 @@ def validate_output(text: str) -> str:
     return f"Validated: {text}"
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Generate content: {input}",
         validate_output,  # Custom function
@@ -133,7 +133,7 @@ ANTHROPIC_API_KEY=your_key_here
 from promptchain import PromptChain
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze and improve this text: {input}"]
 )
 
@@ -252,7 +252,7 @@ def performance_monitor(event: ExecutionEvent):
         print(f"{event.event_type.name}: {event.metadata['execution_time_ms']}ms")
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"]
 )
 
@@ -660,7 +660,7 @@ promptchain --session my-session
 
 # Customize for machine learning research
 /agent update ml-specialist \
-  --model anthropic/claude-3-opus-20240229 \
+  --model ollama_chat/glm-5.3-flash:cloud \
   --description "Deep learning research specialist" \
   --add-tools mcp_web_browser
 

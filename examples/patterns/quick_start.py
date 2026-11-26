@@ -75,7 +75,7 @@ async def main():
         lightrag_core=integration,
         config=BranchingConfig(
             hypothesis_count=3,
-            judge_model="openai/gpt-4o-mini",  # Use mini for quick start
+            judge_model="ollama_chat/glm-5.3-flash:cloud",  # Use mini for quick start
         ),
     )
 

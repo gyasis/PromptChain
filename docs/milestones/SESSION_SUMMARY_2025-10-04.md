@@ -167,7 +167,7 @@ self.reasoning_engine = AgenticStepProcessor(
 **Verify**:
 1. Is `max_internal_steps=8` being set?
 2. Is the objective requiring multiple steps?
-3. Is the LLM model (gpt-4.1-mini) following instructions?
+3. Is the LLM model (ollama_chat/glm-5.3-flash:cloud) following instructions?
 
 ### Priority 2: Add Real-Time Multi-Agent Progress
 **Files**:

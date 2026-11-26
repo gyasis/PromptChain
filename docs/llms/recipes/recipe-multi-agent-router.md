@@ -15,11 +15,11 @@ from promptchain.utils.agent_chain import AgentChain   # NOT in top-level — su
 
 async def main():
     researcher = PromptChain(
-        models=["openai/gpt-4o"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Research and return facts about: {input}"],
     )
     writer = PromptChain(
-        models=["openai/gpt-4o"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Write a polished paragraph about: {input}"],
     )
 
@@ -30,7 +30,7 @@ async def main():
             "writer":     "Use when the user wants a polished draft.",
         },
         router={
-            "models": ["openai/gpt-4o-mini"],
+            "models": ["ollama_chat/glm-5.3-flash:cloud"],
             "instructions": [None, "Choose ONE of: researcher, writer. User: {input}"],
             "decision_prompt_template": "For input '{input}', return only the agent name.",
         },

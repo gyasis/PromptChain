@@ -62,7 +62,7 @@ from promptchain.cli.tools import (
 from promptchain import PromptChain
 
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"],   # one model used for all string instructions
+    models=["ollama_chat/glm-5.3-flash:cloud"],   # one model used for all string instructions
     instructions=["Summarise this in 3 bullets:\n\n{input}"],
     verbose=True,
 )
@@ -75,7 +75,7 @@ output = await chain.process_prompt_async("Long article text here…")  # async
 
 | param | type | purpose |
 |---|---|---|
-| `models` | `List[str \| dict]` | One model per non-callable, non-agentic instruction. Pass a single-element list to reuse it for all. Dict form: `{"name": "openai/gpt-4o", "params": {"temperature": 0.5}}` |
+| `models` | `List[str \| dict]` | One model per non-callable, non-agentic instruction. Pass a single-element list to reuse it for all. Dict form: `{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5}}` |
 | `instructions` | `List[str \| Callable \| AgenticStepProcessor \| ChainCall]` | Ordered steps. See §4 for the dispatch contract |
 | `full_history` | `bool` | If True, each step receives the full chain history string instead of just the prior output |
 | `store_steps` | `bool` | If True, populates `chain.step_outputs` (dict) without returning the full history |
@@ -93,7 +93,7 @@ output = await chain.process_prompt_async("Long article text here…")  # async
 
 ### **Common mistakes**
 
-- Passing `models=["gpt-4o"]` instead of `models=["openai/gpt-4o"]`. PromptChain delegates to `litellm` which **requires** the `provider/model` prefix.
+- Passing `models=["ollama_chat/glm-5.3-flash:cloud"]` instead of `models=["ollama_chat/glm-5.3-flash:cloud"]`. PromptChain delegates to `litellm` which **requires** the `provider/model` prefix.
 - `models` length not matching the count of *non-callable, non-agentic* instructions. Either pass exactly that many models, or pass a single-element list (it auto-expands). Functions and `AgenticStepProcessor` instances do **not** consume a model slot.
 - Forgetting `await` on `process_prompt_async`. There is no auto-coercion.
 
@@ -118,10 +118,10 @@ PromptChain has **two distinct operating modes**. They look the same from the ou
 chain = PromptChain(
     models=["ollama/medgemma:4b"],   # one model for the one string instruction
     instructions=[
-        # Step 1 — AGENTIC: gpt-4o-mini autonomously calls retrieval tools
+        # Step 1 — AGENTIC: ollama_chat/glm-5.3-flash:cloud autonomously calls retrieval tools
         AgenticStepProcessor(
             objective="Gather labs/history/vitals for the case, return JSON.",
-            model_name="openai/gpt-4o-mini",
+            model_name="ollama_chat/glm-5.3-flash:cloud",
         ),
         # Step 2 — SEQUENTIAL: deterministic medgemma synthesis prompt
         "Given JSON case data below, produce dx + management plan with doses. "
@@ -163,7 +163,7 @@ def deduplicate(s: str) -> str:
     return "\n".join(dict.fromkeys(s.splitlines()))
 
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"],   # one model for one string instruction
+    models=["ollama_chat/glm-5.3-flash:cloud"],   # one model for one string instruction
     instructions=[
         "List 10 ideas about {input}",   # uses the model
         deduplicate,                     # pure Python, no model
@@ -180,7 +180,7 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 agentic = AgenticStepProcessor(
     objective="Read the input, identify all named entities, return a JSON list",
     max_internal_steps=8,
-    model_name="openai/gpt-4o",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
 )
 chain = PromptChain(models=[], instructions=[agentic])  # no model needed
 ```
@@ -202,9 +202,9 @@ from promptchain.utils.promptchaining import PromptChain
 agentic = AgenticStepProcessor(
     objective="Find all .py files, count their lines, return a markdown table",
     max_internal_steps=10,
-    model_name="openai/gpt-4o-mini",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
 )
-chain = PromptChain(models=["openai/gpt-4o-mini"], instructions=[agentic])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=[agentic])
 result = await chain.process_prompt_async("start")
 ```
 
@@ -218,7 +218,7 @@ result = await chain.process_prompt_async("start")
 | `history_mode` | `"minimal"` | `"minimal"` / `"progressive"` / `"kitchen_sink"`. **Progressive is recommended** for multi-hop reasoning |
 | `step_timeout` | `120.0` | Seconds per LLM call |
 | `enable_two_tier_routing` | `False` | Phase 1: route simple sub-tasks to `fallback_model` (cost saving) |
-| `fallback_model` | `None` | The cheap model for two-tier routing, e.g. `"openai/gpt-4o-mini"` |
+| `fallback_model` | `None` | The cheap model for two-tier routing, e.g. `"ollama_chat/glm-5.3-flash:cloud"` |
 | `enable_blackboard` | `False` | Phase 2: structured state instead of growing chat history (~72% token reduction) |
 | `enable_cove` | `False` | Phase 3: Chain-of-Verification — pre-execution tool-call validation |
 | `cove_confidence_threshold` | `0.7` | Min confidence to execute a tool call when CoVe is on |
@@ -261,8 +261,8 @@ result = await chain.process_prompt_async("start")
 from promptchain import PromptChain
 from promptchain.utils.agent_chain import AgentChain
 
-researcher = PromptChain(models=["openai/gpt-4o"], instructions=["Research: {input}"])
-writer    = PromptChain(models=["openai/gpt-4o"], instructions=["Write a draft: {input}"])
+researcher = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Research: {input}"])
+writer    = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Write a draft: {input}"])
 
 chain = AgentChain(
     agents={"researcher": researcher, "writer": writer},
@@ -271,7 +271,7 @@ chain = AgentChain(
         "writer":     "Use when the user wants a draft written.",
     },
     router={
-        "models": ["openai/gpt-4o-mini"],
+        "models": ["ollama_chat/glm-5.3-flash:cloud"],
         "instructions": [None, "Choose one of: researcher, writer. User: {input}"],
         "decision_prompt_template": "Pick the agent for: {input}. Reply only with the agent name.",
     },
@@ -310,7 +310,7 @@ def get_weather(city: str) -> str:
     """Get current weather for a city."""
     return f"Sunny in {city}"
 
-chain = PromptChain(models=["openai/gpt-4o"], instructions=["What's the weather in Paris?"])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["What's the weather in Paris?"])
 chain.register_tool_function(get_weather)
 ```
 
@@ -319,7 +319,7 @@ Pass `mcp_servers` to the `PromptChain` constructor:
 
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["…"],
     mcp_servers=[
         {"id": "filesystem", "type": "stdio", "command": "mcp-server-filesystem", "args": ["/tmp"]},
@@ -385,7 +385,7 @@ This list is the closed-loop output: every Claude Code mistake observed via SIO 
 
 1. **`from promptchain import AgentChain`** — not exported. Use `from promptchain.utils.agent_chain import AgentChain`.
 2. **`from promptchain import AgenticStepProcessor`** — not exported. Use `from promptchain.utils.agentic_step_processor import AgenticStepProcessor`.
-3. **`models=["gpt-4o"]`** — missing provider prefix. Use `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`, `"gemini/gemini-2.5-pro"`, `"openai/gpt-4o-mini"`.
+3. **`models=["ollama_chat/glm-5.3-flash:cloud"]`** — missing provider prefix. Use `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3-flash:cloud"`, `"gemini/gemini-2.5-pro"`, `"ollama_chat/glm-5.3-flash:cloud"`.
 4. **`models` length mismatch.** Count only string instructions (functions and `AgenticStepProcessor` don't consume model slots). Or pass a single-element `models` list to auto-expand.
 5. **Calling `chain.process_prompt_async(...)` without `await`.** The result is a coroutine, not a string.
 6. **Calling `agent_chain.process_prompt_async(...)`** — `AgentChain` uses `process_input(...)`.
@@ -422,12 +422,12 @@ async def main():
     research = AgenticStepProcessor(
         objective="Find 10 distinct facts about the input topic. Return one fact per line.",
         max_internal_steps=8,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="progressive",
     )
 
     chain = PromptChain(
-        models=["openai/gpt-4o"],     # one model for the one string instruction
+        models=["ollama_chat/glm-5.3-flash:cloud"],     # one model for the one string instruction
         instructions=[
             research,                  # agentic step (no model slot)
             deduplicate,               # python function (no model slot)
@@ -555,7 +555,7 @@ By default, every LLM step in a `PromptChain` sees all tools registered via `cha
 chain = PromptChain(
     models=["ollama/medgemma:4b"],
     instructions=[
-        AgenticStepProcessor(objective="...", model_name="openai/gpt-4o-mini"),    # default → sees all chain tools
+        AgenticStepProcessor(objective="...", model_name="ollama_chat/glm-5.3-flash:cloud"),    # default → sees all chain tools
         ("Synthesise: {input}", []),                                                 # explicit empty → ZERO tools
         ("Verify {input}", ["validate_clinical"]),                                   # restricted → only this tool
     ],
@@ -588,7 +588,7 @@ When `verbose=True`, scoped steps log a line like `📎 Step 2 tool scope: [] (f
 
 ### Verified working pattern
 
-See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for a live demo: gpt-4o-mini agentic retrieval (sees both tools) + medgemma synthesis with `(prompt, [])` (sees zero tools, no hallucinated tool calls).
+See `scripts/runs/2026-05-05_medgemma-clinical-demo/run.py` for a live demo: ollama_chat/glm-5.3-flash:cloud agentic retrieval (sees both tools) + medgemma synthesis with `(prompt, [])` (sees zero tools, no hallucinated tool calls).
 
 ### Interaction with `enable_cove=True` (fixed 2026-05-08, commit `05aae1f`)
 
@@ -625,7 +625,7 @@ PromptChain delegates to LiteLLM; every model string is `"<provider>/<model>"`. 
 
 | Tier | Providers / models | When to pick |
 |---|---|---|
-| ⭐⭐⭐ Strongest | `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/gpt-5-mini`, `openai/o4-mini`, `anthropic/claude-3-5-sonnet`, `anthropic/claude-3-5-haiku` | Default for tool-calling-heavy chains. The repo's own comment: "Using OpenAI for reliable tool calling". |
+| ⭐⭐⭐ Strongest | `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud` | Default for tool-calling-heavy chains. The repo's own comment: "Using OpenAI for reliable tool calling". |
 | ⭐⭐ Good but variable | `gemini/gemini-2.5-pro`, `gemini/gemini-1.5-flash-8b`, `gemini/gemini-2.0-flash-exp` | Cost-savings (Gemini Flash-8B is 33x cheaper than 2.5-pro). Verify the specific model supports tools — experimental Gemini models often don't. |
 | ⭐ Model-dependent | Ollama: `llama3.1`, `qwen2.5`, `mistral-nemo`, `command-r` | Local / offline. Most other Ollama models do NOT support tool-calling — verify the model card. |
 | ❌ No tool-calling | older `ollama/llama2`, `phi:2b`, `gemma:2b`, most pre-2024 GGUFs | Plain prompting only. Don't use for agentic chains. |
@@ -633,8 +633,8 @@ PromptChain delegates to LiteLLM; every model string is `"<provider>/<model>"`. 
 ### Models actually used in this repo's `examples/`
 
 ```
-openai/gpt-4o, openai/gpt-4o-mini, openai/gpt-4, openai/gpt-5-mini,
-openai/gpt-5-nano, openai/o4-mini, openai/gpt-4.1-mini-2025-04-14,
+ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud,
+ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud,
 gemini/gemini-2.0-flash-exp, gemini/gemini-2.5-pro, gemini/gemini-1.5-flash-8b
 ```
 No Ollama models appear in canonical examples (despite `OllamaModelManager` being supported).

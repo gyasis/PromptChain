@@ -84,7 +84,7 @@ def list_available_prompts(prompts_dir: Optional[str] = None) -> dict:
 **PromptChain**:
 ```python
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "analysis",              # Loaded via PrePrompt
         "analysis:concise",      # Loaded via PrePrompt with strategy
@@ -174,7 +174,7 @@ You are a research specialist focused on gathering and analyzing information.
 ```json
 {
   "name": "Research Agent",
-  "model": "gpt-4",
+  "model": "ollama_chat/glm-5.3-flash:cloud",
   "prompt_id": "researcher",
   "strategy": "detailed",
   "description": "Specialized agent for research and analysis tasks",
@@ -451,7 +451,7 @@ class CommandHandler:
         agent_name = prompt_id
         agent = Agent(
             name=agent_name,
-            model_name="gpt-4",
+            model_name="ollama_chat/glm-5.3-flash:cloud",
             description=f"Agent created from prompt: {prompt_id}",
             prompt_id=prompt_id,
             strategy_id=strategy
@@ -471,7 +471,7 @@ class CommandHandler:
 ```json
 {
   "name": "Research Agent",
-  "model": "gpt-4",
+  "model": "ollama_chat/glm-5.3-flash:cloud",
   "prompt_id": "researcher",
   "strategy": "detailed",
   "description": "Comprehensive research and analysis agent",
@@ -483,7 +483,7 @@ class CommandHandler:
 ```json
 {
   "name": "Code Reviewer",
-  "model": "claude-3-opus-20240229",
+  "model": "ollama_chat/glm-5.3-flash:cloud",
   "prompt_id": "code_reviewer",
   "strategy": "step-by-step",
   "description": "Code review specialist with security focus",
@@ -495,7 +495,7 @@ class CommandHandler:
 ```json
 {
   "name": "Data Analyst",
-  "model": "gpt-4",
+  "model": "ollama_chat/glm-5.3-flash:cloud",
   "prompt_id": "analyst",
   "strategy": "concise",
   "description": "Data analysis and visualization specialist",

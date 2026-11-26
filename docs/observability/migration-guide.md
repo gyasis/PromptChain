@@ -166,7 +166,7 @@ def performance_monitor(event: ExecutionEvent):
 
 # Register callback
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"]
 )
 
@@ -204,7 +204,7 @@ mcp_config = [{
 }]
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Read files: {input}"],
     mcp_servers=mcp_config
 )
@@ -293,7 +293,7 @@ def monitor_callback(event: ExecutionEvent):
     print(f"Event: {event.event_type.name} at {event.timestamp}")
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"]
 )
 

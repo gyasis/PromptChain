@@ -74,6 +74,6 @@ Honest answer: **you don't always need to.** Choose this pattern when you want o
 
 ## Common failures + fix
 
-- **`ValueError: Number of models (1) must match number of non-function/non-agentic instructions (0)`** — you passed `models=["openai/gpt-4o-mini"]` but every instruction is a callable. Use `models=[]`.
+- **`ValueError: Number of models (1) must match number of non-function/non-agentic instructions (0)`** — you passed `models=["ollama_chat/glm-5.3-flash:cloud"]` but every instruction is a callable. Use `models=[]`.
 - **Function raises** — propagates and stops the chain (no automatic recovery). Wrap in try/except inside the function or use a chainbreaker.
 - **`async def`-only function** — supported but the framework will run it inside its event loop. Prefer plain `def` for static functions; the chain itself is async.

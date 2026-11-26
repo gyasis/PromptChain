@@ -16,7 +16,7 @@ from promptchain import PromptChain
 
 async def main():
     chain = PromptChain(
-        models=["openai/gpt-4o"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Use the filesystem tool to read /tmp/example.txt and summarise it."],
         mcp_servers=[
             {
@@ -44,7 +44,7 @@ def my_local_tool(x: str) -> str:
     return f"local: {x}"
 
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["…"],
     mcp_servers=[{"id": "fs", "type": "stdio", "command": "mcp-server-filesystem", "args": ["/tmp"]}],
 )
@@ -56,7 +56,7 @@ chain.register_tool_function(my_local_tool)
 
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["…"],
     mcp_servers=[...],
     enable_mcp_hijacker=True,

@@ -26,7 +26,7 @@ touch tests/cli/integration/test_history_truncation.py
 
 # Spawn test-automator agent
 promptchain agent spawn test-automator \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --objective "Create test_history_truncation.py with 10-12 tests for ExecutionHistoryManager truncation"
 
 # Provide context in chat
@@ -53,7 +53,7 @@ touch tests/cli/integration/test_token_optimization.py
 
 # Spawn performance-engineer agent
 promptchain agent spawn performance-engineer \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --objective "Create test_token_optimization.py with 8-10 performance tests validating 30-60% token savings"
 
 # Provide context in chat

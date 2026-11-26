@@ -114,7 +114,7 @@ calculator_schema = {
 agentic_step = AgenticStepProcessor(
     objective="You are a math assistant. Use tools when needed.",
     max_internal_steps=3,
-    model_name="openai/gpt-4o",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     model_params={"tool_choice": "auto"}
 )
 ```
@@ -125,7 +125,7 @@ agentic_step = AgenticStepProcessor(
 agentic_step = AgenticStepProcessor(
     objective="Generate comprehensive research questions for multi-query processing",
     max_internal_steps=5,
-    model_name="openai/gpt-4o"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 ```
 
@@ -154,7 +154,7 @@ agentic_step = AgenticStepProcessor(
 ```python
 # Regular PromptChain (simple)
 simple_chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze this research topic: {input}",
         "Generate a summary: {input}"
@@ -169,7 +169,7 @@ agentic_chain = PromptChain(
         AgenticStepProcessor(
             objective="Conduct comprehensive research analysis using available tools",
             max_internal_steps=5,
-            model_name="openai/gpt-4o",
+            model_name="ollama_chat/glm-5.3-flash:cloud",
             model_params={"tool_choice": "auto", "temperature": 0.2}
         ),
         "Finalize research report: {input}"
@@ -212,7 +212,7 @@ research_agent = PromptChain(
         AgenticStepProcessor(
             objective="Conduct comprehensive research analysis",
             max_internal_steps=5,
-            model_name="openai/gpt-4o"
+            model_name="ollama_chat/glm-5.3-flash:cloud"
         )
     ]
 )
@@ -223,7 +223,7 @@ analysis_agent = PromptChain(
         AgenticStepProcessor(
             objective="Analyze research findings and generate insights",
             max_internal_steps=3,
-            model_name="openai/gpt-4o"
+            model_name="ollama_chat/glm-5.3-flash:cloud"
         )
     ]
 )

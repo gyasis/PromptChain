@@ -33,7 +33,7 @@ Available Agents:
 Always return JSON: {{"chosen_agent": "agent_name", "reasoning": "your reasoning"}}""",
         
         max_internal_steps=5,  # Internal reasoning steps
-        model_name="openai/gpt-4.1-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="progressive"  # Maintains context across interactions
     )
     
@@ -115,7 +115,7 @@ def create_agentic_orchestrator(agent_descriptions):
     orchestrator_step = AgenticStepProcessor(
         objective="Master Orchestrator with multi-step reasoning...",
         max_internal_steps=5,
-        model_name="openai/gpt-4.1-mini", 
+        model_name="ollama_chat/glm-5.3-flash:cloud", 
         history_mode="progressive"
     )
     return PromptChain(instructions=[orchestrator_step])

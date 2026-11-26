@@ -86,7 +86,7 @@ We've implemented **OrchestratorSupervisor** as a core library class in PromptCh
    - Added `use_supervisor` parameter (default: False)
    - Added `supervisor_strategy` parameter (default: "adaptive")
    - Added `supervisor_max_steps` parameter (default: 8)
-   - Added `supervisor_model` parameter (default: "openai/gpt-4.1-mini")
+   - Added `supervisor_model` parameter (default: "ollama_chat/glm-5.3-flash:cloud")
    - Automatic OrchestratorSupervisor initialization when `use_supervisor=True`
    - Backward compatible - existing code unchanged
 
@@ -203,7 +203,7 @@ agent_chain = AgentChain(
     use_supervisor=True,
     supervisor_strategy="adaptive",
     supervisor_max_steps=10,  # More reasoning steps for complex tasks
-    supervisor_model="openai/gpt-4.1",  # Use more powerful model
+    supervisor_model="ollama_chat/glm-5.3-flash:cloud",  # Use more powerful model
     router_strategy="static_plan",
     cache_config={"name": "my_session", "path": "./cache"},
     log_dir="./logs",
@@ -216,7 +216,7 @@ agent_chain = AgentChain(
 ```python
 # Old code continues to work unchanged!
 router_config = {
-    "models": ["openai/gpt-4.1-mini"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_templates": {...}
 }
@@ -241,7 +241,7 @@ supervisor = OrchestratorSupervisor(
     log_event_callback=my_logger,
     dev_print_callback=my_printer,
     max_reasoning_steps=8,
-    model_name="openai/gpt-4.1-mini",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     strategy_preference="always_research_first"
 )
 
@@ -548,7 +548,7 @@ Strategies for cost-sensitive scenarios:
 - Use `supervisor_strategy="conservative"` → fewer multi-agent plans
 - Use `supervisor_strategy="prefer_single"` → bias toward single agent
 - Use `supervisor_max_steps=5` → less reasoning
-- Use `supervisor_model="openai/gpt-4o-mini"` → cheaper model
+- Use `supervisor_model="ollama_chat/glm-5.3-flash:cloud"` → cheaper model
 
 ---
 

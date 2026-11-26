@@ -20,7 +20,7 @@ async def main():
     init_mlflow()   # picks up .promptchain.yml in cwd or env vars (MLFLOW_TRACKING_URI etc.)
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Say hi"],
         verbose=True,
     )

@@ -387,7 +387,7 @@ def test_completion_detection_explicit_marker():
     processor = AgenticStepProcessor(
         objective="Test task",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     response = """
@@ -407,7 +407,7 @@ def test_completion_detection_structured_tag():
     processor = AgenticStepProcessor(
         objective="Research task",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     response = """
@@ -427,7 +427,7 @@ def test_synthesis_extraction():
     processor = AgenticStepProcessor(
         objective="Test",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     response = """

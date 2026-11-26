@@ -72,7 +72,7 @@ async def llm_distill_demo(docs):
 
     def make_distill_chain():
         return PromptChain(
-            models=["openai/gpt-4o-mini"] * 5,  # 5 string steps; the function step = no slot
+            models=["ollama_chat/glm-5.3-flash:cloud"] * 5,  # 5 string steps; the function step = no slot
             instructions=[
                 "Extract the key points from this document as a bullet list:\n{input}",
                 "Group these bullet points into 2-4 themes:\n{input}",

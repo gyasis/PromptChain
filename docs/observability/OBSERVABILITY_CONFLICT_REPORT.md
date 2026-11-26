@@ -532,7 +532,7 @@ async def test_dual_tracking():
     init_mlflow()
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Respond with 'test'"]
     )
 

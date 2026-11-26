@@ -307,7 +307,7 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 agentic_step = AgenticStepProcessor(
     objective="Find and analyze error patterns in logs",
     max_internal_steps=8,
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 # Run with metadata

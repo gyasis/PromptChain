@@ -308,8 +308,8 @@ activity_logger = ActivityLogger(
 )
 
 # Create agents
-researcher = PromptChain(models=["gpt-4"], instructions=["Research: {input}"])
-writer = PromptChain(models=["gpt-4"], instructions=["Write: {input}"])
+researcher = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Research: {input}"])
+writer = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Write: {input}"])
 
 # Create AgentChain with activity logging
 agent_chain = AgentChain(

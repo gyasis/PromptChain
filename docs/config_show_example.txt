@@ -6,7 +6,7 @@ Example Output: /config show Command
 Session Name: my-research-session
 Session ID: 9495def4-3ad2-462e-afb7-a32e1518f542
 Active Agent: researcher
-Default Model: openai/gpt-4.1-mini-2025-04-14
+Default Model: ollama_chat/glm-5.3-flash:cloud
 Working Directory: /home/user/projects/research
 Total Agents: 3
 Auto-Save: enabled
@@ -37,7 +37,7 @@ Total Templates: 4
 
 Researcher (researcher)
   Description: Deep research specialist with multi-hop reasoning and web search capabili...
-  Model: openai/gpt-4
+  Model: ollama_chat/glm-5.3-flash:cloud
   Category: research
   Complexity: high
   Tools: 1 configured
@@ -48,7 +48,7 @@ Researcher (researcher)
 
 Coder (coder)
   Description: Code generation specialist with file operations, code execution, and vali...
-  Model: openai/gpt-4
+  Model: ollama_chat/glm-5.3-flash:cloud
   Category: development
   Complexity: high
   Tools: 3 configured
@@ -59,7 +59,7 @@ Coder (coder)
 
 Analyst (analyst)
   Description: Data analysis specialist for interpreting datasets, generating insights, ...
-  Model: openai/gpt-4
+  Model: ollama_chat/glm-5.3-flash:cloud
   Category: analysis
   Complexity: medium
   Tools: 2 configured
@@ -70,7 +70,7 @@ Analyst (analyst)
 
 Terminal (terminal)
   Description: Fast execution agent for command-line operations and quick tasks. History...
-  Model: openai/gpt-3.5-turbo
+  Model: ollama_chat/glm-5.3-flash:cloud
   Category: execution
   Complexity: low
   Tools: 3 configured
@@ -102,21 +102,21 @@ Per-Agent History Overrides:
 Total Agents: 3
 
 researcher (active)
-  Model: openai/gpt-4
+  Model: ollama_chat/glm-5.3-flash:cloud
   Description: Research specialist
   Tools: 2 registered
     - web_search, mcp_filesystem_read
   Usage Count: 5
 
 terminal
-  Model: openai/gpt-3.5-turbo
+  Model: ollama_chat/glm-5.3-flash:cloud
   Description: Fast terminal agent
   Tools: 1 registered
     - execute_shell
   Usage Count: 12
 
 default
-  Model: openai/gpt-4.1-mini-2025-04-14
+  Model: ollama_chat/glm-5.3-flash:cloud
   Description: Default agent
   Tools: 0 registered
   Usage Count: 0
@@ -125,4 +125,4 @@ default
 
 Execution Mode: router
 Auto-Include History: True
-Router Model: openai/gpt-4o-mini
+Router Model: ollama_chat/glm-5.3-flash:cloud

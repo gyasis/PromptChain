@@ -67,7 +67,7 @@ Successfully implemented the LightRAG Branching Thoughts Pattern as specified in
 class BranchingConfig(PatternConfig):
     hypothesis_count: int = 3
     generator_model: Optional[str] = None
-    judge_model: str = "openai/gpt-4o"
+    judge_model: str = "ollama_chat/glm-5.3-flash:cloud"
     diversity_threshold: float = 0.3
     record_outcomes: bool = True
 ```
@@ -193,7 +193,7 @@ from promptchain.integrations.lightrag.branching import BranchingConfig
 
 # Create integration and pattern
 integration = LightRAGIntegration()
-config = BranchingConfig(hypothesis_count=3, judge_model="openai/gpt-4o")
+config = BranchingConfig(hypothesis_count=3, judge_model="ollama_chat/glm-5.3-flash:cloud")
 branching = LightRAGBranchingThoughts(lightrag_core=integration, config=config)
 
 # Execute pattern

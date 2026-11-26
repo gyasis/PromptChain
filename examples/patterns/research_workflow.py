@@ -149,7 +149,7 @@ class ResearchWorkflow:
             lightrag_core=self.integration,
             config=BranchingConfig(
                 hypothesis_count=3,
-                judge_model="openai/gpt-4o",
+                judge_model="ollama_chat/glm-5.3-flash:cloud",
                 emit_events=self.use_multi_agent,
                 use_blackboard=self.use_multi_agent,
             ),

@@ -23,8 +23,8 @@ session = session_manager.create_session(
 )
 
 # 2. Create agents
-agent1 = PromptChain(models=["gpt-4"], instructions=["Do task 1: {input}"])
-agent2 = PromptChain(models=["gpt-4"], instructions=["Do task 2: {input}"])
+agent1 = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Do task 1: {input}"])
+agent2 = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Do task 2: {input}"])
 
 # 3. Create AgentChain with session's ActivityLogger
 chain = AgentChain(
@@ -67,8 +67,8 @@ logger = ActivityLogger(
 )
 
 # 2. Create your agents
-agent1 = PromptChain(models=["gpt-4"], instructions=["Do task 1: {input}"])
-agent2 = PromptChain(models=["gpt-4"], instructions=["Do task 2: {input}"])
+agent1 = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Do task 1: {input}"])
+agent2 = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Do task 2: {input}"])
 
 # 3. Create AgentChain with logging
 chain = AgentChain(

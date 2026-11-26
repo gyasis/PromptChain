@@ -632,7 +632,7 @@ Use a fast, cheap model for verification to minimize overhead:
 ```python
 processor = AgenticStepProcessor(
     objective="Cost-optimized task",
-    model_name="openai/gpt-4",  # Expensive model for main reasoning
+    model_name="ollama_chat/glm-5.3-flash:cloud",  # Expensive model for main reasoning
 
     # Use fast model for verification
     enable_cove=True,
@@ -647,14 +647,14 @@ async def smart_llm_runner(messages, model=None, **kwargs):
         # Use fast, cheap model for verification
         return await litellm.acompletion(
             messages=messages,
-            model="openai/gpt-4o-mini",  # Fast & cheap
+            model="ollama_chat/glm-5.3-flash:cloud",  # Fast & cheap
             **kwargs
         )
     else:
         # Use powerful model for main reasoning
         return await litellm.acompletion(
             messages=messages,
-            model=model or "openai/gpt-4",
+            model=model or "ollama_chat/glm-5.3-flash:cloud",
             **kwargs
         )
 ```
@@ -715,7 +715,7 @@ Access verification results for analysis:
 
 from promptchain.utils.verification import CoVeVerifier
 
-verifier = CoVeVerifier(llm_runner=my_llm, model_name="openai/gpt-4o-mini")
+verifier = CoVeVerifier(llm_runner=my_llm, model_name="ollama_chat/glm-5.3-flash:cloud")
 
 # Verify a tool call
 verification = await verifier.verify_tool_call(
@@ -745,7 +745,7 @@ if verification.suggested_modifications:
 **CoVe Verification**:
 ```
 Per tool call overhead:
-├── Verification LLM call: ~500-1000ms (with gpt-4o-mini)
+├── Verification LLM call: ~500-1000ms (with ollama_chat/glm-5.3-flash:cloud)
 ├── JSON parsing: <1ms
 └── Total: ~500-1000ms per tool
 
@@ -755,7 +755,7 @@ With 3 tool calls per iteration:
 └── Overhead: ~75% (1500ms / 2000ms)
 
 BUT: Using fast model for verification:
-├── Verification with gpt-4o-mini: ~200ms
+├── Verification with ollama_chat/glm-5.3-flash:cloud: ~200ms
 ├── Total overhead: ~600ms for 3 tools
 └── Overhead: ~30% (600ms / 2000ms)
 ```
@@ -772,7 +772,7 @@ Per iteration overhead:
 **Combined Overhead**:
 - **With fast verification model**: ~30% overhead
 - **With main model verification**: ~75% overhead
-- **Recommendation**: Use gpt-4o-mini or similar for verification
+- **Recommendation**: Use ollama_chat/glm-5.3-flash:cloud or similar for verification
 
 ### Cost Analysis
 
@@ -868,8 +868,8 @@ cove_confidence_threshold=0.85  # Very strict
 
 **For cost optimization:**
 ```python
-# Use gpt-4o-mini for verification (fast & cheap)
-# Use gpt-4 for main reasoning (powerful)
+# Use ollama_chat/glm-5.3-flash:cloud for verification (fast & cheap)
+# Use ollama_chat/glm-5.3-flash:cloud for main reasoning (powerful)
 # Result: 5-10% cost increase, minimal latency impact
 ```
 
@@ -1010,7 +1010,7 @@ if rollback_count > 2:
 **Solutions**:
 ```python
 # Use fast model for verification
-# (implement custom llm_runner that routes to gpt-4o-mini for verification)
+# (implement custom llm_runner that routes to ollama_chat/glm-5.3-flash:cloud for verification)
 
 # Or: Implement selective verification
 # Only verify high-risk tools (delete, exec, write)

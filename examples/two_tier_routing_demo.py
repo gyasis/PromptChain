@@ -117,19 +117,19 @@ async def demo_openai_routing():
 
     # Create agentic step with OpenAI two-tier routing
     # Using ACTUAL 2026 OpenAI models (researched via Gemini API):
-    # - gpt-5-mini: $0.25/1M (workhorse model, replaces gpt-4o)
-    # - gpt-5-nano: $0.05/1M (CHEAPEST OpenAI model!) = 5x cheaper!
+    # - ollama_chat/glm-5.3-flash:cloud: $0.25/1M (workhorse model, replaces ollama_chat/glm-5.3-flash:cloud)
+    # - ollama_chat/glm-5.3-flash:cloud: $0.05/1M (CHEAPEST OpenAI model!) = 5x cheaper!
     agentic_step = AgenticStepProcessor(
         objective="List the files in the current directory and summarize what you find",
         max_internal_steps=5,
-        model_name="openai/gpt-5-mini",        # Primary: GPT-5-mini ($0.25/1M input)
-        fallback_model="openai/gpt-5-nano",    # Fallback: GPT-5-nano ($0.05/1M) = 5x cheaper!
+        model_name="ollama_chat/glm-5.3-flash:cloud",        # Primary: GPT-5-mini ($0.25/1M input)
+        fallback_model="ollama_chat/glm-5.3-flash:cloud",    # Fallback: GPT-5-nano ($0.05/1M) = 5x cheaper!
         enable_two_tier_routing=True,          # ✅ Enable intelligent routing
     )
 
     # Create chain
     chain = PromptChain(
-        models=["openai/gpt-5-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[agentic_step],
         verbose=True
     )
@@ -143,8 +143,8 @@ async def demo_openai_routing():
         "   Complex tasks → GPT-5-mini ($0.25/1M) for quality\n"
         "   Expected savings: 48% on typical workloads (60% simple tasks)\n"
         "\n💡 OpenAI Reasoning Option (for complex logic/coding):\n"
-        "   Primary: o4-mini ($1.10/1M) - specialized reasoning\n"
-        "   Fallback: gpt-5-nano ($0.05/1M) = 22x cheaper!\n"
+        "   Primary: ollama_chat/glm-5.3-flash:cloud ($1.10/1M) - specialized reasoning\n"
+        "   Fallback: ollama_chat/glm-5.3-flash:cloud ($0.05/1M) = 22x cheaper!\n"
         "   Use this combo when tasks require chain-of-thought reasoning\n"
     )
     return result
@@ -181,8 +181,8 @@ async def demo_comparison():
         "   │ Provider    │ Primary Model     │ Fallback Model     │ Savings │\n"
         "   ├─────────────────────────────────────────────────────────────┤\n"
         "   │ GEMINI      │ 2.5-pro ($1.25)   │ 1.5-flash-8b ($0.04) │ 58-70% │\n"
-        "   │ OpenAI      │ gpt-5-mini ($0.25)│ gpt-5-nano ($0.05)  │ ~48%   │\n"
-        "   │ OpenAI (AI) │ o4-mini ($1.10)   │ gpt-5-nano ($0.05)  │ ~65%   │\n"
+        "   │ OpenAI      │ ollama_chat/glm-5.3-flash:cloud ($0.25)│ ollama_chat/glm-5.3-flash:cloud ($0.05)  │ ~48%   │\n"
+        "   │ OpenAI (AI) │ ollama_chat/glm-5.3-flash:cloud ($1.10)   │ ollama_chat/glm-5.3-flash:cloud ($0.05)  │ ~65%   │\n"
         "   └─────────────────────────────────────────────────────────────┘\n"
         "\n✅ Gemini Advantages:\n"
         "   • 33x cost ratio (Flash-8B is CHEAPEST available model)\n"
@@ -191,18 +191,18 @@ async def demo_comparison():
         "   • Tool calling support on both tiers\n"
         "   • Cost: $0.52 per 1M tokens (with routing)\n"
         "\n✅ OpenAI Advantages:\n"
-        "   • Lower baseline cost (gpt-5-mini is already cheap at $0.25/1M)\n"
-        "   • o4-mini excels at reasoning/coding (specialized CoT)\n"
+        "   • Lower baseline cost (ollama_chat/glm-5.3-flash:cloud is already cheap at $0.25/1M)\n"
+        "   • ollama_chat/glm-5.3-flash:cloud excels at reasoning/coding (specialized CoT)\n"
         "   • Better for existing OpenAI API integrations\n"
-        "   • Cost: $0.13 per 1M tokens (with gpt-5-mini routing)\n"
+        "   • Cost: $0.13 per 1M tokens (with ollama_chat/glm-5.3-flash:cloud routing)\n"
         "\n💡 Recommendation:\n"
         "   • Use GEMINI for maximum savings (58-70% reduction)\n"
-        "   • Use OpenAI gpt-5-mini if you prioritize low baseline cost ($0.25/1M)\n"
-        "   • Use OpenAI o4-mini for complex reasoning/coding tasks\n"
+        "   • Use OpenAI ollama_chat/glm-5.3-flash:cloud if you prioritize low baseline cost ($0.25/1M)\n"
+        "   • Use OpenAI ollama_chat/glm-5.3-flash:cloud for complex reasoning/coding tasks\n"
         "\n🆕 All 2026 Options (researched via Gemini API):\n"
         "   1. Gemini 2.5-pro + 1.5-flash-8b (33x ratio, 58-70% savings) ⭐ BEST\n"
-        "   2. OpenAI gpt-5-mini + gpt-5-nano (5x ratio, 48% savings)\n"
-        "   3. OpenAI o4-mini + gpt-5-nano (22x ratio, 65% savings)\n"
+        "   2. OpenAI ollama_chat/glm-5.3-flash:cloud + ollama_chat/glm-5.3-flash:cloud (5x ratio, 48% savings)\n"
+        "   3. OpenAI ollama_chat/glm-5.3-flash:cloud + ollama_chat/glm-5.3-flash:cloud (22x ratio, 65% savings)\n"
         "\n🔬 Research Source:\n"
         "   • Based on RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)\n"
         "   • TAO Loop, Blackboard Architecture, Two-Tier Model patterns\n"

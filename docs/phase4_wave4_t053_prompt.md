@@ -399,7 +399,7 @@ async def test_reasoning_logged_to_history():
     processor = AgenticStepProcessor(
         objective="Test logging",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_manager=history_manager
     )
 

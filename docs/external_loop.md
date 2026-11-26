@@ -47,7 +47,7 @@ from promptchain.utils.external_loop import ExternalLoop
 # ---- inner work: a 6-step SEQUENTIAL chain (one full pass per document) ----
 def make_distill_chain() -> PromptChain:
     return PromptChain(
-        models=["openai/gpt-4o-mini"] * 5,   # 5 STRING steps need 5 slots; the function step needs none
+        models=["ollama_chat/glm-5.3-flash:cloud"] * 5,   # 5 STRING steps need 5 slots; the function step needs none
         instructions=[
             "Extract the key points from this document as a bullet list:\n{input}",   # 1
             "Group these bullet points into 2-4 themes:\n{input}",                     # 2

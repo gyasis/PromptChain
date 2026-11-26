@@ -581,12 +581,12 @@ from promptchain.utils.agent_chain import AgentChain
 
 # Create specialized agents
 researcher = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Research the topic: {input}"]
 )
 
 writer = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Write about: {input}"]
 )
 

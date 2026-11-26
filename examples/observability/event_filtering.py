@@ -167,7 +167,7 @@ def demo_filter_patterns():
     print("-" * 70)
 
     chain1 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Analyze: {input}",
             "Summarize: {input}"
@@ -192,7 +192,7 @@ def demo_filter_patterns():
     print("-" * 70)
 
     chain2 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Step 1: {input}",
             "Step 2: {input}",
@@ -218,7 +218,7 @@ def demo_filter_patterns():
     print("-" * 70)
 
     chain3 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Answer: {input}"],
         verbose=False
     )
@@ -243,7 +243,7 @@ def demo_filter_patterns():
     print("-" * 70)
 
     chain4 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Quick answer: {input}", "Refine: {input}"],
         verbose=False
     )

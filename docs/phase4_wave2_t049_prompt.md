@@ -182,11 +182,11 @@ async def _build_instruction_chain(self, instructions):
    processor = AgenticStepProcessor(
        objective="Test reasoning",
        max_internal_steps=3,
-       model_name="openai/gpt-4"
+       model_name="ollama_chat/glm-5.3-flash:cloud"
    )
 
    chain = PromptChain(
-       models=["openai/gpt-4"],
+       models=["ollama_chat/glm-5.3-flash:cloud"],
        instructions=[
            "Prepare: {input}",
            processor,

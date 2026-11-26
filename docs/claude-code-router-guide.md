@@ -137,9 +137,9 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_key": "YOUR_AZURE_OPENAI_API_KEY",
       "api_version": "2024-02-15-preview",
       "models": [
-        "gpt-5",
-        "gpt-4-turbo",
-        "gpt-4",
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud",
         "gpt-35-turbo"
       ],
       "transformer": {
@@ -148,10 +148,10 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
     }
   ],
   "Router": {
-    "default": "azure,gpt-5",
+    "default": "azure,ollama_chat/glm-5.3-flash:cloud",
     "background": "azure,gpt-35-turbo",
-    "think": "azure,gpt-5",
-    "longContext": "azure,gpt-4-turbo"
+    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
+    "longContext": "azure,ollama_chat/glm-5.3-flash:cloud"
   }
 }
 ```
@@ -172,15 +172,15 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_base_url": "https://openrouter.ai/api/v1/chat/completions",
       "api_key": "sk-or-v1-your-key",
       "models": [
-        "openai/gpt-5",
-        "openai/gpt-4-turbo",
-        "openai/gpt-4"
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud"
       ]
     }
   ],
   "Router": {
-    "default": "openrouter,openai/gpt-5",
-    "background": "openrouter,openai/gpt-4"
+    "default": "openrouter,ollama_chat/glm-5.3-flash:cloud",
+    "background": "openrouter,ollama_chat/glm-5.3-flash:cloud"
   }
 }
 ```
@@ -201,8 +201,8 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "models": [
         "google/gemini-2.5-pro-preview",
         "google/gemini-2.5-flash-preview",
-        "openai/gpt-5",
-        "openai/gpt-4-turbo"
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud"
       ]
     },
     {
@@ -211,8 +211,8 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
       "api_key": "YOUR_AZURE_KEY",
       "api_version": "2024-02-15-preview",
       "models": [
-        "gpt-5",
-        "gpt-4-turbo"
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud"
       ]
     },
     {
@@ -228,7 +228,7 @@ notepad "$env:USERPROFILE\.claude-code-router\config.json"
   "Router": {
     "default": "openrouter,google/gemini-2.5-pro-preview",
     "background": "openrouter,google/gemini-2.5-flash-preview",
-    "think": "azure,gpt-5",
+    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
     "longContext": "openrouter,google/gemini-2.5-pro-preview",
     "longContextThreshold": 60000
   }
@@ -308,7 +308,7 @@ During a Claude Code session, switch models dynamically:
 /model openrouter,google/gemini-2.5-pro-preview
 
 # Switch to GPT-5 on Azure
-/model azure,gpt-5
+/model azure,ollama_chat/glm-5.3-flash:cloud
 
 # Switch to local Ollama model
 /model ollama,qwen2.5-coder:latest
@@ -351,7 +351,7 @@ The `Router` section defines which model to use for different task types:
   "Router": {
     "default": "openrouter,google/gemini-2.5-flash-preview",  // Fast, cheap
     "background": "ollama,mistral",                          // Free, local
-    "think": "azure,gpt-5",                                  // Powerful, expensive
+    "think": "azure,ollama_chat/glm-5.3-flash:cloud",                                  // Powerful, expensive
     "longContext": "openrouter,google/gemini-2.5-pro-preview" // Long context
   }
 }
@@ -431,7 +431,7 @@ Then reference in config:
 ```bash
 curl -X GET "https://openrouter.ai/api/v1/models" \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" | \
-  grep -i "gemini\|gpt-5"
+  grep -i "gemini\|ollama_chat/glm-5.3-flash:cloud"
 ```
 
 **Azure OpenAI:**
@@ -474,7 +474,7 @@ curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"
 {
   "Router": {
     "default": "openrouter,google/gemini-2.5-flash-preview",  // $0.075/1M tokens
-    "think": "azure,gpt-5",                                    // $5/1M tokens
+    "think": "azure,ollama_chat/glm-5.3-flash:cloud",                                    // $5/1M tokens
     "background": "ollama,llama3"                              // Free
   }
 }
@@ -519,9 +519,9 @@ model_list:
       model: gemini/gemini-2.5-pro
       api_key: os.environ/GOOGLE_API_KEY
   
-  - model_name: gpt-5-azure
+  - model_name: ollama_chat/glm-5.3-flash:cloud
     litellm_params:
-      model: azure/gpt-5
+      model: ollama_chat/glm-5.3-flash:cloud
       api_base: https://YOUR_RESOURCE.openai.azure.com
       api_key: os.environ/AZURE_OPENAI_API_KEY
 ```
@@ -587,8 +587,8 @@ Based on multi-hop research and analysis:
       "models": [
         "google/gemini-2.5-pro-preview",
         "google/gemini-2.5-flash-preview",
-        "openai/gpt-5",
-        "openai/gpt-4-turbo"
+        "ollama_chat/glm-5.3-flash:cloud",
+        "ollama_chat/glm-5.3-flash:cloud"
       ]
     },
     {
@@ -596,7 +596,7 @@ Based on multi-hop research and analysis:
       "api_base_url": "https://my-resource.openai.azure.com/openai/deployments",
       "api_key": "${AZURE_OPENAI_API_KEY}",
       "api_version": "2024-02-15-preview",
-      "models": ["gpt-5", "gpt-4-turbo"]
+      "models": ["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"]
     },
     {
       "name": "deepseek",
@@ -614,7 +614,7 @@ Based on multi-hop research and analysis:
   "Router": {
     "default": "openrouter,google/gemini-2.5-flash-preview",
     "background": "ollama,llama3",
-    "think": "azure,gpt-5",
+    "think": "azure,ollama_chat/glm-5.3-flash:cloud",
     "longContext": "openrouter,google/gemini-2.5-pro-preview",
     "longContextThreshold": 60000
   }

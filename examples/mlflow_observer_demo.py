@@ -42,7 +42,7 @@ def demo_basic_observer():
 
     # Create chain
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Analyze the following input: {input}",
             "Provide a summary: {input}"
@@ -93,7 +93,7 @@ def demo_with_tools():
 
     # Create chain with tools
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Search and analyze: {input}"],
         verbose=True
     )
@@ -149,7 +149,7 @@ def demo_multi_step():
 
     # Create multi-step chain
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Step 1 - Extract key points: {input}",
             "Step 2 - Analyze sentiment: {input}",
@@ -200,7 +200,7 @@ def demo_local_tracking():
 
     # Create simple chain
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Respond to: {input}"],
         verbose=True
     )
@@ -242,7 +242,7 @@ def demo_graceful_degradation():
 
     # Create chain
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Process: {input}"],
         verbose=True
     )

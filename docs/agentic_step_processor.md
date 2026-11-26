@@ -61,7 +61,7 @@ chain = PromptChain(
         AgenticStepProcessor(
             objective="You are a math assistant. Use the calculator tool when needed.",
             max_internal_steps=3,
-            model_name="openai/gpt-4o",  # MUST set model here for the agentic step
+            model_name="ollama_chat/glm-5.3-flash:cloud",  # MUST set model here for the agentic step
             model_params={"tool_choice": "auto"}
         )
     ],
@@ -88,13 +88,13 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 # Create a chain with mixed instruction types
 chain = PromptChain(
     # Model needed for the *non-agentic* steps (Step 1 and 3)
-    models=["openai/gpt-3.5-turbo", "openai/gpt-3.5-turbo"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze the following request: {input}", # Step 1 (uses model 1)
         AgenticStepProcessor(                   # Step 2 (uses its own model)
             objective="You are a research assistant. Extract key information.",
             max_internal_steps=5,
-            model_name="openai/gpt-4o",      # Explicitly set model for this step
+            model_name="ollama_chat/glm-5.3-flash:cloud",      # Explicitly set model for this step
             model_params={"temperature": 0.2}
         ),
         "Summarize the findings based on: {input}" # Step 3 (uses model 2)
@@ -118,12 +118,12 @@ agentic_objective = "... Use Context7 tools ... {input}"
 
 # Chain needs a model for the SECOND step (non-agentic)
 chain = PromptChain(
-    models=["openai/gpt-4o"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         AgenticStepProcessor(
             objective=agentic_objective,
             max_internal_steps=5,
-            model_name="openai/gpt-4o", # Agentic step specifies its own model
+            model_name="ollama_chat/glm-5.3-flash:cloud", # Agentic step specifies its own model
             model_params={"tool_choice": "auto", "temperature": 0.2},
         ),
         "Based on the following... {input} ... generate a tutorial script." # This step uses the model from `models` list

@@ -54,7 +54,7 @@
 ```python
 # This is PromptChain's core strength - preserve it!
 chain = PromptChain(
-    models=["gpt-4", "claude-3-opus"],
+    models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Step 1: Analyze requirements {input}",
         analysis_function,  # Python function injection
@@ -309,7 +309,7 @@ processor = AgenticStepProcessor(
 ```python
 # This is the strength of PromptChain - don't break it!
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Extract entities: {input}",
         "Classify sentiment: {input}",
@@ -324,7 +324,7 @@ result = chain.process_prompt(document)  # Fast, predictable, reliable
 ```python
 # New capability without breaking sequential
 agentic_chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         AgenticRoundRobinChat(  # New instruction type
             agents=["researcher", "analyst", "writer"],
@@ -341,7 +341,7 @@ result = await agentic_chain.process_prompt_async(document)
 ```python
 # Combine sequential and agentic in one workflow
 hybrid = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Step 1: Extract entities (sequential) {input}",
         AgenticStepProcessor(  # Agentic reasoning

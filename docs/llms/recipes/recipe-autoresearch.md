@@ -127,7 +127,7 @@ async def build_tool(brief: str, tests: str) -> str:
     # network="none" is fine then: nothing is installed at run time.
     executor = DockerExecutor(image="my-python-pytest:latest", network="none",
                               timeout=120, memory="512m", pids_limit=256)
-    ar = AutoResearch(model="openai/gpt-4o-mini", executor=executor, max_iterations=5)
+    ar = AutoResearch(model="ollama_chat/glm-5.3-flash:cloud", executor=executor, max_iterations=5)
     res = await ar.run(brief, test_command="python -m pytest -q test_solution.py",
                        deps={"test_solution.py": tests})
     return json.dumps(res.to_dict())

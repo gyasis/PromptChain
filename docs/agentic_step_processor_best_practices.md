@@ -34,7 +34,7 @@ research_agent = AgenticStepProcessor(
     Gather diverse sources, validate information, and explore multiple perspectives.
     Use tools systematically to build a complete knowledge base.""",
     max_internal_steps=12,
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     model_params={"tool_choice": "auto", "temperature": 0.3}
 )
 
@@ -90,7 +90,7 @@ Research Quality Assessment:
 
 # Complete research-to-synthesis chain
 chain = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],  # For final step
+    models=["ollama_chat/glm-5.3-flash:cloud"],  # For final step
     instructions=[
         research_agent,           # Agentic research phase
         comprehensive_synthesis,  # Synthesis with history access
@@ -114,19 +114,19 @@ chain = PromptChain(
 technical_researcher = AgenticStepProcessor(
     objective="Research technical aspects, implementations, and specifications",
     max_internal_steps=8,
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 business_researcher = AgenticStepProcessor(
     objective="Research business implications, market analysis, and commercial applications",
     max_internal_steps=8, 
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 academic_researcher = AgenticStepProcessor(
     objective="Research academic literature, studies, and theoretical foundations",
     max_internal_steps=8,
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 # Multi-agent synthesis function
@@ -183,7 +183,7 @@ def iterative_research_workflow():
     research_agent = AgenticStepProcessor(
         objective="Research thoroughly and identify knowledge gaps",
         max_internal_steps=10,
-        model_name="openai/gpt-4"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
     
     def analyze_research_gaps(input_text: str) -> str:
@@ -651,12 +651,12 @@ def create_research_synthesis_chain():
         'primary': AgenticStepProcessor(
             objective="Primary comprehensive research",
             max_internal_steps=10,
-            model_name="openai/gpt-4"
+            model_name="ollama_chat/glm-5.3-flash:cloud"
         ),
         'validation': AgenticStepProcessor(
             objective="Validate and cross-check findings",
             max_internal_steps=5,
-            model_name="openai/gpt-4o-mini"
+            model_name="ollama_chat/glm-5.3-flash:cloud"
         )
     }
     
@@ -696,7 +696,7 @@ def create_research_synthesis_chain():
         return synthesis
     
     return PromptChain(
-        models=["anthropic/claude-3-sonnet-20240229"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             agents['primary'],        # Primary research
             agents['validation'],     # Validation research  
@@ -713,7 +713,7 @@ def create_adaptive_synthesis_chain():
     research_agent = AgenticStepProcessor(
         objective="Research with quality assessment",
         max_internal_steps=15,
-        model_name="openai/gpt-4"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
     
     def adaptive_synthesis(input_text: str) -> str:

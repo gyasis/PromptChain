@@ -20,9 +20,9 @@ from promptchain.utils.agent_chain import AgentChain
 import asyncio
 
 # --- Example Agent Setup (using placeholder PromptChains) ---
-math_agent = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Solve: {input}"])
-creative_agent = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Write about: {input}"])
-rag_agent = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Retrieve info: {input}"])
+math_agent = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Solve: {input}"])
+creative_agent = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Write about: {input}"])
+rag_agent = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Retrieve info: {input}"])
 
 agent_dict = {
     "math_agent": math_agent,
@@ -38,14 +38,14 @@ agent_descriptions_dict = {
 
 # --- Example Router Config (for 'router' mode) ---
 default_llm_router_config = {
-    "models": ["openai/gpt-4o-mini"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_template": "Analyze history: {history} and input: {user_input} considering agent details: {agent_details}. Choose the best agent. Respond JSON: {"chosen_agent": "<agent_name>"}"
 }
 
 # --- Example Synthesizer Config (for 'broadcast' mode) ---
 synthesizer_config_example = {
-   "model": "openai/gpt-4o-mini",
+   "model": "ollama_chat/glm-5.3-flash:cloud",
    "prompt": "Synthesize the best answer based on the original query '{user_input}' and the following responses from different agents:\n\n{agent_responses}\n\nProvide a single, coherent final answer."
 }
 

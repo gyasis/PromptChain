@@ -10,7 +10,7 @@
 
 ```bash
 promptchain agent spawn test-automator-t072 \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --role "integration-test-specialist" \
   --objective "Create comprehensive integration tests for ExecutionHistoryManager token truncation"
 ```
@@ -80,7 +80,7 @@ pytest tests/cli/integration/test_history_truncation.py -v --cov=promptchain.uti
 
 ```bash
 promptchain agent spawn performance-engineer-t074 \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --role "performance-benchmarking-specialist" \
   --objective "Create performance tests validating 30-60% token savings from per-agent history configs"
 ```
@@ -203,7 +203,7 @@ pytest tests/cli/ --cov=promptchain.cli --cov-report=html
 ### test-automator-t072 Configuration
 
 ```yaml
-model: openai/gpt-4
+model: ollama_chat/glm-5.3-flash:cloud
 temperature: 0.1  # Low temperature for precise test creation
 max_tokens: 4000
 role: integration-test-specialist
@@ -223,7 +223,7 @@ history_config:
 ### performance-engineer-t074 Configuration
 
 ```yaml
-model: openai/gpt-4
+model: ollama_chat/glm-5.3-flash:cloud
 temperature: 0.2  # Slightly higher for creative benchmarking
 max_tokens: 4000
 role: performance-benchmarking-specialist

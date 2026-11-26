@@ -167,7 +167,7 @@ CREATE TABLE messages (
   "timestamp": "2025-11-20T12:34:56.789123",
   "activity_type": "agent_input|agent_output|tool_call|tool_result|reasoning_step|router_decision|error",
   "agent_name": "researcher",
-  "agent_model": "gpt-4",
+  "agent_model": "ollama_chat/glm-5.3-flash:cloud",
   "parent_activity_id": "act_20251120_123455_xyz789",  // For tracking chains
   "interaction_chain_id": "chain_20251120_123450_root",  // Root interaction
   "depth_level": 2,  // Nesting depth (0 = root, 1 = first agent, 2 = nested reasoning)

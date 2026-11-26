@@ -94,6 +94,7 @@ class ChainOfDraftPrompt:
 # Usage example
 cod = ChainOfDraftPrompt()
 engineer = PromptEngineer(
+    evaluator_model="ollama_chat/glm-5.3-flash:cloud",
     techniques=["chain_of_draft"],
     model_config={
         "temperature": 0.7,

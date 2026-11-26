@@ -289,7 +289,7 @@ async def test_max_steps_exhaustion_raises_error():
     processor = AgenticStepProcessor(
         objective="Impossible task requiring many steps",
         max_internal_steps=2,  # Very low limit
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         fallback_on_exhaustion=False  # Error mode
     )
 
@@ -307,7 +307,7 @@ async def test_max_steps_fallback_returns_partial():
     processor = AgenticStepProcessor(
         objective="Complex task",
         max_internal_steps=2,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         fallback_on_exhaustion=True  # Fallback mode
     )
 

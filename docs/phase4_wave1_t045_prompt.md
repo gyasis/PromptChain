@@ -51,7 +51,7 @@ def test_instruction_chain_accepts_agentic_step_processor():
     processor = AgenticStepProcessor(
         objective="Test objective",
         max_internal_steps=3,
-        model_name="openai/gpt-4"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     instructions = [
@@ -62,7 +62,7 @@ def test_instruction_chain_accepts_agentic_step_processor():
 
     # Should not raise TypeError
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=instructions,
         verbose=False
     )
