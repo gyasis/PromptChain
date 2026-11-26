@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from promptchain.profiler.governor import (
-    DEFAULT_MEASUREMENTS, GateDecision, GovernorClient, append_measurement, consume_stream, is_resident, snapshot,
+    DEFAULT_MEASUREMENTS, GateDecision, GovernorClient, append_measurement, consume_stream, snapshot,
 )
 from promptchain.profiler.latency_probe import RunContext, measurement_record, think_param
 
@@ -302,7 +302,7 @@ def run_tool_probe(client: GovernorClient, tag: str, *, show: Optional[dict] = N
         scores.append(score)
         append_measurement(store, measurement_record(
             kind="tool", tag=tag, show=show, endpoint=client.base + client.chat_path, think=think,
-            warm=is_resident(tag, before_p), size=None, res=res, gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
+            warm=client.resident(tag, before_p), size=None, res=res, gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
             extra={"item": {"id": item["id"], "category": item["category"], "source": BFCL_REPO,
                             "license": BFCL_LICENSE}, "score": score, "validator": validator_name()}))
     return {"scores": scores, "summary": summarize_scores(scores), "skipped_items": bank["skipped"]}

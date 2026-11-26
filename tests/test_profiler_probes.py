@@ -635,3 +635,64 @@ def test_llamacpp_client_translates_request_and_raises_refusal():
 
     with pytest.raises(GovernorRefusal):
         list(LlamacppGovernorClient(opener=refuse).chat_stream({"model": "m", "messages": []}))
+
+
+def test_sse_ttft_from_chunk_arrival_times():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    lines = _sse(_delta(reasoning_content="t"), _delta(content="a"), _final("stop", timings=TIMINGS))
+    ticks = iter([0.0, 1.0, 3.0, 4.0, 5.0])
+    res = consume_stream(sse_to_chunks(lines), clock=lambda: next(ticks))
+    assert res.ttft_s == 1.0 and res.ttft_content_s == 3.0 and res.total_s == 5.0
+
+
+LLAMA_P = lambda model, state="idle": dict(PRESSURE, tenants=[  # noqa: E731
+    {"tenant": "ollama", "name": "m"}, {"tenant": "atelier", "name": "llamacpp", "state": state, "model": model}])
+
+
+@pytest.mark.parametrize("pressure,expect", [
+    (LLAMA_P("a"), "a"), (LLAMA_P("a", "cold"), None), (LLAMA_P("a", "loading"), None), (PRESSURE, None)])
+def test_llamacpp_loaded_from_pressure(pressure, expect):
+    assert governor.llamacpp_loaded(pressure) == expect
+    assert governor.snapshot(BUDGET, pressure)["llamacpp_loaded"] == expect
+
+
+def test_llamacpp_residency_is_by_loaded_alias_not_ollama_tenants():
+    c = governor.LlamacppGovernorClient(opener=lambda *a, **k: None)
+    assert c.resident("a", LLAMA_P("a")) and not c.resident("b", LLAMA_P("a"))
+    assert not c.resident("m", LLAMA_P("a"))  # an ollama tenant of the same name is not a llamacpp load
+    assert GovernorClient(opener=lambda *a, **k: None).resident("m", LLAMA_P("a"))
+
+
+def test_llamacpp_first_call_per_alias_gets_longer_read_timeout():
+    seen = []
+
+    def opener(req, timeout=None):
+        seen.append(timeout)
+        return FakeResp(b"".join(_sse(_delta(content="ok"), _final("stop", timings=TIMINGS))))
+
+    c = governor.LlamacppGovernorClient(opener=opener, read_timeout=100.0, load_wait=50.0)
+    for m in ("a", "a", "b"):
+        list(c.chat_stream({"model": m, "messages": []}))
+    assert seen == [150.0, 100.0, 150.0]
+
+
+def test_latency_probe_on_llamacpp_lane_records_ttft_and_warmth(tmp_path):
+    sse = b"".join(_sse(_delta(content="no"), _final("stop", timings=TIMINGS)))
+    state = {"loaded": None}
+
+    def opener(req, timeout=None):
+        if req.full_url.endswith("/pressure"):
+            return FakeResp(json.dumps(LLAMA_P(state["loaded"])).encode())
+        if req.full_url.endswith("/budget"):
+            return FakeResp(json.dumps(BUDGET).encode())
+        state["loaded"] = "a"  # the lane has the alias loaded after its first call
+        return FakeResp(sse)
+
+    c = governor.LlamacppGovernorClient(opener=opener)
+    recs = latency_probe.run_latency_probe(c, "a", capabilities=[], sequence=("small", "small"),
+                                           store=str(tmp_path / "m.jsonl"))
+    assert [r["warm_by_pressure"] for r in recs] == [False, True]
+    summ = latency_probe.summarize(recs)
+    assert summ["n_cold"] == 1
+    assert summ["ttft_content_p50_s_by_size"]["small"] is not None
+    assert all(r["metrics"]["ttft_s"] is not None for r in recs)
