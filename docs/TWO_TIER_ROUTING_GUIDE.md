@@ -8,7 +8,7 @@ Two-tier model routing intelligently routes simple tasks to fast/cheap models wh
 
 **Status**: ✅ **IMPLEMENTED** (v0.4.2+)
 
-**Research Source**: Based on RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)
+**Research Source**: Based on docs/archive/RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)
 
 ---
 
@@ -637,8 +637,8 @@ processor = AgenticStepProcessor(
     max_internal_steps=15,
 
     # Phase 1: Two-Tier Routing (40% cost reduction)
-    model_name="gemini/gemini-2.0-flash-exp",
-    fallback_model="gemini/gemini-1.5-flash-8b",
+    model_name="gemini/gemini-2.5-flash",
+    fallback_model="gemini/gemini-2.5-flash-lite",
     enable_two_tier_routing=True,
 
     # Phase 2: Blackboard (71.7% token reduction)
@@ -739,7 +739,7 @@ pytest tests/test_verification_integration.py -v -s  # See error reduction metri
 
 - **Blackboard Architecture**: `/docs/BLACKBOARD_ARCHITECTURE.md`
 - **Safety Features**: `/docs/SAFETY_FEATURES.md`
-- **Research Document**: `/docs/RESEARCH_BASED_IMPROVEMENTS.md`
+- **Research Document**: `docs/archive/RESEARCH_BASED_IMPROVEMENTS.md`
 - **Example Code**: `/examples/two_tier_routing_demo.py`
 - **Implementation**: `/promptchain/utils/agentic_step_processor.py`
 - **Test Suite**: `/tests/test_*_integration.py`
@@ -778,7 +778,7 @@ agents:
 
         # Phase 1: Two-Tier Routing (60-70% cost reduction)
         enable_two_tier_routing: true
-        fallback_model: gemini/gemini-1.5-flash-8b
+        fallback_model: gemini/gemini-2.5-flash-lite
 
         # Phase 2: Blackboard Architecture (71.7% token reduction)
         enable_blackboard: true
@@ -802,7 +802,7 @@ You can enable features incrementally:
 - type: agentic_step
   objective: "Complete {task}"
   enable_two_tier_routing: true
-  fallback_model: gemini/gemini-1.5-flash-8b
+  fallback_model: gemini/gemini-2.5-flash-lite
 ```
 
 **Level 2: Add Token Optimization**
@@ -810,7 +810,7 @@ You can enable features incrementally:
 - type: agentic_step
   objective: "Complete {task}"
   enable_two_tier_routing: true
-  fallback_model: gemini/gemini-1.5-flash-8b
+  fallback_model: gemini/gemini-2.5-flash-lite
   enable_blackboard: true  # Added Phase 2
 ```
 
@@ -875,7 +875,7 @@ agents:
 
 **Phase 1 Parameters:**
 - `enable_two_tier_routing: boolean` - Enable intelligent model routing (default: false)
-- `fallback_model: string` - Cheap model for simple tasks (e.g., "gemini/gemini-1.5-flash-8b")
+- `fallback_model: string` - Cheap model for simple tasks (e.g., "gemini/gemini-2.5-flash-lite")
 
 **Phase 2 Parameters:**
 - `enable_blackboard: boolean` - Enable structured state management (default: false)
@@ -906,7 +906,7 @@ agents:
 Set in your environment:
 ```bash
 export PRIMARY_MODEL="gemini/gemini-2.5-pro"
-export FALLBACK_MODEL="gemini/gemini-1.5-flash-8b"
+export FALLBACK_MODEL="gemini/gemini-2.5-flash-lite"
 ```
 
 ### Configuration File Precedence

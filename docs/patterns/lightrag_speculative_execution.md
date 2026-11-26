@@ -453,4 +453,3 @@ except Exception as e:
 - [BasePattern Documentation](./base_pattern.md)
 - [LightRAG Integration](../integrations/lightrag.md)
 - [Multi-Hop Pattern](./lightrag_multi_hop.md)
-- [Query Expansion Pattern](./lightrag_query_expansion.md)

@@ -467,7 +467,7 @@ Available actions:
 
 ### Agent Creation
 
-Could integrate with Dynamic Agent Orchestration PRD (found in `/docs/dynamic-agent-orchestration-prd.md`):
+Could integrate with Dynamic Agent Orchestration PRD (found in `/docs/archive/dynamic-agent-orchestration-prd.md`):
 - PolicyEngine for scoring-based agent selection
 - AgentBuilder for creating specialized agents on-demand
 - Top 3 model integration (GPT-4.1, Claude Opus, Gemini Pro)

@@ -255,8 +255,8 @@ Persistence Layer
 
 - **Main README**: `/home/gyasis/Documents/code/PromptChain/README.md`
 - **Agent Templates**: `/home/gyasis/Documents/code/PromptChain/docs/agent-templates.md`
-- **CLI Quick Start**: `/home/gyasis/Documents/code/PromptChain/docs/PHASE6_QUICK_START.md`
-- **Complete Docs**: `/home/gyasis/Documents/code/PromptChain/docs/index.md`
+- **CLI Quick Start**: `/home/gyasis/Documents/code/PromptChain/docs/guides/QUICK_START.md`
+- **Complete Docs**: `/home/gyasis/Documents/code/PromptChain/docs/README.md`
 
 ---
 

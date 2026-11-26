@@ -372,8 +372,7 @@ print(f"Successful techniques: {successful}")
 ## See Also
 
 - [LightRAG Integration Core](./lightrag_core.md)
-- [Multi-Hop Retrieval Pattern](./multi_hop.md)
-- [Query Expansion Pattern](./query_expansion.md)
+- [Multi-Hop Retrieval Pattern](./lightrag_multi_hop.md)
 - [BasePattern API](./base_pattern.md)
 
 ## References

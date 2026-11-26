@@ -310,7 +310,7 @@ print(f"Capabilities: {capabilities}")
 
 ## Additional Resources
 
-- **Full Import Validation**: See `IMPORT_VALIDATION_SUMMARY.md`
+- **Full Import Validation**: See `docs/archive/multiagent/IMPORT_VALIDATION_SUMMARY.md` (historical)
 - **Test Suite**: `tests/cli/unit/test_multiagent_imports.py`
 - **Schema Definition**: `promptchain/cli/schema.sql`
 - **Tool Documentation**: See individual tool module docstrings

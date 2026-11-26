@@ -28,7 +28,7 @@ agentic = AgenticStepProcessor(
 
 **How it routes:** an internal classifier inspects each sub-task and picks `model_name` for complex ones, `fallback_model` for simple ones (file listing, summarisation of small text, etc.). Customise by subclassing and overriding `_classify_task_complexity()`.
 
-**Measured savings:** 60-70% on typical workloads (Gemini 2.5 Pro + Flash-8B = 33x cost ratio). See `examples/two_tier_routing_demo.py:52-108`.
+**Measured savings:** 60-70% on typical workloads in the demo's own run, with a large model as primary and a smaller one as fallback. Re-measure with your models. See `examples/two_tier_routing_demo.py:52-108`.
 
 ## Phase 2 — Blackboard Architecture (token saver, ~72%)
 
@@ -99,7 +99,7 @@ agentic = AgenticStepProcessor(
 
     # Phase 1
     model_name="gemini/gemini-2.5-pro",
-    fallback_model="gemini/gemini-1.5-flash-8b",
+    fallback_model="gemini/gemini-2.5-flash-lite",
     enable_two_tier_routing=True,
 
     # Phase 2
@@ -119,7 +119,7 @@ agentic = AgenticStepProcessor(
 ```
 
 **Combined measurement (from `examples/two_tier_routing_demo.py:434-457`):**
-- Cost: 86% reduction ($1.25 → $0.17 per 1M tokens)
+- Cost: 86% reduction (measured in that demo with its own price assumptions; check your provider's current prices)
 - Errors: 80% reduction
 - Tokens: 71.7% reduction
 - Transparency: 100% reasoning visibility

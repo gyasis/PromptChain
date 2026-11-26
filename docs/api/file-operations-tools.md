@@ -1050,7 +1050,7 @@ python promptchain/tools/file_operations.py
 
 - [TerminalTool Visual Debugging](./terminal-tool-visual-debugging.md)
 - [AgenticStepProcessor Best Practices](../agentic_step_processor_best_practices.md)
-- [Agent Chain Usage](../AgentChain_Usage.md)
+- [Agent Chain Usage](../utils/agent_chain.md)
 - [Registering Functions to Chain](../registering_functions_to_chain.md)
 
 ---

@@ -175,3 +175,5 @@ mlflow.db
 # Track the promptchain.experiments PACKAGE (the bare "experiments/" rule above is for scratch dirs)
 !promptchain/experiments/
 !promptchain/experiments/**
+promptchain/experiments/**/__pycache__/
+promptchain/experiments/**/*.pyc

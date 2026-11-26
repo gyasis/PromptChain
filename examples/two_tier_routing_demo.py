@@ -188,7 +188,7 @@ async def demo_comparison():
         "\n💡 Recommendation:\n"
         "   • Pick the pair by measured savings and quality on your own tasks\n"
         "\n🔬 Research Source:\n"
-        "   • Based on RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)\n"
+        "   • Based on docs/archive/RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)\n"
         "   • TAO Loop, Blackboard Architecture, Two-Tier Model patterns\n"
         "   • Model pricing researched via Gemini API (accurate as of 2026-01-15)\n"
     )

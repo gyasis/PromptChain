@@ -577,7 +577,7 @@ See [Migration Guide](docs/observability/migration-guide.md) for detailed instru
 
 ## Links
 
-- [Documentation](docs/index.md)
+- [Documentation](docs/README.md)
 - [Observability Guide](docs/observability/README.md)
 - [GitHub Repository](https://github.com/gyasis/promptchain)
 - [Issues](https://github.com/gyasis/promptchain/issues)

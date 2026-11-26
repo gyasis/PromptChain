@@ -3,8 +3,8 @@
 **Feature Branch**: `003-multi-agent-communication`
 **Created**: 2025-11-27
 **Status**: Draft
-**Input**: PRD document at `docs/agent_communication/PRD_003_multi_agent_communication.md`
-**Pattern Coverage**: See `/docs/agent_communication/14_agentic_patterns_gap_analysis.md`
+**Input**: PRD document at `docs/archive/agent_communication/PRD_003_multi_agent_communication.md`
+**Pattern Coverage**: See `/docs/archive/agent_communication/14_agentic_patterns_gap_analysis.md`
 
 ## Pattern Coverage Summary
 
@@ -133,7 +133,7 @@ As an agent executing tasks, I want to discover and apply structured reasoning f
 
 **Why this priority**: Mental models determine **HOW agents think** about problems. Without structured reasoning frameworks, agents may use inconsistent or suboptimal reasoning approaches. This is **critical** for agent behavior quality.
 
-**Source Document**: `/docs/agent_communication/thoughtbox_mental_models_integration.md`
+**Source Document**: `/docs/archive/agent_communication/thoughtbox_mental_models_integration.md`
 
 **Independent Test**: Can be fully tested by:
 1. Initializing MentalModelRegistry with 15 models

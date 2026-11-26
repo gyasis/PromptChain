@@ -398,6 +398,7 @@ This list is the closed-loop output: every Claude Code mistake observed via SIO 
 13. **CORRECTED — calling `chain.register_tool_function(func)` WITHOUT also calling `chain.add_tools([schema_dict])`.** The function will be *dispatchable* but the LLM will *never see it* — the LLM only knows about tools whose SCHEMAS are in `chain.local_tools`, populated by `add_tools()`. v0.6.1 validates symmetrically: register all functions FIRST, then call `add_tools()` once with all schemas. If you reverse the order (add_tools first, then register one-at-a-time), v0.6.1 will raise `ValueError` on the first register call because the second schema lacks a matching function. Symptom of skipping `add_tools` entirely: agentic step returns `{}` or `{"key": null, ...}` without any `tool_calls=`. See `FEEDBACK_LOG.md` for the discovery trail (originally misdiagnosed as a library bug; was a missing `add_tools()` call in the demo + my own recipes).
 14. **Using a tool-weak specialist model (e.g. `medgemma:4b`) in a chain step that has chain-scoped tools registered.** PromptChain registers tools at chain scope — they're visible to EVERY LLM step. Specialist models like medgemma are tool-weak: when they see tool schemas in their prompt context, they try to emit `tool_calls` inappropriately (often hallucinating tool names like `assessment` or `generate_report`). **FIX (shipped 2026-05-06):** use the per-step tool scoping API — wrap the instruction in a tuple `(instruction, [allowed_tool_names])`. Empty list = no tools at all. See §17 below and `recipe-hybrid-chain.md`. The Python-function workaround mentioned in earlier versions of this doc is no longer needed.
 15. **Pinning PromptChain at a commit between `639a47c` and `05aae1f` while using `enable_cove=True` together with per-step tool scoping.** The CoVe verifier (`promptchain/utils/verification.py:137`) calls the chain's `llm_runner` with `(messages=, model=)` and an optional/no-tools call shape; the per-step-scoping lambda introduced in `639a47c` rejected those kwargs with `TypeError`. CoVe swallowed the exception, confidence fell to `0.50` (below the default `cove_confidence_threshold=0.7`), and **every tool call was silently SKIPPED** while the chain appeared to run normally. Fixed on `main` by `d2f6286` (added `model=None, **kwargs`) + `05aae1f` (made `tools=`/`tool_choice=` optional after a follow-on TypeError surfaced on retest). Symptom: agentic step finishes with no tool calls executed and no visible error. See §17 ("Interaction with `enable_cove=True`") and `tests/test_cove_per_step_scope_regression.py`.
+16. **Relying on a default model.** PromptChain names no model. A required model that is missing raises `ValueError` that names the parameter, the role key and the file. An optional feature (summarizer, judge, multi-hop synthesizer, prompt improver) stays off until it has its own role or argument. Pass the model, or set a role in `~/.promptchain/models.yaml` (§16). Do not invent a fallback such as `gpt-4o-mini` in the code you write.
 
 ---
 
@@ -665,16 +666,16 @@ A role value (and `default`) is a string or a mapping `{model, endpoint}`. An en
 
 | Tier | Providers / models | When to pick |
 |---|---|---|
-| ⭐⭐⭐ Strongest | `ollama_chat/glm-5.3:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/gemma4:12b` (all report tool support in the catalog) | Default for tool-calling-heavy chains. |
-| ⭐⭐ Good but variable | `gemini/gemini-2.5-pro`, `gemini/gemini-1.5-flash-8b`, `gemini/gemini-2.0-flash-exp` | Cost-savings (Gemini Flash-8B is 33x cheaper than 2.5-pro). Verify the specific model supports tools — experimental Gemini models often don't. |
-| ⭐ Model-dependent | Ollama: `llama3.1`, `qwen2.5`, `mistral-nemo`, `command-r` | Local / offline. Most other Ollama models do NOT support tool-calling — verify the model card. |
-| ❌ No tool-calling | older `ollama/llama2`, `phi:2b`, `gemma:2b`, most pre-2024 GGUFs | Plain prompting only. Don't use for agentic chains. |
+| ⭐⭐⭐ Strongest | `ollama_chat/glm-5.3:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/gemma4:12b` (all report tool support in the catalog) | Good fit for tool-calling-heavy chains. Name the model yourself or set a role in `models.yaml`; PromptChain has no default. |
+| ⭐⭐ Good but variable | `gemini/gemini-2.5-pro`, `gemini/gemini-2.5-flash-lite`, `gemini/gemini-2.5-flash` | Cost-savings (use `gemini-2.5-flash-lite` as the cheap tier; check the provider's price page). Verify the specific model supports tools — experimental Gemini models often don't. |
+| ⭐ Model-dependent | Any local Ollama model whose catalog entry lists `tools` | Local / offline. Check `capabilities` in `~/.config/ollama-cloud/local-models.md` (or `/api/show`); never infer tool support from the name. |
+| ❌ No tool-calling | any model whose `capabilities` do not list `tools` | Plain prompting only. Don't use for agentic chains. |
 
 ### Models actually used in this repo's `examples/`
 
 ```
 ollama_chat/glm-5.3:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/gemma4:12b,
-gemini/gemini-2.0-flash-exp, gemini/gemini-2.5-pro, gemini/gemini-1.5-flash-8b
+gemini/gemini-2.5-flash, gemini/gemini-2.5-pro, gemini/gemini-2.5-flash-lite
 ```
 
 ### Required env vars

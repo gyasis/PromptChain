@@ -550,6 +550,6 @@ class SessionManager:
 ---
 
 **See Also**:
-- `MESSAGE_BUS_IMPLEMENTATION_SUMMARY.md` - Detailed architecture guide
-- `MESSAGE_BUS_COMPLETION_REPORT.md` - Implementation status
+- `docs/archive/multiagent/MESSAGE_BUS_IMPLEMENTATION_SUMMARY.md` (historical) - Detailed architecture guide
+- `docs/archive/multiagent/MESSAGE_BUS_COMPLETION_REPORT.md` (historical) - Implementation status
 - `examples/message_bus_example.py` - Working examples

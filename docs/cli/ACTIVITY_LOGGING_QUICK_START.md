@@ -478,8 +478,8 @@ if activity_type in ['user_input', 'agent_output', 'error']:
 See:
 - `test_activity_logger.py` - Core ActivityLogger tests
 - `test_agentchain_activity_logging.py` - Integration tests
-- `docs/cli/AGENT_ACTIVITY_LOGGING_DESIGN.md` - Full design
-- `docs/cli/AGENTCHAIN_INTEGRATION_SUMMARY.md` - Implementation details
+- `docs/archive/cli/AGENT_ACTIVITY_LOGGING_DESIGN.md` - Full design
+- `docs/archive/cli/AGENTCHAIN_INTEGRATION_SUMMARY.md` - Implementation details
 
 ---
 

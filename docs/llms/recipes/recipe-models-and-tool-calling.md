@@ -32,7 +32,7 @@ This table reflects what's stable and broadly true. **Always verify against the 
 |---|---|---|
 | **OpenAI** (`openai/<model_id>`) | ⭐⭐⭐ Strongest | The reference implementation. The repo's own comment: `"Using OpenAI for reliable tool calling"`. Pick OpenAI when the agent must reliably call tools. |
 | **Anthropic** (`anthropic/<model_id>`) | ⭐⭐⭐ Strong | Native tool use. Slightly different schema under the hood; LiteLLM normalises it. |
-| **Gemini** (`gemini/gemini-2.5-pro`, `gemini-1.5-flash-8b`, `gemini-2.0-flash-exp`) | ⭐⭐ Good but variable | `gemini-2.5-pro` and `1.5-flash-8b` support tool calling; some experimental models do not. The repo uses Gemini for cost-saving (`fallback_model="gemini/gemini-1.5-flash-8b"` is 33x cheaper than 2.5-pro). |
+| **Gemini** (`gemini/gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-2.5-flash`) | ⭐⭐ Good but variable | `gemini-2.5-pro` and `gemini-2.5-flash` support tool calling; some experimental models do not. The repo uses Gemini for cost-saving (`fallback_model="gemini/gemini-2.5-flash-lite"` is the cheap tier; check the provider price page). |
 | **Ollama** (`ollama_chat/glm-5.3:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/gemma4:12b`, etc.) | ⭐ Model-dependent | **Not every Ollama model supports tool-calling.** Read the model's `capabilities` (the generated catalog, or `/api/show`) and use only models that list `tools`. Embedding models and older small models often do not. |
 | **LocalAI / Llamacpp** | ⭐ Same as Ollama | Capability tracks the underlying GGUF model, not the runtime. |
 | **OpenRouter** | ⭐⭐ Depends on routed model | If OpenRouter routes to OpenAI/Anthropic/Gemini, capability matches that. |
@@ -43,7 +43,7 @@ The package's examples name a model explicitly (there is no library default). Ty
 
 ```text
 ollama_chat/glm-5.3-flash:cloud
-gemini/gemini-2.0-flash-exp
+gemini/gemini-2.5-flash
 gemini/gemini-2.5-pro
 ```
 
@@ -95,11 +95,11 @@ A role value (and `default`) is a string or a mapping `{model, endpoint}`. An en
 Does this step / chain register tool-calling functions, MCP tools, or use AgenticStepProcessor with tools?
 ├─ YES → Pick a tool-calling-capable model:
 │        ├─ Reliability matters most  → a model whose catalog capabilities list `tools` (e.g. ollama_chat/glm-5.3:cloud)
-│        ├─ Cost matters most         → gemini/gemini-1.5-flash-8b ($0.0375/1M)
+│        ├─ Cost matters most         → gemini/gemini-2.5-flash-lite
 │        ├─ Big context window needed → gemini/gemini-2.5-pro (1M ctx) or ollama_chat/glm-5.3:cloud (1M ctx, per the catalog)
 │        └─ Local / offline           → ollama_chat/gemma4:12b (catalog lists tools, thinking, vision)
 └─ NO (pure string-template chain, no tools) →
-         Any model works. Optimize for cost: ollama_chat/glm-5.3-flash:cloud, a local model, or gemini/gemini-1.5-flash-8b.
+         Any model works. Optimize for cost: ollama_chat/glm-5.3-flash:cloud, a local model, or gemini/gemini-2.5-flash-lite.
 ```
 
 ## E. Using Ollama — extra wiring
@@ -111,7 +111,7 @@ from promptchain import PromptChain
 from promptchain.utils.model_management import ModelProvider
 
 chain = PromptChain(
-    models=["ollama/llama3.1:8b"],
+    models=["ollama_chat/gemma4:12b"],
     instructions=["Reply tersely: {input}"],
     model_management={
         "enabled": True,
@@ -125,7 +125,7 @@ chain = PromptChain(
 **Ollama tool-calling sanity check:** before relying on it, confirm the model card on the Ollama site lists "Tools" in its capabilities, or run a quick smoke test:
 
 ```bash
-ollama run llama3.1 "Call this function: get_weather('Paris')"
+ollama run gemma4:12b "Call this function: get_weather('Paris')"
 ```
 If the response is a structured tool call, you're good. If it's a plain English answer pretending to call the function, the model doesn't support real tool-calling — pick a different one.
 
@@ -135,7 +135,7 @@ If the response is a structured tool call, you're good. If it's a plain English 
 
 | Primary | Fallback | Both tool-calling? |
 |---|---|---|
-| `gemini/gemini-2.5-pro` | `gemini/gemini-1.5-flash-8b` | ✅ |
+| `gemini/gemini-2.5-pro` | `gemini/gemini-2.5-flash-lite` | ✅ |
 | `ollama_chat/glm-5.3:cloud` | `ollama_chat/glm-5.3-flash:cloud` | ✅ (catalog: both list tools and thinking) |
 | `ollama_chat/glm-5.3:cloud` | `ollama_chat/gemma4:12b` | ✅ (fallback runs locally; catalog lists tools) |
 

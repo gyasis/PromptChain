@@ -54,7 +54,7 @@ Because the *only* instruction is an `AgenticStepProcessor` and it has its own `
 agentic = AgenticStepProcessor(
     objective="…",
     model_name="gemini/gemini-2.5-pro",
-    fallback_model="gemini/gemini-1.5-flash-8b",
+    fallback_model="gemini/gemini-2.5-flash-lite",
     enable_two_tier_routing=True,    # Phase 1: route simple sub-tasks to fallback (~60-70% cost cut)
     enable_blackboard=True,          # Phase 2: structured state instead of growing history (~72% token cut)
     enable_cove=True,                # Phase 3: pre-execution tool-call verification
