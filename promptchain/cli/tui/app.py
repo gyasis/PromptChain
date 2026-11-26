@@ -981,8 +981,9 @@ class PromptChainApp(App):
                     # LLM call started
                     # model_name is a top-level ExecutionEvent field, not metadata
                     model = event.model_name or "unknown"
-                    # Emitters only send message_count in metadata, never the
-                    # messages themselves (promptchaining.py MODEL_CALL_START)
+                    # The panel shows only the count. Metadata also carries the
+                    # full prompt_messages when a callback is registered, which
+                    # this callback ignores.
                     message_count = event.metadata.get("message_count", 0)
                     prompt_preview = (
                         f"{message_count} messages"
@@ -996,8 +997,9 @@ class PromptChainApp(App):
                 elif event.event_type == ExecutionEventType.MODEL_CALL_END:
                     # LLM call completed
                     model = event.model_name or "unknown"
-                    # Token counts live in metadata["tokens_used"]; the response
-                    # text itself is never emitted (promptchaining.py MODEL_CALL_END)
+                    # Token counts live in metadata["tokens_used"]. The response
+                    # text is in metadata["response_message"], which the panel
+                    # does not display.
                     usage = event.metadata.get("tokens_used") or {}
                     response = ""
                     response_preview = (

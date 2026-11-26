@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from contextlib import AsyncExitStack
 from datetime import datetime
 from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set,
@@ -1734,6 +1735,9 @@ class PromptChain:
                         # ===== Tool Calling Logic integrated with Model Call =====
                         model_call_start_time = datetime.now()
 
+                    trace_call_id = (
+                        uuid.uuid4().hex if self.callback_manager.callbacks else None
+                    )
                     # Emit MODEL_CALL_START event
                     await self.callback_manager.emit(
                         ExecutionEvent(
@@ -1746,6 +1750,15 @@ class PromptChain:
                                 "params": step_model_params,
                                 "tools_available": (
                                     len(available_tools) if available_tools else 0
+                                ),
+                                **(
+                                    {
+                                        "prompt_messages": list(messages_for_llm),
+                                        "tools": step_tools,
+                                        "trace_call_id": trace_call_id,
+                                    }
+                                    if self.callback_manager.callbacks
+                                    else {}
                                 ),
                             },
                         )
@@ -1804,6 +1817,14 @@ class PromptChain:
                                         response_message_dict.get("tool_calls")
                                     ),
                                     "success": True,
+                                    **(
+                                        {
+                                            "response_message": response_message_dict,
+                                            "trace_call_id": trace_call_id,
+                                        }
+                                        if self.callback_manager.callbacks
+                                        else {}
+                                    ),
                                 },
                             )
                         )
@@ -1824,6 +1845,11 @@ class PromptChain:
                                 metadata={
                                     "error": str(model_error),
                                     "execution_time_ms": model_call_error_duration_ms,
+                                    **(
+                                        {"trace_call_id": trace_call_id}
+                                        if trace_call_id
+                                        else {}
+                                    ),
                                 },
                             )
                         )
@@ -2038,6 +2064,9 @@ class PromptChain:
                         # Second model call with tool results
                         followup_call_start_time = datetime.now()
 
+                        followup_trace_call_id = (
+                            uuid.uuid4().hex if self.callback_manager.callbacks else None
+                        )
                         # Emit MODEL_CALL_START event for follow-up call
                         await self.callback_manager.emit(
                             ExecutionEvent(
@@ -2050,6 +2079,17 @@ class PromptChain:
                                     "params": step_model_params,
                                     "is_followup": True,
                                     "tool_results_count": len(tool_results_messages),
+                                    **(
+                                        {
+                                            "prompt_messages": list(
+                                                messages_for_follow_up
+                                            ),
+                                            "tools": available_tools,
+                                            "trace_call_id": followup_trace_call_id,
+                                        }
+                                        if self.callback_manager.callbacks
+                                        else {}
+                                    ),
                                 },
                             )
                         )
@@ -2094,6 +2134,14 @@ class PromptChain:
                                         "execution_time_ms": followup_call_duration_ms,
                                         "is_followup": True,
                                         "success": True,
+                                        **(
+                                            {
+                                                "response_message": final_response_message_dict,
+                                                "trace_call_id": followup_trace_call_id,
+                                            }
+                                            if self.callback_manager.callbacks
+                                            else {}
+                                        ),
                                     },
                                 )
                             )
@@ -2115,6 +2163,11 @@ class PromptChain:
                                         "error": str(followup_error),
                                         "execution_time_ms": followup_call_error_duration_ms,
                                         "is_followup": True,
+                                        **(
+                                            {"trace_call_id": followup_trace_call_id}
+                                            if followup_trace_call_id
+                                            else {}
+                                        ),
                                     },
                                 )
                             )

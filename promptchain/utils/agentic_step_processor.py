@@ -1066,6 +1066,7 @@ class AgenticStepProcessor:
 
         # Full internal history for debugging/tracking (not sent to LLM)
         internal_history: List[Dict[str, Any]] = []
+        self._internal_history = internal_history
         # Minimal valid LLM message history (sent to LLM)
         llm_history: List[Dict[str, Any]] = []
 
