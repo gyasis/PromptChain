@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from litellm import acompletion
 
 from promptchain.observability import track_llm_call
+from promptchain.utils.model_roles import resolve_model_spec
 
 from .mcp_helpers import \
     AsyncProcessContextManager  # Assuming mcp_helpers.py is in the same directory
@@ -497,22 +498,22 @@ class DynamicChainBuilder:
         self, client, model_config, history, tools, chain_id, step_number
     ) -> Any:
         """Runs a single step involving an LLM call."""
-        model_name = (
+        explicit = (
             model_config
             if isinstance(model_config, str)
             else model_config.get("model")
         )
-        if not model_name:
-            raise ValueError(
-                "A model step needs a model: give the step's model config a "
-                "'model' key (or pass the model name as a string)."
-            )
+        spec = resolve_model_spec(
+            "chain_builder", explicit, required=True, param="model_config['model']"
+        )
+        model_name = spec.model
         params = {}
         if isinstance(model_config, dict):
             params = {k: v for k, v in model_config.items() if k != "model"}
         request_params = {
             "model": model_name,
             "messages": history,
+            **spec.params,
             **params,
         }
         if tools:

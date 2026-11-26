@@ -13,6 +13,7 @@ from rich.prompt import Confirm, Prompt
 from rich.style import Style
 from rich.table import Table
 
+from promptchain.utils.model_roles import resolve_model_spec
 from promptchain.utils.promptchaining import PromptChain
 
 # Load environment variables
@@ -219,15 +220,17 @@ class PromptEngineer:
         protect_content: bool = True,
         focus_area: str = "all",
     ):
-        if not evaluator_model:
-            raise ValueError(
-                "PromptEngineer requires `evaluator_model`: pass a model name "
-                "(CLI: --evaluator-model)."
-            )
+        evaluator_spec = resolve_model_spec(
+            "prompt_engineer", evaluator_model, required=True, param="evaluator_model"
+        )
+        evaluator_model = evaluator_spec.model
+        improver_spec = resolve_model_spec(
+            "prompt_improver", improver_model, required=False, param="improver_model"
+        )
         self.max_iterations = max_iterations
         self.verbose = verbose
         self.evaluator = PromptEvaluator(evaluator_model)
-        self.improver_model = improver_model if improver_model else evaluator_model
+        self.improver_model = (improver_spec or evaluator_spec).as_model()
         self.use_human_evaluation = use_human_evaluation
         self.protect_content = protect_content
         self.focus_area = focus_area
@@ -923,8 +926,12 @@ if __name__ == "__main__":
             if value is not None:  # Only override if value was set
                 setattr(args, key, value)
 
-    if not args.evaluator_model:
-        parser.error("--evaluator-model is required (there is no default model)")
+    try:
+        resolve_model_spec(
+            "prompt_engineer", args.evaluator_model, required=True, param="--evaluator-model"
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
     # Initialize prompt engineer with command line arguments
     engineer = PromptEngineer(
