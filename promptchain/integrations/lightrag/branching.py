@@ -34,6 +34,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+QUERY_MODES = ("local", "global", "hybrid")
+
 
 @dataclass
 class BranchingConfig(PatternConfig):
@@ -45,6 +47,12 @@ class BranchingConfig(PatternConfig):
         judge_model: Model to use for judging hypotheses (default: "openai/gpt-4o").
         diversity_threshold: Minimum diversity between hypotheses (0.0-1.0).
         record_outcomes: Whether to record outcomes for future learning.
+        modes: Query modes to branch over, cycled when hypothesis_count exceeds
+            their number. None uses ["local", "global", "hybrid"].
+
+    Raises:
+        ValueError: If hypothesis_count is below 1 or modes is empty or holds
+            a mode other than "local", "global" or "hybrid".
     """
 
     hypothesis_count: int = 3
@@ -52,6 +60,19 @@ class BranchingConfig(PatternConfig):
     judge_model: str = "openai/gpt-4o"
     diversity_threshold: float = 0.3
     record_outcomes: bool = True
+    modes: Optional[List[str]] = None
+
+    def __post_init__(self) -> None:
+        if self.hypothesis_count < 1:
+            raise ValueError("hypothesis_count must be at least 1")
+        if self.modes is not None:
+            if not self.modes:
+                raise ValueError("modes must not be empty")
+            invalid = [m for m in self.modes if m not in QUERY_MODES]
+            if invalid:
+                raise ValueError(
+                    f"Invalid modes {invalid}; expected any of {list(QUERY_MODES)}"
+                )
 
 
 @dataclass
@@ -231,6 +252,21 @@ class LightRAGBranchingThoughts(BasePattern):
             # Generate hypotheses using different query modes
             hypotheses = await self._generate_hypotheses(problem, count)
 
+            if not hypotheses:
+                execution_time_ms = (time.perf_counter() - start_time) * 1000
+                warning = "No hypotheses were generated: every query mode failed"
+                self.emit_event(
+                    "pattern.branching.no_hypotheses", {"warning": warning}
+                )
+                return BranchingResult(
+                    pattern_id=self.config.pattern_id,
+                    success=True,
+                    result="",
+                    execution_time_ms=execution_time_ms,
+                    selection_reasoning="No scores available",
+                    metadata={"warning": warning},
+                )
+
             # Judge and score each hypothesis
             scores = await self._judge_hypotheses(problem, hypotheses)
 
@@ -293,13 +329,8 @@ class LightRAGBranchingThoughts(BasePattern):
             List of generated hypotheses.
         """
         # Determine which query modes to use
-        modes = ["local", "global", "hybrid"]
-        if count < 3:
-            modes = modes[:count]
-        elif count > 3:
-            # Repeat modes to reach desired count
-            modes = modes * (count // 3 + 1)
-            modes = modes[:count]
+        base_modes = list(self.config.modes or QUERY_MODES)
+        modes = [base_modes[i % len(base_modes)] for i in range(count)]
 
         # Run queries in parallel
         tasks = []

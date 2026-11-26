@@ -83,6 +83,12 @@ class SpeculativeConfig(PatternConfig):
         default_ttl: Default time-to-live for cached results in seconds.
         prediction_model: Model to use for predictions ("frequency", "pattern").
         history_window: Number of recent queries to consider for predictions.
+        max_cache_size: Maximum number of cached results. The oldest entry is
+            evicted when a new result would exceed it. None leaves the cache
+            unbounded.
+
+    Raises:
+        ValueError: If history_window or max_cache_size is below 1.
     """
 
     min_confidence: float = 0.7
@@ -90,6 +96,13 @@ class SpeculativeConfig(PatternConfig):
     default_ttl: float = 60.0
     prediction_model: str = "frequency"
     history_window: int = 20
+    max_cache_size: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.history_window < 1:
+            raise ValueError("history_window must be at least 1")
+        if self.max_cache_size is not None and self.max_cache_size < 1:
+            raise ValueError("max_cache_size must be at least 1 or None")
 
 
 @dataclass
@@ -305,6 +318,9 @@ class LightRAGSpeculativeExecutor(BasePattern):
                 result.hit = True
                 self._cache_hits += 1
                 logger.info(f"Cache hit for query: {query[:50]}...")
+                self.emit_event(
+                    "pattern.speculative.cache_hit", {"query": query, "mode": mode}
+                )
                 return result
             else:
                 # Remove expired entry
@@ -313,7 +329,42 @@ class LightRAGSpeculativeExecutor(BasePattern):
 
         self._cache_misses += 1
         logger.debug(f"Cache miss for query: {query[:50]}...")
+        self.emit_event("pattern.speculative.cache_miss", {"query": query, "mode": mode})
         return None
+
+    def invalidate_cache(self, query: str, mode: Optional[str] = None) -> int:
+        """Remove cached results for a query.
+
+        Args:
+            query: The query text.
+            mode: Restrict removal to one query mode. None removes every mode.
+
+        Returns:
+            Number of cache entries removed.
+        """
+        keys = [
+            key
+            for key, entry in self.cache.items()
+            if entry.query == query
+            and (mode is None or key == f"{query}_{mode}")
+        ]
+        for key in keys:
+            del self.cache[key]
+        if keys:
+            self.emit_event(
+                "pattern.speculative.invalidated", {"query": query, "removed": len(keys)}
+            )
+        return len(keys)
+
+    def _store(self, cache_key: str, entry: SpeculativeResult) -> None:
+        """Insert an entry, evicting the oldest ones past max_cache_size."""
+        self.cache.pop(cache_key, None)
+        self.cache[cache_key] = entry
+        limit = self.config.max_cache_size
+        while limit is not None and len(self.cache) > limit:
+            oldest = next(iter(self.cache))
+            del self.cache[oldest]
+            logger.debug(f"Evicted cache entry: {oldest}")
 
     async def _execute_prediction(
         self, prediction: ToolPrediction
@@ -349,7 +400,7 @@ class LightRAGSpeculativeExecutor(BasePattern):
             )
 
             cache_key = f"{prediction.query}_{prediction.mode}"
-            self.cache[cache_key] = cached
+            self._store(cache_key, cached)
 
             logger.info(
                 f"Executed and cached prediction: {prediction.query[:50]}... "

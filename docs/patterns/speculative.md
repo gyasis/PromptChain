@@ -71,9 +71,14 @@ SpeculativeConfig(
     max_concurrent=3,         # Max speculative queries
     default_ttl=60.0,         # Cache TTL in seconds
     prediction_model="frequency",  # "frequency" or "pattern"
-    history_window=20         # Query history size
+    history_window=20,        # Query history size (>= 1)
+    max_cache_size=None       # Max cached results; oldest evicted first (>= 1, None = unbounded)
 )
 ```
+
+`check_cache(query, mode)` emits `pattern.speculative.cache_hit` or
+`pattern.speculative.cache_miss`. `invalidate_cache(query, mode=None)` removes the
+cached results of a query (every mode, or one) and returns the number removed.
 
 ## Prediction Models
 
@@ -113,6 +118,9 @@ class SpeculativeExecutionResult:
 "pattern.speculative.predicted"
 "pattern.speculative.executed"
 "pattern.speculative.completed"
+"pattern.speculative.cache_hit"      # query, mode
+"pattern.speculative.cache_miss"     # query, mode
+"pattern.speculative.invalidated"    # query, removed
 ```
 
 ## Best Practices

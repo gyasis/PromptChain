@@ -89,8 +89,13 @@ class SpeculativeConfig(PatternConfig):
     max_concurrent: int = 3           # Max concurrent speculative executions
     default_ttl: float = 60.0         # Default cache TTL in seconds
     prediction_model: str = "frequency"  # "frequency" or "pattern"
-    history_window: int = 20          # Number of queries to track
+    history_window: int = 20          # Number of queries to track (>= 1)
+    max_cache_size: Optional[int] = None  # Max cached results, oldest evicted first (>= 1); None = unbounded
 ```
+
+`invalidate_cache(query, mode=None)` removes cached results for a query and returns the
+count removed. `check_cache` emits `pattern.speculative.cache_hit` /
+`pattern.speculative.cache_miss`.
 
 ### LightRAGSpeculativeExecutor
 

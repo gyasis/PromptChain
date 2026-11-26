@@ -96,7 +96,8 @@ config = BranchingConfig(
     generator_model=None,              # Model for hypothesis generation (uses LightRAG default)
     judge_model="openai/gpt-4o",      # Model for judging hypotheses
     diversity_threshold=0.3,           # Min diversity between hypotheses (0.0-1.0)
-    record_outcomes=True               # Track outcomes for learning
+    record_outcomes=True,              # Track outcomes for learning
+    modes=None                         # Query modes to branch over (default: local, global, hybrid)
 )
 ```
 

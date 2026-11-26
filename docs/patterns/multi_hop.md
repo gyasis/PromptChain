@@ -67,6 +67,9 @@ MultiHopConfig(
 )
 ```
 
+`max_hops` must be at least 1 and `max_sub_questions` must not be negative; otherwise
+`MultiHopConfig` raises `ValueError`.
+
 ## Result Structure
 
 ```python
