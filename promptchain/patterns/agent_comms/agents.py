@@ -25,6 +25,7 @@ from typing import Callable, List, Optional
 
 from promptchain import PromptChain
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+from promptchain.utils.model_roles import resolve_model_spec
 
 from .types import Msg, Transcript, render
 
@@ -49,12 +50,9 @@ class LLMAgent:
     def __init__(self, name: str, persona: str, model: Optional[str] = None,
                  tools: Optional[List[Callable]] = None, max_internal_steps: int = 4,
                  one_sentence: bool = True, objective: Optional[str] = None,
-                 capabilities: Optional[List[str]] = None):
-        if not model:
-            raise ValueError(
-                f"LLMAgent {name!r} requires `model`: pass a model name "
-                f"(for example 'provider/model')."
-            )
+                 capabilities: Optional[List[str]] = None, role: str = "agent"):
+        # `role` picks the models-file entry used when `model` is not passed.
+        spec = resolve_model_spec(role, model, required=True, param="model")
         self.name = name
         self.persona = persona
         # Declared skills — used by capability-based selection (by_capability) and by an
@@ -73,7 +71,8 @@ class LLMAgent:
             f"Return ONLY your turn text — no name prefix, no narration, no quotes.")
         self.asp = AgenticStepProcessor(
             objective=self.objective,
-            model_name=model,
+            model_name=spec.model,
+            model_params=spec.params,
             max_internal_steps=max_internal_steps,
             history_mode="progressive",   # better multi-hop reasoning than "minimal"
         )
@@ -113,7 +112,7 @@ class LLMAgent:
 def agent(name: str, persona: str, model: Optional[str] = None,
           tools: Optional[List[Callable]] = None, max_internal_steps: int = 4,
           capabilities: Optional[List[str]] = None, **kw) -> LLMAgent:
-    """A true agent in one line. ``model`` is required; there is no default::
+    """A true agent in one line. ``model`` is required unless the models file sets ``roles.agent`` or ``default``::
 
         A = agent("A", "a cautious engineer", model=my_model, capabilities=["risk", "security"])
         C = agent("C", "a researcher", model=my_model, tools=[lookup_metric])   # give it real tools

@@ -48,7 +48,7 @@ class Orchestrator:
         # it does NOT do their work). `model`/`max_internal_steps` = its intelligence.
         self.manager = manager or LLMAgent(
             name, persona, model=model, max_internal_steps=max_internal_steps,
-            one_sentence=False,
+            one_sentence=False, role="orchestrator",
             objective=(f"You are {name}, {persona}. You ORCHESTRATE a team of agents "
                        f"toward a goal — you do NOT do their work yourself. Follow the "
                        f"specific instruction in each input exactly and return ONLY what "
@@ -118,7 +118,8 @@ def orchestrator(name: str, persona: str = _DEFAULT_PERSONA, model: Optional[str
                  max_rounds: int = 8, manager=None, on_turn=None) -> Orchestrator:
     """An agentic orchestrator (manager agent). See :class:`Orchestrator`.
 
-    ``model`` is required unless a ready-made ``manager`` agent is passed.
+    ``model`` is required unless a ready-made ``manager`` agent is passed or the
+    models file sets ``roles.orchestrator`` (or ``default``).
 
     >>> # dumb agents -> smart orchestrator that steers every turn:
     >>> orchestrator("M", model=my_model, max_internal_steps=6, authority="full")
