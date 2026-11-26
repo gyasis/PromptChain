@@ -246,7 +246,7 @@ Cross-cutting rules the research corroborated — fold into the loop regardless 
 - `promptchain/utils/agentic_step_processor.py` — the inner loop; `max_internal_steps`, `history_mode`, `use_state_management`, `enable_summarization`, CoVe.
 - `promptchain/utils/external_loop.py` — the outer-loop primitive (`max_iters`, `max_seconds`, `breakers`) — where both gaps land.
 - TUI session persistence (`~/.promptchain/sessions/`, SQLite + JSONL) — durability substrate for the gap-1 state artifact.
-- Existing ASP docs: `docs/agentic_step_processor*.md`, `docs/architecture/ARCHITECTURE_VISION.md`.
+- Existing ASP docs: `docs/agentic_step_processor*.md`, `docs/archive/architecture/ARCHITECTURE_VISION.md` (archived).
 
 ---
 
