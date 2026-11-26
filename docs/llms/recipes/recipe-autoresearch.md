@@ -9,7 +9,8 @@ api_version: 0.10.0+
 
 `AutoResearch` wraps `MicroPromptChain` (the build loop) with two optional stages:
 `research(brief) -> notes` before, `critique(brief, build) -> verdict` after. The loop accepts a build
-only if your test command exits 0, so a model cannot claim success on its own.
+only if your test command exits 0. The model cannot just say it succeeded. It can still make the
+command exit 0 (see "Common mistakes"), so keep the tests out of its reach.
 
 ## Which loop?
 
@@ -94,7 +95,7 @@ asyncio.run(main())
 | `res.to_dict()` | `{verified, result, verdict, iterations, stopped_by, winning_code, notes_chars}`. JSON-serialisable. |
 
 `verified` is true only when the build result is `PASS` **and** (no critique given, or the
-the verdict approves). With no `critique`, `verdict` is `"skipped"`.
+verdict approves). With no `critique`, `verdict` is `"skipped"`.
 
 ## Verdict rule
 
@@ -104,28 +105,48 @@ AutoResearch checks the critic verdict by substring on the upper-cased text:
 2. Otherwise contains `APPROVE`, `PASS` or `ACCEPT`: approved.
 3. Anything else: not approved.
 
-So `"APPROVE, no failures found"` is **rejected** (it contains `FAIL`), and so is an answer
-that quotes the word `failed`. Ask the critic for a single word, or return `"APPROVE"` /
-`"REJECT"` yourself from code. A build that passed its tests but drew a critic rejection gives `verified=False`
+False rejects: `"APPROVE, no failures found"` (it contains `FAIL`), or any reply that quotes
+`failed`. False approves: `"DO NOT APPROVE"`, `"Not approved"` and `"Unacceptable: ..."` all
+contain `APPROVE` or `ACCEPT` and none of `REJECT` / `FAIL`. Make the critic reply with exactly
+one word, `APPROVE` or `REJECT`, and normalise it yourself in the `critique` function before
+returning it:
+
+```python
+async def critique(brief, build):
+    raw = await ask_model(...)                  # your model call
+    return "APPROVE" if raw.strip().upper() == "APPROVE" else "REJECT"
+```
+
+A build that passed its tests but drew a critic rejection gives `verified=False`
 while `winning_code` is still set.
 
 ## As a tool
 
-Tools must return strings, so return `json.dumps(...)`:
+Tools must return strings, so return `json.dumps(...)`. `AutoResearch` takes no `network` or
+`timeout`, so inject the executor to control them:
 
 ```python
 import json
 from promptchain.utils.autoresearch import AutoResearch
+from promptchain.utils.docker_executor import DockerExecutor
 
-async def build_tool(brief: str) -> str:
-    ar = AutoResearch(model="openai/gpt-4o-mini", use_docker=True, max_iterations=5)
-    res = await ar.run(brief, test_command="python -m pytest -q",
-                       deps={"test_solution.py": "..."})
+async def build_tool(brief: str, tests: str) -> str:
+    # The image must already contain pytest and be pulled locally (docker pull ...).
+    # network="none" is fine then: nothing is installed at run time.
+    executor = DockerExecutor(image="my-python-pytest:latest", network="none",
+                              timeout=120, memory="512m", pids_limit=256)
+    ar = AutoResearch(model="openai/gpt-4o-mini", executor=executor, max_iterations=5)
+    res = await ar.run(brief, test_command="python -m pytest -q test_solution.py",
+                       deps={"test_solution.py": tests})
     return json.dumps(res.to_dict())
 ```
 
-With Docker unavailable and `use_docker=True`, the build falls back to unsandboxed host
-execution with a `RuntimeWarning`. See `recipe-test-loop` for the safety notes.
+With Docker unavailable and `use_docker=True` (and no injected executor), the build falls back to
+unsandboxed host execution with a `RuntimeWarning`, shown once per process. An injected
+`DockerExecutor` never falls back. See `recipe-test-loop` for the safety notes.
+
+Cost: one build call per iteration, plus one `research` call and one `critique` call. A run makes
+up to `max_iterations` plus 2 model calls.
 
 ## Common mistakes
 
@@ -134,5 +155,8 @@ execution with a `RuntimeWarning`. See `recipe-test-loop` for the safety notes.
 - **Positional args after `brief`.** `ar.run("brief", "solution.py")` raises `TypeError`; `target_file` is keyword-only here.
 - **A chatty critic.** See "Verdict rule": one `FAIL` substring rejects the build.
 - **Returning the `ResearchResult` from a tool.** Return `json.dumps(res.to_dict())`.
+- **Trusting the exit code alone.** Generated code can call `os._exit(0)` before any assert runs, or rewrite the test file in the shared work dir. Print and check a pass count in the test command, or keep the tests unreachable.
+- **`run_sync` in async code.** It blocks the calling thread and the running event loop until the run ends. Use `await ar.run(...)`.
+- **Skipping `docker pull`.** A first pull inside the loop eats the executor `timeout`.
 - **Calling `run` without `await`.** It is a coroutine. Use `await` or `run_sync`.
 - **Large research notes.** The loop cuts notes past 4000 chars and adds a marker. Summarise in the `research` function.

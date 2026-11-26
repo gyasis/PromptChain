@@ -2,7 +2,7 @@
 id: recipe-cove-verifier
 title: Chain of Verification for tool calls (CoVe)
 when: An AgenticStepProcessor may call tools with side effects (delete, write, send) and each call should be vetted by a model before it runs.
-api_version: 0.6.1+
+api_version: 0.10.0+
 ---
 
 # Chain of Verification (CoVe)
@@ -28,7 +28,10 @@ tests (`recipe-test-loop`). To gate a text answer on a measured probability, use
 
 ## Safety: it fails open
 
-`CoVeVerifier` never raises. When the verifier model errors or returns text it cannot parse, it
+`CoVeVerifier` never raises for runner or parse errors. A `None` context or tools list, or
+tool arguments that `json.dumps` cannot serialise, still raise `TypeError`.
+
+When the verifier model errors or returns text it cannot parse, the verifier
 returns a result that **allows** execution, with a low confidence:
 
 | Case | `should_execute` | `confidence` |
@@ -45,8 +48,16 @@ Inside `AgenticStepProcessor` a call runs only if `should_execute` is true **and
 - At `0.4` or below, unparseable replies do too.
 - At `0.3` or below, every row above does.
 
+Even at `0.7` the step approves a call in these cases, because the parser trusts a well-formed
+JSON reply:
+
+- `"should_execute": "false"` (a string) counts as true, since `bool("false")` is `True`.
+- A reply with no `should_execute` key counts as true.
+- A `confidence` of `NaN` clamps to `1.0`.
+
 Standalone, you apply the threshold yourself. If you check only `should_execute`, an outage approves everything.
-Treat CoVe as a risk reducer, not a
+The step merges the verifier model's `suggested_modifications` over the arguments of an approved
+call with no validation, so a verifier reply can change what runs. Treat CoVe as a risk reducer, not a
 security boundary. Put hard limits (allow-lists, read-only credentials) in the tool itself.
 
 ## Offline example
@@ -126,7 +137,7 @@ asyncio.run(main())
 | Item | Value |
 |---|---|
 | `AgenticStepProcessor(..., enable_cove=False, cove_confidence_threshold=0.7, verifier_context=None, fallback_model=None)` | CoVe is off by default. `verifier_context` has no effect when `enable_cove=False`. |
-| Verifier model | The step builds the verifier on first use with `fallback_model` if set, else the step's `model_name`. It reuses the step's `llm_runner`. |
+| Verifier model | The step builds the verifier on first use with `fallback_model` if set, else the step's `model_name`, and passes it as `model=` to the step's `llm_runner`. Inside a `PromptChain` that runner drops `model=`, so the verifier calls the step's main model and `fallback_model` has no effect. A custom runner that honours `model=` gets it. |
 | `CoVeVerifier(llm_runner, model_name, extra_context=None)` | `llm_runner` is an async callable invoked as `llm_runner(messages=[...], model=model_name)`. It returns a dict with `"content"` or an object with `.content`. |
 | `await verifier.verify_tool_call(tool_name, tool_args, context, available_tools)` | All four args need a value. `available_tools` is the list of tool schemas; for a missing tool name the verifier logs a warning and uses an empty schema. It cuts context to 2000 chars. |
 | Returns `VerificationResult` | `should_execute: bool`, `confidence: float` (clamped 0..1), `assumptions: list`, `risks: list`, `verification_reasoning: str`, `suggested_modifications: dict or None`. |
@@ -135,7 +146,11 @@ asyncio.run(main())
 | `verifier_context` / `extra_context` | Text added to the verifier prompt under `## Step Context`. Use it to say why a curated tool list is safe; without it the verifier over-rejects hand-vetted calls. |
 
 The step drops a skipped call from the round and, when `enable_blackboard=True`, notes it on the
-blackboard as "Skipped <tool>: ...". The step's model does not receive an error for it.
+blackboard as "Skipped <tool>: ...". It sends no tool reply for the skipped call. The assistant
+message that carried the call stays in the history, so its `tool_call_id` has no answer. OpenAI-style
+APIs answer the next call with a 400, and the step then ends with an error
+string. A test runner that checks this rule fails the same way. Until the step answers
+skipped calls itself, run CoVe only where a skip is rare, or catch the error.
 
 ## Common mistakes
 
@@ -143,6 +158,6 @@ blackboard as "Skipped <tool>: ...". The step's model does not receive an error 
 - **A threshold at or below the fallback confidence.** `cove_confidence_threshold=0.5` approves calls when the verifier is down (see "it fails open").
 - **Checking only `should_execute` standalone.** Compare `confidence` to your threshold too.
 - **A `llm_runner` that cannot take `messages=` and `model=` keywords.** The verifier calls it with exactly those. The agent's own runner usually already does; a custom one needs `**kwargs`.
-- **Expecting the agent to learn why a call did not run.** Only the log and the blackboard record the skip.
+- **Expecting the agent to learn why a call did not run.** It gets no reply for that call (see above). Only the log and the blackboard record the skip.
 - **No `verifier_context` on a curated tool list.** The verifier sees a tool name and args, not the objective, and rejects calls that are in fact safe.
-- **Verifier on the main model.** Set `fallback_model` to a cheaper model: the verifier uses it first.
+- **Relying on `fallback_model` for a cheaper verifier inside a `PromptChain`.** The chain's runner drops `model=`, so the verifier still uses the main model.

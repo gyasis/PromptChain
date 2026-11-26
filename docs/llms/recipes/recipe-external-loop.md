@@ -74,7 +74,7 @@ print(ExternalLoop(max_iters=2).run_sync(forever)["_stopped"])       # max_iters
 | `await loop.run(step, state=None)` | Returns the `state` dict. A `None` state becomes `{}`. |
 | `step` | `async (iteration: int, state: dict) -> bool`. `True` = keep going. |
 | breaker | `(iteration, state) -> (should_stop: bool, reason: str)`. Plain function, not async. |
-| `over_worklist(items, handler, *, max_iters, max_seconds, breakers)` | `handler` is `async (item, state) -> None`. State starts as `{"worklist": [...], "results": {}}`. |
+| `over_worklist(items, handler, *, max_iters, max_seconds, breakers)` | `handler` is `async (item, state) -> None`. State starts as `{"worklist": [...], "results": {}}`. A handler that raises propagates out of `over_worklist`, and you lose every result so far (the state is not returned). When the cap or a breaker stops the run early, the unprocessed items stay in `state["worklist"]`. If `len(items) == max_iters`, the run ends by the cap on the last item and reports `max_iters=N`, not `exhausted`. |
 | Result keys | `state["_stopped"]` (reason) and `state["_iterations"]` (count). |
 
 `_stopped` values: `"max_iters=N"`, `"max_seconds=S"`, a breaker's reason string, or `"exhausted"`

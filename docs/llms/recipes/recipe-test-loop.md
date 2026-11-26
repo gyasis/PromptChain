@@ -7,8 +7,9 @@ api_version: 0.10.0+
 
 # Test loops: MicroPromptChain and RalphChain
 
-Both loops write `target_file` from model output, run your test command in a sandbox, and stop
-when it exits 0. The test is the only judge. Neither needs a tool-calling model.
+Both loops write `target_file` from model output and run your test command in an executor
+(a Docker container when available, otherwise the host). They stop when it exits 0. The exit code is the
+only judge. Neither needs a tool-calling model.
 
 ## Which loop?
 
@@ -28,12 +29,37 @@ small prompt on every pass.
 `LocalExecutor`, which runs on the host with no sandbox**, and emits a `RuntimeWarning`
 ("Docker unavailable ... UNSANDBOXED"). Model-written code then runs as your user.
 
-- For untrusted model output, keep Docker and treat the warning as an error
+- The warning fires once per process: Python shows a repeated warning from the same line only the
+  first time. Do not rely on it for later runs. Check `DockerExecutor.available()` yourself, or
+  pass `executor=DockerExecutor(...)`, which never falls back.
+- For untrusted model output, inject the executor and treat the warning as an error
   (`python -W error::RuntimeWarning`).
 - `use_docker=False` is the explicit opt-in to host execution. Use it only for trusted code, CI and tests.
 - `network="none"` is the default for Docker. It blocks `install_command` (for example `pip install`).
   Set `network="bridge"` if the install needs the network, or bake dependencies into `image`.
+- `PytestRunner` under Docker needs both: it selects `python:3.12-slim` (no pytest) and runs
+  `pip install -q pytest`, which fails under `network="none"`. Pass `network="bridge"`, or skip the
+  runner and use `test_command=` with your own `image=` that has pytest.
+- `resolve_executor` builds `DockerExecutor(image, network, timeout)` only. The container runs as
+  root with no memory, CPU or process limits. Inject `executor=DockerExecutor(..., memory="512m",
+  pids_limit=256, user="1000:1000", read_only=True)` when that matters.
+- The Docker `timeout` ends the `docker run` process, not the container. A runaway container
+  can keep running after the loop reports `TIMEOUT`.
+- The work dir is a read-write mount. Generated code can overwrite `deps` (your tests). It can also
+  force a pass (`os._exit(0)` exits 0 before any assert runs). To catch that, check the pass count in the
+  test output (for example `3 passed`). The other option is tests the code cannot reach.
 - `executor=` injects a ready executor. The loop uses it as is and does not close it.
+- `docker pull` the image first. A first-time pull inside the loop counts against `timeout`.
+
+## Cost and bounds
+
+- Model calls: at most `max_iterations` for `MicroPromptChain`; at most 3 times that for
+  `RalphChain` (librarian, artisan, critic). A `NO_CODE` pass still counts toward the limit.
+- The loop checks `max_seconds` between passes. It does not interrupt a running model call or test run.
+- `run_sync` blocks the calling thread, and inside a running event loop it blocks that loop
+  until the run ends. Prefer `await chain.run(...)` in async code.
+- `stopped_by` is not a reliable verdict: a pass on the last allowed iteration still reports
+  `max_iters=N`. Read `res.result` or `bool(res)`.
 
 ## MicroPromptChain, offline
 
@@ -153,10 +179,11 @@ print(res.result, res.iterations, res.stopped_by)   # STAGNATED 3 stagnated(entr
 | `run(objective, target_file="solution.py", *, test_command=None, deps=None, install_command=None, starting_code="", runner=None)` | `test_command` belongs to `run`, not the constructor. Passing it to `RalphChain(...)` raises `TypeError`. |
 | Returns `RalphResult` | `.result` is `PASS`, `FAIL`, `TIMEOUT`, `STAGNATED` or `NO_CODE`; `.winning_code`, `.iterations`, `.stopped_by`, `.history` (list of `RalphIteration(iteration, librarian, code, critic, passed, test_output)`). |
 | Carried between passes | Only the test output, plus the critic notes when the critic did not approve, and the last code. Prompts are rebuilt each pass. |
-| `entropy_threshold` | `k >= 1`: stop with `STAGNATED` when the last `k` normalized failure signatures are identical. The signature masks digits and hex, so changing line numbers do not hide a repeat. `0` disables. |
+| `entropy_threshold` | `k >= 1`: stop with `STAGNATED` when the last `k` failure signatures are identical. The signature is the first 240 characters of the output after masking digits and hex. Two different failures that share a long header (for example the same pytest banner) can look identical and stop the loop early. Set `entropy_threshold=0` to disable. `1` stops after the first failure. |
 
 The critic is a pre-test review. It never blocks a test run; a failed run only gets its notes
-appended to the failure text.
+appended to the failure text. The loop adds the notes only when the first line lacks `APPROVE`, and
+that check is a substring match, so `DO NOT APPROVE` counts as an approval.
 
 ## Common mistakes
 
@@ -165,6 +192,7 @@ appended to the failure text.
 - **Leaving `use_docker=True` on a host with no Docker and ignoring the warning.** The code runs unsandboxed on the host.
 - **`install_command="pip install ..."` with the default `network="none"`.** The install fails inside Docker. Use `network="bridge"` or a prebuilt image.
 - **`test_command` that cannot see the target.** The loop writes files into the sandbox work dir; tests must import the module by the same name as `target_file` (`solution.py` -> `from solution import ...`).
+- **A test directory with no tests.** `pytest` exits 5, so every iteration is `FAIL`.
 - **Test command that always exits 0.** The loop reports `PASS` on the first pass. The exit code is the only signal.
 - **Trusting `winning_code` when `result != "PASS"`.** It is `None` unless a pass occurred.
 - **`generate` that returns prose with no fenced block.** The loop uses the whole output as code. A fully empty output gives `NO_CODE` and the loop keeps trying.
