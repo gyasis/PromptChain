@@ -3,6 +3,7 @@
 import json
 import sys
 import types
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,6 +13,7 @@ from promptchain.utils.execution_callback import CallbackManager
 from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 from promptchain.utils.trace_export import (
     TraceRecorder,
+    redact_spans,
     records_from_agentic,
     write_jsonl,
 )
@@ -106,8 +108,9 @@ async def test_secret_redacted_and_opt_out():
             await chain.process_prompt_async(f"use {SECRET}")
         r = rec.records()[0]
         if redact_secrets:
-            assert r["prompt"][0]["content"] == expect
-            assert r["completion"][0]["content"] == expect
+            assert r["prompt"][0]["content"] == f"use {expect}"
+            assert r["completion"][0]["content"] == f"key {expect}"
+            assert r["redactions"] == 2
         else:
             assert SECRET in r["prompt"][0]["content"]
 
@@ -186,11 +189,12 @@ def test_records_from_agentic_history_and_processor():
         assert rec["reward"] == 1.0
         assert rec["tools"] == [{"type": "function"}]
         assert rec["messages"][2]["tool_calls"][0]["function"]["arguments"] == {"q": "x"}
-        assert rec["messages"][3]["content"] == "***REDACTED***"
+        assert rec["messages"][3]["content"] == "result ***REDACTED***"
+        assert rec["redactions"] == 1
     assert history[2]["tool_calls"][0]["function"]["arguments"] == '{"q": "x"}'
     (raw,) = records_from_agentic(history, redact_secrets=False)
     assert SECRET in raw["messages"][3]["content"]
-    assert "tools" not in raw and "reward" not in raw
+    assert "tools" not in raw and "reward" not in raw and "redactions" not in raw
 
 
 def test_write_jsonl_round_trip(tmp_path):
@@ -274,3 +278,225 @@ def test_mlflow_observer_logs_no_new_artifacts():
         obs._handle_model_call_end(end)
         mlf.log_text.assert_not_called()
         mlf.log_artifact.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Audit findings
+# ---------------------------------------------------------------------------
+
+
+def _ev(etype, step=1, **md):
+    return ExecutionEvent(event_type=etype, step_number=step, model_name="m", metadata=md)
+
+
+START, END, ERR = (
+    ExecutionEventType.MODEL_CALL_START,
+    ExecutionEventType.MODEL_CALL_END,
+    ExecutionEventType.MODEL_CALL_ERROR,
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shared_chain", [True, False])
+async def test_concurrent_runs_sharing_a_recorder_pair_correctly(shared_chain):
+    async def fake(**kw):
+        user = kw["messages"][-1]["content"]
+        await asyncio.sleep(0.01 if "AAA" in user else 0.05)
+        return {"role": "assistant", "content": "reply-to:" + ("AAA" if "AAA" in user else "BBB")}
+
+    rec = TraceRecorder()
+    if shared_chain:
+        chain_a = chain_b = PromptChain(models=["openai/x"], instructions=["{input}"])
+        chain_a.register_callback(rec.handle_event)
+    else:
+        chain_a = PromptChain(models=["openai/x"], instructions=["{input}"])
+        chain_b = PromptChain(models=["openai/x"], instructions=["{input}"])
+        chain_a.register_callback(rec.handle_event)
+        chain_b.register_callback(rec.handle_event)
+    with patch.object(PromptChain, "run_model_async", AsyncMock(side_effect=fake)):
+        await asyncio.gather(chain_a.process_prompt_async("AAA"), chain_b.process_prompt_async("BBB"))
+    records = rec.records()
+    # Overlapping emits on one shared CallbackManager can lose events
+    # (CallbackManager._emitting), so a shared chain may yield fewer records,
+    # but never a mispaired one.
+    assert len(records) >= (1 if shared_chain else 2)
+    for r in records:
+        assert r["prompt"][-1]["content"][-3:] in r["completion"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_trace_call_id_present_on_start_end_error_only_with_callbacks():
+    seen = []
+
+    async def spy(event):
+        seen.append(event)
+
+    chain = PromptChain(models=["openai/x"], instructions=["{input}"])
+    chain.register_callback(spy)
+    mock = AsyncMock(side_effect=[{"role": "assistant", "content": "ok"}, RuntimeError("boom")])
+    with patch.object(PromptChain, "run_model_async", mock):
+        await chain.process_prompt_async("a")
+        with pytest.raises(Exception):
+            await chain.process_prompt_async("b")
+    model_events = [e for e in seen if e.event_type in (START, END, ERR)]
+    ids = [e.metadata["trace_call_id"] for e in model_events]
+    assert len(ids) == 4 and ids[0] == ids[1] and ids[2] == ids[3]
+    assert ids[0] != ids[2]
+
+
+@pytest.mark.asyncio
+async def test_id_less_overlap_poisons_the_key():
+    rec = TraceRecorder()
+    msgs = [{"role": "user", "content": "x"}]
+    await rec.handle_event(_ev(START, prompt_messages=msgs))
+    await rec.handle_event(_ev(START, prompt_messages=msgs))
+    await rec.handle_event(_ev(END, response_message={"role": "assistant", "content": "r1"}))
+    assert rec.records() == []
+    await rec.handle_event(_ev(START, prompt_messages=msgs))
+    await rec.handle_event(_ev(END, response_message={"role": "assistant", "content": "r2"}))
+    assert len(rec.records()) == 1
+
+
+@pytest.mark.asyncio
+async def test_error_with_id_does_not_steal_another_calls_start():
+    rec = TraceRecorder()
+    m = [{"role": "user", "content": "x"}]
+    await rec.handle_event(_ev(START, prompt_messages=m, trace_call_id="a"))
+    await rec.handle_event(_ev(START, prompt_messages=m, trace_call_id="b"))
+    await rec.handle_event(_ev(ERR, trace_call_id="a", error="e"))
+    await rec.handle_event(_ev(END, trace_call_id="b", response_message={"role": "assistant", "content": "ok"}))
+    assert len(rec.records()) == 1
+
+
+@pytest.mark.asyncio
+async def test_warning_and_empty_responses_are_skipped():
+    rec = TraceRecorder()
+    m = [{"role": "user", "content": "x"}]
+    for resp in (
+        {"role": "assistant", "content": "partial", "warning": "truncated"},
+        {"role": "assistant", "content": ""},
+        {"role": "assistant", "content": None},
+    ):
+        await rec.handle_event(_ev(START, prompt_messages=m, trace_call_id="i"))
+        await rec.handle_event(_ev(END, trace_call_id="i", response_message=resp))
+    assert rec.records() == []
+    await rec.handle_event(_ev(START, prompt_messages=m, trace_call_id="i"))
+    await rec.handle_event(
+        _ev(END, trace_call_id="i", response_message={"role": "assistant", "content": None,
+            "tool_calls": [{"id": "1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]})
+    )
+    assert len(rec.records()) == 1
+
+
+@pytest.mark.asyncio
+async def test_prompt_messages_use_the_allow_list():
+    rec = TraceRecorder()
+    m = [
+        {"role": "user", "content": "q"},
+        {"role": "assistant", "content": None, "usage": {"x": 1}, "refusal": None,
+         "tool_calls": [{"id": "c", "type": "function", "function": {"name": "f", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "c", "name": "f", "content": "r", "extra": 1},
+    ]
+    await rec.handle_event(_ev(START, prompt_messages=m, trace_call_id="i"))
+    await rec.handle_event(_ev(END, trace_call_id="i", response_message={"role": "assistant", "content": "z", "usage": {}}))
+    prompt = rec.records()[0]["prompt"]
+    assert set(prompt[1]) == {"role", "tool_calls"}
+    assert set(prompt[2]) == {"role", "tool_call_id", "name", "content"}
+    assert set(rec.records()[0]["completion"][0]) == {"role", "content"}
+
+
+def test_span_redaction_keeps_surroundings_and_ids():
+    text = "Use AKIAIOSFODNN7EXAMPLE and xoxb-1234-5678-abcdEFGH now, key " + SECRET
+    out, n = redact_spans(text)
+    assert n == 3
+    assert out == "Use ***REDACTED*** and ***REDACTED*** now, key ***REDACTED***"
+    long_id = "toolu_01A09q90qw90lq917835lq9AbC"
+    msg = [{"role": "tool", "tool_call_id": long_id, "id": long_id, "content": "ok"}]
+    assert redact_spans(msg) == (msg, 0)
+
+
+@pytest.mark.parametrize(
+    "benign",
+    [
+        "/home/user/Documents/code/PromptChain2/promptchain/utils",
+        "commit 94ce7be3a1f2c4d5e6f708192a3b4c5d6e7f8091",
+        "session 3f2a9c1b7d4e4f0a8b6c2d1e0f9a8b7c",
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk",
+        "the task-force-alpha-team met",
+    ],
+)
+def test_benign_strings_are_not_redacted(benign):
+    assert redact_spans(benign) == (benign, 0)
+
+
+@pytest.mark.parametrize(
+    "secret",
+    ["ghp_ABCDEFghijkl1234567890mnopqrSTUVwx", "hf_AbCdEfGhIjKlMnOpQrStUvWxYz12345",
+     "curl -H 'Authorization: Bearer abcd1234efgh'",
+     "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc-DEF_123"],
+)
+def test_known_secret_shapes_are_redacted(secret):
+    out, n = redact_spans(secret)
+    assert n >= 1 and "***REDACTED***" in out
+
+
+def test_key_names_match_exactly():
+    args = {"token_count": 5, "max_tokens": 100, "query": "x", "token": "t",
+            "creds": {"password": "p", "apiKey": "k", "api-key": "k2"}}
+    out, n = redact_spans(args)
+    assert out["token_count"] == 5 and out["max_tokens"] == 100 and out["query"] == "x"
+    assert out["token"] == out["creds"]["password"] == out["creds"]["apiKey"] == "***REDACTED***"
+    assert out["creds"]["api-key"] == "***REDACTED***"
+    assert n == 4
+
+
+@pytest.mark.asyncio
+async def test_drop_redacted_completions_option():
+    for drop, expected in ((False, 1), (True, 0)):
+        rec = TraceRecorder(drop_redacted_completions=drop)
+        await rec.handle_event(_ev(START, prompt_messages=[{"role": "user", "content": "q"}], trace_call_id="i"))
+        await rec.handle_event(_ev(END, trace_call_id="i", response_message={"role": "assistant", "content": SECRET}))
+        assert len(rec.records()) == expected
+    rec = TraceRecorder(drop_redacted_completions=True)
+    await rec.handle_event(_ev(START, prompt_messages=[{"role": "user", "content": SECRET}], trace_call_id="i"))
+    await rec.handle_event(_ev(END, trace_call_id="i", response_message={"role": "assistant", "content": "fine"}))
+    assert rec.records()[0]["redactions"] == 1
+
+
+def test_records_from_agentic_raises_on_empty_history():
+    with pytest.raises(ValueError):
+        records_from_agentic([])
+    with pytest.raises(ValueError):
+        records_from_agentic(types.SimpleNamespace(internal_history=[]))
+
+
+def test_records_from_agentic_drop_redacted_and_allow_list():
+    history = [{"role": "user", "content": SECRET, "usage": {}}, {"role": "assistant", "content": "ok"}]
+    assert records_from_agentic(history, drop_redacted=True) == []
+    (rec,) = records_from_agentic(history)
+    assert set(rec["messages"][0]) == {"role", "content"}
+
+
+@pytest.mark.asyncio
+async def test_agentic_internal_history_is_not_stale_after_a_failed_run():
+    from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+
+    proc = AgenticStepProcessor(objective="obj", max_internal_steps=2, model_name="openai/x")
+
+    async def ok_runner(**kw):
+        return {"role": "assistant", "content": "done"}
+
+    async def failing_runner(**kw):
+        raise RuntimeError("boom")
+
+    async def tool_exec(tc):
+        return "r"
+
+    await proc.run_async("first run", [], ok_runner, tool_exec)
+    assert any("first run" in str(m.get("content")) for m in proc.internal_history)
+    try:
+        await proc.run_async("second run", [], failing_runner, tool_exec)
+    except Exception:
+        pass
+    texts = " ".join(str(m.get("content")) for m in proc.internal_history)
+    assert "second run" in texts and "first run" not in texts

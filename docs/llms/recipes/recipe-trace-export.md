@@ -68,8 +68,20 @@ Each line of `traces.jsonl` is one model call:
 Rules for the recorder:
 
 - Register it **before** the run, with `chain.register_callback(recorder.handle_event)`.
-- Use **one recorder per run.** It pairs each start event with its end event by step number.
-  Two concurrent runs that share a recorder mix their records. Call `recorder.clear()` to reuse it.
+- The recorder pairs each start event with its end event on the `trace_call_id` key that
+  `PromptChain` adds to the model-call events. Concurrent runs can share a recorder safely.
+  Events that lack the id (from another emitter) pair on step number, which is **unsafe under
+  concurrency**: overlapping calls can swap completions. The recorder detects an overlap on that
+  fallback key, drops the affected records and logs a warning. Call `recorder.clear()` to reuse
+  a recorder.
+- `CallbackManager.emit` skips an event that arrives while another emit is still running on the
+  same chain object. Two concurrent runs on **one chain object** can therefore lose events and
+  yield fewer records. Use one chain object per concurrent run. The recorder never mispairs
+  the records it keeps.
+- The recorder skips and logs an end event whose response has a `warning` key, or has no
+  content and no tool calls.
+- Every message keeps only `role`, `content`, `tool_calls`, `tool_call_id` and `name`, and
+  drops keys whose value is `None`. Usage, refusal and reasoning fields do not reach the file.
 - The recorder drops a model call that raises and logs a warning. It never writes a half record.
 - A tool-calling step gives two records: the call that asked for the tool, then the follow-up
   call whose prompt holds the tool results.
@@ -104,7 +116,17 @@ write_jsonl(records, "agentic.jsonl")
 #   records = records_from_agentic(processor, tools=chain.tools, reward=1.0)
 ```
 
-The result is one `{"messages": [...], "tools"?: [...], "reward"?: float}` record per call.
+The result is one `{"messages": [...], "tools"?: [...], "reward"?: float, "redactions": int}`
+record per call. Know what it represents:
+
+- `records_from_agentic` raises `ValueError` on an empty history.
+- After a failed `run_async`, `processor.internal_history` holds the partial history of the
+  failed run, not the previous run's. That history ends mid-conversation. Check that the last
+  message is a final assistant answer before you train on it.
+- The record is the whole internal conversation. With `history_mode="minimal"` the model saw
+  only the system message, the objective and the latest tool exchange on each step. The record
+  then shows the trajectory, not the exact prompt at each step. With `"progressive"` or
+  `"kitchen_sink"` the model saw the accumulated history, and the record is closer to it.
 
 ## Load it for training
 
@@ -115,19 +137,25 @@ chain_data = load_dataset("json", data_files="traces.jsonl", split="train")
 agentic_data = load_dataset("json", data_files="agentic.jsonl", split="train")
 ```
 
-`datasets` is not a PromptChain dependency. Install it with `pip install datasets`.
+`datasets` is not a PromptChain dependency. Install it with `pip install "datasets>=4.7"`.
+
+Tool-call `arguments` differ in shape from one tool to the next, and so do the `tools` schemas.
+Version 4.7 and later of `datasets` stores such free-form values with the `Json` type, so
+mixed rows load. On an older version, the load can fail on conflicting struct types. Then store
+the free-form columns as JSON strings before you write the file (for example
+`rec["tools"] = json.dumps(rec["tools"])`) and `json.loads` them in a `map` step before
+training. This recipe ran only the `>=4.7` path.
 
 ## How this fits TRL
 
-Checked against the TRL docs (`docs/source/sft_trainer.md`, `dataset_formats.md`,
-`grpo_trainer.md`, through context7, library `/huggingface/trl`, 2026-11-26):
+Based on the TRL docs for `SFTTrainer`, the dataset formats page and `GRPOTrainer`:
 
 | TRL format | Our output | Fit |
 |---|---|---|
 | Conversational prompt-completion: `{"prompt": [msgs], "completion": [assistant msg]}` | `TraceRecorder` records | Direct. `SFTTrainer` applies the chat template. |
 | Conversational language modeling: `{"messages": [...]}` | `records_from_agentic` records | Direct. |
 | `tools` column, JSON schemas, with `tool_calls` in messages and `tool` role messages | `tools` plus the converted `tool_calls` | Direct. The `tools` value is the OpenAI-style schema list PromptChain already holds. |
-| GRPO `reward_funcs` receive every extra dataset column as a keyword argument | `reward`, `model` and `step` columns | Partial. See below. |
+| GRPO `reward_funcs` receive every extra dataset column as a keyword argument | `reward`, `model`, `step` and `redactions` columns | Partial. See below. |
 
 Limits you should know about:
 
@@ -137,15 +165,15 @@ Limits you should know about:
   stored `reward` does not feed GRPO as a reward. Use it for offline filtering before SFT
   (`data.filter(lambda r: r["reward"] >= 1.0)`), and a reward function can read the column as a
   keyword argument if you pass the data as a GRPO dataset.
-- The extra columns `model` and `step` are scalars. If your trainer rejects unknown columns,
-  drop them with `data.remove_columns(["model", "step"])`.
+- The extra columns `model`, `step` and `redactions` are scalars. If your trainer rejects
+  unknown columns, drop them with `data.remove_columns(["model", "step", "redactions"])`.
 - A record whose assistant `content` is `None` (a tool call) next to records with string
   content can make `datasets` infer a nullable string column. If your loader complains, load
   the file with an explicit `features=` argument.
 
 ## What is and is not captured
 
-Captured: every `PromptChain` model call made while the recorder is registered. That includes the
+Captured: every `PromptChain` model call that runs while the recorder listens. That includes the
 tool follow-up call, with the exact messages sent and the assistant message received.
 
 Not captured:
@@ -157,23 +185,41 @@ Not captured:
 
 ## Redaction
 
-`redact_secrets=True` is the default. It runs `promptchain.observability._transcript_redaction.redact`
-on prompts, completions and agentic messages.
+`redact_secrets=True` is the default. The recorder replaces **only the matched span** and
+keeps the text around it. It stores the number of replacements in a `redactions` column.
+Pass `drop_redacted_completions=True` to `TraceRecorder` to drop records whose completion needed a
+replacement. A model trained on such a completion learns to emit `***REDACTED***`. Redacted
+prompts are less harmful, so the option leaves them in.
 
-- A string value that looks like a secret (`sk-...` keys, `Bearer ...` headers, JWTs, long hex
-  or mixed-case base64-like tokens) becomes `***REDACTED***`. **The whole string value
-  changes**, not only the secret. A long prompt with one key inside becomes
-  `***REDACTED***`. This favours safety over data yield. Review a sample of the output.
-- A dict key named like `api_key`, `token`, `secret`, `password`, `authorization` or `bearer`
-  has its value replaced.
-- The `tools` schema column is **not** redacted, because a parameter named `token` would
-  otherwise replace the whole parameter schema. Do not put secrets in tool descriptions.
-- `redact_secrets=False` keeps everything. Use it only for data that never leaves your machine.
+Caught:
 
-The new `prompt_messages`, `tools` and `response_message` event keys carry the raw, unredacted
-text to every registered callback. They are separate from the `messages` and `response` keys
-that `MLflowObserver` reads, so MLflow logs no new artifacts. Any callback you write yourself
-receives them unredacted.
+- `sk-` keys, `Bearer` tokens, JWTs, AWS `AKIA` key ids, Slack `xoxa-`, `xoxb-` and `xoxp-`
+  tokens, GitHub `ghp_`-style and `github_pat_` tokens, Hugging Face `hf_` tokens.
+- The whole value of a dict key that is exactly `api_key`, `apikey`, `api-key`,
+  `authorization`, `password`, `passwd`, `secret`, `token`, `access_token`, `refresh_token`,
+  `client_secret` or `private_key` (any case). That covers parsed tool-call arguments.
+  The recorder keeps keys such as `max_tokens` and `token_count`.
+
+Never redacted: values of `id` and `tool_call_id` keys, file paths, git SHAs, UUIDs, base64
+data URLs, and the `tools` schema column.
+
+Known false negatives, which you must handle yourself:
+
+- Plain-language secrets ("my password is hunter2") and secrets with no known prefix.
+- A secret inside a JSON string, under a key name, such as the text `"api_key": "abc"` in a
+  tool result. The key match works on dict keys, not on text.
+- Any other provider's key format.
+
+Known false positives: a string that looks like a listed key, for example `sk-` followed by ten
+or more letters that is not a key. Review a sample of the output before you train.
+
+`redact_secrets=False` keeps everything. Use it only for data that never leaves your machine.
+
+The new `prompt_messages`, `tools`, `response_message` and `trace_call_id` event keys carry
+raw, unredacted text to every registered callback. They differ from the `messages` and
+`response` keys that `MLflowObserver` reads. They also differ from the `call_id` key that the
+transcript and MLflow layers read. Those layers log nothing new. Any callback you write yourself receives
+the raw text.
 
 ## Cross-references
 

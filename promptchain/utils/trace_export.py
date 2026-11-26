@@ -11,24 +11,102 @@ event with its MODEL_CALL_END event and keeps one record per model call:
 agentic steps emit no MODEL_CALL events. ``write_jsonl`` writes records one
 JSON object per line, which ``datasets.load_dataset("json", ...)`` reads.
 
-The recorder reads the ``prompt_messages``, ``tools`` and ``response_message``
-metadata keys. ``PromptChain`` fills them only while a callback is registered.
+The recorder reads the ``prompt_messages``, ``tools``, ``response_message`` and
+``trace_call_id`` metadata keys. ``PromptChain`` fills them only while a
+callback is registered.
 """
 
 import copy
 import json
 import logging
+import re
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
-from promptchain.observability._transcript_redaction import redact
 from promptchain.utils.execution_events import ExecutionEvent, ExecutionEventType
 
 logger = logging.getLogger(__name__)
 
 RewardFn = Callable[[dict], Optional[float]]
 
-_ASSISTANT_KEYS = ("role", "content", "tool_calls")
+REDACTED = "***REDACTED***"
+
+# Message keys that survive export. Everything else (usage, refusal,
+# reasoning_content, ...) is dropped, and so is any key whose value is None.
+_MESSAGE_KEYS = ("role", "content", "tool_calls", "tool_call_id", "name")
+
+# Span patterns: only the matched text is replaced.
+_SECRET_PATTERNS = [
+    re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"Bearer\s+\S{4,}"),
+    re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bxox[abp]-[A-Za-z0-9-]+"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bhf_[A-Za-z0-9]{20,}"),
+]
+
+# Dict keys whose whole value is replaced. Matched exactly after lower-casing
+# and mapping "-" to "_", so "max_tokens" and "token_count" are kept.
+_SECRET_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+        "client_secret",
+        "private_key",
+    }
+)
+
+# Keys that carry identifiers: never redacted.
+_ID_KEYS = frozenset({"id", "tool_call_id"})
+
+
+def redact_spans(value: Any) -> Tuple[Any, int]:
+    """Return ``(redacted copy, number of replacements)`` for *value*.
+
+    Replaces matched secret spans inside strings, and the whole value of a dict
+    key named exactly like a secret field. Identifier keys are left alone.
+    """
+    if isinstance(value, dict):
+        out: Dict[Any, Any] = {}
+        total = 0
+        for k, v in value.items():
+            if isinstance(k, str) and k in _ID_KEYS:
+                out[k] = v
+            elif (
+                isinstance(k, str)
+                and k.lower().replace("-", "_") in _SECRET_KEYS
+                and v not in (None, "")
+            ):
+                out[k] = REDACTED
+                total += 1
+            else:
+                out[k], n = redact_spans(v)
+                total += n
+        return out, total
+    if isinstance(value, (list, tuple)):
+        items = []
+        total = 0
+        for item in value:
+            new, n = redact_spans(item)
+            items.append(new)
+            total += n
+        return items, total
+    if isinstance(value, str):
+        total = 0
+        for pattern in _SECRET_PATTERNS:
+            value, n = pattern.subn(REDACTED, value)
+            total += n
+        return value, total
+    return value, 0
 
 
 def _as_dict(obj: Any) -> Any:
@@ -63,42 +141,81 @@ def _normalize_tool_calls(message: dict) -> None:
     message["tool_calls"] = normalized
 
 
+def _clean_message(msg: Any) -> Optional[dict]:
+    """Return a deep-copied message limited to the allowed keys, or None."""
+    msg = _as_dict(copy.deepcopy(msg))
+    if not isinstance(msg, dict):
+        logger.warning("dropping non-dict message of type %s", type(msg).__name__)
+        return None
+    cleaned = {k: msg[k] for k in _MESSAGE_KEYS if msg.get(k) is not None}
+    _normalize_tool_calls(cleaned)
+    return cleaned
+
+
 def _clean_messages(messages: Iterable[Any]) -> List[dict]:
-    """Deep-copy *messages* into plain dicts with parsed tool-call arguments."""
-    out: List[dict] = []
-    for msg in copy.deepcopy(list(messages)):
-        msg = _as_dict(msg)
-        if not isinstance(msg, dict):
-            logger.warning("dropping non-dict message of type %s", type(msg).__name__)
-            continue
-        _normalize_tool_calls(msg)
-        out.append(msg)
-    return out
+    out = [_clean_message(m) for m in messages]
+    return [m for m in out if m is not None]
 
 
 def _clean_completion(response_message: Any) -> dict:
-    """Return the assistant message holding only role, content and tool_calls."""
-    msg = _as_dict(copy.deepcopy(response_message))
-    cleaned = {k: msg[k] for k in _ASSISTANT_KEYS if k in msg and msg[k] is not None}
+    """Return the assistant message limited to the allowed keys."""
+    cleaned = _clean_message(response_message) or {}
     cleaned.setdefault("role", "assistant")
-    _normalize_tool_calls(cleaned)
     return cleaned
+
+
+def _is_empty_response(msg: Any) -> bool:
+    msg = _as_dict(msg)
+    if not isinstance(msg, dict):
+        return True
+    content = msg.get("content")
+    has_content = bool(content.strip()) if isinstance(content, str) else bool(content)
+    return not has_content and not msg.get("tool_calls")
 
 
 class TraceRecorder:
     """Collect one prompt/completion record per model call.
 
-    Register with ``chain.register_callback(recorder.handle_event)``. START and
-    END events are paired by ``(step_number, is_followup)``, so use one recorder
-    per run: concurrent runs would collide on those keys.
+    Register with ``chain.register_callback(recorder.handle_event)``.
 
-    A START event without a matching END (the call errored) is dropped.
+    START and END events pair on the ``trace_call_id`` metadata key that
+    ``PromptChain`` adds while a callback is registered, so one recorder can
+    serve concurrent runs. Events without that id (from another emitter)
+    pair on ``(step_number, is_followup)``, which is **not safe under
+    concurrency**: two overlapping calls on the same key would swap
+    completions. When a START replaces an unfinished START on such a key, the
+    recorder drops that key's next END and the replacing START, and logs it.
+
+    A START without a matching END (the call errored) is dropped. END events
+    whose response has a ``warning`` key, or has neither content nor tool
+    calls, are skipped and logged.
+
+    With ``redact_secrets`` the recorder replaces secret spans in prompts and
+    completions and stores the replacement count in a ``redactions`` column.
+    ``drop_redacted_completions=True`` drops records whose completion needed
+    a replacement, which keeps a trained model from learning to emit
+    ``***REDACTED***``.
     """
 
-    def __init__(self, *, redact_secrets: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        redact_secrets: bool = True,
+        drop_redacted_completions: bool = False,
+    ) -> None:
         self.redact_secrets = redact_secrets
-        self._pending: Dict[Tuple[Optional[int], bool], dict] = {}
+        self.drop_redacted_completions = drop_redacted_completions
+        self._pending: Dict[tuple, dict] = {}
+        self._poisoned: Set[tuple] = set()
         self._records: List[dict] = []
+
+    @staticmethod
+    def _key(event: ExecutionEvent) -> tuple:
+        md = event.metadata or {}
+        call_id = md.get("trace_call_id")
+        if call_id:
+            return ("id", call_id)
+        return ("step", event.step_number, bool(md.get("is_followup")))
 
     async def handle_event(self, event: ExecutionEvent) -> None:
         etype = event.event_type
@@ -109,14 +226,19 @@ class TraceRecorder:
         ):
             return
         md = event.metadata or {}
-        key = (event.step_number, bool(md.get("is_followup")))
+        key = self._key(event)
 
         if etype == ExecutionEventType.MODEL_CALL_START:
             if "prompt_messages" not in md:
                 logger.debug("MODEL_CALL_START without prompt_messages; skipped")
                 return
-            if key in self._pending:
-                logger.warning("MODEL_CALL_START %s replaced an unfinished call", key)
+            if key in self._pending and key[0] == "step":
+                logger.warning(
+                    "MODEL_CALL_START %s replaced an unfinished call without a "
+                    "trace_call_id; dropping the next END for this key",
+                    key,
+                )
+                self._poisoned.add(key)
             self._pending[key] = {
                 "prompt": _clean_messages(md["prompt_messages"]),
                 "tools": copy.deepcopy(md.get("tools")),
@@ -130,25 +252,46 @@ class TraceRecorder:
                 )
         else:
             start = self._pending.pop(key, None)
+            if key in self._poisoned:
+                self._poisoned.discard(key)
+                logger.warning("MODEL_CALL_END %s is ambiguous after overlap; dropped", key)
+                return
             if start is None:
                 logger.warning("MODEL_CALL_END %s has no matching START; skipped", key)
                 return
-            if "response_message" not in md:
+            response = md.get("response_message")
+            if response is None:
                 logger.warning("MODEL_CALL_END %s has no response_message; skipped", key)
                 return
-            record = {
-                "prompt": start["prompt"],
-                "completion": [_clean_completion(md["response_message"])],
-            }
+            if isinstance(response, dict) and "warning" in response:
+                logger.warning(
+                    "MODEL_CALL_END %s carries a warning (%s); skipped",
+                    key,
+                    response["warning"],
+                )
+                return
+            if _is_empty_response(response):
+                logger.warning("MODEL_CALL_END %s has an empty response; skipped", key)
+                return
+            prompt = start["prompt"]
+            completion = [_clean_completion(response)]
+            redactions = 0
+            if self.redact_secrets:
+                prompt, n_prompt = redact_spans(prompt)
+                completion, n_completion = redact_spans(completion)
+                redactions = n_prompt + n_completion
+                if n_completion and self.drop_redacted_completions:
+                    logger.warning(
+                        "MODEL_CALL_END %s completion needed redaction; dropped", key
+                    )
+                    return
+            record: Dict[str, Any] = {"prompt": prompt, "completion": completion}
             if start["tools"]:
                 record["tools"] = start["tools"]
             record["model"] = start["model"]
             record["step"] = start["step"]
             if self.redact_secrets:
-                tools = record.pop("tools", None)
-                record = redact(record)
-                if tools:
-                    record["tools"] = tools
+                record["redactions"] = redactions
             self._records.append(record)
 
     def records(self, reward: Optional[RewardFn] = None) -> List[dict]:
@@ -168,6 +311,7 @@ class TraceRecorder:
     def clear(self) -> None:
         """Forget collected records and unfinished calls."""
         self._pending.clear()
+        self._poisoned.clear()
         self._records.clear()
 
 
@@ -177,21 +321,40 @@ def records_from_agentic(
     tools: Optional[List[dict]] = None,
     reward: Optional[float] = None,
     redact_secrets: bool = True,
+    drop_redacted: bool = False,
 ) -> List[dict]:
     """Build a conversational ``messages`` record from an agentic step's history.
 
     Accepts a message list or an object with an ``internal_history`` attribute
-    (``AgenticStepProcessor``). Returns a one-element list.
+    (``AgenticStepProcessor``). Returns a one-element list, or an empty list
+    when ``drop_redacted`` is set and any span was replaced. Raises
+    ``ValueError`` for an empty history.
+
+    The record is the whole internal conversation. With
+    ``history_mode="minimal"`` the model saw only the system message, the
+    objective and the latest tool exchange on each step, so the record is the
+    trajectory, not the exact prompt the model saw at each step.
     """
     history = getattr(history_or_processor, "internal_history", history_or_processor)
     messages = _clean_messages(history)
+    if not messages:
+        raise ValueError(
+            "empty history: the agentic step has not run, or it failed before "
+            "recording any message"
+        )
+    redactions = 0
     if redact_secrets:
-        messages = redact(messages)
+        messages, redactions = redact_spans(messages)
+        if redactions and drop_redacted:
+            logger.warning("agentic record needed %d redactions; dropped", redactions)
+            return []
     record: Dict[str, Any] = {"messages": messages}
     if tools:
         record["tools"] = copy.deepcopy(tools)
     if reward is not None:
         record["reward"] = float(reward)
+    if redact_secrets:
+        record["redactions"] = redactions
     return [record]
 
 
