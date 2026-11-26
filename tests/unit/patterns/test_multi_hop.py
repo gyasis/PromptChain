@@ -36,6 +36,7 @@ def search():
 
 def make_pattern(search, **config_kwargs):
     config_kwargs.setdefault("decompose_first", False)
+    config_kwargs.setdefault("synthesizer_model", "ollama_chat/glm-5.3-flash:cloud")
     with patch("promptchain.integrations.lightrag.multi_hop.HYBRIDRAG_AVAILABLE", True):
         return LightRAGMultiHop(search, MultiHopConfig(**config_kwargs))
 

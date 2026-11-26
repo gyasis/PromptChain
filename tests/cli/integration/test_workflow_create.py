@@ -43,7 +43,8 @@ def test_session(session_manager, tmp_path):
     """Create test session."""
     return session_manager.create_session(
         name="test-workflow-session",
-        working_directory=tmp_path
+        working_directory=tmp_path,
+        default_model="ollama_chat/glm-5.3-flash:cloud",
     )
 
 

@@ -46,8 +46,8 @@ class TestResearcherTemplate:
         assert "AgenticStepProcessor" in description
 
     def test_researcher_template_model(self):
-        """Researcher template must use gpt-4 model."""
-        assert RESEARCHER_TEMPLATE.model == "openai/gpt-4"
+        """Templates carry no model; the caller names one."""
+        assert not hasattr(RESEARCHER_TEMPLATE, "model")
 
     def test_researcher_template_instruction_chain(self):
         """Researcher template must have 3-step instruction chain with agentic step."""
@@ -118,8 +118,8 @@ class TestCoderTemplate:
         assert "generation" in description.lower() or "file" in description.lower()
 
     def test_coder_template_model(self):
-        """Coder template must use gpt-4 model."""
-        assert CODER_TEMPLATE.model == "openai/gpt-4"
+        """Templates carry no model; the caller names one."""
+        assert not hasattr(CODER_TEMPLATE, "model")
 
     def test_coder_template_instruction_chain(self):
         """Coder template must have 3-step instruction chain with validation step."""
@@ -193,8 +193,8 @@ class TestAnalystTemplate:
         assert "insights" in description.lower() or "statistical" in description.lower()
 
     def test_analyst_template_model(self):
-        """Analyst template must use gpt-4 model."""
-        assert ANALYST_TEMPLATE.model == "openai/gpt-4"
+        """Templates carry no model; the caller names one."""
+        assert not hasattr(ANALYST_TEMPLATE, "model")
 
     def test_analyst_template_instruction_chain(self):
         """Analyst template must have 4-step analysis workflow."""
@@ -262,8 +262,8 @@ class TestTerminalTemplate:
         assert "60%" in description  # Token savings claim
 
     def test_terminal_template_model(self):
-        """Terminal template must use fast gpt-3.5-turbo model."""
-        assert TERMINAL_TEMPLATE.model == "openai/gpt-3.5-turbo"
+        """Templates carry no model; the caller names one."""
+        assert not hasattr(TERMINAL_TEMPLATE, "model")
 
     def test_terminal_template_instruction_chain(self):
         """Terminal template must have single-step direct pass-through."""
@@ -316,7 +316,7 @@ class TestAllTemplates:
 
     def test_all_templates_have_required_fields(self):
         """All templates must have required fields."""
-        required_fields = ["name", "display_name", "description", "model", "instruction_chain", "tools", "history_config", "metadata"]
+        required_fields = ["name", "display_name", "description", "instruction_chain", "tools", "history_config", "metadata"]
 
         for template_name, template in AGENT_TEMPLATES.items():
             for field in required_fields:
@@ -332,10 +332,10 @@ class TestAllTemplates:
         for template_name, template in AGENT_TEMPLATES.items():
             assert len(template.instruction_chain) >= 1, f"Template '{template_name}' has empty instruction chain"
 
-    def test_all_templates_have_valid_models(self):
-        """All templates must have valid LiteLLM model strings."""
+    def test_all_templates_carry_no_model(self):
+        """No template names a model."""
         for template_name, template in AGENT_TEMPLATES.items():
-            assert "/" in template.model, f"Template '{template_name}' has invalid model format: {template.model}"
+            assert not hasattr(template, "model"), template_name
 
     def test_terminal_is_only_template_with_disabled_history(self):
         """Only terminal template should have history disabled."""
@@ -354,14 +354,6 @@ class TestAllTemplates:
         """Coder should have 4000 token limit."""
         assert CODER_TEMPLATE.history_config.max_tokens == 4000
 
-    def test_terminal_uses_fastest_model(self):
-        """Terminal should use gpt-3.5-turbo for speed."""
-        assert TERMINAL_TEMPLATE.model == "openai/gpt-3.5-turbo"
-        # All others should use gpt-4
-        assert RESEARCHER_TEMPLATE.model == "openai/gpt-4"
-        assert CODER_TEMPLATE.model == "openai/gpt-4"
-        assert ANALYST_TEMPLATE.model == "openai/gpt-4"
-
 
 # ============================================================================
 # Template Creation and Utility Functions
@@ -373,11 +365,11 @@ class TestCreateFromTemplate:
 
     def test_create_researcher_agent_from_template(self):
         """Create researcher agent from template."""
-        agent = create_from_template("researcher", "my-researcher")
+        agent = create_from_template("researcher", "my-researcher", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         assert isinstance(agent, Agent)
         assert agent.name == "my-researcher"
-        assert agent.model_name == "openai/gpt-4"
+        assert agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert "research" in agent.description.lower()
         assert len(agent.instruction_chain) == 3
         assert agent.history_config.max_tokens == 8000
@@ -385,49 +377,49 @@ class TestCreateFromTemplate:
 
     def test_create_coder_agent_from_template(self):
         """Create coder agent from template."""
-        agent = create_from_template("coder", "python-dev")
+        agent = create_from_template("coder", "python-dev", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         assert isinstance(agent, Agent)
         assert agent.name == "python-dev"
-        assert agent.model_name == "openai/gpt-4"
+        assert agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert "code" in agent.description.lower()
         assert len(agent.instruction_chain) == 3
         assert agent.history_config.max_tokens == 4000
 
     def test_create_analyst_agent_from_template(self):
         """Create analyst agent from template."""
-        agent = create_from_template("analyst", "data-analyst")
+        agent = create_from_template("analyst", "data-analyst", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         assert isinstance(agent, Agent)
         assert agent.name == "data-analyst"
-        assert agent.model_name == "openai/gpt-4"
+        assert agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert "analysis" in agent.description.lower()
         assert len(agent.instruction_chain) == 4
         assert agent.history_config.max_tokens == 8000
 
     def test_create_terminal_agent_from_template(self):
         """Create terminal agent from template."""
-        agent = create_from_template("terminal", "bash-exec")
+        agent = create_from_template("terminal", "bash-exec", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         assert isinstance(agent, Agent)
         assert agent.name == "bash-exec"
-        assert agent.model_name == "openai/gpt-3.5-turbo"
+        assert agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert "terminal" in agent.description.lower() or "execution" in agent.description.lower()
         assert len(agent.instruction_chain) == 1
         assert agent.history_config.enabled is False
 
     def test_create_with_model_override(self):
         """Create agent with custom model override."""
-        agent = create_from_template("researcher", "claude-researcher", model_override="anthropic/claude-3-opus")
+        agent = create_from_template("researcher", "claude-researcher", model_override="ollama_chat/glm-5.3-flash:cloud")
 
-        assert agent.model_name == "anthropic/claude-3-opus"
+        assert agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         # Other properties should remain from template
         assert agent.history_config.max_tokens == 8000
 
     def test_create_with_description_override(self):
         """Create agent with custom description override."""
         custom_desc = "Custom ML research specialist"
-        agent = create_from_template("researcher", "ml-researcher", description_override=custom_desc)
+        agent = create_from_template("researcher", "ml-researcher", description_override=custom_desc, model_override="ollama_chat/glm-5.3-flash:cloud")
 
         assert agent.description == custom_desc
         # Other properties should remain from template
@@ -436,17 +428,17 @@ class TestCreateFromTemplate:
     def test_create_from_invalid_template_raises_error(self):
         """Creating from non-existent template should raise ValueError."""
         with pytest.raises(ValueError, match="Template 'invalid' not found"):
-            create_from_template("invalid", "test-agent")
+            create_from_template("invalid", "test-agent", model_override="ollama_chat/glm-5.3-flash:cloud")
 
     def test_created_agent_has_timestamp(self):
         """Created agent should have creation timestamp."""
-        agent = create_from_template("researcher", "test")
+        agent = create_from_template("researcher", "test", model_override="ollama_chat/glm-5.3-flash:cloud")
         assert agent.created_at > 0
 
     def test_created_agent_instruction_chain_is_copy(self):
         """Created agent should have independent instruction chain copy."""
-        agent1 = create_from_template("researcher", "agent1")
-        agent2 = create_from_template("researcher", "agent2")
+        agent1 = create_from_template("researcher", "agent1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        agent2 = create_from_template("researcher", "agent2", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Modify agent1's chain
         agent1.instruction_chain.append("extra step")
@@ -467,7 +459,7 @@ class TestListTemplates:
     def test_list_templates_contains_required_fields(self):
         """Each template info should contain required fields."""
         templates = list_templates()
-        required_fields = ["name", "display_name", "description", "model", "complexity", "token_usage"]
+        required_fields = ["name", "display_name", "description", "complexity", "token_usage"]
 
         for template_info in templates:
             for field in required_fields:

@@ -43,7 +43,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("researcher", "my-researcher")
+        agent = create_from_template("researcher", "my-researcher", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Add to session
         session.agents[agent.name] = agent
@@ -56,7 +56,7 @@ class TestTemplateInstantiation:
         loaded_agent = loaded_session.agents["my-researcher"]
 
         # Verify agent properties preserved
-        assert loaded_agent.model_name == "openai/gpt-4"
+        assert loaded_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert loaded_agent.history_config.max_tokens == 8000
         assert loaded_agent.history_config.max_entries == 50
         assert len(loaded_agent.instruction_chain) == 3
@@ -70,7 +70,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("coder", "python-dev")
+        agent = create_from_template("coder", "python-dev", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Add to session
         session.agents[agent.name] = agent
@@ -83,7 +83,7 @@ class TestTemplateInstantiation:
         loaded_agent = loaded_session.agents["python-dev"]
 
         # Verify agent properties preserved
-        assert loaded_agent.model_name == "openai/gpt-4"
+        assert loaded_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert loaded_agent.history_config.max_tokens == 4000
         assert loaded_agent.history_config.max_entries == 20
         assert len(loaded_agent.instruction_chain) == 3
@@ -97,7 +97,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("analyst", "data-analyst")
+        agent = create_from_template("analyst", "data-analyst", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Add to session
         session.agents[agent.name] = agent
@@ -110,7 +110,7 @@ class TestTemplateInstantiation:
         loaded_agent = loaded_session.agents["data-analyst"]
 
         # Verify agent properties preserved
-        assert loaded_agent.model_name == "openai/gpt-4"
+        assert loaded_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert loaded_agent.history_config.max_tokens == 8000
         assert loaded_agent.history_config.max_entries == 50
         assert len(loaded_agent.instruction_chain) == 4
@@ -124,7 +124,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("terminal", "bash-exec")
+        agent = create_from_template("terminal", "bash-exec", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Add to session
         session.agents[agent.name] = agent
@@ -137,7 +137,7 @@ class TestTemplateInstantiation:
         loaded_agent = loaded_session.agents["bash-exec"]
 
         # Verify agent properties preserved
-        assert loaded_agent.model_name == "openai/gpt-3.5-turbo"
+        assert loaded_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert loaded_agent.history_config.enabled is False
         assert loaded_agent.history_config.max_tokens == 0
         assert len(loaded_agent.instruction_chain) == 1
@@ -151,10 +151,10 @@ class TestTemplateInstantiation:
         )
 
         # Create multiple agents from templates
-        researcher = create_from_template("researcher", "researcher-1")
-        coder = create_from_template("coder", "coder-1")
-        analyst = create_from_template("analyst", "analyst-1")
-        terminal = create_from_template("terminal", "terminal-1")
+        researcher = create_from_template("researcher", "researcher-1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        coder = create_from_template("coder", "coder-1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        analyst = create_from_template("analyst", "analyst-1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        terminal = create_from_template("terminal", "terminal-1", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Add all to session
         session.agents["researcher-1"] = researcher
@@ -188,7 +188,7 @@ class TestTemplateInstantiation:
         agent = create_from_template(
             "researcher",
             "claude-researcher",
-            model_override="anthropic/claude-3-opus-20240229"
+            model_override="ollama_chat/glm-5.3-flash:cloud"
         )
 
         # Add to session
@@ -198,7 +198,7 @@ class TestTemplateInstantiation:
         # Verify custom model persisted
         loaded_session = session_manager.load_session(session.id)
         loaded_agent = loaded_session.agents["claude-researcher"]
-        assert loaded_agent.model_name == "anthropic/claude-3-opus-20240229"
+        assert loaded_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
 
         # Other template properties should remain
         assert loaded_agent.history_config.max_tokens == 8000
@@ -215,7 +215,8 @@ class TestTemplateInstantiation:
         agent = create_from_template(
             "researcher",
             "ml-researcher",
-            description_override=custom_desc
+            description_override=custom_desc,
+            model_override="ollama_chat/glm-5.3-flash:cloud"
         )
 
         # Add to session
@@ -235,7 +236,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("researcher", "test-researcher")
+        agent = create_from_template("researcher", "test-researcher", model_override="ollama_chat/glm-5.3-flash:cloud")
         session.agents[agent.name] = agent
         session_manager.save_session(session)
 
@@ -257,8 +258,8 @@ class TestTemplateInstantiation:
         )
 
         # Create agents from different templates
-        researcher = create_from_template("researcher", "researcher-1")
-        terminal = create_from_template("terminal", "terminal-1")
+        researcher = create_from_template("researcher", "researcher-1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        terminal = create_from_template("terminal", "terminal-1", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         session.agents["researcher-1"] = researcher
         session.agents["terminal-1"] = terminal
@@ -285,8 +286,8 @@ class TestTemplateInstantiation:
         )
 
         # Create two agents from same template
-        researcher1 = create_from_template("researcher", "researcher-1")
-        researcher2 = create_from_template("researcher", "researcher-2")
+        researcher1 = create_from_template("researcher", "researcher-1", model_override="ollama_chat/glm-5.3-flash:cloud")
+        researcher2 = create_from_template("researcher", "researcher-2", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         # Modify first agent's instruction chain
         researcher1.instruction_chain.append("Additional custom step")
@@ -311,8 +312,8 @@ class TestTemplateInstantiation:
         )
 
         # Create terminal and non-terminal agents
-        terminal = create_from_template("terminal", "bash-exec")
-        researcher = create_from_template("researcher", "researcher-1")
+        terminal = create_from_template("terminal", "bash-exec", model_override="ollama_chat/glm-5.3-flash:cloud")
+        researcher = create_from_template("researcher", "researcher-1", model_override="ollama_chat/glm-5.3-flash:cloud")
 
         session.agents["bash-exec"] = terminal
         session.agents["researcher-1"] = researcher
@@ -331,7 +332,7 @@ class TestTemplateInstantiation:
         )
 
         # Create and add agent
-        agent = create_from_template("researcher", "temp-researcher")
+        agent = create_from_template("researcher", "temp-researcher", model_override="ollama_chat/glm-5.3-flash:cloud")
         session.agents["temp-researcher"] = agent
         session_manager.save_session(session)
 
@@ -356,7 +357,7 @@ class TestTemplateInstantiation:
         )
 
         # Create agent from template
-        agent = create_from_template("coder", "persistent-coder")
+        agent = create_from_template("coder", "persistent-coder", model_override="ollama_chat/glm-5.3-flash:cloud")
         session.agents["persistent-coder"] = agent
         session_manager.save_session(session)
 
@@ -370,7 +371,7 @@ class TestTemplateInstantiation:
         final_agent = final_session.agents["persistent-coder"]
 
         assert final_agent.name == "persistent-coder"
-        assert final_agent.model_name == "openai/gpt-4"
+        assert final_agent.model_name == "ollama_chat/glm-5.3-flash:cloud"
         assert final_agent.history_config.max_tokens == 4000
         assert len(final_agent.instruction_chain) == 3
         assert final_agent.metadata["template"] == "coder"

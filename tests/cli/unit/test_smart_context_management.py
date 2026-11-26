@@ -31,7 +31,7 @@ class TestContextManagementConfig:
         config = ContextManagementConfig()
 
         # Summarization defaults
-        assert config.summarizer_model == "openai/gpt-4.1-mini-2025-04-14"
+        assert config.summarizer_model is None
         assert config.summarize_every_n_iterations == 5
         assert config.summarize_token_threshold == 0.7
         assert config.max_summary_tokens == 500
@@ -47,7 +47,7 @@ class TestContextManagementConfig:
     def test_custom_values(self):
         """Test custom configuration values."""
         config = ContextManagementConfig(
-            summarizer_model="anthropic/claude-3-haiku-20240307",
+            summarizer_model="ollama_chat/glm-5.3-flash:cloud",
             summarize_every_n_iterations=3,
             summarize_token_threshold=0.5,
             max_summary_tokens=1000,
@@ -57,7 +57,7 @@ class TestContextManagementConfig:
             ephemeral_timeout_seconds=600,
         )
 
-        assert config.summarizer_model == "anthropic/claude-3-haiku-20240307"
+        assert config.summarizer_model == "ollama_chat/glm-5.3-flash:cloud"
         assert config.summarize_every_n_iterations == 3
         assert config.summarize_token_threshold == 0.5
         assert config.max_summary_tokens == 1000
@@ -190,36 +190,36 @@ class TestHistorySummarizer:
 
     def test_initialization(self):
         """Test summarizer initialization."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
 
-        assert summarizer.model == "openai/gpt-4.1-mini-2025-04-14"
+        assert summarizer.model == "ollama_chat/glm-5.3-flash:cloud"
         assert summarizer.max_summary_tokens == 500
         assert summarizer.encoding is not None
 
     def test_initialization_custom_model(self):
         """Test summarizer with custom model."""
         summarizer = HistorySummarizer(
-            model="anthropic/claude-3-haiku-20240307",
+            model="ollama_chat/glm-5.3-flash:cloud",
             max_summary_tokens=1000,
         )
 
-        assert summarizer.model == "anthropic/claude-3-haiku-20240307"
+        assert summarizer.model == "ollama_chat/glm-5.3-flash:cloud"
         assert summarizer.max_summary_tokens == 1000
 
     def test_count_tokens_empty_string(self):
         """Test token counting for empty string."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         assert summarizer.count_tokens("") == 0
 
     def test_count_tokens_simple_text(self):
         """Test token counting for simple text."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         count = summarizer.count_tokens("Hello, world!")
         assert count > 0
 
     def test_format_entry_user(self):
         """Test formatting user message entry."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entry = {"role": "user", "content": "What is the weather?"}
         formatted = summarizer._format_entry(entry)
 
@@ -228,7 +228,7 @@ class TestHistorySummarizer:
 
     def test_format_entry_assistant(self):
         """Test formatting assistant message entry."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entry = {"role": "assistant", "content": "The weather is sunny."}
         formatted = summarizer._format_entry(entry)
 
@@ -237,7 +237,7 @@ class TestHistorySummarizer:
 
     def test_format_entry_tool(self):
         """Test formatting tool result entry."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entry = {
             "role": "tool",
             "name": "search",
@@ -250,7 +250,7 @@ class TestHistorySummarizer:
 
     def test_format_entry_tool_truncation(self):
         """Test tool result truncation for long content."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         long_content = "x" * 1000
         entry = {
             "role": "tool",
@@ -264,7 +264,7 @@ class TestHistorySummarizer:
 
     def test_format_entry_tool_calls(self):
         """Test formatting assistant with tool calls."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entry = {
             "role": "assistant",
             "content": "",
@@ -281,7 +281,7 @@ class TestHistorySummarizer:
 
     def test_create_summary_message(self):
         """Test creating summary message for history."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         summary = "Key points:\n- User asked about weather\n- Agent provided forecast"
         message = summarizer.create_summary_message(summary)
 
@@ -291,13 +291,13 @@ class TestHistorySummarizer:
 
     def test_estimate_tokens_after_summarization_no_entries(self):
         """Test token estimation with no entries."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         result = summarizer.estimate_tokens_after_summarization([], preserve_last_n=2)
         assert result == 0
 
     def test_estimate_tokens_after_summarization_few_entries(self):
         """Test token estimation with entries <= preserve_last_n."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entries = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there!"},
@@ -308,7 +308,7 @@ class TestHistorySummarizer:
     @pytest.mark.asyncio
     async def test_summarize_history_no_entries(self):
         """Test summarization with no entries to summarize."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
         entries = [
             {"role": "user", "content": "Hello"},
         ]
@@ -321,7 +321,7 @@ class TestHistorySummarizer:
     @pytest.mark.asyncio
     async def test_summarize_history_with_mock(self):
         """Test summarization with mocked LLM call."""
-        summarizer = HistorySummarizer()
+        summarizer = HistorySummarizer(model="ollama_chat/glm-5.3-flash:cloud")
 
         entries = [
             {"role": "user", "content": "What is Python?"},
