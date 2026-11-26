@@ -49,7 +49,7 @@ class PerformanceTrackingMockLLM:
         self.total_time += elapsed
 
         # Track which phase this call belongs to (based on message content)
-        if messages and "Think carefully" in str(messages[-1].get("content", "")):
+        if messages and "think carefully" in str(messages[-1].get("content", "")).lower():
             self.phase_calls.append("think")
         elif "tool_calls" in response and response["tool_calls"]:
             self.phase_calls.append("act")
@@ -108,7 +108,7 @@ class TestTAOLoopExecution:
         async def custom_llm_runner(messages, model=None, tools=None, **kwargs):
             # Track phase before calling mock LLM
             last_msg_content = messages[-1].get("content", "") if messages else ""
-            if "Think carefully" in last_msg_content:
+            if "think carefully" in last_msg_content.lower():
                 phases_executed.append("THINK")
 
             result = await mock_llm(messages, model, tools, **kwargs)
