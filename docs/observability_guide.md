@@ -273,7 +273,7 @@ The observability package automatically tracks four tiers of operations:
 **Decorator**: `@track_llm_call(model_param="model_name", extract_args=["temperature", "max_tokens"])`
 
 **What's Tracked**:
-- Model name (e.g., `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`)
+- Model name (e.g., `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3:cloud`)
 - Execution time (seconds)
 - Token usage: `prompt_tokens`, `completion_tokens`, `total_tokens`
 - Parameters: `temperature`, `max_tokens`, `top_p`, etc.
@@ -288,7 +288,7 @@ The observability package automatically tracks four tiers of operations:
 
 **Example MLflow Run**:
 ```
-Run: llm_call_openai/ollama_chat/glm-5.3-flash:cloud
+Run: llm_call_ollama_chat/glm-5.3-flash:cloud
 ├── Metrics:
 │   ├── execution_time_seconds: 1.234
 │   ├── prompt_tokens: 450
@@ -396,10 +396,10 @@ Run: session
 │   ├── start_time: "2026-01-10 14:30:00"
 │   └── status: "success"
 └── Child Runs:
-    ├── llm_call_openai/ollama_chat/glm-5.3-flash:cloud
+    ├── llm_call_ollama_chat/glm-5.3-flash:cloud
     ├── task_create
     ├── agent_routing
-    └── llm_call_anthropic/ollama_chat/glm-5.3-flash:cloud
+    └── llm_call_ollama_chat/glm-5.3:cloud
 ```
 
 ### 4.3 Viewing Metrics in MLflow UI

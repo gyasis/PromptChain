@@ -37,7 +37,7 @@ Total Templates: 4
 
 Researcher (researcher)
   Description: Deep research specialist with multi-hop reasoning and web search capabili...
-  Model: ollama_chat/glm-5.3-flash:cloud
+  Model: ollama_chat/glm-5.3:cloud
   Category: research
   Complexity: high
   Tools: 1 configured
@@ -48,7 +48,7 @@ Researcher (researcher)
 
 Coder (coder)
   Description: Code generation specialist with file operations, code execution, and vali...
-  Model: ollama_chat/glm-5.3-flash:cloud
+  Model: ollama_chat/glm-5.3:cloud
   Category: development
   Complexity: high
   Tools: 3 configured
@@ -59,7 +59,7 @@ Coder (coder)
 
 Analyst (analyst)
   Description: Data analysis specialist for interpreting datasets, generating insights, ...
-  Model: ollama_chat/glm-5.3-flash:cloud
+  Model: ollama_chat/glm-5.3:cloud
   Category: analysis
   Complexity: medium
   Tools: 2 configured
@@ -102,7 +102,7 @@ Per-Agent History Overrides:
 Total Agents: 3
 
 researcher (active)
-  Model: ollama_chat/glm-5.3-flash:cloud
+  Model: ollama_chat/glm-5.3:cloud
   Description: Research specialist
   Tools: 2 registered
     - web_search, mcp_filesystem_read

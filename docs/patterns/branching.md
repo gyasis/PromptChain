@@ -109,9 +109,9 @@ config = BranchingConfig(
 - **1-2**: Fast evaluation for simple problems
 
 **judge_model**:
-- **ollama_chat/glm-5.3-flash:cloud**: Best quality judging, recommended for production
-- **ollama_chat/glm-5.3-flash:cloud**: Faster, lower cost, good for development
-- **ollama_chat/glm-5.3-flash:cloud**: Alternative high-quality option
+- **ollama_chat/glm-5.3:cloud**: Strongest judging, suited to production
+- **ollama_chat/glm-5.3-flash:cloud**: Faster, good for development
+- **unset**: judging is skipped (the judge step is off)
 
 **diversity_threshold**:
 - **0.3** (default): Moderate diversity requirement
@@ -319,8 +319,8 @@ BranchingConfig(hypothesis_count=7)
 The judge quality directly impacts selection accuracy:
 
 ```python
-# Production - use best available model
-BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
+# Production - use the strongest model
+BranchingConfig(judge_model="ollama_chat/glm-5.3:cloud")
 
 # Development - balance cost and quality
 BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
@@ -421,7 +421,7 @@ config = BranchingConfig(
 # Use fewer hypotheses
 config = BranchingConfig(hypothesis_count=2)
 
-# Use cheaper judge model
+# Use a faster judge model
 config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 
 # Disable recording if not needed

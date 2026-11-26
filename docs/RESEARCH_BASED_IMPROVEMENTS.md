@@ -688,13 +688,13 @@ Use expensive model for hard decisions, cheap model for simple ones:
 
 ```python
 # Current:
-response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # Always expensive
+response = await llm_runner("ollama_chat/glm-5.3:cloud", messages)  # Always the strong model
 
 # Improved:
 if is_simple_task(messages):
-    response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # 50x cheaper
+    response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # Fast model for simple tasks
 else:
-    response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # Only when needed
+    response = await llm_runner("ollama_chat/glm-5.3:cloud", messages)  # Only when needed
 ```
 
 ### Implementation
@@ -811,14 +811,14 @@ response_message = await self._smart_llm_call(
 
 **Benefits**:
 - ✅ **50-80% cost reduction** for simple reasoning steps
-- ✅ **Faster execution** (ollama_chat/glm-5.3-flash:cloud is 5-10x faster than ollama_chat/glm-5.3-flash:cloud)
+- ✅ **Faster execution** (the fast model responds faster than the strong model)
 - ✅ **Graceful degradation** (if primary model fails, fallback works)
 - ✅ **Opt-in** (can disable smart routing if needed)
 
 **Estimated Savings**:
 - 20 internal steps per task
-- 10 simple steps (routing, formatting) → use mini
-- 10 complex steps (analysis, debugging) → use ollama_chat/glm-5.3-flash:cloud
+- 10 simple steps (routing, formatting) → use the fast model
+- 10 complex steps (analysis, debugging) → use ollama_chat/glm-5.3:cloud
 - **Result**: ~40-50% cost reduction per task
 
 ---
@@ -1063,7 +1063,7 @@ print(f"Tool overhead: {perf['tool_time_percent']:.1f}%")
 | **CoVe** | +10% (verification) | +15% (extra LLM call) | **-50%** | 2-3 days |
 | **Checkpointing** | -15% (avoid bad paths) | -25% (stop loops early) | -20% | 1-2 days |
 | **Tool Dry Runs** | +5% (predictions) | +10% (comparison) | -30% | 1-2 days |
-| **Two-Tier Model** | **-40%** (use mini) | **-50%** (faster model) | Neutral | 1-2 days |
+| **Two-Tier Model** | **-40%** (use fast model) | **-50%** (faster model) | Neutral | 1-2 days |
 | **Tracing** | Negligible | Negligible | +50% debuggability | 1-2 days |
 | **TOTAL** | **-115%** savings! | **-80%** faster | **-130%** fewer errors | **12-18 days** |
 

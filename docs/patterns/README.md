@@ -206,7 +206,7 @@ branching_config = BranchingConfig(
     # Pattern-specific
     hypothesis_count=5,
     generator_model="ollama_chat/glm-5.3-flash:cloud",
-    judge_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3:cloud",
     diversity_threshold=0.3
 )
 ```
@@ -359,7 +359,7 @@ Different patterns have different model requirements:
 # Branching Thoughts - needs strong reasoning for judging
 BranchingConfig(
     generator_model="ollama_chat/glm-5.3-flash:cloud",      # Query generation
-    judge_model="ollama_chat/glm-5.3-flash:cloud"           # Hypothesis evaluation
+    judge_model="ollama_chat/glm-5.3:cloud"           # Hypothesis evaluation
 )
 
 # Multi-Hop - needs good decomposition

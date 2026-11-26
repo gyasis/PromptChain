@@ -122,17 +122,11 @@ Logging shows routing decisions:
 **Recommended: Gemini Models** (best cost ratio):
 - Primary: `gemini/gemini-1.5-pro` ($1.25/1M input)
 - Fallback: `gemini/gemini-1.5-flash` ($0.075/1M input)
-- **Cost Ratio: 16x** (vs 2-3x for OpenAI)
+- **Cost Ratio: 16x**
 
-Alternative: Anthropic Claude
-- Primary: `ollama_chat/glm-5.3-flash:cloud` ($3/1M)
-- Fallback: `ollama_chat/glm-5.3-flash:cloud` ($0.25/1M)
-- **Cost Ratio: 12x**
-
-**NOT RECOMMENDED**: OpenAI models
-- ollama_chat/glm-5.3-flash:cloud is already the cheapest OpenAI model
-- No cheaper fallback option available
-- Stick with Gemini or Anthropic for two-tier routing
+Alternative: Ollama Cloud
+- Primary: `ollama_chat/glm-5.3:cloud`
+- Fallback: `ollama_chat/glm-5.3-flash:cloud`
 
 ---
 
@@ -290,16 +284,11 @@ Expected: 50% error reduction with only 10% overhead.
    - Conservative by design (prefers primary model when uncertain)
    - Can be customized by subclassing and overriding `_classify_task_complexity()`
 
-2. **OpenAI Models Have Poor Cost Ratio**
-   - ollama_chat/glm-5.3-flash:cloud is already cheapest
-   - No meaningful fallback option
-   - Use Gemini or Anthropic instead
-
-3. **No Dynamic Learning**
+2. **No Dynamic Learning**
    - Classifier doesn't adapt based on observed performance
    - Future enhancement: track routing accuracy and adjust thresholds
 
-4. **No Multi-Tier Support**
+3. **No Multi-Tier Support**
    - Only two tiers (fast/slow)
    - Future enhancement: support 3+ tiers (tiny/small/medium/large)
 

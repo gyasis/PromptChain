@@ -122,7 +122,7 @@ from promptchain.utils.instruction_optimizer import optimize_instruction, llm_pr
 
 async def main():
     return await optimize_instruction(base, train, metric, model="ollama_chat/glm-5.3-flash:cloud",
-                                      proposer=llm_proposer("ollama_chat/glm-5.3-flash:cloud"), n_proposals=4, repeats=3)
+                                      proposer=llm_proposer("ollama_chat/glm-5.3:cloud"), n_proposals=4, repeats=3)
 
 result = asyncio.run(main())
 ```

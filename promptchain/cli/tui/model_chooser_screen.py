@@ -31,15 +31,15 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from ..model_catalog import ModelEntry, build_catalog
+from ..model_catalog import ModelEntry, build_catalog, no_catalog_message
 
 # Display order + tag per source.
-_SOURCE_ORDER = {"ollama-local": 0, "ollama-cloud": 1, "openai": 2, "gemini": 3}
+_SOURCE_ORDER = {"ollama-local": 0, "llamacpp": 1, "ollama-cloud": 2}
 _SOURCE_TAG = {
     "ollama-local": ("local", "green"),
     "ollama-cloud": ("cloud", "cyan"),
-    "openai": ("openai", "magenta"),
-    "gemini": ("gemini", "yellow"),
+    "llamacpp": ("lane", "magenta"),
+    "manual": ("typed", "yellow"),
 }
 
 
@@ -150,7 +150,7 @@ class ModelChooserScreen(ModalScreen[Optional[ModelEntry]]):
             ol.add_option(
                 Option(
                     Text(
-                        "No models found — check OLLAMA_HOST / OLLAMA_API_KEY / OPENAI_API_KEY.",
+                        self._empty_text(),
                         style="dim italic",
                     )
                 )
@@ -173,6 +173,11 @@ class ModelChooserScreen(ModalScreen[Optional[ModelEntry]]):
         line.append(e.model_name, style="bold")
         if e.size_gb:
             line.append(f"  {e.size_gb}GB", style="dim")
+        caps = [c for c in ("tools", "vision", "thinking") if c in e.capabilities]
+        if caps:
+            line.append("  " + "/".join(caps), style="dim")
+        if e.context_length:
+            line.append(f"  {e.context_length // 1024}k", style="dim")
         if e.reasoning.get("supports"):
             line.append(f"  think:{e.reasoning.get('extract')}", style="italic dim")
         if e.model_name == self._current:
@@ -188,7 +193,25 @@ class ModelChooserScreen(ModalScreen[Optional[ModelEntry]]):
     def _on_submit(self, event: Input.Submitted) -> None:
         ol = self.query_one("#mc-results", OptionList)
         idx = ol.highlighted if ol.highlighted is not None else 0
+        if self._loaded and not self._visible:
+            typed = self._typed_model()
+            if typed:
+                self.dismiss(ModelEntry(label=typed, model_name=typed, source="manual"))
+            return
         self._pick(idx)
+
+    def _empty_text(self) -> str:
+        typed = self._typed_model()
+        if typed:
+            return f"No catalog match. Enter uses '{typed}' as typed."
+        if not self._entries:
+            return no_catalog_message()
+        return "No matching model. Type provider/model and press Enter to use it."
+
+    def _typed_model(self) -> Optional[str]:
+        """The filter text when it looks like a provider/model string, else None."""
+        text = self.query_one("#mc-filter", Input).value.strip()
+        return text if "/" in text and " " not in text else None
 
     def _pick(self, index: Optional[int]) -> None:
         if not self._loaded or not self._visible or index is None:

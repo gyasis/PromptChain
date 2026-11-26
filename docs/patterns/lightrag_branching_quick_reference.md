@@ -133,7 +133,7 @@ config = BranchingConfig(timeout_seconds=15.0)
 # More hypotheses, better judge
 config = BranchingConfig(
     hypothesis_count=6,
-    judge_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3:cloud",
     diversity_threshold=0.5
 )
 ```
@@ -198,7 +198,7 @@ config = BranchingConfig(
 ```python
 config = BranchingConfig(
     hypothesis_count=9,
-    judge_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3:cloud",
     diversity_threshold=0.5,
     timeout_seconds=60.0
 )

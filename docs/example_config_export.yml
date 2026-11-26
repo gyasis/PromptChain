@@ -30,7 +30,7 @@ agents:
       truncation_strategy: oldest_first
 
   coder:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
     description: Code generation and refactoring specialist
     tools:
     - mcp_filesystem_read
@@ -44,7 +44,7 @@ agents:
       truncation_strategy: oldest_first
 
   analyst:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/gemma4:12b
     description: Data analysis and insights specialist
     tools:
     - mcp_snowflake_read_query

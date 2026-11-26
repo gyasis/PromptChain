@@ -93,7 +93,7 @@ output = await chain.process_prompt_async("Long article text here…")  # async
 
 ### **Common mistakes**
 
-- Passing `models=["ollama_chat/glm-5.3-flash:cloud"]` instead of `models=["ollama_chat/glm-5.3-flash:cloud"]`. PromptChain delegates to `litellm` which **requires** the `provider/model` prefix.
+- Passing `models=["glm-5.3-flash:cloud"]` instead of `models=["ollama_chat/glm-5.3-flash:cloud"]`. PromptChain delegates to `litellm` which **requires** the `provider/model` prefix.
 - `models` length not matching the count of *non-callable, non-agentic* instructions. Either pass exactly that many models, or pass a single-element list (it auto-expands). Functions and `AgenticStepProcessor` instances do **not** consume a model slot.
 - Forgetting `await` on `process_prompt_async`. There is no auto-coercion.
 
@@ -218,7 +218,7 @@ result = await chain.process_prompt_async("start")
 | `history_mode` | `"minimal"` | `"minimal"` / `"progressive"` / `"kitchen_sink"`. **Progressive is recommended** for multi-hop reasoning |
 | `step_timeout` | `120.0` | Seconds per LLM call |
 | `enable_two_tier_routing` | `False` | Phase 1: route simple sub-tasks to `fallback_model` (cost saving) |
-| `fallback_model` | `None` | The cheap model for two-tier routing, e.g. `"ollama_chat/glm-5.3-flash:cloud"` |
+| `fallback_model` | `None` | The faster model for two-tier routing, e.g. `"ollama_chat/glm-5.3-flash:cloud"` (with a stronger main model such as `"ollama_chat/glm-5.3:cloud"`) |
 | `enable_blackboard` | `False` | Phase 2: structured state instead of growing chat history (~72% token reduction) |
 | `enable_cove` | `False` | Phase 3: Chain-of-Verification — pre-execution tool-call validation |
 | `cove_confidence_threshold` | `0.7` | Min confidence to execute a tool call when CoVe is on |
@@ -385,7 +385,7 @@ This list is the closed-loop output: every Claude Code mistake observed via SIO 
 
 1. **`from promptchain import AgentChain`** — not exported. Use `from promptchain.utils.agent_chain import AgentChain`.
 2. **`from promptchain import AgenticStepProcessor`** — not exported. Use `from promptchain.utils.agentic_step_processor import AgenticStepProcessor`.
-3. **`models=["ollama_chat/glm-5.3-flash:cloud"]`** — missing provider prefix. Use `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3-flash:cloud"`, `"gemini/gemini-2.5-pro"`, `"ollama_chat/glm-5.3-flash:cloud"`.
+3. **`models=["glm-5.3-flash:cloud"]`** — missing provider prefix. Use `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3:cloud"`, `"ollama_chat/gemma4:12b"`, `"gemini/gemini-2.5-pro"`.
 4. **`models` length mismatch.** Count only string instructions (functions and `AgenticStepProcessor` don't consume model slots). Or pass a single-element `models` list to auto-expand.
 5. **Calling `chain.process_prompt_async(...)` without `await`.** The result is a coroutine, not a string.
 6. **Calling `agent_chain.process_prompt_async(...)`** — `AgentChain` uses `process_input(...)`.
@@ -665,7 +665,7 @@ A role value (and `default`) is a string or a mapping `{model, endpoint}`. An en
 
 | Tier | Providers / models | When to pick |
 |---|---|---|
-| ⭐⭐⭐ Strongest | `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud` | Default for tool-calling-heavy chains. The repo's own comment: "Using OpenAI for reliable tool calling". |
+| ⭐⭐⭐ Strongest | `ollama_chat/glm-5.3:cloud`, `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/gemma4:12b` (all report tool support in the catalog) | Default for tool-calling-heavy chains. |
 | ⭐⭐ Good but variable | `gemini/gemini-2.5-pro`, `gemini/gemini-1.5-flash-8b`, `gemini/gemini-2.0-flash-exp` | Cost-savings (Gemini Flash-8B is 33x cheaper than 2.5-pro). Verify the specific model supports tools — experimental Gemini models often don't. |
 | ⭐ Model-dependent | Ollama: `llama3.1`, `qwen2.5`, `mistral-nemo`, `command-r` | Local / offline. Most other Ollama models do NOT support tool-calling — verify the model card. |
 | ❌ No tool-calling | older `ollama/llama2`, `phi:2b`, `gemma:2b`, most pre-2024 GGUFs | Plain prompting only. Don't use for agentic chains. |
@@ -673,11 +673,9 @@ A role value (and `default`) is a string or a mapping `{model, endpoint}`. An en
 ### Models actually used in this repo's `examples/`
 
 ```
-ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud,
-ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/glm-5.3-flash:cloud,
+ollama_chat/glm-5.3:cloud, ollama_chat/glm-5.3-flash:cloud, ollama_chat/gemma4:12b,
 gemini/gemini-2.0-flash-exp, gemini/gemini-2.5-pro, gemini/gemini-1.5-flash-8b
 ```
-No Ollama models appear in canonical examples (despite `OllamaModelManager` being supported).
 
 ### Required env vars
 

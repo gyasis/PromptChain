@@ -632,7 +632,7 @@ Use a fast, cheap model for verification to minimize overhead:
 ```python
 processor = AgenticStepProcessor(
     objective="Cost-optimized task",
-    model_name="ollama_chat/glm-5.3-flash:cloud",  # Expensive model for main reasoning
+    model_name="ollama_chat/glm-5.3:cloud",  # Strong model for main reasoning
 
     # Use fast model for verification
     enable_cove=True,
@@ -654,7 +654,7 @@ async def smart_llm_runner(messages, model=None, **kwargs):
         # Use powerful model for main reasoning
         return await litellm.acompletion(
             messages=messages,
-            model=model or "ollama_chat/glm-5.3-flash:cloud",
+            model=model or "ollama_chat/glm-5.3:cloud",
             **kwargs
         )
 ```
@@ -745,7 +745,7 @@ if verification.suggested_modifications:
 **CoVe Verification**:
 ```
 Per tool call overhead:
-├── Verification LLM call: ~500-1000ms (with ollama_chat/glm-5.3-flash:cloud)
+├── Verification LLM call: ~500-1000ms (with a fast model)
 ├── JSON parsing: <1ms
 └── Total: ~500-1000ms per tool
 
@@ -755,7 +755,7 @@ With 3 tool calls per iteration:
 └── Overhead: ~75% (1500ms / 2000ms)
 
 BUT: Using fast model for verification:
-├── Verification with ollama_chat/glm-5.3-flash:cloud: ~200ms
+├── Verification with a fast model: ~200ms
 ├── Total overhead: ~600ms for 3 tools
 └── Overhead: ~30% (600ms / 2000ms)
 ```
@@ -772,7 +772,7 @@ Per iteration overhead:
 **Combined Overhead**:
 - **With fast verification model**: ~30% overhead
 - **With main model verification**: ~75% overhead
-- **Recommendation**: Use ollama_chat/glm-5.3-flash:cloud or similar for verification
+- **Recommendation**: Use a fast model such as ollama_chat/glm-5.3-flash:cloud for verification
 
 ### Cost Analysis
 
@@ -869,7 +869,7 @@ cove_confidence_threshold=0.85  # Very strict
 **For cost optimization:**
 ```python
 # Use ollama_chat/glm-5.3-flash:cloud for verification (fast & cheap)
-# Use ollama_chat/glm-5.3-flash:cloud for main reasoning (powerful)
+# Use ollama_chat/glm-5.3:cloud for main reasoning (powerful)
 # Result: 5-10% cost increase, minimal latency impact
 ```
 

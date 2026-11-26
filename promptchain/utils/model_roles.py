@@ -124,6 +124,7 @@ class ModelsConfig:
     path: Path
     default: Optional[ModelSpec] = None
     roles: Optional[Dict[str, ModelSpec]] = None
+    endpoints: Optional[Dict[str, Dict[str, Any]]] = None
 
     def role(self, name: str) -> Optional[ModelSpec]:
         return (self.roles or {}).get(name)
@@ -233,7 +234,7 @@ def _parse(path: Path) -> ModelsConfig:
         if spec:
             roles[name] = spec
     default = _parse_spec(data.get("default"), "default", "default", endpoints, path)
-    return ModelsConfig(path=path, default=default, roles=roles)
+    return ModelsConfig(path=path, default=default, roles=roles, endpoints=endpoints)
 
 
 def load() -> ModelsConfig:
@@ -242,6 +243,11 @@ def load() -> ModelsConfig:
     if _cache is None or _cache.path != config_path():
         _cache = _parse(config_path())
     return _cache
+
+
+def endpoint(name: str) -> Optional[Dict[str, Any]]:
+    """The settings of ``endpoints.<name>`` ({api_base, provider}), or None when it is not defined."""
+    return (load().endpoints or {}).get(name)
 
 
 def reload() -> ModelsConfig:

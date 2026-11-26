@@ -122,7 +122,7 @@ ANTHROPIC_API_KEY=your_key_here
 
 ### Model Specification
 Models can be specified as:
-- Strings: `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3-flash:cloud"`
+- Strings: `"ollama_chat/glm-5.3-flash:cloud"`, `"ollama_chat/glm-5.3:cloud"`
 - Dicts with parameters: `{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5}}`
 
 ### Function Integration
@@ -192,7 +192,7 @@ def search_files(query: str) -> str:
 agentic_step = AgenticStepProcessor(
     objective="Find and analyze code patterns in the project",
     max_internal_steps=5,
-    model_name="ollama_chat/glm-5.3-flash:cloud"
+    model_name="ollama_chat/glm-5.3:cloud"
 )
 
 # Create chain with agentic reasoning
@@ -241,7 +241,7 @@ mcp_config = [{
 
 # Create specialized agents with different capabilities
 analyzer_agent = PromptChain(
-    models=["ollama_chat/glm-5.3-flash:cloud"],
+    models=["ollama_chat/glm-5.3:cloud"],
     instructions=["Analyze the data: {input}"],
     mcp_servers=mcp_config,  # Has file system access
     verbose=True
@@ -311,7 +311,7 @@ async def complex_analysis_workflow():
     )
     
     analysis_chain = PromptChain(
-        models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"],
+        models=["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3:cloud"],
         instructions=[
             data_processor,
             "Perform detailed analysis: {input}",

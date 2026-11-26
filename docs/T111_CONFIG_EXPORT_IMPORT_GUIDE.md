@@ -56,7 +56,7 @@ session:
 
 agents:
   researcher:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
     description: Research specialist
     tools: [web_search, mcp_filesystem_read]
     history_config:
@@ -119,7 +119,7 @@ Import CLI configuration from YAML or JSON file.
 Configuration imported from production-config.yml
 
 Changes:
-  • Imported agent: researcher (ollama_chat/glm-5.3-flash:cloud)
+  • Imported agent: researcher (ollama_chat/glm-5.3:cloud)
   • Imported agent: coder (ollama_chat/glm-5.3-flash:cloud)
   • Imported MCP server: filesystem (stdio)
   • Updated execution mode: router
@@ -187,7 +187,7 @@ Changes:
 
 ```bash
 # 1. Create session with custom configuration
-/agent create researcher --model ollama_chat/glm-5.3-flash:cloud --template researcher
+/agent create researcher --model ollama_chat/glm-5.3:cloud --template researcher
 /mcp add filesystem --command "npx" --args "-y,@modelcontextprotocol/server-filesystem,/path"
 
 # 2. Export configuration
@@ -219,7 +219,7 @@ Changes:
 version: "1.0"
 agents:
   researcher:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
     description: Research specialist
     tools:
       - web_search
@@ -239,7 +239,7 @@ agents:
   "version": "1.0",
   "agents": {
     "researcher": {
-      "model": "ollama_chat/glm-5.3-flash:cloud",
+      "model": "ollama_chat/glm-5.3:cloud",
       "description": "Research specialist",
       "tools": ["web_search", "mcp_filesystem_read"]
     }
@@ -269,7 +269,7 @@ Import only what you need by editing the exported file:
 version: "1.0"
 agents:
   researcher:  # Only import this agent
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
 # mcp_servers: []  # Commented out - won't import
 ```
 
@@ -440,8 +440,8 @@ CommandResult(
 **1. Setup Session:**
 ```bash
 /session new data-pipeline
-/agent create researcher --model ollama_chat/glm-5.3-flash:cloud --template researcher
-/agent create analyst --model ollama_chat/glm-5.3-flash:cloud --template analyst
+/agent create researcher --model ollama_chat/glm-5.3:cloud --template researcher
+/agent create analyst --model ollama_chat/glm-5.3:cloud --template analyst
 /agent create coder --model ollama_chat/glm-5.3-flash:cloud --template coder
 /mcp add snowflake --command mcp-server-snowflake
 /mcp add tableau --command mcp-server-tableau
@@ -474,7 +474,7 @@ session:
 
 agents:
   researcher:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
     description: Research specialist
     tools: [web_search, mcp_snowflake_read_query]
     history_config:
@@ -482,7 +482,7 @@ agents:
       max_tokens: 8000
 
   analyst:
-    model: ollama_chat/glm-5.3-flash:cloud
+    model: ollama_chat/glm-5.3:cloud
     description: Data analysis specialist
     tools: [mcp_snowflake_read_query, mcp_tableau_view_get_data]
     history_config:

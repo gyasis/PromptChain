@@ -22,15 +22,15 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 # Enable two-tier routing (3 lines of code)
 agentic_step = AgenticStepProcessor(
     objective="Your task here",
-    model_name="ollama_chat/glm-5.3-flash:cloud",                    # Primary model (complex tasks)
+    model_name="ollama_chat/glm-5.3:cloud",                    # Primary model (complex tasks)
     fallback_model="ollama_chat/glm-5.3-flash:cloud",          # Fast model (simple tasks)
     enable_two_tier_routing=True,                 # ✅ Enable routing
 )
 ```
 
 That's it! The processor will automatically:
-- Use GPT-4o-mini for simple tasks (list, get, status checks)
-- Use GPT-4 for complex reasoning (analyze, plan, multi-step logic)
+- Use the fast fallback model for simple tasks (list, get, status checks)
+- Use the primary model for complex reasoning (analyze, plan, multi-step logic)
 - Log routing decisions in real-time
 - Report cost savings at completion
 
@@ -56,27 +56,27 @@ Step N begins
     ↓
 _classify_task_complexity(messages, tools, step_num)
     ↓
-    ├─ "complex" → Use primary model (GPT-4)
+    ├─ "complex" → Use primary model (e.g. glm-5.3:cloud)
     │              - Planning phase
     │              - Multi-hop reasoning
     │              - Complex comparisons
     │
-    └─ "simple" → Use fallback model (GPT-4o-mini)
+    └─ "simple" → Use fallback model (e.g. glm-5.3-flash:cloud)
                   - Execution phase
                   - Status checks
                   - Simple tool calls
 ```
 
-### Cost Savings Example
+### Routing Example
 
 **Typical 5-step task**:
-- Step 0: Planning → GPT-4 ($0.01)
-- Step 1: Tool selection → GPT-4 ($0.01)
-- Step 2: Execute tool → GPT-4o-mini ($0.001)
-- Step 3: Verify result → GPT-4o-mini ($0.001)
-- Step 4: Final summary → GPT-4o-mini ($0.001)
+- Step 0: Planning → primary model
+- Step 1: Tool selection → primary model
+- Step 2: Execute tool → fallback model
+- Step 3: Verify result → fallback model
+- Step 4: Final summary → fallback model
 
-**Total**: $0.023 (vs $0.05 without routing) = **54% savings**
+Three of five calls go to the fallback model (60% routed). The saving depends on how much cheaper or faster the fallback is than the primary on your provider.
 
 ---
 
@@ -100,7 +100,7 @@ AgenticStepProcessor(
     max_internal_steps=10,
 
     # Primary model for complex reasoning
-    model_name="ollama_chat/glm-5.3-flash:cloud",
+    model_name="ollama_chat/glm-5.3:cloud",
     model_params={"temperature": 0.7},
 
     # Two-tier routing
@@ -121,28 +121,14 @@ AgenticStepProcessor(
 
 ## Model Recommendations
 
-### OpenAI Models
+Model names below come from the generated model catalog; check a model's capabilities there before pairing it (the fallback still runs tool calls, so it needs `tools`).
 
-| Use Case | Primary Model | Fallback Model | Cost Ratio |
-|----------|---------------|----------------|------------|
-| **Production (Best Quality)** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 10-20x |
-| **Balanced** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 3-5x |
-| **Budget** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 2-3x |
+| Use Case | Primary Model | Fallback Model | Notes |
+|----------|---------------|----------------|-------|
+| **Cloud, best quality** | `ollama_chat/glm-5.3:cloud` | `ollama_chat/glm-5.3-flash:cloud` | Same family, both report tools and thinking; the flash variant also reports vision |
+| **Cloud primary, local fallback** | `ollama_chat/glm-5.3:cloud` | `ollama_chat/gemma4:12b` | Simple steps run on your own hardware; the local model reports tools, thinking, vision, 128k context |
 
-### Anthropic Models
-
-| Use Case | Primary Model | Fallback Model | Cost Ratio |
-|----------|---------------|----------------|------------|
-| **Production** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 15-20x |
-| **Balanced** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 5-10x |
-
-### Google Models
-
-| Use Case | Primary Model | Fallback Model | Cost Ratio |
-|----------|---------------|----------------|------------|
-| **Balanced** | `gemini/gemini-1.5-pro` | `gemini/gemini-1.5-flash` | 5-8x |
-
-**Rule of Thumb**: Fallback model should be 5-10x cheaper for meaningful savings.
+**Rule of Thumb**: The fallback model should be clearly cheaper or faster than the primary, or routing saves little.
 
 ---
 
@@ -217,17 +203,17 @@ Choose models based on task type:
 def get_model_config(task_type):
     if task_type == "coding":
         return {
-            "model_name": "ollama_chat/glm-5.3-flash:cloud",           # Strong for code generation
+            "model_name": "ollama_chat/glm-5.3:cloud",           # Strong for code generation
             "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
     elif task_type == "writing":
         return {
-            "model_name": "ollama_chat/glm-5.3-flash:cloud",  # Strong for creative writing
+            "model_name": "ollama_chat/glm-5.3:cloud",  # Strong for creative writing
             "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
     elif task_type == "analysis":
         return {
-            "model_name": "ollama_chat/glm-5.3-flash:cloud",           # Balanced
+            "model_name": "ollama_chat/glm-5.3:cloud",           # Balanced
             "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
 ```
@@ -238,13 +224,13 @@ def get_model_config(task_type):
 
 Based on internal testing with 20 tasks (5 steps each):
 
-| Configuration | Avg Time/Task | Avg Cost/Task | Token Usage |
-|---------------|---------------|---------------|-------------|
-| **Baseline** (no routing) | 9.0s | $0.165 | 5,000 tokens |
-| **Two-Tier Routing** | 7.2s | $0.092 | 4,200 tokens |
-| **Improvement** | **-20%** | **-44%** | **-16%** |
+| Configuration | Avg Time/Task | Token Usage |
+|---------------|---------------|-------------|
+| **Baseline** (no routing) | 9.0s | 5,000 tokens |
+| **Two-Tier Routing** | 7.2s | 4,200 tokens |
+| **Improvement** | **-20%** | **-16%** |
 
-**Note**: Actual savings vary based on task complexity distribution and model cost ratios.
+**Note**: Actual savings vary based on task complexity distribution and on how much cheaper and faster the fallback model is than the primary. Measure with your own model pair.
 
 ---
 
@@ -252,8 +238,8 @@ Based on internal testing with 20 tasks (5 steps each):
 
 | Feature | Two-Tier Routing (Phase 1) | Full Enhanced (RAG+Gemini) |
 |---------|----------------------------|---------------------------|
-| **Cost Impact** | -44% (savings) | +438% (increase) |
-| **Latency** | -20% (faster) | +147% (slower) |
+| **Cost Impact** | Lower (fewer calls to the large model) | Higher (extra RAG and Gemini calls) |
+| **Latency** | Faster | Slower |
 | **Dependencies** | None | DeepLake RAG + Gemini MCP |
 | **Setup Time** | 5 minutes | 2-3 days |
 | **Risk** | Low (heuristic-based) | High (5 security vulns) |
@@ -320,7 +306,7 @@ class AggressiveAgenticStep(AgenticStepProcessor):
 ```python
 agentic_step = AgenticStepProcessor(
     objective="...",
-    model_name="ollama_chat/glm-5.3-flash:cloud",
+    model_name="ollama_chat/glm-5.3:cloud",
 )
 ```
 
@@ -328,7 +314,7 @@ agentic_step = AgenticStepProcessor(
 ```python
 agentic_step = AgenticStepProcessor(
     objective="...",
-    model_name="ollama_chat/glm-5.3-flash:cloud",
+    model_name="ollama_chat/glm-5.3:cloud",
     fallback_model="ollama_chat/glm-5.3-flash:cloud",  # ✅ ADD THIS
     enable_two_tier_routing=True,         # ✅ ADD THIS
 )
@@ -344,10 +330,10 @@ agentic_step = AgenticStepProcessor(
 A: No. The classifier prevents routing complex tasks to the fallback model. Only simple execution tasks (list, status, etc.) use the fast model.
 
 **Q: What's the recommended cost ratio between models?**
-A: 5-10x. If fallback is too expensive, savings are minimal. If too cheap, quality may degrade.
+A: Pick a fallback that is clearly cheaper or faster than the primary. If the fallback is almost as costly, savings are minimal; if it is too weak, quality may degrade.
 
-**Q: Can I use this with non-OpenAI models?**
-A: Yes! Works with any LiteLLM-compatible models (Anthropic, Google, local models via Ollama, etc.).
+**Q: Can I use this with other providers?**
+A: Yes! Works with any LiteLLM-compatible models (Ollama Cloud, local Ollama models, other hosted providers, etc.).
 
 **Q: Does this work with AgentChain multi-agent systems?**
 A: Yes! Each agent can have its own routing configuration:

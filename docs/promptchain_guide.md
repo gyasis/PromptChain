@@ -72,7 +72,7 @@ chain = PromptChain(
             "name": "ollama_chat/glm-5.3-flash:cloud",
             "params": {"temperature": 0.7}
         },
-        "ollama_chat/glm-5.3-flash:cloud"
+        "ollama_chat/glm-5.3:cloud"
     ],
     instructions=[
         "Analyze this code: {input}",
@@ -644,7 +644,7 @@ def create_advanced_analysis_chain():
                 "name": "ollama_chat/glm-5.3-flash:cloud",
                 "params": {"temperature": 0.7}
             },
-            "ollama_chat/glm-5.3-flash:cloud"
+            "ollama_chat/glm-5.3:cloud"
         ],
         instructions=[
             preprocess_input,  # Clean input
