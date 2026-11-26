@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from promptchain.integrations.lightrag import LIGHTRAG_AVAILABLE
 from promptchain.observability import track_llm_call
 from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
+from promptchain.utils.model_roles import resolve_model_spec
 
 if TYPE_CHECKING:
     from hybridrag.src.lightrag_core import HybridLightRAGCore
@@ -447,7 +448,10 @@ class LightRAGBranchingThoughts(BasePattern):
             },
         )
 
-        if not self.config.judge_model:
+        judge_spec = resolve_model_spec(
+            "judge", self.config.judge_model, required=False, param="judge_model"
+        )
+        if not judge_spec:
             return [
                 HypothesisScore(
                     hypothesis_id=h.hypothesis_id,
@@ -465,7 +469,8 @@ class LightRAGBranchingThoughts(BasePattern):
         # Call LLM judge
         try:
             response = await self._litellm.acompletion(
-                model=self.config.judge_model,
+                model=judge_spec.model,
+                **judge_spec.params,
                 messages=[
                     {
                         "role": "system",

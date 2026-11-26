@@ -23,6 +23,8 @@ from promptchain.utils.agent_chain import AgentChain
 from promptchain.cli.tui_processor import TUIAgenticStepProcessor
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
+from promptchain.utils.model_roles import resolve_model_spec
+
 from ..models.agent_config import Agent, HistoryConfig
 from ..models.mcp_config import MCPServerConfig
 from ..models.orchestration_config import OrchestrationConfig, RouterConfig
@@ -432,14 +434,14 @@ class YAMLConfigTranslator:
         router_config: Optional[Dict[str, Any]] = None
         if yaml_config.orchestration.execution_mode == "router":
             router_data = yaml_config.orchestration.router or {}
-            router_model = router_data.get("model")
-            if not router_model:
-                raise ValueError(
-                    "orchestration.router.model is required when execution_mode is "
-                    "'router': name the model that makes routing decisions."
-                )
+            router_spec = resolve_model_spec(
+                "router",
+                router_data.get("model"),
+                required=True,
+                param="orchestration.router.model",
+            )
             router_config = {
-                "models": [router_model],
+                "models": [router_spec.as_model()],
                 "instructions": [None, "{input}"],
             }
 
@@ -499,14 +501,13 @@ class YAMLConfigTranslator:
         router_config = None
         if yaml_config.orchestration.execution_mode == "router":
             router_data = yaml_config.orchestration.router or {}
-            router_model = router_data.get("model")
-            if not router_model:
-                raise ValueError(
-                    "orchestration.router.model is required when execution_mode is "
-                    "'router': name the model that makes routing decisions."
-                )
             router_config = RouterConfig(
-                model=router_model,
+                model=resolve_model_spec(
+                    "router",
+                    router_data.get("model"),
+                    required=True,
+                    param="orchestration.router.model",
+                ).model,
                 timeout_seconds=router_data.get("timeout_seconds", 10),
             )
 

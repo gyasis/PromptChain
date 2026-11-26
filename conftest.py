@@ -161,3 +161,17 @@ def mock_llm(monkeypatch, request):
 
     if violations:
         pytest.fail(f"Test attempted real provider network access: {violations}", pytrace=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_models_config(tmp_path_factory, monkeypatch):
+    """Point the models file at a path that does not exist, so a developer's own
+    ~/.promptchain/models.yaml never changes a test's result."""
+    from promptchain.utils import model_roles
+
+    monkeypatch.setenv(
+        model_roles.ENV_VAR, str(tmp_path_factory.getbasetemp() / "no-models.yaml")
+    )
+    model_roles._cache = None
+    yield
+    model_roles._cache = None

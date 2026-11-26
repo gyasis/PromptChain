@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from promptchain.observability import track_llm_call
 from promptchain.patterns.base import BasePattern, PatternConfig, PatternResult
+from promptchain.utils.model_roles import resolve_model_spec
 
 logger = logging.getLogger(__name__)
 
@@ -311,14 +312,20 @@ Return the sub-questions in JSON format:
 ]
 """
 
-        model = self.multi_hop_config.synthesizer_model
-        if not model:
+        spec = resolve_model_spec(
+            "multi_hop_synthesizer",
+            self.multi_hop_config.synthesizer_model,
+            required=False,
+            param="synthesizer_model",
+        )
+        if not spec:
             logger.info("No synthesizer_model set, skipping decomposition")
             return []
 
         try:
             response = await acompletion(
-                model=model,
+                model=spec.model,
+                **spec.params,
                 messages=[{"role": "user", "content": decomposition_prompt}],
                 response_format={"type": "json_object"},
             )
@@ -462,13 +469,19 @@ Sub-answers:
             "\nProvide a unified, coherent answer that integrates all sub-answers:"
         )
 
-        model = self.multi_hop_config.synthesizer_model
-        if not model:
+        spec = resolve_model_spec(
+            "multi_hop_synthesizer",
+            self.multi_hop_config.synthesizer_model,
+            required=False,
+            param="synthesizer_model",
+        )
+        if not spec:
             return "\n\n".join(sub_answers.values())
 
         try:
             response = await acompletion(
-                model=model,
+                model=spec.model,
+                **spec.params,
                 messages=[{"role": "user", "content": synthesis_prompt}],
             )
 

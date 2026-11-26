@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from .model_roles import ModelNotConfiguredError, ModelSpec, resolve_model_spec
 from .chain_factory import ChainFactory, ChainFactoryError, ChainNotFoundError
 from .chain_models import (ChainDefinition, ChainExecutionRecord, ChainMode,
                            ChainStepDefinition, StepType, ValidationResult)
@@ -95,17 +96,22 @@ class ChainExecutor:
         # Registered functions for function steps
         self._registered_functions: Dict[str, Callable] = {}
 
-    def _resolve_model(self, chain: ChainDefinition, step: ChainStepDefinition) -> str:
-        """Return the chain's llm_model, else this executor's default_model."""
-        model = chain.llm_model or self.default_model
-        if not model:
+    def _resolve_model(self, chain: ChainDefinition, step: ChainStepDefinition) -> ModelSpec:
+        """Return the chain's llm_model, else this executor's default_model, else the
+        ``chain`` role of the models file."""
+        try:
+            return resolve_model_spec(
+                "chain",
+                chain.llm_model or self.default_model,
+                required=True,
+                param="llm_model",
+            )
+        except ModelNotConfiguredError as exc:
             raise ChainExecutionError(
-                "No LLM model: set llm_model on the chain or pass default_model "
-                "to ChainExecutor",
+                f"{exc} (or pass default_model to ChainExecutor)",
                 step_id=step.id,
                 chain_vin=chain.vin,
-            )
-        return model
+            ) from exc
 
     def register_function(self, name: str, func: Callable[[str], str]):
         """Register a function for use in function steps.
@@ -327,7 +333,7 @@ class ChainExecutor:
 
         # Create minimal PromptChain for single step
         mini_chain = PromptChain(
-            models=[self._resolve_model(chain, step)], instructions=[prompt], verbose=self.verbose
+            models=[self._resolve_model(chain, step).as_model()], instructions=[prompt], verbose=self.verbose
         )
 
         result = await mini_chain.process_prompt_async(input_data)
@@ -412,11 +418,13 @@ class ChainExecutor:
                 "Agentic step missing objective", step_id=step.id, chain_vin=chain.vin
             )
 
+        model_spec = self._resolve_model(chain, step)
         # Create AgenticStepProcessor
         processor = AgenticStepProcessor(  # type: ignore[call-arg]
             objective=step.objective,
             max_internal_steps=step.max_steps or 5,
-            model_name=self._resolve_model(chain, step),
+            model_name=model_spec.model,
+            model_params=model_spec.params,
             verbose=self.verbose,
         )
 

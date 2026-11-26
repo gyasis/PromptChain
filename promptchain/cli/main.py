@@ -371,6 +371,9 @@ def _launch_tui(
 from .install_skill import install_skill as _install_skill_cmd
 main.add_command(_install_skill_cmd)
 
+from .commands.models import models as _models_cmd
+main.add_command(_models_cmd)
+
 
 @main.command()
 @click.argument("query", required=True)

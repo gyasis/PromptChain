@@ -378,6 +378,11 @@ class SessionManager:
         else:
             working_directory = Path(working_directory)
 
+        if not default_model:
+            from promptchain.utils.model_roles import configured_default
+
+            default_model = configured_default()
+
         # Check if session name already exists
         conn = sqlite3.connect(self.db_path)
         try:

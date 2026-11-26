@@ -5,11 +5,17 @@ yet; the code that needs one calls :func:`require_model`, which raises
 :class:`ModelNotSelectedError` with a message that tells the user how to pick one.
 """
 
+import logging
 from typing import Optional
+
+from promptchain.utils import model_roles
+
+logger = logging.getLogger(__name__)
 
 NO_MODEL_MESSAGE = (
     "No model selected. Pick one with Ctrl+N or /model, start with "
-    "--model <provider/model>, or set default_model in ~/.promptchain/config.json."
+    "--model <provider/model>, set default_model in ~/.promptchain/config.json, "
+    "or set default in the models file (promptchain models init)."
 )
 
 NOT_SET_LABEL = "(not set - pick one with /model)"
@@ -20,7 +26,8 @@ class ModelNotSelectedError(ValueError):
 
 
 def require_model(*candidates: Optional[str], context: str = "") -> str:
-    """Return the first non-empty candidate, else raise ModelNotSelectedError.
+    """Return the first non-empty candidate, else the models file's ``default``,
+    else raise ModelNotSelectedError.
 
     Args:
         candidates: Model names in priority order (None and "" are skipped).
@@ -29,6 +36,14 @@ def require_model(*candidates: Optional[str], context: str = "") -> str:
     for candidate in candidates:
         if candidate:
             return candidate
+    default = model_roles.load().default
+    if default:
+        if default.api_base:
+            logger.warning(
+                f"Endpoint {default.endpoint!r} of the models file default is not applied "
+                "by the CLI; it calls the model by name only."
+            )
+        return default.model
     prefix = f"{context}: " if context else ""
     raise ModelNotSelectedError(prefix + NO_MODEL_MESSAGE)
 

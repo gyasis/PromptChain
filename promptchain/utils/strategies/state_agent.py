@@ -12,6 +12,7 @@ import tiktoken
 
 from promptchain.utils.agent_chain import AgentChain
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
+from promptchain.utils.model_roles import resolve_model_spec
 from promptchain.utils.promptchaining import PromptChain
 
 logger = logging.getLogger(__name__)
@@ -373,22 +374,21 @@ class StateAgent(AgenticStepProcessor):
         Args:
             agent_chain: The AgentChain instance this agent will work with
             verbose: Whether to enable verbose logging
-            model_name: Model for the agent's reasoning and its summaries (required)
+            model_name: Model for the agent's reasoning and its summaries (falls back to ``roles.state_agent``
+                or ``default`` in the models file)
 
         Raises:
-            ValueError: If ``model_name`` is not given.
+            ValueError: If no model is given and the models file supplies none.
         """
-        if not model_name:
-            raise ValueError(
-                "StateAgent requires `model_name`: pass the model that runs its "
-                "reasoning and summaries."
-            )
+        spec = resolve_model_spec("state_agent", model_name, required=True, param="model_name")
+        model_name = spec.model
+        self._endpoint_params = spec.params
         # Initialize the AgenticStepProcessor parent class
         super().__init__(
             objective=STATE_AGENT_PROMPT,
             max_internal_steps=7,
             model_name=model_name,
-            model_params={"temperature": 0.2, "tool_choice": "auto"},
+            model_params={"temperature": 0.2, "tool_choice": "auto", **spec.params},
         )
 
         self.agent_chain = agent_chain
@@ -429,7 +429,7 @@ class StateAgent(AgenticStepProcessor):
 
         # Initialize a lightweight PromptChain for general LLM processing
         self.prompt_chain: PromptChain = PromptChain(
-            models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
+            models=[{"name": self.model_name, "params": {"temperature": 0.2, **self._endpoint_params}}],
             instructions=[],
             verbose=self.verbose,
         )
@@ -1117,7 +1117,7 @@ INTER-SESSION ANALYSIS:
 
         # Use a separate PromptChain for the inter-session analysis
         analyzer = PromptChain(
-            models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
+            models=[{"name": self.model_name, "params": {"temperature": 0.2, **self._endpoint_params}}],
             instructions=[inter_session_summarization_prompt],
             verbose=self.verbose,
         )
@@ -1944,7 +1944,7 @@ Provide a comprehensive yet concise summary organized into these sections:
 
             # Use a temporary PromptChain for summarization
             summary_chain = PromptChain(
-                models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
+                models=[{"name": self.model_name, "params": {"temperature": 0.2, **self._endpoint_params}}],
                 instructions=[summary_prompt],
                 verbose=self.verbose,
             )
@@ -2135,7 +2135,7 @@ Provide a brief (3-5 sentences) analysis of how these sessions relate to each ot
         try:
             # Use a temporary PromptChain for analysis
             analysis_chain = PromptChain(
-                models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
+                models=[{"name": self.model_name, "params": {"temperature": 0.2, **self._endpoint_params}}],
                 instructions=[analysis_prompt],
                 verbose=self.verbose,
             )

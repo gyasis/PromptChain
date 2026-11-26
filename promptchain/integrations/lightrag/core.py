@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 import logging
 
 from promptchain.integrations.lightrag import LIGHTRAG_AVAILABLE
+from promptchain.utils.model_roles import resolve_model_spec
 
 if TYPE_CHECKING:
     from hybridrag.src.lightrag_core import HybridLightRAGCore
@@ -73,16 +74,21 @@ class LightRAGIntegration:
         if self._initialized:
             return
 
-        if not self.config.model_name:
-            raise ValueError(
-                "LightRAGConfig.model_name is required: name the LLM model "
-                "(for example 'provider/model') when constructing LightRAGConfig."
-            )
-        if not self.config.embedding_model:
-            raise ValueError(
-                "LightRAGConfig.embedding_model is required: name the embedding "
-                "model when constructing LightRAGConfig."
-            )
+        llm_spec = resolve_model_spec(
+            "lightrag", self.config.model_name, required=True, param="LightRAGConfig.model_name"
+        )
+        embedding_spec = resolve_model_spec(
+            "lightrag_embedding",
+            self.config.embedding_model,
+            required=True,
+            param="LightRAGConfig.embedding_model",
+        )
+        for spec in (llm_spec, embedding_spec):
+            if spec.api_base:
+                logger.warning(
+                    f"Endpoint {spec.endpoint!r} for model {spec.model!r} is not applied: "
+                    "hybridrag takes a model name only."
+                )
 
         from hybridrag.src.lightrag_core import HybridLightRAGCore
         from hybridrag.src.search_interface import SearchInterface
@@ -90,8 +96,8 @@ class LightRAGIntegration:
         # Initialize core LightRAG
         self._core = HybridLightRAGCore(
             working_dir=self.config.working_dir,
-            model_name=self.config.model_name,
-            embedding_model=self.config.embedding_model,
+            model_name=llm_spec.model,
+            embedding_model=embedding_spec.model,
             **self.config.extra_params
         )
 
@@ -173,18 +179,21 @@ class LightRAGIntegration:
             objective: Optional objective for the search (defaults to answering query).
             max_steps: Maximum number of reasoning steps.
             model_name: Model to use for agentic reasoning (falls back to
-                ``config.model_name``, which must then be set).
+                ``config.model_name``, then ``roles.lightrag`` in the models file).
             **kwargs: Additional arguments passed to SearchInterface.agentic_search.
 
         Returns:
             Search result with multi-hop reasoning.
         """
         self._ensure_initialized()
+        model_name = resolve_model_spec(
+            "lightrag", model_name or self.config.model_name, required=True, param="model_name"
+        ).model
         return await self._search.agentic_search(  # type: ignore
             query=query,
             objective=objective or f"Comprehensively answer: {query}",
             max_steps=max_steps,
-            model_name=model_name or self.config.model_name,
+            model_name=model_name,
             **kwargs
         )
 

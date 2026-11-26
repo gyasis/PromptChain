@@ -55,6 +55,46 @@ gemini/gemini-1.5-flash-8b       # cheapest Gemini, 33x cheaper than 2.5-pro
 
 **No Ollama models appear in `examples/`** — the package supports them via `OllamaModelManager` but doesn't ship Ollama examples. If you're using Ollama, see §E below.
 
+## C2. Naming models once: the models file
+
+PromptChain names no model. Instead of passing a model to every component, list them in one YAML file the user owns: `$PROMPTCHAIN_MODELS_CONFIG`, else `~/.promptchain/models.yaml`. Write a template with every role and empty values using `promptchain models init` (or `python -m promptchain.utils.model_roles init`); `promptchain models show` prints each role, its resolved model, its endpoint and where it came from. The file is YAML (PyYAML is a dependency). A missing file is an empty config; a malformed file raises an error that names the file.
+
+```yaml
+default: <provider/model>             # required roles only
+endpoints:                            # optional: where a model runs
+  gov-ollama:   {api_base: "http://<host>:<port>/<ollama-lane-path>"}                       # litellm ollama_chat/<tag>
+  gov-llamacpp: {api_base: "http://<host>:<port>/<llamacpp-lane-path>/v1", provider: openai} # OpenAI-compatible; model = alias
+  local:        {api_base: "http://localhost:11434"}
+roles:
+  supervisor: <provider/model>                                    # plain string: provider/model as usual
+  state_agent: {model: <tag>, endpoint: gov-ollama}              # a role on the governor Ollama lane
+  judge:       {model: <alias>, endpoint: gov-llamacpp}          # a role on the llamacpp lane
+```
+
+Precedence for one component: **explicit argument > `roles.<role>` > `default` (required roles only) > error**. An optional role never reads `default`: its feature stays off until the role is set or an argument is passed, so setting `default` cannot start extra paid calls. A required role that nothing supplies raises `ValueError` naming the parameter, the role key and the file path.
+
+A role value (and `default`) is a string or a mapping `{model, endpoint}`. An endpoint is `api_base` plus an optional `provider` (passed to litellm as `custom_llm_provider`); an unknown endpoint name is an error that names the role and the endpoint. Endpoints hold no `num_ctx` or `max_tokens`. An explicit model argument carries no endpoint. In code: `resolve_model_spec(role, explicit, required=, param=)` returns `ModelSpec(model, api_base, extra_kwargs, source)`; `.as_model()` gives a value for `PromptChain(models=[...])` (a `{"name", "params"}` dict when an endpoint applies); `resolve_model(...)` returns the string only. The CLI and TUI apply the file's `default` (and `config.json`'s `default_model`) by model name only; they do not apply endpoints. `lightrag` and `lightrag_embedding` also take the name only.
+
+| Role | Need | Component and parameter |
+|---|---|---|
+| `agent` | required | agent_comms LLMAgent / agent() / create_from_template |
+| `orchestrator` | required | agent_comms orchestrator() / captain() |
+| `supervisor` | required | AgentChain supervisor_model, OrchestratorSupervisor model_name |
+| `synthesizer` | required | AgentChain synthesizer_config['model'] |
+| `history_summarizer` | required | HistorySummarizer model |
+| `state_agent` | required | StateAgent / create_state_agent model_name |
+| `prompt_engineer` | required | PromptEngineer evaluator_model |
+| `chain_builder` | required | DynamicChainBuilder model step |
+| `chain` | required | ChainExecutor / ChainFactory / ChainBuilder llm_model |
+| `agentic_step` | required | PromptChain agentic step with no models or model_name |
+| `router` | required | YAML orchestration.router.model (router mode) |
+| `lightrag` | required | LightRAGConfig.model_name |
+| `lightrag_embedding` | required | LightRAGConfig.embedding_model |
+| `summarizer` | optional | AgenticStepProcessor / ContextManagementConfig summarizer_model |
+| `prompt_improver` | optional | PromptEngineer improver_model (falls back to the evaluator) |
+| `judge` | optional | BranchingConfig.judge_model |
+| `multi_hop_synthesizer` | optional | MultiHopConfig.synthesizer_model |
+
 ## D. Picking a model — decision tree
 
 ```

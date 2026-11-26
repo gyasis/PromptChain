@@ -36,6 +36,7 @@ from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Dict, List,
 from promptchain.prompts.base import BasePromptBuilder
 from promptchain.prompts.dynamic import DynamicPromptGenerator
 
+from .model_roles import resolve_model_spec
 from .agentic_step_result import AgenticStepResult, StepExecutionMetadata
 
 if TYPE_CHECKING:
@@ -294,7 +295,8 @@ class AgenticStepProcessor:
             summarize_every_n: Summarize after every N iterations (default: 5)
             summarize_token_threshold: Summarize when tokens exceed this % of max_context_tokens (default: 0.7)
             summarizer_model: (Optional) LLM model for history summarization. None turns
-                summarization off, even when enable_summarization is True.
+                summarization off, even when enable_summarization is True. When None,
+                ``roles.summarizer`` in the models file supplies it (``default`` does not).
             preserve_last_n_turns: Keep last N turns verbatim when summarizing (default: 2)
             fallback_model: (Optional) Fast, cheap model for simple tasks.
                           When enable_two_tier_routing is True, simple tasks route to this model.
@@ -388,7 +390,11 @@ class AgenticStepProcessor:
         self.enable_summarization = enable_summarization
         self.summarize_every_n = summarize_every_n
         self.summarize_token_threshold = summarize_token_threshold
-        self.summarizer_model = summarizer_model
+        summarizer_spec = resolve_model_spec(
+            "summarizer", summarizer_model, required=False, param="summarizer_model"
+        )
+        self.summarizer_model = summarizer_spec.model if summarizer_spec else None
+        self.summarizer_params = summarizer_spec.params if summarizer_spec else {}
         self.preserve_last_n_turns = preserve_last_n_turns
         self._summarizer: Optional["HistorySummarizer"] = None  # Lazy init
         self._summarization_count = 0  # Track how many times summarization triggered
@@ -720,6 +726,7 @@ class AgenticStepProcessor:
             self._summarizer = HistorySummarizer(
                 model=self.summarizer_model,
                 max_summary_tokens=500,
+                model_params=self.summarizer_params,
             )
         return self._summarizer
 

@@ -34,15 +34,15 @@ MODEL = "ollama_chat/glm-5.3-flash:cloud"
 
 class TestRequiredModelRaises:
     def test_llm_agent(self):
-        with pytest.raises(ValueError, match="requires `model`"):
+        with pytest.raises(ValueError, match="No model for `model`"):
             agent("A", "an engineer")
 
     def test_orchestrator(self):
-        with pytest.raises(ValueError, match="requires `model`"):
+        with pytest.raises(ValueError, match="No model for `model`"):
             orchestrator("M")
 
     def test_history_summarizer(self):
-        with pytest.raises(ValueError, match="requires `model`"):
+        with pytest.raises(ValueError, match="No model for `model`"):
             HistorySummarizer()
 
     def test_orchestrator_supervisor(self):
@@ -77,16 +77,16 @@ class TestRequiredModelRaises:
         chain = ChainDefinition(vin="v", model="m", version="v1", steps=[step])
         assert chain.llm_model is None
         executor = ChainExecutor()
-        with pytest.raises(ChainExecutionError, match="No LLM model"):
+        with pytest.raises(ChainExecutionError, match="No model for `llm_model`"):
             executor._resolve_model(chain, step)
-        assert ChainExecutor(default_model=MODEL)._resolve_model(chain, step) == MODEL
+        assert ChainExecutor(default_model=MODEL)._resolve_model(chain, step).model == MODEL
 
     def test_agentchain_synthesizer_needs_model(self):
         from promptchain.utils.agent_chain import AgentChain
         from promptchain.utils.promptchaining import PromptChain
 
         chains = {"a": PromptChain(models=[MODEL], instructions=["{input}"])}
-        with pytest.raises(ValueError, match="synthesizer_config requires a 'model'"):
+        with pytest.raises(ValueError, match="synthesizer_config"):
             AgentChain(agents=chains, agent_descriptions={"a": "x"},
                        execution_mode="broadcast",
                        synthesizer_config={"prompt": "p {agent_responses}"})

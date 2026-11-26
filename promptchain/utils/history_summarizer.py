@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 import tiktoken
 
 from promptchain.observability import track_llm_call
+from promptchain.utils.model_roles import resolve_model_spec
 
 logger = logging.getLogger(__name__)
 
@@ -70,22 +71,25 @@ class HistorySummarizer:
         self,
         model: Optional[str] = None,
         max_summary_tokens: int = 500,
+        model_params: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the history summarizer.
 
         Args:
-            model: LiteLLM model string for summarization (required)
+            model: LiteLLM model string for summarization. Falls back to
+                ``roles.history_summarizer`` (or ``default``) in the models file.
             max_summary_tokens: Maximum tokens for summary output
+            model_params: litellm kwargs for the model (for example ``api_base``).
+                Taken from the models file when the model comes from it.
 
         Raises:
-            ValueError: If ``model`` is not given.
+            ValueError: If no model is given and the models file supplies none.
         """
-        if not model:
-            raise ValueError(
-                "HistorySummarizer requires `model`: pass a LiteLLM model string "
-                "for summarization."
-            )
-        self.model = model
+        spec = resolve_model_spec(
+            "history_summarizer", model, required=True, param="model"
+        )
+        self.model = spec.model
+        self.model_params = model_params if model_params is not None else spec.params
         self.max_summary_tokens = max_summary_tokens
 
         # Initialize tiktoken for token counting
@@ -204,6 +208,7 @@ class HistorySummarizer:
 
             response = await litellm.acompletion(
                 model=self.model,
+                **self.model_params,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=self.max_summary_tokens,
                 temperature=0.3,  # Lower for more consistent summaries
