@@ -25,7 +25,9 @@ if os.environ.get("PROBE_COHORT"):
     COHORT = [t.strip() for t in os.environ["PROBE_COHORT"].split(",") if t.strip()]
 # PROBE_GATE=advisory records the local memory gate but lets the governor alone decide admission.
 GATE_ADVISORY = os.environ.get("PROBE_GATE") == "advisory"
-BUDGET_S = 45 * 60
+BUDGET_S = int(os.environ.get("PROBE_BUDGET_MIN", "45")) * 60
+N_SIMPLE = int(os.environ.get("PROBE_N_SIMPLE", "3"))
+N_IRRELEVANCE = int(os.environ.get("PROBE_N_IRRELEVANCE", "2"))
 RUN_ID = uuid.uuid4().hex
 OUT = Path(os.environ.get("PROBE_OUT", "/tmp/probe-pilot-results.json"))
 CATALOG = json.load(open(os.path.expanduser("~/.config/ollama-cloud/local-models.json")))
@@ -63,7 +65,7 @@ def run_llamacpp(client, alias, key, results):
         row["latency_calls"] = [{"size": r["input_size"], "repeat": r["repeat"], "warm": r["warm"],
                                  "status": r["status"], "leak": r["thinking_leak"], **r["metrics"]} for r in lat]
         print(f"[{key}] latency {row['latency']}", flush=True)
-        tool = run_tool_probe(client, alias, show=show, capabilities=caps, n_simple=3, n_irrelevance=2,
+        tool = run_tool_probe(client, alias, show=show, capabilities=caps, n_simple=N_SIMPLE, n_irrelevance=N_IRRELEVANCE,
                               ctx=ctx, gate=None)
         row["tool"] = tool
         print(f"[{key}] tool {tool.get('summary')}", flush=True)
@@ -128,7 +130,7 @@ def main():
             row["latency_calls"] = [{"size": r["input_size"], "repeat": r["repeat"], "warm": r["warm"],
                                      "status": r["status"], "leak": r["thinking_leak"], **r["metrics"]} for r in lat]
             print(f"[{tag}] latency {row['latency']}", flush=True)
-            tool = run_tool_probe(client, tag, show=show, capabilities=caps, n_simple=3, n_irrelevance=2,
+            tool = run_tool_probe(client, tag, show=show, capabilities=caps, n_simple=N_SIMPLE, n_irrelevance=N_IRRELEVANCE,
                                   ctx=ctx, gate=gate)
             row["tool"] = tool
             print(f"[{tag}] tool {tool.get('summary')}", flush=True)
