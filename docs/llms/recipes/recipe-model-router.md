@@ -27,6 +27,7 @@ Source: `promptchain/utils/model_router.py`. Tests: `tests/test_model_router.py`
   profiler or `decision_step`.
 - Abilities from the profiler's default item bank are hand-set (`ItemBank.synthetic`). Do not
   treat them as measured. Prefer `abilities=` values you fitted from your own outcomes.
+- The profiler can probe models on the governor's llamacpp lane. A cohort entry `llamacpp:<alias>` runs the latency and tool-call probes through `/llm/llamacpp/v1/chat/completions` with thinking off (`promptchain/profiler/governor.py`, `LlamacppGovernorClient`). Listing aliases loads nothing. The first call per alias can wait for the sidecar's load bound.
 
 ## Offline example (no model, no network)
 ```python

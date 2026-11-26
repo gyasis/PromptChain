@@ -2,7 +2,7 @@
 
 > Python library for building multi-step LLM pipelines and multi-agent systems. Wraps litellm for model access; supports MCP tool servers, structured event/callback system, an optional MLflow observability layer, and `ChainBuilder` — an agent-facing API for self-writing chains.
 
-PromptChain is the user's own library — not in any LLM training corpus. Read the LLM-targeted reference and recipes below before writing PromptChain code; otherwise expect API hallucinations. Current version: 0.6.1+ (2026-04-28); see §13 of `PROMPTCHAIN_FOR_LLMS.md` for breaking changes in v0.6.0/0.6.1.
+PromptChain is the user's own library — not in any LLM training corpus. PromptChain names no model: pass one, or set per-role models in `~/.promptchain/models.yaml` (`promptchain models show|init`). Read the LLM-targeted reference and recipes below before writing PromptChain code; otherwise expect API hallucinations. Current version: see `version.json` and the CHANGELOG; see §13 of `PROMPTCHAIN_FOR_LLMS.md` for breaking changes in v0.6.0/0.6.1.
 
 ## Docs
 
@@ -26,8 +26,16 @@ PromptChain is the user's own library — not in any LLM training corpus. Read t
 - [MCP tool](recipes/recipe-mcp-tool.md): External MCP server tool integration.
 - [Observability on](recipes/recipe-observability-on.md): Enable MLflow tracking.
 - [ChainBuilder](recipes/recipe-chain-builder.md): Fluent + tool API for agent-driven self-writing chains.
-- [Models & tool-calling](recipes/recipe-models-and-tool-calling.md): Provider/model string format, tool-calling capability matrix (OpenAI / Anthropic / Gemini / Ollama), two-tier routing pairings, env vars.
+- [Models & tool-calling](recipes/recipe-models-and-tool-calling.md): Provider/model string format, tool-calling capability matrix, two-tier routing pairings, env vars, and the models file (`~/.promptchain/models.yaml`: default, per-role models, endpoints; `promptchain models show|init`). PromptChain has no default model.
+- [Model router](recipes/recipe-model-router.md): Route a task to a model by measured ability. The profiler also probes models on the governor llamacpp lane (`llamacpp:<alias>`).
 - [Hybrid chain](recipes/recipe-hybrid-chain.md): Mix sequential prompts and agentic steps in ONE chain — agentic for open-ended retrieval, sequential prompt for deterministic synthesis.
+- [AutoResearch](recipes/recipe-autoresearch.md): Research, build until verified, then critique.
+- [Cascade](recipes/recipe-cascade.md): Verify the cheap model's answer first; escalate to a stronger model only on failure.
+- [Chain of Verification](recipes/recipe-cove-verifier.md): CoVe verifier for tool calls and answers.
+- [External loop](recipes/recipe-external-loop.md): Bounded outer loop: `ExternalLoop`, `over_worklist`.
+- [Instruction optimiser](recipes/recipe-instruction-optimizer.md): Optimise one step's instruction against a labelled dataset.
+- [Test loops](recipes/recipe-test-loop.md): MicroPromptChain and RalphChain.
+- [Trace export](recipes/recipe-trace-export.md): Export a run as TRL-shaped training data.
 
 ## Source-of-truth files (when this doc and the code disagree, code wins)
 
