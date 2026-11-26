@@ -299,6 +299,6 @@ ALL TESTS PASSED
 ---
 
 **See Also**:
-- Full documentation: `MENTAL_MODELS_MODULE_COMPLETE.md`
+- Full documentation: `docs/archive/multiagent/MENTAL_MODELS_MODULE_COMPLETE.md` (historical)
 - Test file: `tests/cli/unit/test_mental_models.py`
 - Module: `promptchain/cli/models/mental_models.py`

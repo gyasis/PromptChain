@@ -935,17 +935,17 @@ The CLI orchestration system consists of:
 
 ### Documentation
 
-📚 **[Complete Documentation Index](docs/index.md)** - Start here for comprehensive guides
+📚 **[Complete Documentation Index](docs/README.md)** - Start here for comprehensive guides
 
 ### Quick Links
-- **[CLI Quick Start Guide](docs/PHASE6_QUICK_START.md)** - Get started with CLI in 5 minutes
+- **[CLI Quick Start Guide](docs/CLI_QUICK_REFERENCE.md)** - Get started with CLI in 5 minutes
 - **[Agent Templates Guide](docs/agent-templates.md)** - Complete template reference
 - **[Quick Start Guide](docs/promptchain_quickstart_multistep.md)** - Framework fundamentals
 - **[Complete Framework Guide](docs/promptchain_guide.md)** - Comprehensive usage documentation
 - **[Observability System](docs/observability/README.md)** - 🆕 Event system, metadata, and monitoring (v0.4.1h)
 - **[Model Management System](docs/model_management.md)** - Automatic VRAM optimization for large models
 - **[Prompt Engineering Guide](docs/prompt_engineer.md)** - Advanced prompt optimization
-- **[Agent Integration Examples](docs/AgentChain_Usage.md)** - Using with agent frameworks
+- **[Agent Integration Examples](docs/utils/agent_chain.md)** - Using with agent frameworks
 - **[Function Integration](docs/registering_functions_to_chain.md)** - Custom function examples
 - **[Advanced Techniques](docs/chainbreaker_guide.md)** - Chain breakers, circular processing, etc.
 

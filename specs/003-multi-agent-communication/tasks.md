@@ -418,7 +418,7 @@ Based on plan.md structure:
 
 **Goal**: Enable agents to select and apply structured reasoning frameworks during task execution
 
-**Source**: `/docs/agent_communication/thoughtbox_mental_models_integration.md`
+**Source**: `/docs/archive/agent_communication/thoughtbox_mental_models_integration.md`
 
 **Key Concept**: Mental models are **process scaffolds** that tell agents **HOW to think** about problems, not **WHAT to think**. They enable:
 1. **Discovery** - Find relevant models based on task characteristics

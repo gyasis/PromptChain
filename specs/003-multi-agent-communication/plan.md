@@ -99,7 +99,7 @@ tests/
 
 ## Mental Models Integration (CRITICAL)
 
-**Source Document**: `/docs/agent_communication/thoughtbox_mental_models_integration.md`
+**Source Document**: `/docs/archive/agent_communication/thoughtbox_mental_models_integration.md`
 
 Mental models are **process scaffolds** that tell agents **HOW to think** about problems. This is a **critical** component for agent behavior quality.
 

@@ -9,11 +9,11 @@ PromptChain provides six sophisticated agentic patterns that leverage LightRAG's
 ### Available Patterns
 
 1. **[Branching Thoughts](./branching.md)** - Generate and evaluate multiple hypotheses using different query modes
-2. **[Query Expansion](./query_expansion.md)** - Expand queries with synonyms, semantics, and reformulations
+2. **[Query Expansion](../../promptchain/integrations/lightrag/query_expansion.py)** - Expand queries with synonyms, semantics, and reformulations
 3. **[Sharded Retrieval](./sharded.md)** - Parallel retrieval across multiple LightRAG database shards
-4. **[Multi-Hop Retrieval](./multi_hop.md)** - Iterative question decomposition and reasoning
-5. **[Hybrid Search Fusion](./hybrid_search.md)** - Combine multiple search techniques with fusion algorithms
-6. **[Speculative Execution](./speculative.md)** - Predict and pre-execute likely queries to reduce latency
+4. **[Multi-Hop Retrieval](./lightrag_multi_hop.md)** - Iterative question decomposition and reasoning
+5. **[Hybrid Search Fusion](./hybrid_search_fusion.md)** - Combine multiple search techniques with fusion algorithms
+6. **[Speculative Execution](./lightrag_speculative_execution.md)** - Predict and pre-execute likely queries to reduce latency
 
 ## Installation
 
@@ -485,11 +485,11 @@ class PatternResult:
 ## Further Reading
 
 - [Branching Thoughts Pattern](./branching.md)
-- [Query Expansion Pattern](./query_expansion.md)
+- [Query Expansion Pattern](../../promptchain/integrations/lightrag/query_expansion.py)
 - [Sharded Retrieval Pattern](./sharded.md)
-- [Multi-Hop Retrieval Pattern](./multi_hop.md)
-- [Hybrid Search Fusion Pattern](./hybrid_search.md)
-- [Speculative Execution Pattern](./speculative.md)
+- [Multi-Hop Retrieval Pattern](./lightrag_multi_hop.md)
+- [Hybrid Search Fusion Pattern](./hybrid_search_fusion.md)
+- [Speculative Execution Pattern](./lightrag_speculative_execution.md)
 
 ## Support
 

@@ -8,7 +8,7 @@ Two-tier model routing intelligently routes simple tasks to fast/cheap models wh
 
 **Status**: ✅ **IMPLEMENTED** (v0.4.2+)
 
-**Research Source**: Based on RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)
+**Research Source**: Based on docs/archive/RESEARCH_BASED_IMPROVEMENTS.md (DeepLake RAG + Gemini research)
 
 ---
 
@@ -739,7 +739,7 @@ pytest tests/test_verification_integration.py -v -s  # See error reduction metri
 
 - **Blackboard Architecture**: `/docs/BLACKBOARD_ARCHITECTURE.md`
 - **Safety Features**: `/docs/SAFETY_FEATURES.md`
-- **Research Document**: `/docs/RESEARCH_BASED_IMPROVEMENTS.md`
+- **Research Document**: `docs/archive/RESEARCH_BASED_IMPROVEMENTS.md`
 - **Example Code**: `/examples/two_tier_routing_demo.py`
 - **Implementation**: `/promptchain/utils/agentic_step_processor.py`
 - **Test Suite**: `/tests/test_*_integration.py`

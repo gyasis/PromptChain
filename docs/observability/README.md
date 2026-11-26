@@ -187,5 +187,5 @@ All examples are in `examples/observability/`:
 
 For questions and issues:
 - GitHub Issues: [PromptChain Issues](https://github.com/yourusername/promptchain/issues)
-- Documentation: [Full Documentation](../index.md)
+- Documentation: [Full Documentation](../README.md)
 - Examples: [Working Examples](../../examples/)
