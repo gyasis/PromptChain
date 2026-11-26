@@ -39,6 +39,7 @@ class TestAgenticReasoningIntegration:
         """Create SessionManager for testing."""
         return SessionManager(sessions_dir=temp_sessions_dir)
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_agentic_step_execution(self):
         """Integration: AgenticStepProcessor executes multi-step reasoning.
 
@@ -114,6 +115,7 @@ class TestAgenticReasoningIntegration:
         # AgenticStepProcessor should have more history after second turn
         assert len(agentic_step.internal_history) > 0
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_completion_detection(self):
         """Integration: AgenticStepProcessor detects objective completion.
 
@@ -396,6 +398,7 @@ class TestAgenticReasoningIntegration:
             # AgenticStepProcessor should provide partial results or clear error
             assert "error" in str(e).lower() or "failed" in str(e).lower()
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_agentic_step_yaml_end_to_end(self, temp_sessions_dir):
         """Integration: Full YAML → Agent → Execution flow.
 

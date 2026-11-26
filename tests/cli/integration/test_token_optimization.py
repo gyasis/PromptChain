@@ -675,6 +675,7 @@ class TestTokenUsageOverTime:
                     f"First 5 avg: {avg_first_5:.0f}, Last 5 avg: {avg_last_5:.0f}"
                 )
 
+    @pytest.mark.live  # asserts on real model output length/content
     @pytest.mark.asyncio
     async def test_token_count_stabilizes_at_limit(self, temp_cache_dir):
         """Verify token count stabilizes at configured limit."""

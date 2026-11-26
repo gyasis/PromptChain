@@ -59,6 +59,7 @@ def test_invalid_credentials():
 
             yield project_dir
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_sequential_tool_calls(self, temp_project_dir):
         """Integration: AgenticStepProcessor makes multiple tool calls.
 
@@ -142,6 +143,7 @@ def test_invalid_credentials():
         # Should mention authentication-related findings
         assert "authenticate" in result.lower() or "auth" in result.lower()
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_tool_result_influences_reasoning(self):
         """Integration: Tool results guide subsequent reasoning steps.
 
@@ -410,6 +412,7 @@ def test_invalid_credentials():
             # If reasoning fails due to tool, should have meaningful error
             assert "tool" in str(e).lower() or "error" in str(e).lower()
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_chain_breaking_with_tools(self):
         """Integration: Tool results can trigger chain breaking.
 
@@ -463,6 +466,7 @@ def test_invalid_credentials():
         # Should complete quickly if tool provides answer
         assert agentic_step.current_step <= 3
 
+    @pytest.mark.live  # asserts on real model output length/content
     def test_complex_multi_hop_scenario(self, temp_project_dir):
         """Integration: Complex multi-hop workflow with multiple tools.
 
