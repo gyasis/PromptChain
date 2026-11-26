@@ -51,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Prices for retired models are removed.
 
 ### Added
+- **`think:` in the models config.** A role or `default` mapping takes `think: true|false`.
+  PromptChain sends `think` to an Ollama endpoint and `chat_template_kwargs.enable_thinking` to a
+  `provider: openai` endpoint. `promptchain models show` has a `think` column.
 - **Models file: one place to name models per role.** `~/.promptchain/models.yaml` (or
   `$PROMPTCHAIN_MODELS_CONFIG`) holds `default`, `roles` and optional `endpoints`
   (`api_base`, `provider`) that say where a model runs, for example an Atelier governor lane.

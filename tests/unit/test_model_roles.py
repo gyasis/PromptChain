@@ -182,3 +182,46 @@ def test_optional_judge_off_with_only_default(cfg):
     from promptchain.integrations.lightrag.branching import BranchingConfig
 
     assert resolve_model_spec("judge", BranchingConfig().judge_model, required=False, param="p") is None
+
+
+def _write_cfg(tmp_path, monkeypatch, text):
+    from promptchain.utils import model_roles
+    cfg = tmp_path / "models.yaml"
+    cfg.write_text(text)
+    monkeypatch.setenv("PROMPTCHAIN_MODELS_CONFIG", str(cfg))
+    model_roles.reload()
+    return model_roles
+
+
+def test_think_false_on_ollama_endpoint_sends_think(tmp_path, monkeypatch):
+    mr = _write_cfg(tmp_path, monkeypatch,
+                    "endpoints:\n  gov: {api_base: 'http://h/llm/ollama'}\n"
+                    "default: {model: 'ollama_chat/m', endpoint: gov, think: false}\n")
+    spec = mr.resolve_model_spec("agent", None, required=True, param="model")
+    assert spec.think is False
+    assert spec.params == {"api_base": "http://h/llm/ollama", "think": False}
+    assert "off" in mr.show_text()
+
+
+def test_think_false_on_openai_endpoint_uses_chat_template_kwargs(tmp_path, monkeypatch):
+    mr = _write_cfg(tmp_path, monkeypatch,
+                    "endpoints:\n  lane: {api_base: 'http://h/llm/llamacpp/v1', provider: openai}\n"
+                    "roles:\n  judge: {model: 'alias', endpoint: lane, think: false}\n")
+    spec = mr.resolve_model_spec("judge", None, required=False, param="judge_model")
+    assert spec.params["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert "think" not in spec.params
+
+
+def test_think_unset_sends_nothing(tmp_path, monkeypatch):
+    mr = _write_cfg(tmp_path, monkeypatch,
+                    "endpoints:\n  gov: {api_base: 'http://h'}\ndefault: {model: 'ollama_chat/m', endpoint: gov}\n")
+    spec = mr.resolve_model_spec("agent", None, required=True, param="model")
+    assert spec.think is None and spec.params == {"api_base": "http://h"}
+
+
+def test_think_must_be_bool(tmp_path, monkeypatch):
+    import pytest
+    from promptchain.utils import model_roles as mr
+    with pytest.raises(mr.ModelConfigError, match="think must be true or false"):
+        _write_cfg(tmp_path, monkeypatch, "default: {model: 'm', think: 'no'}\n")
+        mr.resolve_model_spec("agent", None, required=True, param="model")
