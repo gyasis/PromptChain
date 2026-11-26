@@ -362,7 +362,8 @@ class SessionManager:
         Args:
             name: Session name (1-64 chars, alphanumeric+dashes/underscores)
             working_directory: Working directory for session (default: cwd)
-            default_model: Default LLM model (default: "openai/gpt-4")
+            default_model: Default LLM model (None = none chosen yet; the user picks one
+                with /model, Ctrl+N or --model)
             mcp_servers: List of MCPServerConfig objects to add to session (T062)
 
         Returns:
@@ -376,10 +377,6 @@ class SessionManager:
             working_directory = Path.cwd()
         else:
             working_directory = Path(working_directory)
-
-        # Set default model
-        if default_model is None:
-            default_model = "openai/gpt-4.1-mini-2025-04-14"
 
         # Check if session name already exists
         conn = sqlite3.connect(self.db_path)
@@ -504,7 +501,7 @@ class SessionManager:
                     session.last_accessed,
                     str(session.working_directory),
                     session.active_agent,
-                    session.default_model,
+                    session.default_model or "",
                     1 if session.auto_save_enabled else 0,
                     session.auto_save_interval,
                     json.dumps(session.metadata),
@@ -522,7 +519,7 @@ class SessionManager:
                 (
                     session.id,
                     default_agent.name,
-                    default_agent.model_name,
+                    default_agent.model_name or "",
                     default_agent.description,
                     default_agent.created_at,
                     default_agent.last_used,
@@ -782,7 +779,7 @@ class SessionManager:
                 (
                     session.last_accessed,
                     session.active_agent,
-                    session.default_model,
+                    session.default_model or "",
                     1 if session.auto_save_enabled else 0,
                     session.auto_save_interval,
                     json.dumps(session.metadata),
@@ -820,7 +817,7 @@ class SessionManager:
                     (
                         session.id,
                         agent.name,
-                        agent.model_name,
+                        agent.model_name or "",
                         agent.description,
                         agent.created_at,
                         agent.last_used,
@@ -986,7 +983,7 @@ class SessionManager:
                     (
                         session_id,
                         agent.name,
-                        agent.model_name,
+                        agent.model_name or "",
                         agent.description,
                         agent.created_at,
                         agent.last_used,

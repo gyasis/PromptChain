@@ -7,7 +7,10 @@ a web front-end (Lookout's Tauri overlay) can BE the interface — replacing the
                     context = Lookout's watched screen region / detected card (text), injected as grounding
   GET  /health
 
-Run:  BRIDGE_MODEL=openai/gpt-4o-mini  uvicorn promptchain.server.web_bridge:app --port 7788
+A turn needs a model: the request's `model`, else the BRIDGE_MODEL environment variable.
+There is no built-in default; with neither, /chat/turn answers HTTP 400.
+
+Run:  BRIDGE_MODEL=<model name>  uvicorn promptchain.server.web_bridge:app --port 7788
 Events: start · thinking · tool_call · tool_result · answer_delta · tokens · error · answer · done
 """
 import asyncio
@@ -16,7 +19,7 @@ import os
 import urllib.request
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -25,7 +28,7 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from promptchain.utils.promptchaining import PromptChain
 from promptchain.cli.tools import registry
 
-DEFAULT_MODEL = os.environ.get("BRIDGE_MODEL", "openai/gpt-4o-mini")
+DEFAULT_MODEL: Optional[str] = os.environ.get("BRIDGE_MODEL") or None
 _TOOLS = [registry.get(t) for t in registry.list_tools()]
 _SCHEMAS = registry.get_openai_schemas()
 
@@ -315,6 +318,11 @@ def session_state():
 @app.post("/chat/turn")
 async def chat_turn(t: Turn):
     model = t.model or DEFAULT_MODEL
+    if not model:
+        raise HTTPException(
+            status_code=400,
+            detail="No model: send `model` in the request or set BRIDGE_MODEL.",
+        )
     _USAGE["prompt"] = 0; _USAGE["completion"] = 0     # accumulate this turn's tokens
     ac = _ensure_chain(model, t.tools)                 # persistent AgentChain — history carries across turns
     proc = _proc_of(ac)                                # attach this turn's screen image(s) for the vision model
@@ -323,8 +331,8 @@ async def chat_turn(t: Turn):
     if imgs and not _is_vision_model(model):           # WARN, don't block: run text-only this turn
         imgs = []
         warn_msg = (f"vision language model needed — '{model}' isn't a recognized vision model, so the screen "
-                    f"image was skipped this turn (text still works). Pick a vision model (gpt-4o, gemini, or a "
-                    f"local *-vl / gemma3) to let it see the screen.")
+                    f"image was skipped this turn (text still works). Pick a vision model (a hosted multimodal model, or a "
+                    f"local *-vl model) to let it see the screen.")
     if proc is not None:
         proc.pending_images = imgs
     q: asyncio.Queue = asyncio.Queue()

@@ -254,11 +254,11 @@ class YAMLConfigTranslator:
             objective: "Research {topic} comprehensively"
             max_internal_steps: 8
             history_mode: progressive
-            model_name: anthropic/claude-3-opus  # Optional, overrides default
+            model_name: <provider/model>  # Optional, overrides the default model
 
             # Phase 1: Two-Tier Routing (Cost Optimization)
             enable_two_tier_routing: true
-            fallback_model: anthropic/claude-3-haiku
+            fallback_model: <provider/model>  # Optional; two-tier routing is off without it
 
             # Phase 2: Blackboard Architecture (Token Optimization)
             enable_blackboard: true
@@ -432,8 +432,14 @@ class YAMLConfigTranslator:
         router_config: Optional[Dict[str, Any]] = None
         if yaml_config.orchestration.execution_mode == "router":
             router_data = yaml_config.orchestration.router or {}
+            router_model = router_data.get("model")
+            if not router_model:
+                raise ValueError(
+                    "orchestration.router.model is required when execution_mode is "
+                    "'router': name the model that makes routing decisions."
+                )
             router_config = {
-                "models": [router_data.get("model", "openai/gpt-4o-mini")],
+                "models": [router_model],
                 "instructions": [None, "{input}"],
             }
 
@@ -493,8 +499,14 @@ class YAMLConfigTranslator:
         router_config = None
         if yaml_config.orchestration.execution_mode == "router":
             router_data = yaml_config.orchestration.router or {}
+            router_model = router_data.get("model")
+            if not router_model:
+                raise ValueError(
+                    "orchestration.router.model is required when execution_mode is "
+                    "'router': name the model that makes routing decisions."
+                )
             router_config = RouterConfig(
-                model=router_data.get("model", "openai/gpt-4o-mini"),
+                model=router_model,
                 timeout_seconds=router_data.get("timeout_seconds", 10),
             )
 

@@ -29,6 +29,8 @@ from ..models import Message, Session
 from ..session_manager import SessionManager
 from ..shell_executor import ShellCommandParser, ShellExecutor
 from ..utils.file_context_manager import FileContextManager
+from ..utils.model_required import (NO_MODEL_MESSAGE, display_model,
+                                    require_model)
 from ..utils.output_formatter import OutputFormatter
 from .activity_log_viewer import ActivityLogViewer
 from .approval_screen import ApprovalScreen
@@ -536,7 +538,7 @@ class PromptChainApp(App):
                 "[bold]Config File Location:[/bold]\n"
                 f"  {self.config.get_default_path()}\n\n"
                 "[bold]Current Settings:[/bold]\n"
-                f"  Default Model: [bold]{self.config.default_model}[/bold]\n"
+                f"  Default Model: [bold]{display_model(self.config.default_model)}[/bold]\n"
                 f"  Default Agent: [bold]{self.config.default_agent}[/bold]\n"
                 f"  Max Displayed Messages: [bold]{self.config.ui.max_displayed_messages}[/bold]\n"
                 f"  Lazy Load Agents: [bold]{self.config.performance.lazy_load_agents}[/bold]\n"
@@ -829,7 +831,7 @@ class PromptChainApp(App):
                 f"[bold #4ec9b0]Welcome to PromptChain CLI[/]\n\n"
                 f"[#4ec9b0]Session:[/] {self.session.name} ({session_status})\n"
                 f"[#4ec9b0]Active Agent:[/] {self.session.active_agent}\n"
-                f"[#4ec9b0]Model:[/] [bold]{active_model}[/bold]\n"
+                f"[#4ec9b0]Model:[/] [bold]{display_model(active_model)}[/bold]\n"
                 f"[#4ec9b0]Tools Loaded:[/] [bold]{agent_tool_count}/{tool_count}[/bold] available\n"
                 f"[#4ec9b0]Working Directory:[/] {self.session.working_directory}\n\n"
                 "Type your message and press Enter to chat.\n"
@@ -2475,7 +2477,7 @@ class PromptChainApp(App):
                         f"  Working Directory: {self.session.working_directory}\n"
                         f"  Messages: {len(self.session.messages)}\n"
                         f"  Active Agent: {self.session.active_agent}\n"
-                        f"  Default Model: {self.session.default_model}"
+                        f"  Default Model: {display_model(self.session.default_model)}"
                     ),
                 )
                 chat_view.add_message(session_msg)
@@ -2774,7 +2776,7 @@ class PromptChainApp(App):
                         role="system",
                         content=(
                             f"[bold]Active Agent:[/bold] {active}\n"
-                            f"[bold]Model:[/bold] {model}\n"
+                            f"[bold]Model:[/bold] {display_model(model)}\n"
                             f"[bold]Total Agents:[/bold] {agent_count}"
                         ),
                     )
@@ -2824,23 +2826,26 @@ class PromptChainApp(App):
                     chat_view.add_message(
                         Message(
                             role="system",
-                            content="Usage: /agent create <name> --model <model>\nExample: /agent create coder --model openai/gpt-4",
+                            content="Usage: /agent create <name> --model <model>\nExample: /agent create coder --model <provider/model>",
                         )
                     )
                 else:
                     agent_name = parts[2]
                     # Parse --model flag
-                    model = (
-                        self.session.default_model
-                        if self.session
-                        else "openai/gpt-4.1-mini-2025-04-14"
-                    )
+                    model = self.session.default_model if self.session else None
                     for i, p in enumerate(parts):
                         if p == "--model" and i + 1 < len(parts):
                             model = parts[i + 1]
                             break
 
-                    if self.session:
+                    if self.session and not model:
+                        chat_view.add_message(
+                            Message(
+                                role="system",
+                                content=f"Cannot create '{agent_name}': {NO_MODEL_MESSAGE}",
+                            )
+                        )
+                    elif self.session:
                         self.session.agents[agent_name] = {
                             "model": model,
                             "description": "",
@@ -4073,8 +4078,8 @@ Examples:
         """Build router configuration for AgentChain (T039).
 
         Returns router config dict with models, instructions, and decision prompt template.
-        Uses session's orchestration_config.router_model if available, otherwise defaults
-        to "openai/gpt-4o-mini" for fast, cost-effective routing.
+        Uses the router model from the session's orchestration_config, else the session's
+        default model. With neither, raises ModelNotSelectedError.
 
         Returns:
             dict: Router configuration for AgentChain
@@ -4082,7 +4087,12 @@ Examples:
         if not self.session or not self.session.orchestration_config:
             # Fallback to default router config with task classification
             return {
-                "models": ["openai/gpt-4o-mini"],
+                "models": [
+                    require_model(
+                        self.session.default_model if self.session else None,
+                        context="Router",
+                    )
+                ],
                 "instructions": [None, "{input}"],
                 "decision_prompt_templates": {
                     "single_agent_dispatch": """
@@ -4123,8 +4133,12 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         orchestration = self.session.orchestration_config
         router_config = orchestration.router_config
 
-        # Use router model from config, or default to gpt-4o-mini
-        router_model = router_config.model if router_config else "openai/gpt-4o-mini"
+        # Router model from config, else the session's default model
+        router_model = require_model(
+            router_config.model if router_config else None,
+            self.session.default_model,
+            context="Router",
+        )
 
         # Use decision prompt template from config, or default with task classification
         decision_prompt = (
@@ -4188,6 +4202,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
 
         if not self.session or not self.session.agents:
             return None
+
+        for _name, _agent in self.session.agents.items():
+            require_model(_agent.model_name, context=f"Agent '{_name}'")
 
         # Build agents dict for AgentChain
         agents_dict = {}
@@ -4507,6 +4524,10 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
             model_name = (
                 active_agent.model_name if active_agent else self.session.default_model
             )
+            if not model_name:
+                self.is_processing = False  # Reset before early return
+                chat_view.add_message(Message(role="system", content=NO_MODEL_MESSAGE))
+                return
 
             # Create a processing message with plain text (animation handled by MessageItem)
             processing_msg = Message(
@@ -5032,6 +5053,9 @@ IMPORTANT: For conversational queries, ALWAYS prefix refined_query with "Respond
         model_name = (
             active_agent.model_name if active_agent else self.session.default_model
         )
+        if not model_name:
+            chat_view.add_message(Message(role="system", content=NO_MODEL_MESSAGE))
+            return
 
         # Show processing indicator
         processing_msg = Message(

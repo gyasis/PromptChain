@@ -7,6 +7,8 @@ to appropriate handler methods.
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from .utils.model_required import display_model, require_model
+
 
 @dataclass
 class ParsedCommand:
@@ -377,7 +379,7 @@ class CommandHandler:
             session: Current Session object
             template_name: Template name (researcher, coder, analyst, terminal)
             agent_name: Name for the new agent
-            model_override: Optional custom model to override template default
+            model_override: Model for the agent (falls back to the session default model)
             description_override: Optional custom description to override template default
 
         Returns:
@@ -408,7 +410,7 @@ class CommandHandler:
             agent = create_from_template(
                 template_name=template_name,
                 agent_name=agent_name,
-                model_override=model_override,
+                model_override=model_override or session.default_model,
                 description_override=description_override,
             )
 
@@ -479,7 +481,6 @@ class CommandHandler:
                 # Format template section
                 lines.append(f"  {template.display_name} ({template_name})")
                 lines.append(f"    Description: {template.description}")
-                lines.append(f"    Model: {template.model}")
                 lines.append(f"    Category: {category}")
                 lines.append(f"    Complexity: {complexity}")
                 lines.append(f"    Token Usage: {token_usage}")
@@ -680,7 +681,7 @@ class CommandHandler:
             CommandResult indicating success or error
 
         Example:
-            /agent update my-researcher --model claude-3-opus-20240229
+            /agent update my-researcher --model <provider/model>
             /agent update my-coder --description "Python specialist"
             /agent update my-terminal --add-tools web_search,mcp_filesystem_read
         """
@@ -1846,8 +1847,10 @@ Each step should be:
 
             # Get active agent's model
             active_agent = session.agents.get(session.active_agent)
-            model_name = (
-                active_agent.model_name if active_agent else session.default_model
+            model_name = require_model(
+                active_agent.model_name if active_agent else None,
+                session.default_model,
+                context="Generating workflow steps",
             )
 
             # Call LLM to generate steps
@@ -2450,9 +2453,7 @@ Completed steps:
                     # Create agent
                     agent = Agent(
                         name=agent_name,
-                        model_name=agent_config.get(
-                            "model", "openai/gpt-4.1-mini-2025-04-14"
-                        ),
+                        model_name=agent_config.get("model") or session.default_model,
                         description=agent_config.get(
                             "description", f"Imported agent: {agent_name}"
                         ),
@@ -2606,7 +2607,7 @@ Completed steps:
             lines.append(f"Session Name: {session.name}")
             lines.append(f"Session ID: {session.id}")
             lines.append(f"Active Agent: {session.active_agent or 'default'}")
-            lines.append(f"Default Model: {session.default_model}")
+            lines.append(f"Default Model: {display_model(session.default_model)}")
             lines.append(f"Working Directory: {session.working_directory}")
             lines.append(f"Total Agents: {len(session.agents)}")
             lines.append(
@@ -2688,7 +2689,6 @@ Completed steps:
 
                 lines.append(f"{template.display_name} ({template_name})")
                 lines.append(f"  Description: {template.description[:80]}...")
-                lines.append(f"  Model: {template.model}")
                 lines.append(f"  Category: {category}")
                 lines.append(f"  Complexity: {complexity}")
                 lines.append(f"  Tools: {len(template.tools)} configured")

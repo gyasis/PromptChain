@@ -31,7 +31,8 @@ class Session:
         last_accessed: Last access timestamp (Unix seconds, auto-updated)
         working_directory: Directory context for file references and shell commands
         active_agent: Currently active agent name (None = default agent)
-        default_model: LLM model for default agent (LiteLLM format)
+        default_model: LLM model for default agent (LiteLLM format); None until the
+            user picks one
         auto_save_enabled: Whether auto-save is enabled
         auto_save_interval: Auto-save interval in seconds (60-600)
         metadata: Extensible storage for session-specific data
@@ -52,7 +53,7 @@ class Session:
     last_accessed: float
     working_directory: Path
     active_agent: Optional[str] = None
-    default_model: str = "openai/gpt-4.1-mini-2025-04-14"
+    default_model: Optional[str] = None
     auto_save_enabled: bool = True
     auto_save_interval: int = 120  # 2 minutes
     history_max_tokens: int = 128000  # Max tokens for history manager (from config)
@@ -86,6 +87,10 @@ class Session:
 
     def __post_init__(self):
         """Validate session attributes after initialization."""
+        # The database stores "no model chosen" as an empty string.
+        if not self.default_model:
+            self.default_model = None
+
         # Validate auto_save_interval
         if not (60 <= self.auto_save_interval <= 600):
             raise ValueError(
@@ -402,7 +407,7 @@ class Session:
             last_accessed=data["last_accessed"],
             working_directory=Path(data["working_directory"]),
             active_agent=data.get("active_agent"),
-            default_model=data.get("default_model", "openai/gpt-4.1-mini-2025-04-14"),
+            default_model=data.get("default_model") or None,
             auto_save_enabled=bool(data.get("auto_save_enabled", 1)),
             auto_save_interval=data.get("auto_save_interval", 120),
             metadata=data.get("metadata", {}),

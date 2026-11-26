@@ -48,7 +48,7 @@ class ModelEntry:
     """One selectable model: routing + reasoning profile."""
 
     label: str
-    model_name: str  # litellm string, e.g. "openai/gpt-4o", "ollama_chat/qwq:32b"
+    model_name: str  # litellm string, e.g. "ollama_chat/<name>"
     source: str  # openai | gemini | ollama-local | ollama-cloud
     api_base: Optional[str] = None
     api_key_env: Optional[str] = None
@@ -226,7 +226,7 @@ def resolve(model_or_label: str, catalog: Optional[List[ModelEntry]] = None) -> 
 
     Graceful: if nothing in the catalog matches, the input is treated as a raw
     litellm model string with no extra params (still functional for anything
-    litellm can resolve from env alone, e.g. ``openai/gpt-4o``).
+    litellm can resolve from env alone, e.g. ``openai/<name>``).
     """
     if catalog:
         for e in catalog:

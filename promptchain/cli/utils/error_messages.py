@@ -431,7 +431,7 @@ def agent_invalid_model(agent_name: str, model_spec: str, error_details: str) ->
             "error": error_details
         },
         suggestions=[
-            "Use format: provider/model-name (e.g., openai/gpt-4)",
+            "Use format: provider/model-name (e.g., provider/model-name)",
             "Supported providers: openai, anthropic, google, ollama",
             "Verify model name spelling",
             "Check if API key for provider is configured"

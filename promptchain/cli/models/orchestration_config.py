@@ -33,18 +33,19 @@ class RouterConfig:
     router execution mode, including model selection and decision prompts.
 
     Attributes:
-        model: Fast LLM model for routing decisions (default: gpt-4o-mini)
+        model: Fast LLM model for routing decisions; None until the user picks one,
+            and routing needs it
         decision_prompt_template: Jinja2 template for routing decisions
         timeout_seconds: Maximum time for routing decision (1-60 seconds)
     """
 
-    model: str = "openai/gpt-4o-mini"
+    model: Optional[str] = None
     decision_prompt_template: str = DEFAULT_ROUTER_PROMPT
     timeout_seconds: int = 10
 
     def __post_init__(self):
         """Validate router configuration parameters."""
-        if not self.model or len(self.model) < 3:
+        if self.model is not None and len(self.model) < 3:
             raise ValueError(f"Invalid model name: {self.model}")
 
         if self.timeout_seconds < 1 or self.timeout_seconds > 60:
@@ -81,7 +82,7 @@ class RouterConfig:
             RouterConfig: Reconstructed router config
         """
         return cls(
-            model=data.get("model", "openai/gpt-4o-mini"),
+            model=data.get("model"),
             decision_prompt_template=data.get("decision_prompt_template", DEFAULT_ROUTER_PROMPT),
             timeout_seconds=data.get("timeout_seconds", 10),
         )
