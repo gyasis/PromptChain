@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     falls back to the session default model.
 
 ### Added
+- **Models file: one place to name models per role.** `~/.promptchain/models.yaml` (or
+  `$PROMPTCHAIN_MODELS_CONFIG`) holds `default`, `roles` and optional `endpoints`
+  (`api_base`, `provider`) that say where a model runs, for example an Atelier governor lane.
+  A role is a string or `{model, endpoint}`. Precedence: explicit argument, then
+  `roles.<role>`, then `default` (required roles only), then the #94 error, which now names the
+  role key and the file. Optional features (summarizer, judge, multi-hop synthesizer, prompt
+  improver) switch on only from their own role, never from `default`. New
+  `promptchain.utils.model_roles` (`resolve_model`, `resolve_model_spec`),
+  `promptchain models show|init`, and the CLI `default_model` and `require_model` fall back to
+  the file's `default`. The library still names no model.
 - **Pattern config fields and validation** (`promptchain/integrations/lightrag/`):
   `SpeculativeConfig.max_cache_size` bounds the result cache (oldest entry evicted first; default
   None keeps it unbounded). `LightRAGSpeculativeExecutor.invalidate_cache(query, mode=None)` drops

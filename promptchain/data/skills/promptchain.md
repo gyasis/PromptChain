@@ -49,7 +49,7 @@ On an editable install (`pip install -e`), that prints the repo root. If it prin
 | "Add MLflow" / "observability" / "tracking" | `docs/llms/recipes/recipe-observability-on.md` |
 | "Self-writing chain" / "agent should build the chain" / "ChainBuilder" | `docs/llms/recipes/recipe-chain-builder.md` |
 | "Mix sequential + agentic" / "hybrid pattern" | `docs/llms/recipes/recipe-hybrid-chain.md` |
-| "Which model should I use?" / "Ollama" / "tool calling not working" / model selection | `docs/llms/recipes/recipe-models-and-tool-calling.md` (also §16 of `PROMPTCHAIN_FOR_LLMS.md`) |
+| "Which model should I use?" / "Ollama" / "tool calling not working" / model selection / "set models once" / `~/.promptchain/models.yaml` (per-role models + endpoints) | `docs/llms/recipes/recipe-models-and-tool-calling.md` (also §16 of `PROMPTCHAIN_FOR_LLMS.md`) |
 | "Are my API keys working?" / "what models do I have?" / "model not found" | Run `python scripts/check_keys.py` (free env-check via `--no-probe`); see `scripts/README.md` for details |
 | "What is X?" / "how does Y work?" / API question | `docs/llms/PROMPTCHAIN_FOR_LLMS.md` (§13 has v0.6.0 / 0.6.1 BREAKING changes — read before writing v0.6.x code) |
 | Stuck / cryptic error / behaviour mismatch | Read source-of-truth files (`PROMPTCHAIN_FOR_LLMS.md` §11), check `examples/` for real usage, escalate to `gemini_debug` only after ruling out pipeline errors |
