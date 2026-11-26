@@ -13,7 +13,7 @@ This module tests all aspects of the MCP Tool Hijacker including:
 import pytest
 import asyncio
 import json
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from unittest.mock import Mock, AsyncMock, MagicMock, patch, PropertyMock
 from typing import Dict, Any, List
 
 # Import the modules to test
@@ -133,7 +133,10 @@ class TestMCPToolHijacker:
         
         # Mock the connection manager's connect method
         with patch.object(hijacker.connection_manager, 'connect', new_callable=AsyncMock) as mock_connect:
-            with patch.object(hijacker.connection_manager, 'available_tools', ["tool1", "tool2"]):
+            with patch.object(type(hijacker.connection_manager), 'available_tools',
+                              new_callable=PropertyMock, return_value=["tool1", "tool2"]), \
+                 patch.object(type(hijacker.connection_manager), 'is_connected',
+                              new_callable=PropertyMock, return_value=True):
                 await hijacker.connect()
                 
                 mock_connect.assert_called_once()
@@ -491,7 +494,7 @@ class TestMCPSchemaValidator:
         params = {"temperature": 0.5}
         with pytest.raises(SchemaValidationError) as exc_info:
             validator.validate_parameters("test_tool", mock_tool_schema, params)
-        assert "Missing required parameters" in str(exc_info.value)
+        assert "'message' is a required property" in str(exc_info.value)
     
     def test_type_validation(self, mock_tool_schema):
         """Test parameter type validation."""
@@ -510,7 +513,7 @@ class TestMCPSchemaValidator:
         params = {"message": "test", "temperature": 1.5}  # max is 1.0
         with pytest.raises(SchemaValidationError) as exc_info:
             validator.validate_parameters("test_tool", mock_tool_schema, params)
-        assert "must be <=" in str(exc_info.value)
+        assert "greater than the maximum of 1.0" in str(exc_info.value)
     
     def test_schema_info_extraction(self, mock_tool_schema):
         """Test schema information extraction."""

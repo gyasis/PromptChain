@@ -8,6 +8,7 @@ fallback_version = "0.10.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "live: real model call; set PC_LIVE_TESTS=1 to run",
 ]

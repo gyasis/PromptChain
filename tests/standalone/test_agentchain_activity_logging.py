@@ -97,8 +97,14 @@ async def test_pipeline_mode_logging():
         return True
 
 
-async def test_router_mode_logging():
+async def test_router_mode_logging(mock_llm):
     """Test 2: Router mode with activity logging."""
+    # The router prompt asks for a JSON agent choice; every other call is agent work.
+    mock_llm.reply = lambda kwargs: (
+        '{"chosen_agent": "researcher"}'
+        if "chosen_agent" in str(kwargs.get("messages"))
+        else "Research findings"
+    )
     console.print("\n[bold cyan]Test 2: Router Mode Activity Logging[/bold cyan]")
 
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -1254,11 +1254,6 @@ class AgenticStepProcessor:
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
             while True:
-                # TAO Loop bypass: If TAO is enabled, skip ReAct loop (TAO already executed THINK phase above)
-                if self.enable_tao_loop:
-                    # TAO has already set tool_calls and response_message above
-                    # Break out of while True loop to proceed to tool execution
-                    break
 
                 # Check for user input before LLM call
                 user_input = await self._check_user_input(internal_history, llm_history)
@@ -1277,64 +1272,67 @@ class AgenticStepProcessor:
                     f"Tools sent to LLM: {json.dumps(available_tools, indent=2)}"
                 )
                 try:
-                    # Call the LLM to decide next action or give final answer
-                    logger.debug("Calling LLM for next action/final answer...")
+                    # The TAO THINK phase already produced response_message for this
+                    # step; only the ReAct loop calls the LLM here.
+                    if not self.enable_tao_loop:
+                        # Call the LLM to decide next action or give final answer
+                        logger.debug("Calling LLM for next action/final answer...")
 
-                    # Get tool_choice from model_params if available, otherwise default to "auto"
-                    tool_choice = self.model_params.get("tool_choice", "auto")
+                        # Get tool_choice from model_params if available, otherwise default to "auto"
+                        tool_choice = self.model_params.get("tool_choice", "auto")
 
-                    # Use smart LLM routing (two-tier model selection based on complexity)
-                    # This wraps the llm_runner and intelligently routes to fast/slow model
-                    llm_coro = self._smart_llm_call(
-                        llm_runner=llm_runner,
-                        messages=messages_for_llm,
-                        tools=available_tools,
-                        tool_choice=tool_choice,
-                        step_num=step_num,
-                    )
-
-                    if self.step_timeout:
-                        try:
-                            response_message = await asyncio.wait_for(
-                                llm_coro, timeout=self.step_timeout
-                            )
-                        except asyncio.TimeoutError:
-                            timeout_msg = (
-                                f"LLM call timed out after {self.step_timeout} seconds"
-                            )
-                            logger.error(timeout_msg)
-                            self._stream_event("error", timeout_msg)
-                            execution_errors.append(timeout_msg)
-                            final_answer = f"[Error: {timeout_msg}. Please try again or simplify your request.]"
-                            break
-                    else:
-                        response_message = await llm_coro
-
-                    # Extract and emit token usage for real-time display
-                    self._emit_token_usage(response_message)
-                    # #2: surface internal reasoning + strip <think> from content.
-                    response_message = self._emit_reasoning(response_message)
-
-                    # Add more detailed debugging
-                    if isinstance(response_message, dict):
-                        logger.debug(
-                            f"Response message (dict): {json.dumps(response_message)}"
+                        # Use smart LLM routing (two-tier model selection based on complexity)
+                        # This wraps the llm_runner and intelligently routes to fast/slow model
+                        llm_coro = self._smart_llm_call(
+                            llm_runner=llm_runner,
+                            messages=messages_for_llm,
+                            tools=available_tools,
+                            tool_choice=tool_choice,
+                            step_num=step_num,
                         )
-                    else:
-                        logger.debug(
-                            f"Response message (object): type={type(response_message)}, dir={dir(response_message)}"
-                        )
-                        if hasattr(response_message, "model_dump"):
+
+                        if self.step_timeout:
+                            try:
+                                response_message = await asyncio.wait_for(
+                                    llm_coro, timeout=self.step_timeout
+                                )
+                            except asyncio.TimeoutError:
+                                timeout_msg = (
+                                    f"LLM call timed out after {self.step_timeout} seconds"
+                                )
+                                logger.error(timeout_msg)
+                                self._stream_event("error", timeout_msg)
+                                execution_errors.append(timeout_msg)
+                                final_answer = f"[Error: {timeout_msg}. Please try again or simplify your request.]"
+                                break
+                        else:
+                            response_message = await llm_coro
+
+                        # Extract and emit token usage for real-time display
+                        self._emit_token_usage(response_message)
+                        # #2: surface internal reasoning + strip <think> from content.
+                        response_message = self._emit_reasoning(response_message)
+
+                        # Add more detailed debugging
+                        if isinstance(response_message, dict):
                             logger.debug(
-                                f"Response message dump: {json.dumps(response_message.model_dump())}"
+                                f"Response message (dict): {json.dumps(response_message)}"
                             )
+                        else:
+                            logger.debug(
+                                f"Response message (object): type={type(response_message)}, dir={dir(response_message)}"
+                            )
+                            if hasattr(response_message, "model_dump"):
+                                logger.debug(
+                                    f"Response message dump: {json.dumps(response_message.model_dump())}"
+                                )
 
-                    # Append assistant's response (thought process + potential tool call) to internal history
-                    internal_history.append(
-                        response_message
-                        if isinstance(response_message, dict)
-                        else {"role": "assistant", "content": str(response_message)}
-                    )
+                        # Append assistant's response (thought process + potential tool call) to internal history
+                        internal_history.append(
+                            response_message
+                            if isinstance(response_message, dict)
+                            else {"role": "assistant", "content": str(response_message)}
+                        )
 
                     # Enhanced tool call detection - try multiple approaches
                     tool_calls = None
@@ -1525,6 +1523,9 @@ class AgenticStepProcessor:
                             if self.enable_tao_loop:
                                 logger.info(
                                     f"[TAO] ⚡ ACT phase (iteration {step_num}, {len(tool_calls)} tool calls)"
+                                )
+                                tao_predictions = await self._tao_predict_tool_calls(
+                                    tool_calls, llm_runner
                                 )
 
                             # Execute tools sequentially for simplicity
@@ -1828,7 +1829,9 @@ class AgenticStepProcessor:
                                             "arguments", {}
                                         ),
                                         "result": result,
-                                        "prediction": None,  # Would be set by ACT phase if dry_run enabled
+                                        "prediction": tao_predictions.get(
+                                            tool_call.get("id")
+                                        ),
                                         "prediction_accuracy": None,
                                     }
                                 )
@@ -1930,6 +1933,10 @@ class AgenticStepProcessor:
                         # a model stuck re-calling a tool it cannot call correctly spins
                         # until the caller's wall-clock budget dies, with no error and the
                         # iteration counter frozen at 1/N. Force a final answer instead.
+                        if self.enable_tao_loop:
+                            # One THINK -> ACT -> OBSERVE cycle per step; the next
+                            # step THINKs again.
+                            break
                         tool_rounds += 1
                         if tool_rounds >= self.max_tool_rounds:
                             logger.warning(
@@ -2293,6 +2300,58 @@ class AgenticStepProcessor:
         finally:
             if span_context:
                 span_context.__exit__(None, None, None)
+
+    async def _tao_predict_tool_calls(
+        self,
+        tool_calls: List[Any],
+        llm_runner: Callable[..., Awaitable[Any]],
+    ) -> Dict[Any, Any]:
+        """Predict each tool call's outcome before it runs (dry run).
+
+        Returns a mapping of tool call id to its DryRunPrediction. Empty when
+        dry run is disabled. A failed prediction is logged and skipped so it
+        never blocks the real tool call.
+        """
+        predictions: Dict[Any, Any] = {}
+        if not self.enable_dry_run:
+            return predictions
+
+        if self.dry_run_predictor is None:
+            from promptchain.utils.dry_run import DryRunPredictor
+
+            prediction_model = (
+                self.fallback_model if self.fallback_model else self.model_name
+            ) or ""
+            self.dry_run_predictor = DryRunPredictor(llm_runner, prediction_model)
+            logger.info(f"[DryRun] Initialized predictor with model: {prediction_model}")
+
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+            tool_name = tool_call.get("function", {}).get("name", "unknown")
+            raw_args = tool_call.get("function", {}).get("arguments", "{}")
+            try:
+                tool_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+            except json.JSONDecodeError:
+                tool_args = {"raw_args": raw_args}
+            context = (
+                self.blackboard.to_prompt()
+                if (self.enable_blackboard and self.blackboard)
+                else "No context available"
+            )
+            try:
+                prediction = await self.dry_run_predictor.predict_outcome(
+                    tool_name=tool_name, tool_args=tool_args, context=context
+                )
+            except Exception as e:
+                logger.warning(f"[DryRun] Prediction for {tool_name} failed: {e}")
+                continue
+            predictions[tool_call.get("id")] = prediction
+            logger.info(
+                f"[DryRun] Predicted {tool_name}: {prediction.predicted_output[:100]}... "
+                f"(confidence={prediction.confidence:.2f})"
+            )
+        return predictions
 
     async def _tao_act_phase(
         self,

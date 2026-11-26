@@ -52,15 +52,33 @@ class BackgroundLogger:
         self.enabled = use_background_logging()
         self.worker: Optional[threading.Thread] = None
         self._dropped_count = 0
+        self._worker_lock = threading.Lock()
 
         if self.enabled:
-            self.worker = threading.Thread(
-                target=self._worker,
-                daemon=True,
-                name="MLflowBackgroundLogger"
-            )
-            self.worker.start()
+            self._start_worker()
             logger.info("Background logger started with queue size %d", maxsize)
+
+    def _start_worker(self) -> None:
+        """Start a fresh worker thread."""
+        self.shutdown_flag.clear()
+        self.worker = threading.Thread(
+            target=self._worker,
+            daemon=True,
+            name="MLflowBackgroundLogger"
+        )
+        self.worker.start()
+
+    def _ensure_worker(self) -> None:
+        """Restart the worker if a previous shutdown stopped it.
+
+        The module-level logger outlives init/shutdown cycles; without a live
+        worker, queued operations would never run and flush() would time out.
+        """
+        with self._worker_lock:
+            if self.worker is not None and self.shutdown_flag.is_set():
+                self.worker.join(timeout=1.0)
+            if self.worker is None or not self.worker.is_alive():
+                self._start_worker()
 
     def _worker(self) -> None:
         """Worker thread that processes queued operations.
@@ -107,6 +125,8 @@ class BackgroundLogger:
             # Synchronous fallback
             operation(*args, **kwargs)
             return
+
+        self._ensure_worker()
 
         try:
             self.queue.put_nowait((operation, args, kwargs))

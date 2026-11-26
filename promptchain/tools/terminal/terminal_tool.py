@@ -88,6 +88,9 @@ class TerminalTool:
         chain.register_tool_function(terminal)
     """
 
+    # register_tool_function keys local tools by the callable's __name__.
+    __name__ = "terminal"
+
     def __init__(
         self,
         timeout: int = 60,
@@ -143,6 +146,9 @@ class TerminalTool:
                 "⚠️ Visual debugging requested but Rich is not available. Install with: pip install rich"
             )
 
+        # Setup logging first (config loading logs through it)
+        self.logger = logger or self._setup_logger()
+
         # Load configuration
         self.config = self._load_config(config_file) if config_file else {}
         self.config.update(
@@ -153,9 +159,6 @@ class TerminalTool:
                 "verbose": verbose,
             }
         )
-
-        # Setup logging first
-        self.logger = logger or self._setup_logger()
 
         # Initialize components
         self.security = SecurityGuardrails(self.config)

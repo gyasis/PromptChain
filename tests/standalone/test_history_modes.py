@@ -164,7 +164,7 @@ def create_chain_with_mode(history_mode: str, max_context_tokens: int = None):
     return chain
 
 
-async def test_multi_hop_question(mode: str, question: str):
+async def run_multi_hop_question(mode: str, question: str):
     """Test a multi-hop question with the specified history mode."""
 
     print("\n" + "=" * 80)
@@ -208,13 +208,13 @@ async def main():
     test_question = "Who lives in Tokyo and what are their age and hobby?"
 
     # Test 1: MINIMAL mode (baseline - original behavior)
-    result_minimal = await test_multi_hop_question("minimal", test_question)
+    result_minimal = await run_multi_hop_question("minimal", test_question)
 
     # Test 2: PROGRESSIVE mode
-    result_progressive = await test_multi_hop_question("progressive", test_question)
+    result_progressive = await run_multi_hop_question("progressive", test_question)
 
     # Test 3: KITCHEN_SINK mode
-    result_kitchen = await test_multi_hop_question("kitchen_sink", test_question)
+    result_kitchen = await run_multi_hop_question("kitchen_sink", test_question)
 
     # Summary
     print("\n" + "=" * 80)

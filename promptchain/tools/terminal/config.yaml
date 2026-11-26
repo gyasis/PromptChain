@@ -23,22 +23,22 @@ security:
   
   # Whitelisted patterns that are always safe (regex)
   whitelist_patterns:
-    - "^ls\b.*"          # List directory contents
-    - "^pwd$"            # Print working directory
-    - "^whoami$"         # Print current user
-    - "^date$"           # Print current date
-    - "^echo\b.*"        # Echo commands
-    - "^cat\b.*"         # Display file contents (read-only)
-    - "^head\b.*"        # Display file head
-    - "^tail\b.*"        # Display file tail
-    - "^grep\b.*"        # Search in files (read-only)
-    - "^find\b.*"        # Find files (read-only)
-    - "^which\b.*"       # Find executable location
-    - "^python\s+--version$"  # Check Python version
-    - "^node\s+--version$"    # Check Node version
-    - "^git\s+status$"        # Git status (read-only)
-    - "^git\s+log\b.*"        # Git log (read-only)
-    - "^git\s+diff\b.*"       # Git diff (read-only)
+    - '^ls\b.*'          # List directory contents
+    - '^pwd$'            # Print working directory
+    - '^whoami$'         # Print current user
+    - '^date$'           # Print current date
+    - '^echo\b.*'        # Echo commands
+    - '^cat\b.*'         # Display file contents (read-only)
+    - '^head\b.*'        # Display file head
+    - '^tail\b.*'        # Display file tail
+    - '^grep\b.*'        # Search in files (read-only)
+    - '^find\b.*'        # Find files (read-only)
+    - '^which\b.*'       # Find executable location
+    - '^python\s+--version$'  # Check Python version
+    - '^node\s+--version$'    # Check Node version
+    - '^git\s+status$'        # Git status (read-only)
+    - '^git\s+log\b.*'        # Git log (read-only)
+    - '^git\s+diff\b.*'       # Git diff (read-only)
 
 # Execution Settings
 execution:

@@ -17,7 +17,7 @@ import pytest
 import sys
 import os
 import asyncio
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from pathlib import Path
 
 # Add the project root to Python path
@@ -27,6 +27,11 @@ from promptchain import PromptChain
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 from promptchain.utils.agent_chain import AgentChain
 from promptchain.tools.terminal import TerminalTool, SecurityError
+
+
+def _msg(text):
+    """Assistant message in the shape run_model_async returns."""
+    return {"role": "assistant", "content": text}
 
 
 class TestTerminalToolExamples:
@@ -64,8 +69,8 @@ class TestTerminalToolExamples:
         )
         
         # Mock the LLM calls
-        with patch.object(chain, '_call_llm') as mock_llm:
-            mock_llm.side_effect = ["ls -la", "Found files in directory"]
+        with patch.object(chain, 'run_model_async', new_callable=AsyncMock) as mock_llm:
+            mock_llm.side_effect = [_msg("ls -la"), _msg("Found files in directory")]
             
             result = chain.process_prompt("Show me the files")
             
@@ -90,8 +95,8 @@ class TestTerminalToolExamples:
             verbose=True
         )
         
-        with patch.object(chain, '_call_llm') as mock_llm:
-            mock_llm.side_effect = ["pwd", "Current directory confirmed"]
+        with patch.object(chain, 'run_model_async', new_callable=AsyncMock) as mock_llm:
+            mock_llm.side_effect = [_msg("pwd"), _msg("Current directory confirmed")]
             
             result = chain.process_prompt("Where am I?")
             
@@ -134,7 +139,7 @@ class TestTerminalToolExamples:
         }])
         
         # Mock LLM with tool calling
-        with patch.object(chain, '_call_llm') as mock_llm:
+        with patch.object(chain, 'run_model_async', new_callable=AsyncMock) as mock_llm:
             # First call returns tool use decision
             mock_llm.return_value = {
                 "content": "I'll check disk usage",
@@ -147,7 +152,7 @@ class TestTerminalToolExamples:
             }
             
             # Second call analyzes the result
-            mock_llm.return_value = "Disk usage analyzed successfully"
+            mock_llm.return_value = _msg("Disk usage analyzed successfully")
             
             result = chain.process_prompt("Check available disk space")
             
@@ -197,23 +202,24 @@ class TestTerminalToolExamples:
         }])
         
         # Mock the agentic processor
-        with patch.object(dependency_checker, 'process') as mock_agentic:
+        with patch.object(dependency_checker, 'run_async', new_callable=AsyncMock) as mock_agentic:
             mock_agentic.return_value = "Python 3.9.0 and pip 21.0 are installed and working"
             
-            with patch.object(chain, '_call_llm') as mock_llm:
+            with patch.object(chain, 'run_model_async', new_callable=AsyncMock) as mock_llm:
                 mock_llm.side_effect = [
-                    "Checking Python environment",
-                    "All dependencies verified"
+                    _msg("Checking Python environment"),
+                    _msg("All dependencies verified")
                 ]
                 
-                result = chain.process_prompt("python environment")
+                result = await chain.process_prompt_async("python environment")
                 
                 assert result is not None
                 print(f"✅ AgenticStepProcessor result: {result}")
     
     # ===== TEST 5: Multi-Agent System Integration =====
     
-    def test_multi_agent_terminal_integration(self):
+    @pytest.mark.asyncio
+    async def test_multi_agent_terminal_integration(self):
         """Test terminal in multi-agent system"""
         print("\n🧪 TEST 5: Multi-Agent System Integration")
         
@@ -243,16 +249,19 @@ class TestTerminalToolExamples:
                 "fixer": "Fixes issues using terminal commands"
             },
             execution_mode="router",
+            router=AsyncMock(),  # routing is patched below
             verbose=True
         )
         
-        # Mock the agent selection and execution
-        with patch.object(agent_chain, '_route_to_agent') as mock_router:
-            mock_router.return_value = ("analyzer", "System analysis complete")
+        # Mock the agent selection and the selected agent's execution
+        with patch.object(agent_chain, '_route_to_agent', new_callable=AsyncMock) as mock_router, \
+             patch.object(analyzer_agent, 'process_prompt_async', new_callable=AsyncMock) as mock_run:
+            mock_router.return_value = ("analyzer", "Check system health")
+            mock_run.return_value = "System analysis complete"
             
-            result = agent_chain.process("Check system health")
+            result = await agent_chain.run_chat_turn_async("Check system health")
             
-            assert result is not None
+            assert result == "System analysis complete"
             print(f"✅ Multi-agent result: {result}")
     
     # ===== TEST 6: Security Validation Examples =====
@@ -263,8 +272,7 @@ class TestTerminalToolExamples:
         
         # Create terminal with strict security
         secure_terminal = TerminalTool(
-            require_permission=True,
-            auto_approve=False  # No auto-approval
+            require_permission=True
         )
         
         dangerous_commands = [
@@ -284,8 +292,7 @@ class TestTerminalToolExamples:
         print("\n🧪 TEST 7: Permission Prompts")
         
         terminal_with_prompts = TerminalTool(
-            require_permission=True,
-            auto_approve=True  # Auto-approve for testing
+            require_permission=True
         )
         
         # Installation commands that should prompt
@@ -295,12 +302,19 @@ class TestTerminalToolExamples:
             "conda install numpy"
         ]
         
-        for cmd in install_commands:
-            # Should succeed with auto-approval
-            result = terminal_with_prompts(cmd)
-            # Commands might fail due to missing packages, but should not be blocked
-            assert "Permission denied" not in result
-            print(f"✅ Permission granted for: {cmd}")
+        # Grant every permission prompt and stub execution so no installer runs
+        with patch.object(terminal_with_prompts.security, 'request_permission',
+                          return_value=True) as mock_permission, \
+             patch.object(terminal_with_prompts, '_execute_in_persistent_session',
+                          return_value="installed"), \
+             patch.object(terminal_with_prompts, '_execute_in_subprocess',
+                          return_value="installed"):
+            for cmd in install_commands:
+                result = terminal_with_prompts(cmd)
+                assert "Permission denied" not in result
+                print(f"✅ Permission granted for: {cmd}")
+            # Every installation command asked for permission before running
+            assert mock_permission.call_count == len(install_commands)
     
     # ===== TEST 8: Complex AgenticStepProcessor Workflow =====
     
@@ -352,16 +366,16 @@ class TestTerminalToolExamples:
             }
         }])
         
-        with patch.object(debugger, 'process') as mock_debug:
+        with patch.object(debugger, 'run_async', new_callable=AsyncMock) as mock_debug:
             mock_debug.return_value = "Port 8000 is in use by process 1234. Solution: kill process or use different port."
             
-            with patch.object(chain, '_call_llm') as mock_llm:
+            with patch.object(chain, 'run_model_async', new_callable=AsyncMock) as mock_llm:
                 mock_llm.side_effect = [
-                    "Investigating port issue",
-                    "Port conflict identified and resolved"
+                    _msg("Investigating port issue"),
+                    _msg("Port conflict identified and resolved")
                 ]
                 
-                result = chain.process_prompt("Flask app fails with 'Address already in use'")
+                result = await chain.process_prompt_async("Flask app fails with 'Address already in use'")
                 
                 assert "port" in result.lower() or "process" in result.lower()
                 print(f"✅ Complex debugging result: {result}")
