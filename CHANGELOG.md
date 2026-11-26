@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Profiler probes on the llamacpp lane** (`promptchain/profiler/governor.py`,
+  `LlamacppGovernorClient`). A cohort entry `llamacpp:<alias>` runs the latency and BFCL tool
+  probes through the governor's `/llm/llamacpp/v1/chat/completions`. The client turns thinking
+  off with `chat_template_kwargs.enable_thinking=false`. It lists models with
+  `GET /llm/llamacpp/models`, which loads nothing. The first call per alias also gets the
+  sidecar's 300 s load bound on top of the read timeout. An alias is warm when `/pressure` shows it loaded or when the previous
+  call completed on it.
 - **Lookout ↔ PromptChain bridge** (`promptchain/server/web_bridge.py`, `dev-bridge.sh`) —
   FastAPI/SSE server on `127.0.0.1:7788` giving the Lookout overlay a model list and a headless
   AgentChain chat backend (`/health`, `/models`, `/tools`, `/session/{new,state,workdir}`,

@@ -559,3 +559,170 @@ def test_netguard_precedes_litellm_and_strips_keys():
     r = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=120, env=env)
     assert r.stdout.splitlines()[0] == "True None None None", r.stdout + r.stderr
     assert "BLOCKED []" in r.stdout, r.stdout + r.stderr
+
+
+# ---- llamacpp lane: SSE -> Ollama-shaped chunks ----
+
+def _sse(*events):
+    return [b"data: " + json.dumps(e).encode() + b"\n\n" for e in events] + [b"data: [DONE]\n\n"]
+
+
+def _delta(**d):
+    return {"choices": [{"index": 0, "delta": d, "finish_reason": None}]}
+
+
+def _final(reason, **extra):
+    return {"choices": [{"index": 0, "delta": {}, "finish_reason": reason}], **extra}
+
+
+TIMINGS = {"prompt_n": 58, "prompt_ms": 1000.0, "predicted_n": 75, "predicted_ms": 5000.0}
+
+
+def test_sse_content_reasoning_and_timings():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    lines = _sse(_delta(role="assistant", content=None), _delta(reasoning_content="think"),
+                 _delta(reasoning_content="ing"), _delta(content="Hel"), _delta(content="lo"),
+                 _final("stop", timings=TIMINGS))
+    res = consume_stream(sse_to_chunks(lines))
+    assert res.content == "Hello" and res.thinking_chunks == 2 and res.thinking_chars == 8
+    assert res.done and not res.failed
+    assert (res.prompt_tokens, res.output_tokens) == (58, 75)
+    assert res.prefill_s == 1.0 and res.decode_s == 5.0 and res.load_s is None
+
+
+def test_sse_fragmented_tool_call_arguments():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    frag = lambda **fn: _delta(tool_calls=[{"index": 0, **({"id": "x", "type": "function"} if "name" in fn else {}),
+                                            "function": fn}])
+    lines = _sse(frag(name="get_weather", arguments="{"), frag(arguments='"city":"'), frag(arguments="Paris"),
+                 frag(arguments='"}'), _final("tool_calls", timings=TIMINGS))
+    res = consume_stream(sse_to_chunks(lines))
+    assert res.tool_calls == [{"function": {"name": "get_weather", "arguments": {"city": "Paris"}}}]
+    assert res.done and not res.failed
+
+
+def test_sse_length_and_missing_finish_are_failures():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    assert consume_stream(sse_to_chunks(_sse(_delta(content="a"), _final("length", timings=TIMINGS)))).failed
+    assert consume_stream(sse_to_chunks([b"data: " + json.dumps(_delta(content="a")).encode() + b"\n\n"])).failed
+
+
+def test_sse_usage_fallback_and_done_stops_stream():
+    from promptchain.profiler.governor import sse_to_chunks
+    lines = _sse(_delta(content="a"), _final("stop", usage={"prompt_tokens": 3, "completion_tokens": 4}))
+    last = list(sse_to_chunks(lines + [b"data: " + b"not json\n\n"]))[-1]
+    assert last["prompt_eval_count"] == 3 and last["eval_count"] == 4
+
+
+def test_llamacpp_client_translates_request_and_raises_refusal():
+    import urllib.error
+    from promptchain.profiler.governor import GovernorRefusal, LlamacppGovernorClient
+    seen = {}
+
+    def opener(req, timeout=None):
+        seen["url"], seen["body"] = req.full_url, json.loads(req.data)
+        return FakeResp(b"".join(_sse(_delta(content="ok"), _final("stop", timings=TIMINGS))))
+
+    c = LlamacppGovernorClient(opener=opener)
+    chunks = list(c.chat_stream({"model": "m", "messages": [], "think": False, "options": {"num_ctx": 1}}))
+    assert seen["url"].endswith("/llm/llamacpp/v1/chat/completions")
+    assert seen["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "options" not in seen["body"] and "think" not in seen["body"] and chunks[-1]["done"]
+    assert c.digest("m") == "llamacpp:m"
+
+    def refuse(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b'{"code":"model_too_large"}'))
+
+    with pytest.raises(GovernorRefusal):
+        list(LlamacppGovernorClient(opener=refuse).chat_stream({"model": "m", "messages": []}))
+
+
+def test_sse_ttft_from_chunk_arrival_times():
+    from promptchain.profiler.governor import consume_stream, sse_to_chunks
+    lines = _sse(_delta(reasoning_content="t"), _delta(content="a"), _final("stop", timings=TIMINGS))
+    ticks = iter([0.0, 1.0, 3.0, 4.0, 5.0])
+    res = consume_stream(sse_to_chunks(lines), clock=lambda: next(ticks))
+    assert res.ttft_s == 1.0 and res.ttft_content_s == 3.0 and res.total_s == 5.0
+
+
+LLAMA_P = lambda model, state="idle": dict(PRESSURE, tenants=[  # noqa: E731
+    {"tenant": "ollama", "name": "m"}, {"tenant": "atelier", "name": "llamacpp", "state": state, "model": model}])
+
+
+@pytest.mark.parametrize("pressure,expect", [
+    (LLAMA_P("a"), "a"), (LLAMA_P("a", "cold"), None), (LLAMA_P("a", "loading"), None), (PRESSURE, None)])
+def test_llamacpp_loaded_from_pressure(pressure, expect):
+    assert governor.llamacpp_loaded(pressure) == expect
+    assert governor.snapshot(BUDGET, pressure)["llamacpp_loaded"] == expect
+
+
+def test_llamacpp_residency_is_by_loaded_alias_not_ollama_tenants():
+    c = governor.LlamacppGovernorClient(opener=lambda *a, **k: None)
+    assert c.resident("a", LLAMA_P("a")) and not c.resident("b", LLAMA_P("a"))
+    assert not c.resident("m", LLAMA_P("a"))  # an ollama tenant of the same name is not a llamacpp load
+    assert GovernorClient(opener=lambda *a, **k: None).resident("m", LLAMA_P("a"))
+
+
+def test_llamacpp_first_call_per_alias_gets_longer_read_timeout():
+    seen = []
+
+    def opener(req, timeout=None):
+        seen.append(timeout)
+        return FakeResp(b"".join(_sse(_delta(content="ok"), _final("stop", timings=TIMINGS))))
+
+    c = governor.LlamacppGovernorClient(opener=opener, read_timeout=100.0, load_wait=50.0)
+    for m in ("a", "a", "b"):
+        list(c.chat_stream({"model": m, "messages": []}))
+    assert seen == [150.0, 100.0, 150.0]
+
+
+def test_latency_probe_on_llamacpp_lane_records_ttft_and_warmth(tmp_path):
+    sse = b"".join(_sse(_delta(content="no"), _final("stop", timings=TIMINGS)))
+    state = {"loaded": None}
+
+    def opener(req, timeout=None):
+        if req.full_url.endswith("/pressure"):
+            return FakeResp(json.dumps(LLAMA_P(state["loaded"])).encode())
+        if req.full_url.endswith("/budget"):
+            return FakeResp(json.dumps(BUDGET).encode())
+        state["loaded"] = "a"  # the lane has the alias loaded after its first call
+        return FakeResp(sse)
+
+    c = governor.LlamacppGovernorClient(opener=opener)
+    recs = latency_probe.run_latency_probe(c, "a", capabilities=[], sequence=("small", "small"),
+                                           store=str(tmp_path / "m.jsonl"))
+    assert [r["warm_by_pressure"] for r in recs] == [False, True]
+    summ = latency_probe.summarize(recs)
+    assert summ["n_cold"] == 1
+    assert summ["ttft_content_p50_s_by_size"]["small"] is not None
+    assert all(r["metrics"]["ttft_s"] is not None for r in recs)
+
+
+def test_llamacpp_warm_after_completed_call_while_pressure_lags(tmp_path):
+    sse = b"".join(_sse(_delta(content="no"), _final("stop", timings=TIMINGS)))
+
+    def opener(req, timeout=None):
+        if req.full_url.endswith("/pressure"):
+            return FakeResp(json.dumps(LLAMA_P(None, "loading")).encode())
+        if req.full_url.endswith("/budget"):
+            return FakeResp(json.dumps(BUDGET).encode())
+        return FakeResp(sse)
+
+    c = governor.LlamacppGovernorClient(opener=opener)
+    recs = latency_probe.run_latency_probe(c, "a", capabilities=[], sequence=("small", "small", "medium"),
+                                           store=str(tmp_path / "m.jsonl"))
+    assert [r["warm_by_pressure"] for r in recs] == [False, True, True]
+    assert not c.resident("b", LLAMA_P(None, "loading"))
+
+
+def test_llamacpp_failed_call_clears_warmth():
+    import urllib.error
+
+    def refuse(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b"{}"))
+
+    c = governor.LlamacppGovernorClient(opener=refuse)
+    c._last_served = "a"
+    with pytest.raises(Exception):
+        list(c.chat_stream({"model": "a", "messages": []}))
+    assert not c.resident("a", LLAMA_P(None, "cold"))

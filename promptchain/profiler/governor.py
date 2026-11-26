@@ -12,11 +12,14 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 DEFAULT_GOVERNOR = "http://192.168.0.159:8799"
 CHAT_PATH = "/llm/ollama/api/chat"
 SHOW_PATH = "/llm/ollama/api/show"
+LLAMACPP_CHAT_PATH = "/llm/llamacpp/v1/chat/completions"
+LLAMACPP_MODELS_PATH = "/llm/llamacpp/models"
+LLAMACPP_LOAD_WAIT_S = 300.0  # the llamacpp sidecar's own bound on a model load (LLAMACPP_START_TIMEOUT)
 
 Opener = Callable[..., Any]
 
@@ -61,6 +64,18 @@ def resident_tenants(pressure: dict) -> list[str]:
 
 def is_resident(tag: str, pressure: dict) -> bool:
     return tag in resident_tenants(pressure)
+
+
+def llamacpp_loaded(pressure: dict) -> Optional[str]:
+    """The alias the llamacpp lane has loaded, from its ``atelier`` tenant in /pressure.
+
+    None when the tenant is absent, cold, loading or errored, or names no model."""
+    for t in pressure.get("tenants", []):
+        if t.get("tenant") == "atelier" and t.get("name") == "llamacpp":
+            if t.get("state") in ("cold", "loading") or t.get("error"):
+                return None
+            return t.get("model")
+    return None
 
 
 def gate_decision(tag: str, mem_gb_at_ctx: Optional[float], budget: dict, pressure: dict,
@@ -112,10 +127,13 @@ def snapshot(budget: dict, pressure: dict) -> dict:
         "free_gb": pressure.get("free_gb"),
         "resident_gb": pressure.get("resident_gb"),
         "ollama_resident": resident_tenants(pressure),
+        "llamacpp_loaded": llamacpp_loaded(pressure),
     }
 
 
 class GovernorClient:
+    chat_path = CHAT_PATH
+
     def __init__(self, base: str = DEFAULT_GOVERNOR, opener: Optional[Opener] = None,
                  connect_timeout: float = 5.0, read_timeout: float = 280.0):
         self.base = base.rstrip("/")
@@ -146,6 +164,10 @@ class GovernorClient:
         with self._request(path, None, self.connect_timeout * 2) as r:
             return json.loads(r.read())
 
+    def resident(self, tag: str, pressure: dict) -> bool:
+        """Whether *tag* is already loaded on this client's lane, per a /pressure snapshot."""
+        return is_resident(tag, pressure)
+
     def budget(self) -> dict:
         return self.get_json("/budget")
 
@@ -174,6 +196,122 @@ class GovernorClient:
                 raw = raw.strip()
                 if raw:
                     yield json.loads(raw)
+
+
+def _parse_args(text: str) -> Any:
+    """Tool-call arguments arrive as a JSON string; Ollama-shaped chunks carry the decoded object."""
+    try:
+        return json.loads(text) if text else {}
+    except ValueError:
+        return text
+
+
+def sse_to_chunks(lines: Iterable[bytes]) -> Iterator[dict]:
+    """Translate an OpenAI-style SSE stream (llama-server) into Ollama-shaped chat chunks.
+
+    Reasoning (``reasoning_content``) becomes ``message.thinking``. Tool-call fragments are
+    accumulated per index and emitted once, with decoded arguments, on the final chunk.
+    The final chunk carries llama-server's ``timings`` (ms) as Ollama's ns durations and
+    token counts; ``usage`` fills the counts when no ``timings`` object is present.
+    """
+    calls: dict[int, dict] = {}
+    finish: Optional[str] = None
+    timings: dict = {}
+    usage: dict = {}
+    for raw in lines:
+        raw = raw.strip()
+        if not raw.startswith(b"data:"):
+            continue
+        body = raw[5:].strip()
+        if body == b"[DONE]":
+            break
+        ev = json.loads(body)
+        if ev.get("error"):
+            yield {"error": ev["error"].get("message") if isinstance(ev["error"], dict) else ev["error"]}
+            return
+        timings = ev.get("timings") or timings
+        usage = ev.get("usage") or usage
+        for choice in ev.get("choices") or []:
+            delta = choice.get("delta") or {}
+            for frag in delta.get("tool_calls") or []:
+                slot = calls.setdefault(frag.get("index", 0), {"name": "", "args": ""})
+                fn = frag.get("function") or {}
+                slot["name"] += fn.get("name") or ""
+                slot["args"] += fn.get("arguments") or ""
+            msg = {"role": "assistant", "content": delta.get("content") or "",
+                   "thinking": delta.get("reasoning_content") or ""}
+            if msg["content"] or msg["thinking"]:
+                yield {"message": msg, "done": False}
+            finish = choice.get("finish_reason") or finish
+    final: dict = {"message": {"role": "assistant", "content": "", "tool_calls": [
+        {"function": {"name": c["name"], "arguments": _parse_args(c["args"])}}
+        for _, c in sorted(calls.items())]}, "done": True,
+        "done_reason": "length" if finish == "length" else (finish and "stop")}
+    if timings:
+        final.update(prompt_eval_count=timings.get("prompt_n"), eval_count=timings.get("predicted_n"),
+                     prompt_eval_duration=int((timings.get("prompt_ms") or 0) * 1e6),
+                     eval_duration=int((timings.get("predicted_ms") or 0) * 1e6))
+    else:
+        final.update(prompt_eval_count=usage.get("prompt_tokens"), eval_count=usage.get("completion_tokens"))
+    if not final["message"]["tool_calls"]:
+        del final["message"]["tool_calls"]
+    if finish is None:
+        final["done"] = False
+    yield final
+
+
+class LlamacppGovernorClient(GovernorClient):
+    """The same interface over the governor's llamacpp lane (``/llm/llamacpp/v1``).
+
+    Probes keep speaking Ollama: the request is translated to OpenAI chat-completions
+    (``think:false`` becomes ``chat_template_kwargs.enable_thinking=false``; ``options`` are
+    dropped, so no size is ever sent) and the SSE reply is translated back. llama-server
+    reports no load time, so ``load_duration`` is absent. An alias is warm when the lane's
+    ``atelier`` tenant in /pressure has it loaded, or when this client's previous call
+    completed on that alias: /pressure lags a fresh load by a few seconds.
+
+    The first call for an alias may wait on a model load, so its read timeout is
+    ``read_timeout + load_wait``; later calls use ``read_timeout``.
+    """
+
+    chat_path = LLAMACPP_CHAT_PATH
+
+    def __init__(self, *args: Any, load_wait: float = LLAMACPP_LOAD_WAIT_S, **kw: Any):
+        super().__init__(*args, **kw)
+        self.load_wait = load_wait
+        self._called: set[str] = set()
+        self._last_served: Optional[str] = None
+
+    def resident(self, tag: str, pressure: dict) -> bool:
+        return llamacpp_loaded(pressure) == tag or self._last_served == tag
+
+    def timeout_for(self, tag: str) -> float:
+        return self.read_timeout if tag in self._called else self.read_timeout + self.load_wait
+
+    def digest(self, tag: str) -> Optional[str]:
+        """The llamacpp lane exposes no digest; the alias is the stable identity."""
+        return f"llamacpp:{tag}"
+
+    def show(self, tag: str) -> dict:
+        """No /api/show on this lane. Capabilities are what the lane proves: a listed model
+        completes and reasons; ``tools`` is advertised because llama-server parses tool calls
+        from the chat template, and a model that fails to call scores 0 in the tool probe."""
+        ids = [m.get("id") for m in self.get_json(LLAMACPP_MODELS_PATH).get("data", [])]
+        return {"model": tag, "loaded": tag in ids, "digest": self.digest(tag),
+                "capabilities": ["completion", "tools", "thinking"], "details": {}}
+
+    def chat_stream(self, payload: dict) -> Iterator[dict]:
+        body: dict = {"model": payload["model"], "messages": payload["messages"], "stream": True}
+        if payload.get("tools"):
+            body["tools"] = payload["tools"]
+        if payload.get("think") is False:
+            body["chat_template_kwargs"] = {"enable_thinking": False}
+        timeout = self.timeout_for(payload["model"])
+        self._called.add(payload["model"])
+        self._last_served = None
+        with self._request(self.chat_path, body, timeout) as r:
+            yield from sse_to_chunks(r)
+        self._last_served = payload["model"]
 
 
 @dataclass
