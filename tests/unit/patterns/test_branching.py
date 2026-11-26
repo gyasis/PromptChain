@@ -1,217 +1,300 @@
-"""Unit tests for LightRAGBranchingThoughts pattern adapter."""
+"""Unit tests for LightRAGBranchingThoughts.
+
+The pattern queries LightRAG once per branch mode (local / global / hybrid),
+asks an LLM judge to score the resulting hypotheses and keeps the best one.
+Both the retrieval backend and ``litellm.acompletion`` are mocked; the judge
+model is named by the test, never defaulted.
+
+Already covered by tests/test_lightrag_branching.py (not repeated here):
+initialisation, per-mode queries, judge-prompt and judge-output parsing,
+best-hypothesis selection, the full ``execute`` flow.
+"""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from promptchain.integrations.lightrag.branching import LightRAGBranchingThoughts
+
+from promptchain.integrations.lightrag.branching import (
+    BranchingConfig,
+    Hypothesis,
+    LightRAGBranchingThoughts,
+)
+from promptchain.patterns.base import BasePattern
+
+JUDGE_MODEL = "test-provider/judge-model"
+
+
+@pytest.fixture
+def core():
+    mock = AsyncMock()
+    mock.local_query.return_value = "local answer"
+    mock.global_query.return_value = "global answer"
+    mock.hybrid_query.return_value = {"response": "hybrid answer"}
+    return mock
+
+
+def make_pattern(core, **config_kwargs):
+    config_kwargs.setdefault("judge_model", JUDGE_MODEL)
+    with patch("promptchain.integrations.lightrag.branching.LIGHTRAG_AVAILABLE", True):
+        return LightRAGBranchingThoughts(
+            lightrag_core=core, config=BranchingConfig(**config_kwargs)
+        )
+
+
+def judge_response(scores_by_mode):
+    """Build an acompletion side effect that scores hypotheses by their mode."""
+
+    async def completion(*args, **kwargs):
+        prompt = kwargs["messages"][-1]["content"]
+        evaluations = []
+        for block in prompt.split("Hypothesis ")[1:]:
+            if not block.startswith(tuple("0123456789")):
+                continue
+            hid = block.split("ID: ")[1].split(",")[0]
+            mode = block.split("Mode: ")[1].split(")")[0]
+            evaluations.append(
+                {
+                    "hypothesis_id": hid,
+                    "score": scores_by_mode[mode],
+                    "reasoning": f"{mode} judged",
+                    "strengths": [],
+                    "weaknesses": [],
+                }
+            )
+        response = MagicMock()
+        response.choices = [MagicMock()]
+        response.choices[0].message.content = json.dumps({"evaluations": evaluations})
+        return response
+
+    return completion
 
 
 @pytest.mark.asyncio
-class TestLightRAGBranchingThoughts:
-    """Test suite for branching thoughts pattern."""
+class TestModeSelection:
+    @pytest.mark.parametrize(
+        "mode,method",
+        [("local", "local_query"), ("global", "global_query"), ("hybrid", "hybrid_query")],
+    )
+    async def test_single_mode_queries_only_that_mode(self, core, mode, method):
+        pattern = make_pattern(core, hypothesis_count=2, modes=[mode])
 
-    async def test_initialization(self, mock_lightrag_core):
-        """Test pattern initializes correctly."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="hybrid"
-        )
+        hypotheses = await pattern._generate_hypotheses("question", 2)
 
-        assert pattern.lightrag_core == mock_lightrag_core
-        assert pattern.num_branches == 3
-        assert pattern.search_mode == "hybrid"
-        assert pattern.pattern_name == "branching_thoughts"
+        assert [h.mode for h in hypotheses] == [mode, mode]
+        assert getattr(core, method).await_count == 2
+        other = {"local_query", "global_query", "hybrid_query"} - {method}
+        for name in other:
+            getattr(core, name).assert_not_awaited()
 
-    async def test_hypothesis_generation_local(self, mock_lightrag_core):
-        """Test hypothesis generation with local search mode."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="local"
-        )
+    async def test_modes_are_cycled_to_reach_the_count(self, core):
+        pattern = make_pattern(core, modes=["local", "global"])
 
-        with patch.object(pattern, '_generate_hypotheses', new_callable=AsyncMock) as mock_gen:
-            mock_gen.return_value = [
-                "hypothesis 1",
-                "hypothesis 2",
-                "hypothesis 3"
-            ]
+        hypotheses = await pattern._generate_hypotheses("question", 5)
 
-            result = await pattern.execute(query="test query")
-
-            mock_gen.assert_called_once_with("test query")
-            assert "hypotheses" in result
-            assert len(result["hypotheses"]) == 3
-
-    async def test_hypothesis_generation_global(self, mock_lightrag_core):
-        """Test hypothesis generation with global search mode."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=2,
-            search_mode="global"
-        )
-
-        result = await pattern.execute(query="global test query")
-
-        mock_lightrag_core.global_query.assert_called()
-        assert "results" in result
-
-    async def test_hypothesis_generation_hybrid(self, mock_lightrag_core):
-        """Test hypothesis generation with hybrid search mode."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="hybrid"
-        )
-
-        result = await pattern.execute(query="hybrid test query")
-
-        mock_lightrag_core.hybrid_query.assert_called()
-        assert "results" in result
-
-    async def test_llm_judge_scoring(self, mock_lightrag_core, mock_llm):
-        """Test LLM-based hypothesis scoring."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="local",
-            use_llm_judge=True
-        )
-
-        hypotheses = [
-            {"text": "hyp1", "results": ["r1"]},
-            {"text": "hyp2", "results": ["r2"]},
-            {"text": "hyp3", "results": ["r3"]}
+        assert [h.mode for h in hypotheses] == [
+            "local", "global", "local", "global", "local"
         ]
 
-        with patch.object(pattern, '_score_with_llm', new_callable=AsyncMock) as mock_score:
-            mock_score.return_value = [0.9, 0.7, 0.8]
+    async def test_count_below_mode_count_truncates(self, core):
+        pattern = make_pattern(core)
 
-            scores = await pattern._score_hypotheses(hypotheses, "test query")
+        hypotheses = await pattern._generate_hypotheses("question", 2)
 
-            assert len(scores) == 3
-            assert scores[0] == 0.9
-            mock_score.assert_called_once()
+        assert [h.mode for h in hypotheses] == ["local", "global"]
 
-    async def test_best_hypothesis_selection(self, mock_lightrag_core):
-        """Test selection of best hypothesis based on scoring."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="local"
-        )
+    async def test_default_modes_cover_local_global_hybrid(self, core):
+        pattern = make_pattern(core)
 
-        hypotheses = [
-            {"text": "low score", "score": 0.5, "results": ["r1"]},
-            {"text": "high score", "score": 0.95, "results": ["r2"]},
-            {"text": "medium score", "score": 0.7, "results": ["r3"]}
-        ]
+        hypotheses = await pattern._generate_hypotheses("question", 3)
 
-        best = pattern._select_best_hypothesis(hypotheses)
+        assert [h.mode for h in hypotheses] == ["local", "global", "hybrid"]
 
-        assert best["text"] == "high score"
-        assert best["score"] == 0.95
+    async def test_dict_result_text_is_used_as_reasoning(self, core):
+        pattern = make_pattern(core, modes=["hybrid"])
 
-    async def test_event_emission_hypothesis_generation(self, mock_lightrag_core, event_collector):
-        """Test events emitted during hypothesis generation."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=2,
-            search_mode="local"
-        )
+        hypotheses = await pattern._generate_hypotheses("question", 1)
 
-        # Mock event emission
-        pattern.emit_event = event_collector.collect
+        assert hypotheses[0].reasoning == "hybrid answer"
 
-        with patch.object(pattern, '_generate_hypotheses', new_callable=AsyncMock) as mock_gen:
-            mock_gen.return_value = ["hyp1", "hyp2"]
 
-            await pattern.execute(query="test")
+class TestConfigValidation:
+    def test_invalid_mode_is_rejected(self):
+        with pytest.raises(ValueError, match="Invalid modes"):
+            BranchingConfig(modes=["local", "bogus"])
 
-            events = event_collector.get_events("pattern.branching.hypotheses_generated")
-            assert len(events) > 0
+    def test_empty_modes_are_rejected(self):
+        with pytest.raises(ValueError, match="modes must not be empty"):
+            BranchingConfig(modes=[])
 
-    async def test_event_emission_scoring(self, mock_lightrag_core, event_collector):
-        """Test events emitted during hypothesis scoring."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=2,
-            search_mode="local",
-            use_llm_judge=True
-        )
+    @pytest.mark.parametrize("count", [0, -1])
+    def test_hypothesis_count_must_be_positive(self, count):
+        with pytest.raises(ValueError, match="hypothesis_count must be at least 1"):
+            BranchingConfig(hypothesis_count=count)
 
-        pattern.emit_event = event_collector.collect
+    def test_modes_default_to_none(self):
+        assert BranchingConfig().modes is None
 
-        with patch.object(pattern, '_score_with_llm', new_callable=AsyncMock) as mock_score:
-            mock_score.return_value = [0.9, 0.7]
 
-            await pattern.execute(query="test")
+@pytest.mark.asyncio
+class TestJudging:
+    async def test_judge_scores_follow_the_llm_output(self, core):
+        pattern = make_pattern(core)
+        hypotheses = await pattern._generate_hypotheses("question", 3)
 
-            events = event_collector.get_events("pattern.branching.scored")
-            assert len(events) > 0
-
-    async def test_event_emission_best_selected(self, mock_lightrag_core, event_collector):
-        """Test events emitted when best hypothesis is selected."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=2,
-            search_mode="local"
-        )
-
-        pattern.emit_event = event_collector.collect
-
-        await pattern.execute(query="test")
-
-        events = event_collector.get_events("pattern.branching.best_selected")
-        assert len(events) > 0
-
-    async def test_invalid_search_mode(self, mock_lightrag_core):
-        """Test error handling for invalid search mode."""
-        with pytest.raises(ValueError, match="Invalid search_mode"):
-            LightRAGBranchingThoughts(
-                lightrag_core=mock_lightrag_core,
-                num_branches=3,
-                search_mode="invalid_mode"
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = judge_response(
+                {"local": 0.9, "global": 0.7, "hybrid": 0.8}
             )
+            scores = await pattern._judge_hypotheses("question", hypotheses)
 
-    async def test_num_branches_validation(self, mock_lightrag_core):
-        """Test validation of num_branches parameter."""
-        with pytest.raises(ValueError, match="num_branches must be at least 2"):
-            LightRAGBranchingThoughts(
-                lightrag_core=mock_lightrag_core,
-                num_branches=1,
-                search_mode="local"
+        by_mode = {
+            h.mode: s.score
+            for h in hypotheses
+            for s in scores
+            if s.hypothesis_id == h.hypothesis_id
+        }
+        assert by_mode == {"local": 0.9, "global": 0.7, "hybrid": 0.8}
+        assert llm.await_count == 1
+        assert llm.await_args.kwargs["model"] == JUDGE_MODEL
+
+    async def test_judge_failure_falls_back_to_default_confidence(self, core):
+        pattern = make_pattern(core)
+        hypotheses = await pattern._generate_hypotheses("question", 3)
+
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = RuntimeError("judge unavailable")
+            scores = await pattern._judge_hypotheses("question", hypotheses)
+
+        assert [s.score for s in scores] == [h.confidence for h in hypotheses]
+        assert all("unavailable" in s.reasoning for s in scores)
+
+    async def test_best_scored_mode_is_selected(self, core):
+        pattern = make_pattern(core)
+
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = judge_response(
+                {"local": 0.5, "global": 0.95, "hybrid": 0.6}
             )
+            result = await pattern.execute(problem="question")
 
-    async def test_empty_hypotheses_handling(self, mock_lightrag_core):
-        """Test handling of empty hypothesis generation."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="local"
+        assert result.success is True
+        assert result.selected_hypothesis.mode == "global"
+        assert result.result == "global answer"
+        assert "0.95" in result.selection_reasoning
+
+
+@pytest.mark.asyncio
+class TestFailureHandling:
+    async def test_no_hypotheses_skips_the_judge_and_warns(self, core):
+        core.local_query.side_effect = core.global_query.side_effect = RuntimeError("x")
+        core.hybrid_query.side_effect = RuntimeError("x")
+        pattern = make_pattern(core)
+
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            result = await pattern.execute(problem="question")
+
+        llm.assert_not_awaited()
+        assert result.hypotheses == []
+        assert result.selected_hypothesis is None
+        assert "every query mode failed" in result.metadata["warning"]
+
+    async def test_one_failing_mode_keeps_the_others(self, core):
+        core.global_query.side_effect = RuntimeError("global index offline")
+        pattern = make_pattern(core)
+
+        hypotheses = await pattern._generate_hypotheses("question", 3)
+
+        assert [h.mode for h in hypotheses] == ["local", "hybrid"]
+
+
+@pytest.mark.asyncio
+class TestEvents:
+    async def test_event_sequence_for_a_full_run(self, core, event_collector):
+        pattern = make_pattern(core)
+        pattern.add_event_handler(event_collector.collect)
+
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = judge_response(
+                {"local": 0.5, "global": 0.9, "hybrid": 0.6}
+            )
+            await pattern.execute(problem="question")
+
+        types = [e["type"] for e in event_collector.get_events()]
+        assert types[0] == "pattern.branching.started"
+        assert types.index("pattern.branching.generating") < types.index(
+            "pattern.branching.judging"
+        )
+        assert types.index("pattern.branching.judging") < types.index(
+            "pattern.branching.selected"
+        )
+        assert types[-1] == "pattern.branching.completed"
+        assert types.count("pattern.branching.hypothesis_generated") == 3
+
+    async def test_generating_event_lists_the_modes(self, core, event_collector):
+        pattern = make_pattern(core, modes=["local", "hybrid"])
+        pattern.add_event_handler(event_collector.collect)
+
+        await pattern._generate_hypotheses("question", 2)
+
+        event = event_collector.get_events("pattern.branching.generating")[0]
+        assert event["data"]["modes"] == ["local", "hybrid"]
+
+    async def test_selected_event_reports_mode_and_score(self, core, event_collector):
+        pattern = make_pattern(core)
+        pattern.add_event_handler(event_collector.collect)
+        hypothesis = Hypothesis("h1", "approach", "reasoning", 0.7, "global")
+        from promptchain.integrations.lightrag.branching import HypothesisScore
+
+        pattern._select_best_hypothesis(
+            [hypothesis], [HypothesisScore("h1", 0.88, "good")]
         )
 
-        with patch.object(pattern, '_generate_hypotheses', new_callable=AsyncMock) as mock_gen:
-            mock_gen.return_value = []
+        data = event_collector.get_events("pattern.branching.selected")[0]["data"]
+        assert data["mode"] == "global"
+        assert data["score"] == 0.88
 
-            result = await pattern.execute(query="test")
+    async def test_no_events_when_disabled(self, core, event_collector):
+        pattern = make_pattern(core, emit_events=False)
+        pattern.add_event_handler(event_collector.collect)
 
-            assert result["hypotheses"] == []
-            assert "error" in result or "warning" in result
+        await pattern._generate_hypotheses("question", 3)
 
-    async def test_base_pattern_interface_compliance(self, mock_lightrag_core):
-        """Test that pattern implements BasePattern interface correctly."""
-        pattern = LightRAGBranchingThoughts(
-            lightrag_core=mock_lightrag_core,
-            num_branches=3,
-            search_mode="local"
-        )
+        assert event_collector.get_events() == []
 
-        # Check required methods exist
-        assert hasattr(pattern, 'execute')
-        assert hasattr(pattern, 'pattern_name')
-        assert callable(pattern.execute)
 
-        # Check execute returns dict
-        result = await pattern.execute(query="test")
-        assert isinstance(result, dict)
+@pytest.mark.asyncio
+class TestPatternInterface:
+    async def test_implements_base_pattern_contract(self, core):
+        pattern = make_pattern(core)
+
+        assert isinstance(pattern, BasePattern)
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = judge_response({"local": 0.5, "global": 0.6, "hybrid": 0.7})
+            result = await pattern.execute(problem="question")
+
+        assert result.pattern_id == pattern.config.pattern_id
+        assert result.to_dict()["selected_hypothesis"]["mode"] == "hybrid"
+
+    async def test_hypothesis_count_override_beats_config(self, core):
+        pattern = make_pattern(core, hypothesis_count=3)
+
+        with patch.object(
+            pattern._litellm, "acompletion", new_callable=AsyncMock
+        ) as llm:
+            llm.side_effect = judge_response({"local": 0.5, "global": 0.6, "hybrid": 0.7})
+            result = await pattern.execute(problem="question", hypothesis_count=2)
+
+        assert len(result.hypotheses) == 2

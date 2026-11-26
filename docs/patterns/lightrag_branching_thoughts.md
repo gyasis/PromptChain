@@ -156,7 +156,8 @@ selected = blackboard.read(f"branching.{branching.config.pattern_id}.selected")
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `hypothesis_count` | int | 3 | Number of hypotheses to generate |
+| `hypothesis_count` | int | 3 | Number of hypotheses to generate (>= 1) |
+| `modes` | List[str] | None | Query modes to branch over, cycled to reach `hypothesis_count`. Any of `"local"`, `"global"`, `"hybrid"`; None uses all three. Invalid or empty lists raise `ValueError` |
 | `generator_model` | str | None | Model for hypothesis generation (uses LightRAG default if None) |
 | `judge_model` | str | "openai/gpt-4o" | Model to use for judging hypotheses |
 | `diversity_threshold` | float | 0.3 | Minimum diversity between hypotheses (0.0-1.0) |
