@@ -294,6 +294,7 @@ def run_tool_probe(client: GovernorClient, tag: str, *, show: Optional[dict] = N
     scores = []
     for item in items:
         before_p, before_b = client.pressure(), client.budget()
+        warm = client.resident(tag, before_p)
         payload = {"model": tag, "messages": item["question"][0], "tools": to_ollama_tools(item["function"])}
         if think is not None:
             payload["think"] = think
@@ -302,7 +303,7 @@ def run_tool_probe(client: GovernorClient, tag: str, *, show: Optional[dict] = N
         scores.append(score)
         append_measurement(store, measurement_record(
             kind="tool", tag=tag, show=show, endpoint=client.base + client.chat_path, think=think,
-            warm=client.resident(tag, before_p), size=None, res=res, gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
+            warm=warm, size=None, res=res, gov=snapshot(before_b, before_p), gate=gate, ctx=ctx,
             extra={"item": {"id": item["id"], "category": item["category"], "source": BFCL_REPO,
                             "license": BFCL_LICENSE}, "score": score, "validator": validator_name()}))
     return {"scores": scores, "summary": summarize_scores(scores), "skipped_items": bank["skipped"]}

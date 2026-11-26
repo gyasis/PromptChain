@@ -696,3 +696,33 @@ def test_latency_probe_on_llamacpp_lane_records_ttft_and_warmth(tmp_path):
     assert summ["n_cold"] == 1
     assert summ["ttft_content_p50_s_by_size"]["small"] is not None
     assert all(r["metrics"]["ttft_s"] is not None for r in recs)
+
+
+def test_llamacpp_warm_after_completed_call_while_pressure_lags(tmp_path):
+    sse = b"".join(_sse(_delta(content="no"), _final("stop", timings=TIMINGS)))
+
+    def opener(req, timeout=None):
+        if req.full_url.endswith("/pressure"):
+            return FakeResp(json.dumps(LLAMA_P(None, "loading")).encode())
+        if req.full_url.endswith("/budget"):
+            return FakeResp(json.dumps(BUDGET).encode())
+        return FakeResp(sse)
+
+    c = governor.LlamacppGovernorClient(opener=opener)
+    recs = latency_probe.run_latency_probe(c, "a", capabilities=[], sequence=("small", "small", "medium"),
+                                           store=str(tmp_path / "m.jsonl"))
+    assert [r["warm_by_pressure"] for r in recs] == [False, True, True]
+    assert not c.resident("b", LLAMA_P(None, "loading"))
+
+
+def test_llamacpp_failed_call_clears_warmth():
+    import urllib.error
+
+    def refuse(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 503, "x", {}, io.BytesIO(b"{}"))
+
+    c = governor.LlamacppGovernorClient(opener=refuse)
+    c._last_served = "a"
+    with pytest.raises(Exception):
+        list(c.chat_stream({"model": "a", "messages": []}))
+    assert not c.resident("a", LLAMA_P(None, "cold"))

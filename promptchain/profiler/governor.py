@@ -266,8 +266,9 @@ class LlamacppGovernorClient(GovernorClient):
     Probes keep speaking Ollama: the request is translated to OpenAI chat-completions
     (``think:false`` becomes ``chat_template_kwargs.enable_thinking=false``; ``options`` are
     dropped, so no size is ever sent) and the SSE reply is translated back. llama-server
-    reports no load time, so ``load_duration`` is absent and warmth comes from the lane's
-    ``atelier`` tenant in /pressure (the alias it has loaded).
+    reports no load time, so ``load_duration`` is absent. An alias is warm when the lane's
+    ``atelier`` tenant in /pressure has it loaded, or when this client's previous call
+    completed on that alias: /pressure lags a fresh load by a few seconds.
 
     The first call for an alias may wait on a model load, so its read timeout is
     ``read_timeout + load_wait``; later calls use ``read_timeout``.
@@ -279,9 +280,10 @@ class LlamacppGovernorClient(GovernorClient):
         super().__init__(*args, **kw)
         self.load_wait = load_wait
         self._called: set[str] = set()
+        self._last_served: Optional[str] = None
 
     def resident(self, tag: str, pressure: dict) -> bool:
-        return llamacpp_loaded(pressure) == tag
+        return llamacpp_loaded(pressure) == tag or self._last_served == tag
 
     def timeout_for(self, tag: str) -> float:
         return self.read_timeout if tag in self._called else self.read_timeout + self.load_wait
@@ -306,8 +308,10 @@ class LlamacppGovernorClient(GovernorClient):
             body["chat_template_kwargs"] = {"enable_thinking": False}
         timeout = self.timeout_for(payload["model"])
         self._called.add(payload["model"])
+        self._last_served = None
         with self._request(self.chat_path, body, timeout) as r:
             yield from sse_to_chunks(r)
+        self._last_served = payload["model"]
 
 
 @dataclass
