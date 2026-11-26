@@ -22,7 +22,7 @@ from typing import List, Optional
 
 from promptchain.utils.external_loop import ExternalLoop
 
-from .agents import DEFAULT_MODEL, LLMAgent
+from .agents import LLMAgent
 from .types import MeshContext, Msg, Transcript, render
 
 _AUTHORITY = ("select", "steer", "full")
@@ -33,7 +33,7 @@ class Orchestrator:
     """A manager agent that runs a group (AG2 ``GroupChatManager('auto')``)."""
 
     def __init__(self, name: str, persona: str = _DEFAULT_PERSONA,
-                 model: str = DEFAULT_MODEL, max_internal_steps: int = 3,
+                 model: Optional[str] = None, max_internal_steps: int = 3,
                  authority: str = "full", max_rounds: int = 8, manager=None,
                  on_turn=None):
         if authority not in _AUTHORITY:
@@ -113,17 +113,19 @@ class Orchestrator:
         return t
 
 
-def orchestrator(name: str, persona: str = _DEFAULT_PERSONA, model: str = DEFAULT_MODEL,
+def orchestrator(name: str, persona: str = _DEFAULT_PERSONA, model: Optional[str] = None,
                  max_internal_steps: int = 3, authority: str = "full",
                  max_rounds: int = 8, manager=None, on_turn=None) -> Orchestrator:
     """An agentic orchestrator (manager agent). See :class:`Orchestrator`.
 
+    ``model`` is required unless a ready-made ``manager`` agent is passed.
+
     >>> # dumb agents -> smart orchestrator that steers every turn:
-    >>> orchestrator("M", model="openai/gpt-4o", max_internal_steps=6, authority="full")
+    >>> orchestrator("M", model=my_model, max_internal_steps=6, authority="full")
     >>> # capable agents -> simple orchestrator:
-    >>> orchestrator("M", authority="select")
+    >>> orchestrator("M", model=my_model, authority="select")
     >>> # stream each turn to a UI:
-    >>> orchestrator("M", on_turn=lambda msg, ctx: dock.add(f"{msg.role}: {msg.content}"))
+    >>> orchestrator("M", model=my_model, on_turn=lambda msg, ctx: dock.add(f"{msg.role}: {msg.content}"))
     """
     return Orchestrator(name, persona, model, max_internal_steps, authority, max_rounds,
                         manager, on_turn)
@@ -131,7 +133,7 @@ def orchestrator(name: str, persona: str = _DEFAULT_PERSONA, model: str = DEFAUL
 
 def captain(name: str, team: List, goal: str,
             persona: str = "a captain who runs a sub-team and reports ONE recommendation",
-            model: str = DEFAULT_MODEL):
+            model: Optional[str] = None):
     """G8 nested orchestrator (AG2 ``CaptainAgent``): a manager that RUNS a sub-team and
     presents to the outside world as ONE agent — only its synthesis escapes. Composes
     like any agent (has ``name`` / ``say`` / ``say_async``)."""

@@ -18,6 +18,7 @@ from promptchain.observability import (init_mlflow, shutdown_mlflow,
 
 from . import __version__
 from .models import Config
+from .utils.model_required import require_model
 # NOTE: PromptChainApp (TUI) is lazy-imported inside the launch path so that
 # subcommands like `install-skill` (which don't need the TUI) can run without
 # the optional `textual` dependency. See setup.py extras_require["tui"].
@@ -209,7 +210,7 @@ def setup_logging(
     "-m",
     default=None,
     help="Model to start the session with (overrides the active agent's model, "
-    "e.g., 'openai/gpt-4o' or 'ollama/qwen3'). Applies for this launch only.",
+    "e.g., 'ollama_chat/<name>' or 'openai/<name>'). Applies for this launch only. A session with no model chosen needs this, /model or Ctrl+N.",
 )
 @click.option(
     "--resume",
@@ -395,7 +396,7 @@ main.add_command(_install_skill_cmd)
     "--model",
     "-m",
     default=None,
-    help="Model to use (overrides agent model, e.g., 'openai/gpt-4')",
+    help="Model to use (overrides agent model; required when the session has none chosen)",
 )
 def query(
     query: str,
@@ -414,7 +415,7 @@ def query(
     Examples:
         promptchain query "What is the capital of France?"
         promptchain query "Analyze the code in main.py" --session my-project
-        promptchain query "Graph the Dow Jones" --model openai/gpt-4o
+        promptchain query "Graph the Dow Jones" --model <provider/model>
         promptchain query "Summarize README.md" --agent researcher
     """
     import asyncio
@@ -518,12 +519,16 @@ def query(
             # Create default agent if doesn't exist
             from .models.agent_config import Agent
 
-            model_name = model or session_obj.default_model
+            model_name = require_model(
+                model, session_obj.default_model, context="promptchain query"
+            )
             agent_obj = Agent(name=agent_name, model_name=model_name)
             session_obj.agents[agent_name] = agent_obj
 
         # Override model if specified
-        model_name = model or agent_obj.model_name
+        model_name = require_model(
+            model, agent_obj.model_name, context="promptchain query"
+        )
 
         # Initialize PrePrompt to load from both project and user prompts directories
         from promptchain.utils.preprompt import PrePrompt

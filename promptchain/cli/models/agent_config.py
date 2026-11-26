@@ -144,7 +144,8 @@ class Agent:
 
     Attributes:
         name: Agent name (1-32 chars, alphanumeric+dashes)
-        model_name: LiteLLM model string (e.g., "openai/gpt-4", "ollama/llama2")
+        model_name: LiteLLM model string in provider/model form, or None until the
+            user picks one
         description: Optional agent description (max 256 chars)
         created_at: Agent creation timestamp (Unix seconds)
         last_used: Last usage timestamp (Unix seconds, None if never used)
@@ -155,7 +156,7 @@ class Agent:
 
     # Core agent identity (existing v1 fields)
     name: str
-    model_name: str
+    model_name: Optional[str]
     description: str = ""
     created_at: float = field(default_factory=lambda: datetime.now().timestamp())
     last_used: Optional[float] = None
@@ -183,11 +184,15 @@ class Agent:
                 f"Agent name must be alphanumeric+dashes/underscores: {self.name}"
             )
 
-        # Validate model_name format (provider/model-name)
-        if not self.model_name or "/" not in self.model_name:
+        # The database stores "no model chosen" as an empty string.
+        if not self.model_name:
+            self.model_name = None
+
+        # Validate model_name format (provider/model-name) when one is set
+        if self.model_name is not None and "/" not in self.model_name:
             raise ValueError(
-                f"model_name must be in format 'provider/model-name' "
-                f"(e.g., 'openai/gpt-4'), got: {self.model_name}"
+                f"model_name must be in format 'provider/model-name', "
+                f"got: {self.model_name}"
             )
 
         # Validate description length

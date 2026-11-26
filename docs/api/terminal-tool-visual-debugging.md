@@ -289,7 +289,7 @@ def create_visual_terminal():
 
 # Use in PromptChain
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         """You are a development assistant with visual terminal access.
         Execute commands to help with the user's request.
@@ -340,7 +340,7 @@ terminal = TerminalTool(
 agentic_step = AgenticStepProcessor(
     objective="Set up a complete web development environment",
     max_internal_steps=10,
-    model_name="openai/gpt-4"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 
 # Register visual terminal tool
@@ -356,7 +356,7 @@ def visual_terminal_tool(command: str) -> str:
 
 # Use in chain with agentic reasoning
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze requirements: {input}",
         agentic_step,  # Complex reasoning with visual terminal
@@ -402,7 +402,7 @@ def create_visual_agent(name: str, specialty: str):
         return result
     
     agent = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[f"You are a {specialty} specialist. {input}"],
         verbose=True
     )

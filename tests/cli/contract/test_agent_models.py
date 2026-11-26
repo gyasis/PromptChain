@@ -31,7 +31,8 @@ class TestAgentModels:
         """Create a test session."""
         session = session_manager.create_session(
             name="model-test",
-            working_directory=Path.cwd()
+            working_directory=Path.cwd(),
+            default_model="ollama_chat/glm-5.3-flash:cloud",
         )
         return session
 

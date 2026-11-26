@@ -138,7 +138,7 @@ metadata = result.metadata  # Access metadata
 ### Pattern 3: Callback Integration (Optional)
 ```python
 # Old pattern (no callbacks)
-chain = PromptChain(models=["openai/gpt-4"], instructions=[...])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=[...])
 result = chain.process_prompt("test")  # Works unchanged
 
 # New pattern (opt-in callbacks)

@@ -290,7 +290,7 @@ mcp_config = [
 ]
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze files: {input}"],
     mcp_servers=mcp_config
 )

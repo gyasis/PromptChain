@@ -51,7 +51,7 @@ def multi_hop_config():
     return MultiHopConfig(
         max_hops=5,
         max_sub_questions=5,
-        synthesizer_model="openai/gpt-4o-mini",
+        synthesizer_model="ollama_chat/glm-5.3-flash:cloud",
         decompose_first=True,
         emit_events=True,
         timeout_seconds=30.0,
@@ -161,7 +161,7 @@ class TestQuestionDecomposition:
     @pytest.mark.asyncio
     async def test_decompose_question_respects_max_sub_questions(self, mock_search_interface):
         """Test that decomposition respects max_sub_questions limit."""
-        config = MultiHopConfig(max_sub_questions=2)
+        config = MultiHopConfig(max_sub_questions=2, synthesizer_model="ollama_chat/glm-5.3-flash:cloud")
 
         with patch("promptchain.integrations.lightrag.multi_hop.HYBRIDRAG_AVAILABLE", True):
             pattern = LightRAGMultiHop(
@@ -405,7 +405,7 @@ class TestFullExecution:
     @pytest.mark.asyncio
     async def test_execute_with_decomposition(self, mock_search_interface):
         """Test full execution with decomposition."""
-        config = MultiHopConfig(decompose_first=True, emit_events=False)
+        config = MultiHopConfig(decompose_first=True, emit_events=False, synthesizer_model="ollama_chat/glm-5.3-flash:cloud")
 
         with patch("promptchain.integrations.lightrag.multi_hop.HYBRIDRAG_AVAILABLE", True):
             pattern = LightRAGMultiHop(

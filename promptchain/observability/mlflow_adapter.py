@@ -352,7 +352,7 @@ def run_context(
 
     Example:
         with run_context("my_experiment"):
-            log_param("model", "gpt-4")
+            log_param("model", "model-a")
             log_metric("accuracy", 0.95)
     """
     run = start_run(run_name=run_name, nested=nested)

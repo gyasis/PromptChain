@@ -30,7 +30,7 @@ Inside a `PromptChain`, an `instruction` of type `str` is normally treated as a 
 from promptchain import PromptChain
 
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "summarize_v1",                # literal prompt ID — loaded from prompt dirs
         "extract_entities:cot",        # prompt ID with strategy modifier (e.g., chain-of-thought)

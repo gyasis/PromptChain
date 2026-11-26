@@ -149,7 +149,7 @@ else:
 ```python
 agent = Agent(
     name="researcher",
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     description="Deep research specialist with multi-hop reasoning",
     instruction_chain=[
         "Research the topic thoroughly using available tools and sources"
@@ -169,7 +169,7 @@ agent = Agent(
 ```python
 agent = Agent(
     name="executor",
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     description="Code execution and terminal operations",
     instruction_chain=[],  # Empty = simple agent
     history_config=HistoryConfig(
@@ -266,7 +266,7 @@ After implementing AgenticStepProcessor support:
 ```bash
 # Create simple agent
 promptchain --session my-project
-> /agent create executor --model gpt-4 --description "Code execution"
+> /agent create executor --model ollama_chat/glm-5.3-flash:cloud --description "Code execution"
 
 # Create complex reasoning agent (requires config file)
 # Add instruction_chain to agent via session manager
@@ -292,7 +292,7 @@ from promptchain.cli.models.agent_config import Agent, HistoryConfig
 # Complex reasoning agent
 researcher = Agent(
     name="researcher",
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     description="Deep research with multi-hop reasoning",
     instruction_chain=["Research thoroughly using all available sources"],
     history_config=HistoryConfig(enabled=True, max_tokens=8000)
@@ -307,7 +307,7 @@ researcher = Agent(
 # Simple agent
 executor = Agent(
     name="executor",
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     description="Execute code and commands",
     instruction_chain=[],  # Empty = simple
     history_config=HistoryConfig(enabled=False, max_tokens=0, max_entries=0)

@@ -94,7 +94,7 @@ def my_callback(event: ExecutionEvent):
 from promptchain import PromptChain
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"]
 )
 
@@ -160,7 +160,7 @@ Each event type includes specific metadata:
 # CHAIN_START
 {
     "total_instructions": 3,
-    "models": ["openai/gpt-4"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "initial_input": "User's question..."
 }
 
@@ -209,7 +209,7 @@ Each event type includes specific metadata:
 ```python
 # MODEL_CALL_START
 {
-    "model": "openai/gpt-4",
+    "model": "ollama_chat/glm-5.3-flash:cloud",
     "prompt_length": 150,
     "temperature": 0.7
 }
@@ -226,7 +226,7 @@ Each event type includes specific metadata:
 # MODEL_CALL_ERROR
 {
     "error": "Rate limit exceeded",
-    "model": "openai/gpt-4",
+    "model": "ollama_chat/glm-5.3-flash:cloud",
     "retry_attempt": 2
 }
 ```
@@ -468,7 +468,7 @@ Callback errors are logged but execution continues.
 
 ```python
 # No callbacks registered = zero overhead
-chain = PromptChain(models=["openai/gpt-4"], instructions=[...])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=[...])
 result = chain.process_prompt("...")  # Fast, no event overhead
 ```
 

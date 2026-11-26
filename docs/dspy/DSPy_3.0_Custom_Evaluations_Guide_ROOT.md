@@ -1543,7 +1543,7 @@ class SelfConsistentJudge:
     def evaluate(self, example, pred, trace=None):
         scores = []
 
-        with dspy.context(lm=dspy.LM("openai/gpt-4o", temperature=self.temperature)):
+        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3-flash:cloud", temperature=self.temperature)):
             for _ in range(self.num_samples):
                 result = self.judge(
                     question=example.question,
@@ -1613,7 +1613,7 @@ class CostOptimizedEvaluation:
 
     def evaluate(self, example, pred, trace=None):
         # Stage 1: Quick screening with fast model
-        with dspy.context(lm=dspy.LM("openai/gpt-4o-mini", temperature=0.2)):
+        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3-flash:cloud", temperature=0.2)):
             fast_result = self.fast_judge(
                 assessed_text=pred.answer,
                 assessment_question="Is this response factually accurate?"
@@ -1624,7 +1624,7 @@ class CostOptimizedEvaluation:
             return 1.0 if fast_result.assessment_answer else 0.0
 
         # Stage 2: Uncertain cases get expensive model
-        with dspy.context(lm=dspy.LM("openai/gpt-4o", temperature=0.2)):
+        with dspy.context(lm=dspy.LM("ollama_chat/glm-5.3-flash:cloud", temperature=0.2)):
             accurate_result = self.accurate_judge(
                 question=example.question,
                 response=pred.answer,

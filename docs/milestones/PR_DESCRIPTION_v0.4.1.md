@@ -127,7 +127,7 @@ tracker.register_callback(
 ```python
 # MCP connection events
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     mcp_servers=[...],
     verbose=True
 )
@@ -273,7 +273,7 @@ def monitor(event: ExecutionEvent):
     print(f"[{event.event_type.name}] Step {event.step_number}")
 
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"]
 )
 chain.register_callback(monitor)

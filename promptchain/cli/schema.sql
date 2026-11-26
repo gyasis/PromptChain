@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     last_accessed REAL NOT NULL,
     working_directory TEXT NOT NULL,
     active_agent TEXT,
-    default_model TEXT NOT NULL DEFAULT 'openai/gpt-4.1-mini-2025-04-14',
+    default_model TEXT NOT NULL DEFAULT '',
     auto_save_enabled INTEGER NOT NULL DEFAULT 1,
     auto_save_interval INTEGER NOT NULL DEFAULT 120,
     metadata_json TEXT NOT NULL DEFAULT '{}',

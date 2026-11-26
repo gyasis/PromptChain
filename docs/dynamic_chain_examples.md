@@ -17,7 +17,7 @@ from promptchain.utils.promptchaining import DynamicChainBuilder
 
 builder = DynamicChainBuilder(
     base_model={
-        "name": "openai/gpt-4",
+        "name": "ollama_chat/glm-5.3-flash:cloud",
         "params": {"temperature": 0.7}
     },
     base_instruction="Base analysis: {input}"

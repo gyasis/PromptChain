@@ -22,7 +22,7 @@ def to_uppercase_json(text: str) -> str:
 
 async def main():
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],   # ONE model for the ONE string instruction
+        models=["ollama_chat/glm-5.3-flash:cloud"],   # ONE model for the ONE string instruction
         instructions=[
             "Give me a single short fact about the moon.",
             to_uppercase_json,           # python step — no model slot
@@ -38,6 +38,6 @@ asyncio.run(main())
 
 ## Common failures + fix
 
-- **`ValueError: Number of models (2) must match number of non-function/non-agentic instructions (1)`** — you passed two models because you have two instructions, but only the string instruction needs a model. Pass `models=["openai/gpt-4o-mini"]` (one entry).
+- **`ValueError: Number of models (2) must match number of non-function/non-agentic instructions (1)`** — you passed two models because you have two instructions, but only the string instruction needs a model. Pass `models=["ollama_chat/glm-5.3-flash:cloud"]` (one entry).
 - **Function returns a dict / list** — the next instruction's `{input}` substitution will get `repr()` of the object. Always return a string (use `json.dumps` if you need structured data).
 - **Function raises an exception** — propagates and stops the chain. Wrap in try/except inside the function and return an error string if you want the chain to continue.

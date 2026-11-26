@@ -474,7 +474,7 @@ Enable in config.json:
 ```json
 {
   "debug_mode": true,
-  "default_model": "openai/gpt-4",
+  "default_model": "ollama_chat/glm-5.3-flash:cloud",
   ...
 }
 ```

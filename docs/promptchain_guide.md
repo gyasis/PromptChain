@@ -24,7 +24,7 @@ PromptChain is a powerful framework that specializes in two core capabilities:
 ```python
 # Basic chain for content generation
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Write about: {input}",
         "Improve the writing: {input}",
@@ -38,6 +38,7 @@ result = chain.process_prompt("Quantum computing basics")
 ```python
 # Chain for prompt optimization
 engineer = PromptEngineer(
+    evaluator_model="ollama_chat/glm-5.3-flash:cloud",
     max_iterations=3,
     use_human_evaluation=False,
     verbose=True
@@ -68,10 +69,10 @@ def validate_code(text: str) -> str:
 chain = PromptChain(
     models=[
         {
-            "name": "openai/gpt-4",
+            "name": "ollama_chat/glm-5.3-flash:cloud",
             "params": {"temperature": 0.7}
         },
-        "anthropic/claude-3-sonnet-20240229"
+        "ollama_chat/glm-5.3-flash:cloud"
     ],
     instructions=[
         "Analyze this code: {input}",
@@ -132,7 +133,7 @@ PromptChain supports both synchronous and asynchronous operation modes, making i
 from promptchain.utils.promptchaining import PromptChain
 
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Process this: {input}"]
 )
 
@@ -147,7 +148,7 @@ from promptchain.utils.promptchaining import PromptChain
 
 async def main():
     chain = PromptChain(
-        models=["gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Process this: {input}"],
         mcp_servers=[{  # Optional MCP server configuration
             "id": "local_server",
@@ -189,7 +190,7 @@ The async capabilities are particularly useful when working with Model Context P
 
 ```python
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Use available tools to: {input}"],
     mcp_servers=[
         {
@@ -218,7 +219,7 @@ chain = PromptChain(
 from promptchain.utils.promptchaining import PromptChain
 
 chain = PromptChain(
-    models=["gpt-3.5"],  # List of models to use
+    models=["ollama_chat/glm-5.3-flash:cloud"],  # List of models to use
     instructions=[
         "Translate the following English text to French: {input_text}",
         "Summarize the following text: {translated_text}",
@@ -252,7 +253,7 @@ print(output)
 from promptchain.utils.promptchaining import DynamicChainBuilder
 
 builder = DynamicChainBuilder(
-    base_model="gpt-3",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction="Explain the concept of {topic}."
 )
 ```
@@ -313,7 +314,7 @@ from promptchain.utils.prompt_engineer import PromptEngineer
 engineer = PromptEngineer(
     max_iterations=5,
     verbose=True,
-    evaluator_model="anthropic/claude-3-sonnet-20240229",
+    evaluator_model="ollama_chat/glm-5.3-flash:cloud",
     protect_content=True
 )
 
@@ -468,7 +469,7 @@ Your Decision (QUICK or DEEP):
 # --- Create the Decision Chain ---
 decision_chain = PromptChain(
     # Using a potentially faster/cheaper model suitable for classification
-    models=["openai/gpt-4o-mini"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         decision_prompt_template, # LLM makes the decision
         route_based_on_decision  # Python function routes based on decision
@@ -521,7 +522,7 @@ def analyze_sentiment(text: str) -> str:
 
 # Mix functions with model instructions
 chain = PromptChain(
-    models=["openai/gpt-4"],  # Only needed for non-function instructions
+    models=["ollama_chat/glm-5.3-flash:cloud"],  # Only needed for non-function instructions
     instructions=[
         "Generate a product review: {input}",
         analyze_sentiment,  # Function doesn't need a model
@@ -549,7 +550,7 @@ def preprocess_multimodal_input(input_data: str) -> str:
     return input_data
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         preprocess_multimodal_input,
         "Analyze the processed content: {input}",
@@ -566,7 +567,7 @@ def format_as_json(text: str) -> str:
     return json.dumps(data, indent=2)
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Extract key information: {input}",
         format_as_json,
@@ -640,10 +641,10 @@ def create_advanced_analysis_chain():
     chain = PromptChain(
         models=[
             {
-                "name": "openai/gpt-4",
+                "name": "ollama_chat/glm-5.3-flash:cloud",
                 "params": {"temperature": 0.7}
             },
-            "anthropic/claude-3-sonnet-20240229"
+            "ollama_chat/glm-5.3-flash:cloud"
         ],
         instructions=[
             preprocess_input,  # Clean input

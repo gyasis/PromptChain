@@ -34,7 +34,7 @@ pytest tests/cli/ -k "agentic" -v
 ```yaml
 agents:
   researcher:
-    model: "openai/gpt-4o-mini"
+    model: "ollama_chat/glm-5.3-flash:cloud"
     description: "Research agent with multi-hop reasoning"
     instructions:
       - "Prepare research strategy: {input}"
@@ -47,7 +47,7 @@ agents:
 
 router:
   type: "single_agent_dispatch"
-  model: "openai/gpt-4o-mini"
+  model: "ollama_chat/glm-5.3-flash:cloud"
 
 execution_mode: "router"
 ```

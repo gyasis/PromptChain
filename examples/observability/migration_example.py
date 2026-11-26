@@ -70,7 +70,7 @@ def demo_agent_metadata_migration():
 
     # Create simple agent
     agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Answer briefly: {input}"],
         verbose=False
     )
@@ -175,7 +175,7 @@ result = chain.process_prompt("Input")
             print(f"  ✗ Error: {event.metadata.get('error')}")
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Answer: {input}"],
         verbose=False
     )
@@ -210,7 +210,7 @@ import time
 
 # Manual monitoring
 history = ExecutionHistoryManager(max_tokens=4000)
-chain = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Answer: {input}"])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Answer: {input}"])
 
 # Manual timing
 start = time.time()
@@ -253,7 +253,7 @@ def error_callback(event: ExecutionEvent):
     print(f"Context: step={event.step_number}, model={event.model_name}")
 
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Answer: {input}"],
     verbose=False
 )

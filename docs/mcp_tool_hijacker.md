@@ -77,7 +77,7 @@ from promptchain import PromptChain
 
 # Create PromptChain with hijacker enabled
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"],
     mcp_servers=mcp_config,
     enable_mcp_hijacker=True,
@@ -1301,7 +1301,7 @@ cleanup_task = asyncio.create_task(periodic_cleanup(hijacker))
 ```python
 # Solution: Verify hijacker configuration
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"],
     mcp_servers=mcp_config,
     enable_mcp_hijacker=True,  # Must be True
@@ -1573,7 +1573,7 @@ MCPToolHijacker(
 #### Before (traditional MCP through LLM):
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Use the tool to: {input}"],
     mcp_servers=mcp_config
 )
@@ -1583,7 +1583,7 @@ result = await chain.process_prompt_async("get weather for NYC")
 #### After (direct execution with hijacker):
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"],
     mcp_servers=mcp_config,
     enable_mcp_hijacker=True
@@ -1925,7 +1925,7 @@ async def hybrid_analysis_workflow(query: str):
     
     # Setup
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Analyze the query and determine search strategy: {input}",
             "Generate final insights based on: {input}"

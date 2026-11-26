@@ -22,8 +22,8 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 # Enable two-tier routing (3 lines of code)
 agentic_step = AgenticStepProcessor(
     objective="Your task here",
-    model_name="openai/gpt-4",                    # Primary model (complex tasks)
-    fallback_model="openai/gpt-4o-mini",          # Fast model (simple tasks)
+    model_name="ollama_chat/glm-5.3-flash:cloud",                    # Primary model (complex tasks)
+    fallback_model="ollama_chat/glm-5.3-flash:cloud",          # Fast model (simple tasks)
     enable_two_tier_routing=True,                 # ✅ Enable routing
 )
 ```
@@ -87,7 +87,7 @@ _classify_task_complexity(messages, tools, step_num)
 ```python
 AgenticStepProcessor(
     objective="...",
-    fallback_model="openai/gpt-4o-mini",
+    fallback_model="ollama_chat/glm-5.3-flash:cloud",
     enable_two_tier_routing=True
 )
 ```
@@ -100,11 +100,11 @@ AgenticStepProcessor(
     max_internal_steps=10,
 
     # Primary model for complex reasoning
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
     model_params={"temperature": 0.7},
 
     # Two-tier routing
-    fallback_model="openai/gpt-4o-mini",          # Fast model
+    fallback_model="ollama_chat/glm-5.3-flash:cloud",          # Fast model
     enable_two_tier_routing=True,
 
     # History management (affects token counts)
@@ -125,16 +125,16 @@ AgenticStepProcessor(
 
 | Use Case | Primary Model | Fallback Model | Cost Ratio |
 |----------|---------------|----------------|------------|
-| **Production (Best Quality)** | `openai/gpt-4` | `openai/gpt-4o-mini` | 10-20x |
-| **Balanced** | `openai/gpt-4o` | `openai/gpt-4o-mini` | 3-5x |
-| **Budget** | `openai/gpt-4o-mini` | `openai/gpt-3.5-turbo` | 2-3x |
+| **Production (Best Quality)** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 10-20x |
+| **Balanced** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 3-5x |
+| **Budget** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 2-3x |
 
 ### Anthropic Models
 
 | Use Case | Primary Model | Fallback Model | Cost Ratio |
 |----------|---------------|----------------|------------|
-| **Production** | `anthropic/claude-3-opus` | `anthropic/claude-3-haiku` | 15-20x |
-| **Balanced** | `anthropic/claude-3-sonnet` | `anthropic/claude-3-haiku` | 5-10x |
+| **Production** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 15-20x |
+| **Balanced** | `ollama_chat/glm-5.3-flash:cloud` | `ollama_chat/glm-5.3-flash:cloud` | 5-10x |
 
 ### Google Models
 
@@ -154,13 +154,13 @@ During execution, you'll see:
 
 ```
 [Two-Tier] Step 0: Early planning phase → COMPLEX (use primary model)
-[Two-Tier] Step 0: COMPLEX task → using primary model 'openai/gpt-4'
+[Two-Tier] Step 0: COMPLEX task → using primary model 'ollama_chat/glm-5.3-flash:cloud'
 
 [Two-Tier] Step 2: Simple execution detected → SIMPLE (use fallback)
-[Two-Tier] Step 2: SIMPLE task → using fallback model 'openai/gpt-4o-mini' (saved 1/3 calls)
+[Two-Tier] Step 2: SIMPLE task → using fallback model 'ollama_chat/glm-5.3-flash:cloud' (saved 1/3 calls)
 
 [Two-Tier] Step 3: Late iteration, default → SIMPLE (use fallback)
-[Two-Tier] Step 3: SIMPLE task → using fallback model 'openai/gpt-4o-mini' (saved 2/3 calls)
+[Two-Tier] Step 3: SIMPLE task → using fallback model 'ollama_chat/glm-5.3-flash:cloud' (saved 2/3 calls)
 ```
 
 ### Summary Statistics
@@ -217,18 +217,18 @@ Choose models based on task type:
 def get_model_config(task_type):
     if task_type == "coding":
         return {
-            "model_name": "openai/gpt-4",           # Strong for code generation
-            "fallback_model": "openai/gpt-4o-mini"
+            "model_name": "ollama_chat/glm-5.3-flash:cloud",           # Strong for code generation
+            "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
     elif task_type == "writing":
         return {
-            "model_name": "anthropic/claude-3-opus",  # Strong for creative writing
-            "fallback_model": "anthropic/claude-3-haiku"
+            "model_name": "ollama_chat/glm-5.3-flash:cloud",  # Strong for creative writing
+            "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
     elif task_type == "analysis":
         return {
-            "model_name": "openai/gpt-4o",           # Balanced
-            "fallback_model": "openai/gpt-4o-mini"
+            "model_name": "ollama_chat/glm-5.3-flash:cloud",           # Balanced
+            "fallback_model": "ollama_chat/glm-5.3-flash:cloud"
         }
 ```
 
@@ -320,7 +320,7 @@ class AggressiveAgenticStep(AgenticStepProcessor):
 ```python
 agentic_step = AgenticStepProcessor(
     objective="...",
-    model_name="openai/gpt-4",
+    model_name="ollama_chat/glm-5.3-flash:cloud",
 )
 ```
 
@@ -328,8 +328,8 @@ agentic_step = AgenticStepProcessor(
 ```python
 agentic_step = AgenticStepProcessor(
     objective="...",
-    model_name="openai/gpt-4",
-    fallback_model="openai/gpt-4o-mini",  # ✅ ADD THIS
+    model_name="ollama_chat/glm-5.3-flash:cloud",
+    fallback_model="ollama_chat/glm-5.3-flash:cloud",  # ✅ ADD THIS
     enable_two_tier_routing=True,         # ✅ ADD THIS
 )
 ```
@@ -358,14 +358,14 @@ agent_chain = AgentChain(
         "researcher": PromptChain(
             instructions=[AgenticStepProcessor(
                 objective="Research task",
-                fallback_model="openai/gpt-4o-mini",
+                fallback_model="ollama_chat/glm-5.3-flash:cloud",
                 enable_two_tier_routing=True
             )]
         ),
         "writer": PromptChain(
             instructions=[AgenticStepProcessor(
                 objective="Write report",
-                fallback_model="anthropic/claude-3-haiku",
+                fallback_model="ollama_chat/glm-5.3-flash:cloud",
                 enable_two_tier_routing=True
             )]
         )
@@ -634,7 +634,7 @@ similarity = 0.8  # Tracked for accuracy monitoring
 **Overhead**: Minimal (~10-15% with fast prediction model)
 - TAO adds 1 explicit Think phase per iteration
 - Dry run adds 1 prediction call per tool execution
-- Use fast/cheap model for predictions (e.g., `gpt-4o-mini`)
+- Use fast/cheap model for predictions (e.g., `ollama_chat/glm-5.3-flash:cloud`)
 - Trade-off: Small overhead for significant transparency gain
 
 ---

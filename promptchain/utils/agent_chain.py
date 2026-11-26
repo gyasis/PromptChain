@@ -68,7 +68,9 @@ class AgentChain:
         max_internal_steps (int): Max loops within router mode for agent-to-agent re-routes (default: 3).
         synthesizer_config (Optional[Dict[str, Any]]): Config for broadcast synthesizer.
                                                        Required for 'broadcast' mode.
-                                                       Example: {"model": "gpt-4o-mini", "prompt": "Synthesize: {agent_responses}"}
+                                                       Example: {"model": my_model, "prompt": "Synthesize: {agent_responses}"}
+                                                       "model" is required; with no synthesizer_config the
+                                                       broadcast responses are concatenated.
         router_strategy (str): The strategy for selecting the decision prompt template.
         auto_include_history (bool): When True, automatically include conversation history in all agent calls.
         cache_config (Optional[Dict[str, Any]]): Configuration for caching conversation history.
@@ -124,6 +126,12 @@ class AgentChain:
         self.synthesizer_config = kwargs.get(
             "synthesizer_config", None
         )  # For broadcast mode
+        if self.synthesizer_config and not self.synthesizer_config.get("model"):
+            raise ValueError(
+                "synthesizer_config requires a 'model' key: name the model that "
+                "synthesizes broadcast responses (or omit synthesizer_config to "
+                "concatenate them)."
+            )
 
         # Cache configuration - from dict
         self.cache_config = cache_config or {}
@@ -267,13 +275,20 @@ class AgentChain:
                 from promptchain.utils.orchestrator_supervisor import \
                     OrchestratorSupervisor
 
+                supervisor_model = kwargs.get("supervisor_model")
+                if not supervisor_model:
+                    raise ValueError(
+                        "use_supervisor=True requires `supervisor_model`: pass "
+                        "supervisor_model=<model name> to AgentChain."
+                    )
+
                 # Create supervisor with strategy preference
                 self.orchestrator_supervisor = OrchestratorSupervisor(
                     agent_descriptions=agent_descriptions,
                     log_event_callback=self.logger.log_run if log_dir else None,
                     dev_print_callback=None,  # Can be set later via kwargs
                     max_reasoning_steps=kwargs.get("supervisor_max_steps", 8),
-                    model_name=kwargs.get("supervisor_model", "openai/gpt-4.1-mini"),
+                    model_name=supervisor_model,
                     strategy_preference=self.supervisor_strategy,
                 )
 
@@ -1981,9 +1996,7 @@ class AgentChain:
                         results_json = json.dumps(processed_results)
 
                         # Extract config
-                        synth_model = self.synthesizer_config.get(
-                            "model", "openai/gpt-4o-mini"
-                        )
+                        synth_model = self.synthesizer_config["model"]
                         synth_prompt_template = self.synthesizer_config.get(
                             "prompt",
                             "Synthesize these agent responses: {agent_responses}",

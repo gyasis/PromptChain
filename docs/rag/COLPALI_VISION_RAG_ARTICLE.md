@@ -470,7 +470,7 @@ def vlm(prompt, retrieved_documents):
 
     client = OpenAI()
     response = client.chat.completions.create(
-      model="gpt-4o-mini",
+      model="ollama_chat/glm-5.3-flash:cloud",
       messages=[
             {
                 "role": "user",

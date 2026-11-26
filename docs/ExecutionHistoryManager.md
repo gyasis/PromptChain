@@ -340,7 +340,7 @@ history_manager = ExecutionHistoryManager(
 
 # Create agent
 agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}", "Summarize: {input}"]
 )
 
@@ -655,7 +655,7 @@ history.add_entry(
         "confidence_score": 0.87,
         "execution_time_ms": 3421,
         "tokens_used": 1234,
-        "model": "gpt-4"
+        "model": "ollama_chat/glm-5.3-flash:cloud"
     }
 )
 

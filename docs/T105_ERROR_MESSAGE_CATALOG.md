@@ -239,10 +239,10 @@ Suggested fixes:
 
 **Example**:
 ```
-Error 2002: Router LLM call failed (model: gpt-4)
+Error 2002: Router LLM call failed (model: ollama_chat/glm-5.3-flash:cloud)
 
 Context:
-  - model: gpt-4
+  - model: ollama_chat/glm-5.3-flash:cloud
   - error: Rate limit exceeded
 
 Suggested fixes:
@@ -420,7 +420,7 @@ Context:
   - error: Invalid format
 
 Suggested fixes:
-  • Use format: provider/model-name (e.g., openai/gpt-4)
+  • Use format: provider/model-name (e.g., ollama_chat/glm-5.3-flash:cloud)
   • Supported providers: openai, anthropic, google, ollama
   • Verify model name spelling
   • Check if API key for provider is configured

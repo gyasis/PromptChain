@@ -113,13 +113,13 @@ async def test_multihop_file_search_analysis(mock_codebase):
         objective="Find and analyze authentication patterns in the codebase. "
                   "Identify key files, search patterns, and provide detailed analysis.",
         max_internal_steps=6,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         store_detailed_steps=True
     )
 
     # Create chain with tools
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[processor],
         verbose=True
     )
@@ -223,14 +223,14 @@ async def test_multihop_progressive_refinement(mock_codebase):
         objective="Search for authentication methods. Refine search based on "
                   "initial results to find specific implementation details.",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="progressive",  # Build context across steps
         store_detailed_steps=True
     )
 
     # Create chain
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[processor],
         verbose=True
     )
@@ -294,12 +294,12 @@ async def test_multihop_error_recovery():
     processor = AgenticStepProcessor(
         objective="Search for information and handle failures gracefully",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         clarification_attempts=2  # Allow retry on errors
     )
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[processor]
     )
 

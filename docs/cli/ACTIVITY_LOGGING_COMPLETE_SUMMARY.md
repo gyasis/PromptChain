@@ -259,8 +259,8 @@ session = session_manager.create_session(
 )
 
 # 2. Create agents
-researcher = PromptChain(models=["openai/gpt-4"], instructions=["Research: {input}"])
-writer = PromptChain(models=["openai/gpt-4"], instructions=["Write: {input}"])
+researcher = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Research: {input}"])
+writer = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Write: {input}"])
 
 # 3. Create AgentChain with session's ActivityLogger
 agent_chain = AgentChain(

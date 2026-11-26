@@ -51,7 +51,7 @@ promptchain --version
   "agents": {
     "researcher": {
       "name": "researcher",
-      "model_name": "openai/gpt-4",
+      "model_name": "ollama_chat/glm-5.3-flash:cloud",
       "description": "Research specialist for in-depth analysis and information gathering",
       "instruction_chain": [],
       "history_config": {
@@ -61,7 +61,7 @@ promptchain --version
     },
     "coder": {
       "name": "coder",
-      "model_name": "openai/gpt-3.5-turbo",
+      "model_name": "ollama_chat/glm-5.3-flash:cloud",
       "description": "Code generation and programming specialist",
       "instruction_chain": [],
       "history_config": {
@@ -71,7 +71,7 @@ promptchain --version
     },
     "analyst": {
       "name": "analyst",
-      "model_name": "openai/gpt-4",
+      "model_name": "ollama_chat/glm-5.3-flash:cloud",
       "description": "Data analysis and interpretation specialist",
       "instruction_chain": [],
       "history_config": {
@@ -85,7 +85,7 @@ promptchain --version
     "default_agent": "researcher",
     "auto_include_history": true,
     "router_config": {
-      "model": "openai/gpt-4o-mini",
+      "model": "ollama_chat/glm-5.3-flash:cloud",
       "decision_prompt_template": "Based on: {user_input}\n\nAgents:\n{agent_details}\n\nHistory:\n{history}\n\nSelect agent (JSON): {{\"chosen_agent\": \"name\"}}"
     }
   }
@@ -94,7 +94,7 @@ promptchain --version
 
 **Expected Results**:
 - ✅ TUI launches without errors
-- ✅ Status bar displays: `* Session: test-router-session | Agent: researcher ⚙ | Model: gpt-4 | Messages: 0`
+- ✅ Status bar displays: `* Session: test-router-session | Agent: researcher ⚙ | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 0`
 - ✅ Router icon (⚙) visible in status bar
 - ✅ Active agent shows "researcher" (default)
 
@@ -183,7 +183,7 @@ grep '"event":"router_decision"' ~/.promptchain/logs/session_*.jsonl | jq '.hist
 {
   "deep_researcher": {
     "name": "deep_researcher",
-    "model_name": "openai/gpt-4",
+    "model_name": "ollama_chat/glm-5.3-flash:cloud",
     "description": "Deep research with multi-hop reasoning",
     "instruction_chain": [
       "Research the topic thoroughly using all available sources and reasoning steps"
@@ -195,7 +195,7 @@ grep '"event":"router_decision"' ~/.promptchain/logs/session_*.jsonl | jq '.hist
   },
   "quick_responder": {
     "name": "quick_responder",
-    "model_name": "openai/gpt-3.5-turbo",
+    "model_name": "ollama_chat/glm-5.3-flash:cloud",
     "description": "Quick, direct responses",
     "instruction_chain": [],
     "history_config": {
@@ -357,7 +357,7 @@ grep '"event":"router_decision"' ~/.promptchain/logs/session_*.jsonl | jq '.hist
 promptchain --session single-agent-test
 
 # Check status bar - should show:
-# * Session: single-agent-test | Agent: default | Model: gpt-4 | Messages: 5
+# * Session: single-agent-test | Agent: default | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 5
 # (No ⚙ icon)
 ```
 

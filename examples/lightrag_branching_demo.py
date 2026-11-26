@@ -49,7 +49,7 @@ async def main():
     # Create Branching Thoughts pattern
     config = BranchingConfig(
         hypothesis_count=3,
-        judge_model="openai/gpt-4o",
+        judge_model="ollama_chat/glm-5.3-flash:cloud",
         diversity_threshold=0.3,
         emit_events=True,
     )

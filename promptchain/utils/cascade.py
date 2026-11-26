@@ -10,7 +10,7 @@ next tier on the SAME original input. It consumes no model slot of its own::
 
     step = cascade(
         [cheap_chain, frontier_chain],
-        check=decision_check(SystemOneBackend(model="tev1:4b"),
+        check=decision_check(SystemOneBackend(model=my_decision_model),
                              instructions="Does the output fully answer the input?",
                              accept=0.9),
         name="answer",

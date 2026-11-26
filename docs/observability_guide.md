@@ -273,7 +273,7 @@ The observability package automatically tracks four tiers of operations:
 **Decorator**: `@track_llm_call(model_param="model_name", extract_args=["temperature", "max_tokens"])`
 
 **What's Tracked**:
-- Model name (e.g., `openai/gpt-4`, `anthropic/claude-3-sonnet-20240229`)
+- Model name (e.g., `ollama_chat/glm-5.3-flash:cloud`, `ollama_chat/glm-5.3-flash:cloud`)
 - Execution time (seconds)
 - Token usage: `prompt_tokens`, `completion_tokens`, `total_tokens`
 - Parameters: `temperature`, `max_tokens`, `top_p`, etc.
@@ -288,14 +288,14 @@ The observability package automatically tracks four tiers of operations:
 
 **Example MLflow Run**:
 ```
-Run: llm_call_openai/gpt-4
+Run: llm_call_openai/ollama_chat/glm-5.3-flash:cloud
 ├── Metrics:
 │   ├── execution_time_seconds: 1.234
 │   ├── prompt_tokens: 450
 │   ├── completion_tokens: 892
 │   └── total_tokens: 1342
 ├── Parameters:
-│   ├── model: "openai/gpt-4"
+│   ├── model: "ollama_chat/glm-5.3-flash:cloud"
 │   ├── temperature: 0.7
 │   └── max_tokens: 2000
 └── Tags:
@@ -396,10 +396,10 @@ Run: session
 │   ├── start_time: "2026-01-10 14:30:00"
 │   └── status: "success"
 └── Child Runs:
-    ├── llm_call_openai/gpt-4
+    ├── llm_call_openai/ollama_chat/glm-5.3-flash:cloud
     ├── task_create
     ├── agent_routing
-    └── llm_call_anthropic/claude-3-sonnet-20240229
+    └── llm_call_anthropic/ollama_chat/glm-5.3-flash:cloud
 ```
 
 ### 4.3 Viewing Metrics in MLflow UI

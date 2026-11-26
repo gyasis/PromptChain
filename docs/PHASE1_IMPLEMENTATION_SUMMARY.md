@@ -125,12 +125,12 @@ Logging shows routing decisions:
 - **Cost Ratio: 16x** (vs 2-3x for OpenAI)
 
 Alternative: Anthropic Claude
-- Primary: `anthropic/claude-3-sonnet` ($3/1M)
-- Fallback: `anthropic/claude-3-haiku` ($0.25/1M)
+- Primary: `ollama_chat/glm-5.3-flash:cloud` ($3/1M)
+- Fallback: `ollama_chat/glm-5.3-flash:cloud` ($0.25/1M)
 - **Cost Ratio: 12x**
 
 **NOT RECOMMENDED**: OpenAI models
-- gpt-4o-mini is already the cheapest OpenAI model
+- ollama_chat/glm-5.3-flash:cloud is already the cheapest OpenAI model
 - No cheaper fallback option available
 - Stick with Gemini or Anthropic for two-tier routing
 
@@ -291,7 +291,7 @@ Expected: 50% error reduction with only 10% overhead.
    - Can be customized by subclassing and overriding `_classify_task_complexity()`
 
 2. **OpenAI Models Have Poor Cost Ratio**
-   - gpt-4o-mini is already cheapest
+   - ollama_chat/glm-5.3-flash:cloud is already cheapest
    - No meaningful fallback option
    - Use Gemini or Anthropic instead
 

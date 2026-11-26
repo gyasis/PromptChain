@@ -139,7 +139,7 @@ async def run_with_full_tracing():
 3. Analyze the code for security issues
 4. Provide recommendations based on the analysis""",
         max_internal_steps=8,
-        model_name="openai/gpt-4o-mini",  # Using OpenAI for reliable tool calling
+        model_name="ollama_chat/glm-5.3-flash:cloud",  # Using OpenAI for reliable tool calling
         model_params={
             "tool_choice": "auto"  # Explicitly enable tool calling
         },
@@ -167,7 +167,7 @@ async def run_with_full_tracing():
 
     # Create chain
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],  # Match processor model
+        models=["ollama_chat/glm-5.3-flash:cloud"],  # Match processor model
         instructions=[processor]
     )
 

@@ -213,12 +213,17 @@ class PromptEngineer:
         self,
         max_iterations: int = 3,
         verbose: bool = False,
-        evaluator_model: str = "openai/gpt-4",
+        evaluator_model: Optional[str] = None,
         improver_model: Optional[str] = None,
         use_human_evaluation: bool = False,
         protect_content: bool = True,
         focus_area: str = "all",
     ):
+        if not evaluator_model:
+            raise ValueError(
+                "PromptEngineer requires `evaluator_model`: pass a model name "
+                "(CLI: --evaluator-model)."
+            )
         self.max_iterations = max_iterations
         self.verbose = verbose
         self.evaluator = PromptEvaluator(evaluator_model)
@@ -508,9 +513,9 @@ def get_interactive_techniques():
         "verbose": False,
         "task": None,
         "initial_prompt": None,
-        "evaluator_model": "anthropic/claude-3-sonnet-20240229",
-        "improver_model": "openai/gpt-4o",
-        "creator_models": ["anthropic/claude-3-sonnet-20240229", "openai/gpt-4o-mini"],
+        "evaluator_model": None,
+        "improver_model": None,
+        "creator_models": [],
         "test": False,
         "test_inputs": None,
         "focus": "all",
@@ -719,11 +724,11 @@ def get_interactive_techniques():
                 )
             elif choice == "6":
                 config["evaluator_model"] = Prompt.ask(
-                    "Enter evaluator model", default=config["evaluator_model"]
+                    "Enter evaluator model", default=config["evaluator_model"] or ""
                 )
             elif choice == "7":
                 config["improver_model"] = Prompt.ask(
-                    "Enter improver model", default=config["improver_model"]
+                    "Enter improver model", default=config["improver_model"] or ""
                 )
             elif choice == "8":
                 models = Prompt.ask(
@@ -918,13 +923,14 @@ if __name__ == "__main__":
             if value is not None:  # Only override if value was set
                 setattr(args, key, value)
 
+    if not args.evaluator_model:
+        parser.error("--evaluator-model is required (there is no default model)")
+
     # Initialize prompt engineer with command line arguments
     engineer = PromptEngineer(
         max_iterations=args.max_iterations,
         verbose=args.verbose,
-        evaluator_model=(
-            args.evaluator_model if args.evaluator_model else "openai/gpt-4"
-        ),
+        evaluator_model=args.evaluator_model,
         improver_model=args.improver_model,
         use_human_evaluation=args.feedback == "human",
         protect_content=args.protect_content,

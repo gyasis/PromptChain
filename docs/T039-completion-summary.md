@@ -46,7 +46,7 @@ if self.last_agent_switch:
 
 **Example Status Bar Display**:
 ```
-* Session: multi-agent-research | Agent: researcher ⚙ | → analyst | Model: gpt-4 | Messages: 15
+* Session: multi-agent-research | Agent: researcher ⚙ | → analyst | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 15
 ```
 
 ### 2. Agent Selection Tracking in AgentChain ✅
@@ -139,17 +139,17 @@ status_bar.update_session_info(
 
 ### Single-Agent Mode
 ```
-* Session: my-project | Agent: default | Model: gpt-4 | Messages: 5
+* Session: my-project | Agent: default | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 5
 ```
 
 ### Router Mode (No Switch Yet)
 ```
-* Session: multi-agent | Agent: researcher ⚙ | Model: gpt-4 | Messages: 10
+* Session: multi-agent | Agent: researcher ⚙ | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 10
 ```
 
 ### Router Mode (After Agent Switch)
 ```
-* Session: multi-agent | Agent: coder ⚙ | → coder | Model: gpt-3.5-turbo | Messages: 12
+* Session: multi-agent | Agent: coder ⚙ | → coder | Model: ollama_chat/glm-5.3-flash:cloud | Messages: 12
 ```
 
 The arrow indicator (→) shows that the router just switched to the "coder" agent.

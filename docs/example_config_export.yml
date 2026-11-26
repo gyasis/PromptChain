@@ -12,12 +12,12 @@ session:
   name: production-workflow
   working_directory: /home/user/projects/myproject
   active_agent: researcher
-  default_model: openai/gpt-4.1-mini-2025-04-14
+  default_model: ollama_chat/glm-5.3-flash:cloud
   auto_save_enabled: true
 
 agents:
   researcher:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Research specialist with web search and file access
     tools:
     - web_search
@@ -30,7 +30,7 @@ agents:
       truncation_strategy: oldest_first
 
   coder:
-    model: openai/gpt-4
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Code generation and refactoring specialist
     tools:
     - mcp_filesystem_read
@@ -44,7 +44,7 @@ agents:
       truncation_strategy: oldest_first
 
   analyst:
-    model: anthropic/claude-3-sonnet-20240229
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Data analysis and insights specialist
     tools:
     - mcp_snowflake_read_query
@@ -56,7 +56,7 @@ agents:
       truncation_strategy: oldest_first
 
   terminal:
-    model: openai/gpt-3.5-turbo
+    model: ollama_chat/glm-5.3-flash:cloud
     description: Fast terminal command execution (no history)
     tools:
     - execute_shell
@@ -96,7 +96,7 @@ orchestration:
   execution_mode: router
   auto_include_history: true
   router_config:
-    model: openai/gpt-4o-mini
+    model: ollama_chat/glm-5.3-flash:cloud
     timeout_seconds: 10
 
 history_configuration:

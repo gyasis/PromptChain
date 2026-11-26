@@ -223,7 +223,7 @@ Testing T044: Router Failure Handling
 6. Response displayed: "The weather in Tokyo is..."
 7. JSONL logged: `{"event_type": "router_failure", "error_type": "TimeoutError", ...}`
 
-**Status Bar**: Shows `🔀 default (openai/gpt-4o-mini)`
+**Status Bar**: Shows `🔀 default (ollama_chat/glm-5.3-flash:cloud)`
 
 ---
 
@@ -327,7 +327,7 @@ User Message
     ↓
 AgentChain.run_chat_turn_async() [with 10s timeout]
     ↓
-Router Decision (gpt-4o-mini)
+Router Decision (ollama_chat/glm-5.3-flash:cloud)
     ↓
     ├─→ Success: log_router_decision() (T043)
     │       ↓
@@ -401,7 +401,7 @@ Router Decision (gpt-4o-mini)
 ### Router Timeout (orchestration_config.py)
 ```python
 router_config = RouterConfig(
-    model="openai/gpt-4o-mini",
+    model="ollama_chat/glm-5.3-flash:cloud",
     timeout_seconds=10,  # Adjust for slower models
     decision_prompt_template=DEFAULT_ROUTER_PROMPT
 )

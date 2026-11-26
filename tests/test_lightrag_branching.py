@@ -44,7 +44,7 @@ def branching_config():
     """Create a default branching config."""
     return BranchingConfig(
         hypothesis_count=3,
-        judge_model="openai/gpt-4o-mini",
+        judge_model="ollama_chat/glm-5.3-flash:cloud",
         timeout_seconds=30.0,
     )
 
@@ -68,7 +68,7 @@ class TestBranchingConfig:
         config = BranchingConfig()
         assert config.hypothesis_count == 3
         assert config.generator_model is None
-        assert config.judge_model == "openai/gpt-4o"
+        assert config.judge_model is None
         assert config.diversity_threshold == 0.3
         assert config.record_outcomes is True
         assert config.enabled is True
@@ -78,12 +78,12 @@ class TestBranchingConfig:
         """Test custom configuration values."""
         config = BranchingConfig(
             hypothesis_count=5,
-            judge_model="anthropic/claude-3-opus-20240229",
+            judge_model="ollama_chat/glm-5.3-flash:cloud",
             diversity_threshold=0.5,
             timeout_seconds=60.0,
         )
         assert config.hypothesis_count == 5
-        assert config.judge_model == "anthropic/claude-3-opus-20240229"
+        assert config.judge_model == "ollama_chat/glm-5.3-flash:cloud"
         assert config.diversity_threshold == 0.5
         assert config.timeout_seconds == 60.0
 

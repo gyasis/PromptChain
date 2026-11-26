@@ -47,7 +47,7 @@ branching = LightRAGBranchingThoughts(
     lightrag_core=integration,
     config=BranchingConfig(
         hypothesis_count=3,
-        judge_model="openai/gpt-4o"
+        judge_model="ollama_chat/glm-5.3-flash:cloud"
     )
 )
 
@@ -94,7 +94,7 @@ config = BranchingConfig(
     # Branching-specific config
     hypothesis_count=3,                # Number of hypotheses to generate
     generator_model=None,              # Model for hypothesis generation (uses LightRAG default)
-    judge_model="openai/gpt-4o",      # Model for judging hypotheses
+    judge_model="ollama_chat/glm-5.3-flash:cloud",      # Model for judging hypotheses
     diversity_threshold=0.3,           # Min diversity between hypotheses (0.0-1.0)
     record_outcomes=True,              # Track outcomes for learning
     modes=None                         # Query modes to branch over (default: local, global, hybrid)
@@ -109,9 +109,9 @@ config = BranchingConfig(
 - **1-2**: Fast evaluation for simple problems
 
 **judge_model**:
-- **gpt-4o**: Best quality judging, recommended for production
-- **gpt-4o-mini**: Faster, lower cost, good for development
-- **claude-3-opus**: Alternative high-quality option
+- **ollama_chat/glm-5.3-flash:cloud**: Best quality judging, recommended for production
+- **ollama_chat/glm-5.3-flash:cloud**: Faster, lower cost, good for development
+- **ollama_chat/glm-5.3-flash:cloud**: Alternative high-quality option
 
 **diversity_threshold**:
 - **0.3** (default): Moderate diversity requirement
@@ -320,10 +320,10 @@ The judge quality directly impacts selection accuracy:
 
 ```python
 # Production - use best available model
-BranchingConfig(judge_model="openai/gpt-4o")
+BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 
 # Development - balance cost and quality
-BranchingConfig(judge_model="openai/gpt-4o-mini")
+BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 ```
 
 ### 3. Monitor Execution Time
@@ -392,7 +392,7 @@ print(f"Local query result: {local_result}")
 ```python
 # Check judge model configuration
 config = BranchingConfig(
-    judge_model="openai/gpt-4o",  # Verify model name is correct
+    judge_model="ollama_chat/glm-5.3-flash:cloud",  # Verify model name is correct
 )
 
 # Monitor judge failures via events
@@ -422,7 +422,7 @@ config = BranchingConfig(
 config = BranchingConfig(hypothesis_count=2)
 
 # Use cheaper judge model
-config = BranchingConfig(judge_model="openai/gpt-4o-mini")
+config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 
 # Disable recording if not needed
 config = BranchingConfig(record_outcomes=False)
@@ -433,7 +433,7 @@ config = BranchingConfig(record_outcomes=False)
 ```python
 # Hypothesis generation is already parallel
 # Focus on faster judge model
-config = BranchingConfig(judge_model="openai/gpt-4o-mini")
+config = BranchingConfig(judge_model="ollama_chat/glm-5.3-flash:cloud")
 
 # Set aggressive timeout
 config = BranchingConfig(timeout_seconds=15.0)

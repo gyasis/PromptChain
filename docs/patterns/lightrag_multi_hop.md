@@ -51,7 +51,7 @@ from promptchain.integrations.lightrag.multi_hop import (
 
 # Initialize LightRAG
 integration = LightRAGIntegration(
-    config=LightRAGConfig(working_dir="./lightrag_data")
+    config=LightRAGConfig(working_dir="./lightrag_data", model_name="ollama_chat/glm-5.3-flash:cloud", embedding_model="<embedding-model>")
 )
 
 # Create pattern
@@ -79,7 +79,7 @@ config = MultiHopConfig(
     max_hops=7,
     max_sub_questions=5,
     decompose_first=True,  # Enable decomposition
-    synthesizer_model="openai/gpt-4o-mini",
+    synthesizer_model="ollama_chat/glm-5.3-flash:cloud",
 )
 
 pattern = LightRAGMultiHop(

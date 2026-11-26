@@ -540,7 +540,7 @@ agentic_step = AgenticStepProcessor(
 
 # Use in PromptChain workflow
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Prepare analysis strategy: {input}",
         agentic_step,  # Multi-step reasoning with Blackboard

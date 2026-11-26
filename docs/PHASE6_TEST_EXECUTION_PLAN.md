@@ -118,7 +118,7 @@
 
 # Spawn specialized test-automator agent
 promptchain agent spawn test-automator \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --objective "Create test_history_truncation.py with 10-12 tests validating ExecutionHistoryManager truncation logic" \
   --context "docs/PHASE6_TEST_EXECUTION_PLAN.md" \
   --reference-files "promptchain/utils/execution_history_manager.py,promptchain/cli/session_manager.py,tests/cli/contract/test_history_config_contract.py"
@@ -158,7 +158,7 @@ promptchain agent spawn test-automator \
 
 # Spawn specialized performance-engineer agent
 promptchain agent spawn performance-engineer \
-  --model "openai/gpt-4" \
+  --model "ollama_chat/glm-5.3-flash:cloud" \
   --objective "Create test_token_optimization.py with 8-10 performance tests measuring 30-60% token savings" \
   --context "docs/PHASE6_TEST_EXECUTION_PLAN.md" \
   --reference-files "promptchain/cli/utils/agent_templates.py,promptchain/cli/tui/status_bar.py,promptchain/cli/command_handler.py,tests/cli/integration/test_history_truncation.py"

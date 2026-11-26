@@ -20,8 +20,8 @@ from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 agentic = AgenticStepProcessor(
     objective="…",
-    model_name="openai/gpt-4o",                # primary (expensive)
-    fallback_model="openai/gpt-4o-mini",       # cheap fallback
+    model_name="ollama_chat/glm-5.3-flash:cloud",                # primary (expensive)
+    fallback_model="ollama_chat/glm-5.3-flash:cloud",       # cheap fallback
     enable_two_tier_routing=True,              # ✅ Phase 1
 )
 ```

@@ -295,13 +295,13 @@ def demo_monitoring_dashboard():
 
     # Create agents
     analyzer_agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Analyze: {input}"],
         verbose=False
     )
 
     writer_agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Write detailed response: {input}"],
         verbose=False
     )
@@ -317,7 +317,7 @@ def demo_monitoring_dashboard():
         },
         execution_mode="router",
         router={
-            "models": ["openai/gpt-4o-mini"],
+            "models": ["ollama_chat/glm-5.3-flash:cloud"],
             "instructions": [None, "{input}"]
         },
         verbose=False

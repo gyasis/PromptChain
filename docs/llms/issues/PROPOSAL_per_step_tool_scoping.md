@@ -8,7 +8,7 @@
 
 `PromptChain.add_tools(...)` registers tools at **chain scope**. Every LLM step in the chain is given the full tool list at completion time, regardless of whether that step actually needs tools.
 
-This is fine for homogeneous chains (one model family throughout). It breaks for **mixed chains** that pair a tool-strong model (e.g. `openai/gpt-4o-mini`) for retrieval with a **tool-weak specialist** (e.g. `ollama/medgemma:4b`, code-specialised models, or any small instruction-tuned model that hasn't been heavily RLHF'd on tool refusal) for synthesis. The specialist sees tool schemas in its prompt context and tries to use them inappropriately — typically emitting hallucinated tool calls (`assessment`, `generate_report`, etc.) instead of producing the expected prose output.
+This is fine for homogeneous chains (one model family throughout). It breaks for **mixed chains** that pair a tool-strong model (e.g. `ollama_chat/glm-5.3-flash:cloud`) for retrieval with a **tool-weak specialist** (e.g. `ollama/medgemma:4b`, code-specialised models, or any small instruction-tuned model that hasn't been heavily RLHF'd on tool refusal) for synthesis. The specialist sees tool schemas in its prompt context and tries to use them inappropriately — typically emitting hallucinated tool calls (`assessment`, `generate_report`, etc.) instead of producing the expected prose output.
 
 ## Reproduction
 
@@ -25,7 +25,7 @@ chain = PromptChain(
     instructions=[
         AgenticStepProcessor(
             objective="Use get_labs and get_history tools, then return JSON.",
-            model_name="openai/gpt-4o-mini",
+            model_name="ollama_chat/glm-5.3-flash:cloud",
         ),
         "Synthesise this clinical case data: {input}",   # medgemma should not see tools
     ],
@@ -104,13 +104,13 @@ Just add `tool_scope: List[str]` to `AgenticStepProcessor.__init__`. Sequential 
 - [ ] `AgenticStepProcessor` gets the same scoping (it already accepts `available_tools` at runtime — just needs to be filtered before the call).
 - [ ] Existing examples in `examples/` continue to run unchanged.
 - [ ] One new test in `tests/test_chain_with_tool_scoping.py` covers all three states above.
-- [ ] One new example demonstrating the medgemma + gpt-4o-mini hybrid pattern, replacing the Python-function workaround in `scripts/runs/2026-05-05_medgemma-clinical-demo/`.
+- [ ] One new example demonstrating the medgemma + ollama_chat/glm-5.3-flash:cloud hybrid pattern, replacing the Python-function workaround in `scripts/runs/2026-05-05_medgemma-clinical-demo/`.
 
 ## Why this matters
 
 Multi-model chains are the production pattern (cost optimization via two-tier routing, capability optimization via specialist + generalist pairing). Without per-step tool scoping, the framework forces users to choose between:
 
-- All steps must use a tool-strong model (cost — gpt-4o for everything when gpt-4o-mini would do)
+- All steps must use a tool-strong model (cost — ollama_chat/glm-5.3-flash:cloud for everything when ollama_chat/glm-5.3-flash:cloud would do)
 - Wrap weak-tool steps in Python functions (loses the abstraction the framework provides)
 - Don't use specialists at all (loses domain expertise — medical, legal, code)
 

@@ -892,8 +892,9 @@ class PromptChain:
             model: Optional[str] = None,
             model_params: Optional[Dict[str, Any]] = None,
         ) -> Any:
-            # Determine model for agentic step: use model_name if set, else default to first model
-            model_name = self.models[0] if self.models else "openai/gpt-4o"  # Default
+            # Determine model for agentic step: the step's own model_name, else the chain's
+            # first model. With neither, the caller must pass a per-call model.
+            model_name = self.models[0] if self.models else None
             params = self.model_params[0] if self.model_params else {}
             # If called from an AgenticStepProcessor, allow explicit model override
             if (
@@ -912,7 +913,7 @@ class PromptChain:
             if model:
                 if model_params is not None:
                     params = model_params
-                elif _provider_of(model) != _provider_of(model_name):
+                elif model_name and _provider_of(model) != _provider_of(model_name):
                     dropped = sorted(k for k in params if k in _PROVIDER_PARAM_KEYS)
                     logger.warning(
                         f"[Agentic Callback] Model '{model}' is on a different provider than "
@@ -921,9 +922,10 @@ class PromptChain:
                     )
                     params = {k: v for k, v in params.items() if k not in _PROVIDER_PARAM_KEYS}
                 model_name = model
-            if not self.models:
-                logger.warning(
-                    "[Agentic Callback] No models defined in PromptChain, using fallback 'openai/gpt-4o'."
+            if not model_name:
+                raise ValueError(
+                    "No model for the agentic step: pass `models` to PromptChain or "
+                    "`model_name` to AgenticStepProcessor."
                 )
 
             logger.debug(

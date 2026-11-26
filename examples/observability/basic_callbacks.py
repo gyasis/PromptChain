@@ -53,7 +53,7 @@ def main():
     print("-" * 60)
 
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Analyze this request: {input}",
             "Provide a brief summary: {input}"
@@ -71,7 +71,7 @@ def main():
     print("-" * 60)
 
     chain2 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Answer concisely: {input}"
         ],
@@ -108,7 +108,7 @@ def main():
     print("-" * 60)
 
     chain3 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Quick answer: {input}"],
         verbose=False
     )
@@ -127,7 +127,7 @@ def main():
         print(f"  Temp: {event.event_type.name}")
 
     chain4 = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Answer: {input}"],
         verbose=False
     )

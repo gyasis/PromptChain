@@ -344,12 +344,12 @@ session = session_manager.create_session("my-project")
 
 # Create agents
 researcher = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Research: {input}"]
 )
 
 writer = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Write: {input}"]
 )
 

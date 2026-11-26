@@ -103,7 +103,7 @@ observer = MLflowObserver(
 
 # Create chain
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"]
 )
 
@@ -331,7 +331,7 @@ observer = MLflowObserver(
 
 # Create chain with tools
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Review code: {input}",
         "Generate report: {input}"
@@ -359,9 +359,9 @@ from promptchain.observability import MLflowObserver
 observer = MLflowObserver(experiment_name="multi-agent-system")
 
 # Create agents
-researcher = PromptChain(models=["openai/gpt-4"], ...)
-coder = PromptChain(models=["openai/gpt-4"], ...)
-reviewer = PromptChain(models=["claude-3-opus"], ...)
+researcher = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
+coder = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
+reviewer = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], ...)
 
 # Multi-agent chain
 agent_chain = AgentChain(

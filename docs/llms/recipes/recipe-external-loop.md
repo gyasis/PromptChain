@@ -89,7 +89,7 @@ always runs at least once.
 from promptchain import PromptChain
 from promptchain.utils.external_loop import ExternalLoop
 
-chain = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Improve: {input}"])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Improve: {input}"])
 
 async def step(it, state):
     state["draft"] = await chain.process_prompt_async(state["draft"])

@@ -120,7 +120,8 @@ class ContextManagementConfig:
 
     Attributes:
         # Summarization settings
-        summarizer_model: LiteLLM model for history summarization (cheap/fast)
+        summarizer_model: LiteLLM model for history summarization (cheap/fast). None
+            turns history summarization off.
         summarize_every_n_iterations: Trigger summarization after N iterations
         summarize_token_threshold: Trigger summarization when tokens exceed this % of max
         max_summary_tokens: Maximum tokens for summary output
@@ -135,7 +136,7 @@ class ContextManagementConfig:
     """
 
     # Summarization settings
-    summarizer_model: str = "openai/gpt-4.1-mini-2025-04-14"
+    summarizer_model: Optional[str] = None
     summarize_every_n_iterations: int = 5
     summarize_token_threshold: float = 0.7  # 70% of max
     max_summary_tokens: int = 500
@@ -156,7 +157,7 @@ class Config:
     Manages user preferences, default settings, and performance tuning.
 
     Attributes:
-        default_model: Default LiteLLM model string
+        default_model: Default LiteLLM model string; None until the user picks one
         default_agent: Default agent name to use
         sessions_dir: Directory for session storage
         debug_mode: Enable debug mode with full tracebacks (T141)
@@ -168,7 +169,7 @@ class Config:
         metadata: Extensible storage for additional settings
     """
 
-    default_model: str = "openai/gpt-4.1-mini-2025-04-14"  # Better function calling, 1M context ($0.40/1M vs gpt-4 $30/1M)
+    default_model: Optional[str] = None
     default_agent: str = "default"
     sessions_dir: Optional[str] = None
     debug_mode: bool = False  # T141: Debug mode for error handler
@@ -241,8 +242,8 @@ class Config:
         Raises:
             ValueError: If any configuration value is invalid
         """
-        # Validate default_model format
-        if not self.default_model or "/" not in self.default_model:
+        # Validate default_model format when one is set
+        if self.default_model is not None and "/" not in self.default_model:
             raise ValueError(
                 f"default_model must be in format 'provider/model', got: {self.default_model}"
             )

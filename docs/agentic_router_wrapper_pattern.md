@@ -127,7 +127,7 @@ Think through this step-by-step using your available tools.
         objective=routing_objective,
         max_internal_steps=5,  # Allow up to 5 reasoning steps
         history_mode="progressive",  # CRITICAL: enables context accumulation
-        model_name="openai/gpt-4o",  # Use capable model with tool calling
+        model_name="ollama_chat/glm-5.3-flash:cloud",  # Use capable model with tool calling
         max_context_tokens=8000  # Monitor context size
     )
 
@@ -315,7 +315,7 @@ agent_details = {
 
 # Configure router with agentic orchestrator
 router_config = {
-    "models": ["openai/gpt-4o"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "custom_router_function": agentic_orchestrator_router,
     "instructions": [None, "{input}"]
 }
@@ -351,7 +351,7 @@ orchestrator = AgenticStepProcessor(
     objective=routing_objective,
     max_internal_steps=5,
     history_mode="progressive",  # MUST BE "progressive"
-    model_name="openai/gpt-4o"
+    model_name="ollama_chat/glm-5.3-flash:cloud"
 )
 ```
 
@@ -365,12 +365,12 @@ orchestrator = AgenticStepProcessor(
 ### 2. Model Selection Matters
 
 **Recommended Models:**
-- `openai/gpt-4o` - Excellent reasoning, tool calling support
-- `openai/gpt-4-turbo` - Good balance of speed and capability
-- `anthropic/claude-3-5-sonnet-20241022` - Strong reasoning abilities
+- `ollama_chat/glm-5.3-flash:cloud` - Excellent reasoning, tool calling support
+- `ollama_chat/glm-5.3-flash:cloud` - Good balance of speed and capability
+- `ollama_chat/glm-5.3-flash:cloud` - Strong reasoning abilities
 
 **Avoid:**
-- Small models (gpt-3.5, etc.) - Insufficient reasoning capability
+- Small models (small local models, etc.) - Insufficient reasoning capability
 - Models without tool calling - Cannot use routing tools
 
 ### 3. Tool Integration Pattern
@@ -441,7 +441,7 @@ Create a test set of 100 queries:
 **Before:**
 ```python
 router_config = {
-    "models": ["openai/gpt-4"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "instructions": [None, "{input}"],
     "decision_prompt_templates": {
         "single_agent_dispatch": "Choose agent based on query..."
@@ -454,7 +454,7 @@ router_config = {
 from promptchain.utils.agentic_router_wrapper import agentic_orchestrator_router
 
 router_config = {
-    "models": ["openai/gpt-4o"],
+    "models": ["ollama_chat/glm-5.3-flash:cloud"],
     "custom_router_function": agentic_orchestrator_router,
     "instructions": [None, "{input}"]
 }
@@ -482,7 +482,7 @@ agent_chain = AgentChain(
     agentic_router_config={
         "max_internal_steps": 5,
         "history_mode": "progressive",
-        "model_name": "openai/gpt-4o",
+        "model_name": "ollama_chat/glm-5.3-flash:cloud",
         "enable_research_detection": True,
         "enable_tool_awareness": True,
         "enable_date_awareness": True

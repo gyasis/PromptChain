@@ -252,7 +252,7 @@ chunk_top_k: 100                          # Chunk retrieval limit
 #### **LLM Configuration**
 
 ```python
-model_name: "gpt-4.1-mini"                # LLM model
+model_name: "ollama_chat/glm-5.3-flash:cloud"                # LLM model
 embedding_model: "text-embedding-ada-002"  # Embedding model
 embedding_dim: 1536                        # Embedding dimension
 max_async: 4                              # Concurrent LLM calls
@@ -623,7 +623,7 @@ async def migrate_to_postgresql():
         graph_storage="PGGraphStorage",
         doc_status_storage="PGDocStatusStorage",
         llm_model_func=lambda prompt, **kwargs: openai_complete_if_cache(
-            model="gpt-4.1-mini",
+            model="ollama_chat/glm-5.3-flash:cloud",
             prompt=prompt,
             api_key=os.getenv("OPENAI_API_KEY"),
             **kwargs

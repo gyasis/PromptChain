@@ -109,7 +109,7 @@ def show_chain(model: str, version: Optional[str], as_json: bool):
             click.echo(f"\n🔗 Chain: {chain_def.model} (v{chain_def.version.lstrip('v')})\n")
             click.echo(f"  VIN: {chain_def.vin}")
             click.echo(f"  Mode: {chain_def.mode.value}")
-            click.echo(f"  LLM: {chain_def.llm_model}")
+            click.echo(f"  LLM: {chain_def.llm_model or '(none set; the executor supplies one)'}")
 
             if chain_def.description:
                 click.echo(f"  Description: {chain_def.description}")
@@ -217,9 +217,9 @@ def run_chain(model: str, input_text: Optional[str], version: Optional[str], fil
 @click.argument("model")
 @click.option("--description", "-d", default=None, help="Chain description")
 @click.option("--mode", type=click.Choice(["strict", "hybrid"]), default="strict", help="Execution mode")
-@click.option("--llm", default="openai/gpt-4.1-mini-2025-04-14", help="LLM model for prompt steps")
+@click.option("--llm", default=None, help="LLM model for prompt steps (optional; the executor can supply one)")
 @click.option("--interactive", "-i", is_flag=True, help="Interactive step creation")
-def create_chain(model: str, description: Optional[str], mode: str, llm: str, interactive: bool):
+def create_chain(model: str, description: Optional[str], mode: str, llm: Optional[str], interactive: bool):
     """Create a new chain.
 
     Examples:

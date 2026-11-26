@@ -19,7 +19,7 @@ Mirrors ``micro-agent/src/state-machine/ralph-machine.ts`` (the staged pipeline)
   * **testing**   — run the test command in the sandbox (exit 0 = pass)
 
 **Heterogeneous models per role** (the "big-brother" design) — exactly the fork's
-table (librarian=gemini-flash, artisan=claude-sonnet, critic=gpt-4o-mini). Pass one
+table (a cheap librarian model, a strong artisan model, a medium critic model). Pass one
 ``model`` for all, or ``librarian_model`` / ``artisan_model`` / ``critic_model``.
 
 Engine **A** (:class:`~promptchain.utils.test_loop_chain.MicroPromptChain`) is the

@@ -18,7 +18,7 @@ The Prompt Engineer is a specialized component of PromptChain designed for itera
    ```python
    # Evaluates if prompts need improvement
    evaluator = PromptChain(
-       models=["anthropic/claude-3-sonnet-20240229"],
+       models=["ollama_chat/glm-5.3-flash:cloud"],
        instructions=["""Evaluate if this prompt is acceptable or needs improvement.
            Consider:
            1. Clarity: Are the instructions clear and specific?
@@ -37,7 +37,7 @@ The Prompt Engineer is a specialized component of PromptChain designed for itera
    ```python
    # Improves prompts based on feedback
    improver = PromptChain(
-       models=["openai/gpt-4o"],
+       models=["ollama_chat/glm-5.3-flash:cloud"],
        instructions=["""You are a prompt engineering expert. Your task is to improve the given prompt based on specific feedback.
 
            IMPORTANT: Do NOT change the core purpose or domain of the prompt. Maintain the original intent and subject matter.
@@ -169,8 +169,8 @@ python -m promptchain.utils.prompt_engineer \
 | `--output-file` | str | None | File to save the final prompt to | `--output-file prompt.txt` |
 | `--task` | str | None | Task description for prompt creation | `--task "Generate SQL queries"` |
 | `--initial-prompt` | str | None | Initial prompt to improve | `--initial-prompt "Write a story..."` |
-| `--evaluator-model` | str | "anthropic/claude-3-sonnet-20240229" | Model to use for evaluation | `--evaluator-model "openai/gpt-4"` |
-| `--improver-model` | str | "openai/gpt-4o" | Model to use for improvements | `--improver-model "anthropic/claude-3"` |
+| `--evaluator-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--improver-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3-flash:cloud"` |
 | `--test` | bool | False | Enable prompt testing | `--test` |
 | `--test-inputs` | List[str] | None | Comma-separated test inputs | `--test-inputs "input1,input2,input3"` |
 | `--focus` | str | "all" | Focus area for improvements | `--focus clarity` |
@@ -188,8 +188,8 @@ python -m promptchain.utils.prompt_engineer \
 ```bash
 python -m promptchain.utils.prompt_engineer \
     -i \
-    --evaluator-model "openai/gpt-4" \
-    --improver-model "anthropic/claude-3-sonnet-20240229"
+    --evaluator-model "ollama_chat/glm-5.3-flash:cloud" \
+    --improver-model "ollama_chat/glm-5.3-flash:cloud"
 ```
 
 3. **Full Testing Configuration**
@@ -238,6 +238,7 @@ from promptchain.utils.prompt_engineer import PromptEngineer
 
 # Initialize engineer
 engineer = PromptEngineer(
+    evaluator_model="ollama_chat/glm-5.3-flash:cloud",
     max_iterations=3,
     use_human_evaluation=False,
     verbose=True
@@ -392,6 +393,7 @@ Check the `examples/prompt_engineer/` directory for:
 ```python
 # Enable comprehensive debugging
 engineer = PromptEngineer(
+    evaluator_model="ollama_chat/glm-5.3-flash:cloud",
     max_iterations=3,
     verbose=True,
     use_human_evaluation=False
@@ -415,8 +417,8 @@ engineer.evaluator.add_debug_callbacks({
 | `--verbose` | bool | False | Enable detailed logging | `--verbose` |
 | `--task` | str | None | Task description for prompt creation | `--task "Generate SQL queries"` |
 | `--initial-prompt` | str | None | Initial prompt to improve (use "-" for stdin) | `--initial-prompt "Write a story..."` |
-| `--evaluator-model` | str | "anthropic/claude-3-sonnet-20240229" | Model to use for evaluation | `--evaluator-model "openai/gpt-4"` |
-| `--improver-model` | str | "openai/gpt-4o" | Model to use for improvements | `--improver-model "anthropic/claude-3"` |
+| `--evaluator-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for evaluation | `--evaluator-model "ollama_chat/glm-5.3-flash:cloud"` |
+| `--improver-model` | str | "ollama_chat/glm-5.3-flash:cloud" | Model to use for improvements | `--improver-model "ollama_chat/glm-5.3-flash:cloud"` |
 | `--test` | bool | False | Enable prompt testing | `--test` |
 | `--test-inputs` | List[str] | None | Test inputs for prompt testing | `--test-inputs "input1,input2,input3"` |
 | `--focus` | str | "all" | Focus area for improvements | `--focus clarity` |
@@ -468,25 +470,25 @@ engineer.evaluator.add_debug_callbacks({
 
 ### Evaluator Model
 
-Default: `anthropic/claude-3-sonnet-20240229`
+Default: `ollama_chat/glm-5.3-flash:cloud`
 
 Parameters can be specified as a JSON object:
 ```bash
---evaluator-model '{"name": "openai/gpt-4", "params": {"temperature": 0.7, "max_tokens": 1000}}'
+--evaluator-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.7, "max_tokens": 1000}}'
 ```
 
 ### Improver Model
 
-Default: `openai/gpt-4o`
+Default: `ollama_chat/glm-5.3-flash:cloud`
 
 Parameters can be specified as a JSON object:
 ```bash
---improver-model '{"name": "anthropic/claude-3", "params": {"temperature": 0.5, "max_tokens": 2000}}'
+--improver-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.5, "max_tokens": 2000}}'
 ```
 
 ### Creator Models
 
-Default: `["anthropic/claude-3-sonnet-20240229", "openai/gpt-4o-mini"]`
+Default: `["ollama_chat/glm-5.3-flash:cloud", "ollama_chat/glm-5.3-flash:cloud"]`
 
 Can be specified as comma-separated list in interactive mode:
 ```bash
@@ -559,8 +561,8 @@ python -m promptchain.utils.prompt_engineer \
 3. **Custom Models with Parameters**
 ```bash
 python -m promptchain.utils.prompt_engineer \
-    --evaluator-model '{"name": "openai/gpt-4", "params": {"temperature": 0.7}}' \
-    --improver-model '{"name": "anthropic/claude-3", "params": {"max_tokens": 2000}}' \
+    --evaluator-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0.7}}' \
+    --improver-model '{"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"max_tokens": 2000}}' \
     --techniques style_mimicking:technical comparative_answering:pros_cons
 ```
 
@@ -617,7 +619,7 @@ The query should be more efficient by:
 """
 
 # The SQL code between backticks will be preserved exactly
-engineer = PromptEngineer(protect_content=True)
+engineer = PromptEngineer(evaluator_model="ollama_chat/glm-5.3-flash:cloud", protect_content=True)
 improved_prompt = engineer.create_specialized_prompt(prompt)
 ```
 
@@ -636,7 +638,7 @@ Answer: ${3}The process by which plants convert light energy to chemical energy$
 """
 
 # The ${n}...${n} markers will be preserved
-engineer = PromptEngineer(protect_content=True)
+engineer = PromptEngineer(evaluator_model="ollama_chat/glm-5.3-flash:cloud", protect_content=True)
 improved_prompt = engineer.create_specialized_prompt(prompt)
 ```
 
@@ -666,10 +668,10 @@ Protection is enabled by default but can be controlled through several methods:
 
 ```python
 # Enabled (default)
-engineer = PromptEngineer(protect_content=True)
+engineer = PromptEngineer(evaluator_model="ollama_chat/glm-5.3-flash:cloud", protect_content=True)
 
 # Disabled
-engineer = PromptEngineer(protect_content=False)
+engineer = PromptEngineer(evaluator_model="ollama_chat/glm-5.3-flash:cloud", protect_content=False)
 ```
 
 #### Command Line

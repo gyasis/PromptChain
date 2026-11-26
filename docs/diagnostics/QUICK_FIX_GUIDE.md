@@ -159,7 +159,7 @@ Experiment: promptchain-cli
     │   ├── completion_tokens: 45
     │   └── total_tokens: 168
     ├── Parameters:
-    │   ├── model: openai/gpt-4o-mini
+    │   ├── model: ollama_chat/glm-5.3-flash:cloud
     │   ├── temperature: 0.7
     │   └── max_tokens: 2048
     └── Tags:
@@ -233,7 +233,7 @@ print(f"MLflow available: {is_mlflow_available()}")
 ```python
 from promptchain.utils.promptchaining import PromptChain
 
-chain = PromptChain(models=["openai/gpt-4o-mini"], instructions=["Test"])
+chain = PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["Test"])
 func = chain.run_model_async
 
 print(f"Has closure: {func.__closure__ is not None}")

@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 from promptchain.utils.agentic_step_processor import AgenticStepProcessor
 
 from ..models.agent_config import Agent, HistoryConfig
+from .model_required import require_model
 from .prompt_templates import (AGENTIC_LOOP_BLOCK, CODER_SPECIALIZATION_BLOCK,
                                COMMUNICATION_BLOCK, DEBUGGING_BLOCK,
                                IDENTITY_BLOCK, LINUX_EXPERT_BLOCK,
@@ -47,7 +48,6 @@ class AgentTemplate:
         name: Template name (e.g., "researcher", "coder")
         display_name: Human-readable display name
         description: Template purpose and capabilities
-        model: Default LLM model
         instruction_chain: Prompt templates and processing steps
         tools: List of tool identifiers
         history_config: History management configuration
@@ -57,7 +57,6 @@ class AgentTemplate:
     name: str
     display_name: str
     description: str
-    model: str
     instruction_chain: List[Union[str, Dict]]
     tools: List[str]
     history_config: HistoryConfig
@@ -70,7 +69,6 @@ RESEARCHER_TEMPLATE = AgentTemplate(
     display_name="Researcher",
     description="Deep research specialist with multi-hop reasoning and web search capabilities. "
     "Uses AgenticStepProcessor for 8-step autonomous research workflows.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         "Analyze research query: {input}",
         {
@@ -99,7 +97,6 @@ CODER_TEMPLATE = AgentTemplate(
     display_name="Coder",
     description="Code generation specialist with file operations, code execution, and validation. "
     "Supports test-driven development and iterative refinement.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         "Analyze coding request and identify requirements: {input}",
         "Generate implementation with proper error handling and documentation: {input}",
@@ -126,7 +123,6 @@ ANALYST_TEMPLATE = AgentTemplate(
     display_name="Analyst",
     description="Data analysis specialist for interpreting datasets, generating insights, "
     "and creating visualizations. Supports statistical analysis and reporting.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         "Understand data analysis request and objectives: {input}",
         "Load and explore dataset structure, identify patterns: {input}",
@@ -149,8 +145,7 @@ TERMINAL_TEMPLATE = AgentTemplate(
     display_name="Terminal",
     description="Fast execution agent for command-line operations and quick tasks. "
     "History disabled for maximum token efficiency (~60% savings). "
-    "Uses fast model (gpt-3.5-turbo) for sub-second responses.",
-    model="openai/gpt-3.5-turbo",  # Fast, cost-effective model
+    "Works best with a fast model for sub-second responses.",
     instruction_chain=["{input}"],  # Direct pass-through, no additional processing
     tools=["execute_shell", "mcp_filesystem_read", "mcp_filesystem_write"],
     history_config=HistoryConfig.for_agent_type(
@@ -176,7 +171,6 @@ SUPER_CODER_TEMPLATE = AgentTemplate(
     description="Elite code generation agent using Cursor IDE patterns. "
     "Execution-first philosophy: writes code via tools, never outputs raw code. "
     "Bounded linter loops (max 3), read-before-edit enforcement, file_edit tool preference.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         # Build comprehensive instruction using prompt_templates
         IDENTITY_BLOCK.format(
@@ -232,7 +226,6 @@ LINUX_EXPERT_TEMPLATE = AgentTemplate(
     description="System administration specialist with deep Linux/Unix expertise. "
     "Shell command mastery, process management, permissions, networking, and troubleshooting. "
     "Uses terminal_execute with | cat for pagers, understands systemd, networking, and security.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Linux Expert",
@@ -274,7 +267,6 @@ SUPER_DEBUGGER_TEMPLATE = AgentTemplate(
     description="Root cause analysis specialist with bounded fix attempts. "
     "Follows debugging workflow: reproduce -> isolate -> hypothesize -> verify -> fix. "
     "Maximum 3 fix attempts before escalating. Uses <thinking> tags for analysis.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Super Debugger",
@@ -335,7 +327,6 @@ SUPER_RESEARCHER_TEMPLATE = AgentTemplate(
     description="Advanced research agent with planning methodology and web search. "
     "8-step autonomous workflow with planskill-style difficulty assessment. "
     "Multi-source verification, progressive depth, comprehensive synthesis.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Super Researcher",
@@ -423,7 +414,6 @@ SECURITY_AUDITOR_TEMPLATE = AgentTemplate(
     description="OWASP-aligned defensive security review specialist. "
     "Vulnerability assessment, secure code review, threat modeling. "
     "Focus on actionable remediation, not exploitation.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         IDENTITY_BLOCK.format(
             agent_name="Security Auditor",
@@ -505,7 +495,6 @@ DEFAULT_ENHANCED_TEMPLATE = AgentTemplate(
     description="Comprehensive general-purpose super agent combining all patterns. "
     "Execution-first philosophy with full tool access including web search. "
     "Suitable for any coding, file manipulation, research, or Linux task.",
-    model="openai/gpt-4.1-mini-2025-04-14",
     instruction_chain=[
         SUPER_AGENT_PROMPT
         + "\n\n"
@@ -581,20 +570,20 @@ def create_from_template(
             SUPER AGENTS: "super_coder", "linux_expert", "super_debugger",
                          "super_researcher", "security_auditor", "default_enhanced"
         agent_name: Unique name for this agent instance
-        model_override: Optional model to override template default
+        model_override: Model for the agent (required; templates carry no model)
         description_override: Optional description to override template default
 
     Returns:
         Agent: Configured agent instance
 
     Raises:
-        ValueError: If template_name not found
+        ValueError: If template_name not found or model_override is missing
 
     Examples:
-        >>> agent = create_from_template("researcher", "my-researcher")
-        >>> agent = create_from_template("super_coder", "elite-dev")
-        >>> agent = create_from_template("linux_expert", "sysadmin", model_override="claude-3-opus")
-        >>> agent = create_from_template("default_enhanced", "super-agent")
+        >>> agent = create_from_template("researcher", "my-researcher", model_override=my_model)
+        >>> agent = create_from_template("super_coder", "elite-dev", model_override=my_model)
+        >>> agent = create_from_template("linux_expert", "sysadmin", model_override=my_model)
+        >>> agent = create_from_template("default_enhanced", "super-agent", model_override=my_model)
     """
     if template_name not in AGENT_TEMPLATES:
         available = ", ".join(AGENT_TEMPLATES.keys())
@@ -603,11 +592,12 @@ def create_from_template(
         )
 
     template = AGENT_TEMPLATES[template_name]
+    model_name = require_model(model_override, context=f"Template '{template_name}'")
 
     # Create agent from template
     agent = Agent(
         name=agent_name,
-        model_name=model_override or template.model,
+        model_name=model_name,
         description=description_override or template.description,
         instruction_chain=template.instruction_chain.copy(),
         tools=template.tools.copy(),
@@ -633,7 +623,6 @@ def list_templates() -> List[Dict[str, str]]:
             "name": template.name,
             "display_name": template.display_name,
             "description": template.description,
-            "model": template.model,
             "complexity": template.metadata.get("complexity", "unknown"),  # type: ignore[union-attr]
             "token_usage": template.metadata.get("token_usage", "unknown"),  # type: ignore[union-attr]
         }
@@ -659,7 +648,6 @@ def get_template_info(template_name: str) -> Optional[Dict]:
         "name": template.name,
         "display_name": template.display_name,
         "description": template.description,
-        "model": template.model,
         "instruction_steps": len(template.instruction_chain),
         "tools": template.tools,
         "history_enabled": template.history_config.enabled,

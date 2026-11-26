@@ -20,7 +20,7 @@ Create unit tests verifying YAML translator correctly converts agentic_step conf
    agentic_step:
      objective: "Research and analyze"
      max_internal_steps: 5
-     model_name: "openai/gpt-4"
+     model_name: "ollama_chat/glm-5.3-flash:cloud"
    ```
    - Verify AgenticStepProcessor instance created
    - Assert required fields populated correctly
@@ -31,7 +31,7 @@ Create unit tests verifying YAML translator correctly converts agentic_step conf
    agentic_step:
      objective: "Complex multi-hop reasoning"
      max_internal_steps: 8
-     model_name: "anthropic/claude-3-opus-20240229"
+     model_name: "ollama_chat/glm-5.3-flash:cloud"
      history_mode: "progressive"
      temperature: 0.7
      clarification_attempts: 2
@@ -50,7 +50,7 @@ Create unit tests verifying YAML translator correctly converts agentic_step conf
          - agentic_step:
              objective: "Conduct research"
              max_internal_steps: 6
-             model_name: "openai/gpt-4"
+             model_name: "ollama_chat/glm-5.3-flash:cloud"
          - "Synthesize findings: {input}"
    ```
    - Verify mixed instruction chain parsing
@@ -67,7 +67,7 @@ Create unit tests verifying YAML translator correctly converts agentic_step conf
    ```yaml
    agents:
      researcher:
-       model: "openai/gpt-4"
+       model: "ollama_chat/glm-5.3-flash:cloud"
        instructions:
          - agentic_step:
              objective: "Research task"
@@ -95,12 +95,12 @@ def test_agentic_step_minimal_config():
     yaml_config = """
     agents:
       test_agent:
-        model: "openai/gpt-4"
+        model: "ollama_chat/glm-5.3-flash:cloud"
         instructions:
           - agentic_step:
               objective: "Test objective"
               max_internal_steps: 3
-              model_name: "openai/gpt-4"
+              model_name: "ollama_chat/glm-5.3-flash:cloud"
     """
 
     config = yaml.safe_load(yaml_config)
@@ -114,7 +114,7 @@ def test_agentic_step_minimal_config():
     assert isinstance(processor, AgenticStepProcessor)
     assert processor.objective == "Test objective"
     assert processor.max_internal_steps == 3
-    assert processor.model_name == "openai/gpt-4"
+    assert processor.model_name == "ollama_chat/glm-5.3-flash:cloud"
 ```
 
 ## Validation

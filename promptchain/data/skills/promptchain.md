@@ -78,7 +78,7 @@ For ephemeral throwaways, use `scripts/scratch/` (gitignored).
 
 1. `from promptchain import AgentChain` → **wrong**. Use `from promptchain.utils.agent_chain import AgentChain`.
 2. `from promptchain import AgenticStepProcessor` → **wrong**. Use `from promptchain.utils.agentic_step_processor import AgenticStepProcessor`.
-3. `models=["gpt-4o"]` → **wrong**. Use `"openai/gpt-4o"`. PromptChain delegates to `litellm` which requires the `provider/model` prefix.
+3. `models=["glm-5.3-flash"]` → **wrong**. Use `"ollama_chat/glm-5.3-flash:cloud"`. PromptChain delegates to `litellm` which requires the `provider/model` prefix.
 4. Counting `models` against ALL instructions → **wrong**. Only string instructions consume model slots. Functions and `AgenticStepProcessor` instances do NOT.
 5. `agent_chain.process_prompt_async(...)` → **wrong**. `AgentChain` uses `process_input(...)`. Only `PromptChain` has `process_prompt_async`.
 6. `execution_mode="broadcast"` without `synthesizer_config` → `ValueError`.

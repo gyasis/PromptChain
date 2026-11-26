@@ -205,8 +205,8 @@ branching_config = BranchingConfig(
 
     # Pattern-specific
     hypothesis_count=5,
-    generator_model="openai/gpt-4o",
-    judge_model="openai/gpt-4o",
+    generator_model="ollama_chat/glm-5.3-flash:cloud",
+    judge_model="ollama_chat/glm-5.3-flash:cloud",
     diversity_threshold=0.3
 )
 ```
@@ -358,13 +358,13 @@ Different patterns have different model requirements:
 ```python
 # Branching Thoughts - needs strong reasoning for judging
 BranchingConfig(
-    generator_model="openai/gpt-4o",      # Query generation
-    judge_model="openai/gpt-4o"           # Hypothesis evaluation
+    generator_model="ollama_chat/glm-5.3-flash:cloud",      # Query generation
+    judge_model="ollama_chat/glm-5.3-flash:cloud"           # Hypothesis evaluation
 )
 
 # Multi-Hop - needs good decomposition
 MultiHopConfig(
-    synthesizer_model="openai/gpt-4o-mini"  # Faster for synthesis
+    synthesizer_model="ollama_chat/glm-5.3-flash:cloud"  # Faster for synthesis
 )
 ```
 

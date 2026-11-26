@@ -563,7 +563,7 @@ enhanced_processor = EnhancedAgenticStepProcessor(
 
 # Use in PromptChain
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Understand the authentication system",
         enhanced_processor,  # Agentic step with verification

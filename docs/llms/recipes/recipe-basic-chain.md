@@ -13,7 +13,7 @@ from promptchain import PromptChain
 
 async def main():
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Summarise this in 3 bullets:\n\n{input}"],
         verbose=True,
     )
@@ -29,7 +29,7 @@ asyncio.run(main())
 from promptchain import PromptChain
 
 chain = PromptChain(
-    models=["openai/gpt-4o-mini"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Summarise this in 3 bullets:\n\n{input}"],
 )
 print(chain.process_prompt("Long article text here…"))
@@ -38,5 +38,5 @@ print(chain.process_prompt("Long article text here…"))
 ## Common failures + fix
 
 - **`ValueError: Number of models (1) must match…`** — your instruction count doesn't match `models` length. Either pass one model per string instruction, or pass a single-element `models` list (auto-expands).
-- **`litellm.BadRequestError: model='gpt-4o' not found`** — missing provider prefix. Use `"openai/gpt-4o"`.
+- **`litellm.BadRequestError: model='ollama_chat/glm-5.3-flash:cloud' not found`** — missing provider prefix. Use `"ollama_chat/glm-5.3-flash:cloud"`.
 - **Empty output / silent hang** — forgot `await` on `process_prompt_async`. The result is a coroutine, not a string.

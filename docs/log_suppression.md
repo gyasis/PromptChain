@@ -260,7 +260,7 @@ from promptchain import PromptChain
 
 # PromptChain has its own verbose control
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Your prompt: {input}"],
     verbose=False  # This reduces PromptChain's internal logging
 )
@@ -277,7 +277,7 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 
 # Create chain with minimal internal logging
 chain = PromptChain(
-    models=["gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Your prompt: {input}"],
     verbose=False  # Minimal PromptChain logging
 )

@@ -53,13 +53,13 @@ async def main():
     chain = PromptChain(
         models=["ollama/medgemma:4b"],     # ONE model for the ONE string instruction below
         instructions=[
-            # Step 1 — AGENTIC: gpt-4o-mini autonomously calls retrieval tools
+            # Step 1 — AGENTIC: ollama_chat/glm-5.3-flash:cloud autonomously calls retrieval tools
             AgenticStepProcessor(
                 objective=(
                     "For patient_id mentioned in the input, retrieve labs AND history via the available tools. "
                     "Return ONE JSON object combining vitals, labs, and history. No commentary."
                 ),
-                model_name="openai/gpt-4o-mini",   # tool-calling capable; cheap
+                model_name="ollama_chat/glm-5.3-flash:cloud",   # tool-calling capable; cheap
                 max_internal_steps=6,
                 history_mode="progressive",
             ),
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 - **Open-ended retrieval** (which patient? which tools? in what order?) → AGENTIC. The model figures out it needs `get_history(PT-1234)` AND `get_labs(PT-1234)` and calls both — possibly in parallel.
 - **Deterministic synthesis** (always: dx, differentials, plan, doses) → SEQUENTIAL prompt. Same shape every time. Cheaper local model is enough.
 - **Token economy** — the agentic step's internal history is isolated; medgemma sees only the structured JSON, not the agent's tool-call traces. This is the multi-agent isolation pattern (§3 in `recipe-agentic-step.md`) applied to a single chain.
-- **Right model for each job** — `gpt-4o-mini` for tool calling (reliable schemas), `medgemma:4b` for clinical reasoning (specialist). Neither could play both roles well.
+- **Right model for each job** — `ollama_chat/glm-5.3-flash:cloud` for tool calling (reliable schemas), `medgemma:4b` for clinical reasoning (specialist). Neither could play both roles well.
 
 ## Running with observability
 

@@ -26,7 +26,7 @@ from promptchain import PromptChain
 
 # Create a simple processing chain
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze this text: {input}",
         "Provide 3 key insights: {input}"
@@ -46,12 +46,12 @@ from promptchain.utils.agent_chain import AgentChain
 
 # Create specialized agents
 analyst = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Analyze: {input}"]
 )
 
 writer = PromptChain(
-    models=["anthropic/claude-3-sonnet-20240229"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Write report: {input}"]
 )
 
@@ -82,7 +82,7 @@ def search_files(query: str) -> str:
 
 # Register tool
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=["Find relevant files: {input}"]
 )
 
@@ -112,7 +112,7 @@ result = chain.process_prompt("Find authentication code")
 promptchain
 
 # Create specialized agent
-> /agent create coder --model gpt-4 --description "Code specialist"
+> /agent create coder --model ollama_chat/glm-5.3-flash:cloud --description "Code specialist"
 
 # Reference files in chat
 > @src/main.py Explain this file
@@ -190,7 +190,7 @@ agentic_step = AgenticStepProcessor(
 )
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[agentic_step]
 )
 ```

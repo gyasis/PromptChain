@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **No default models.** Library, CLI and server code no longer hardcode a model. The caller names
+  it. A required model that is missing raises an error that names the parameter. An optional
+  feature is off when no model is given. The removed defaults pointed at retired models
+  (gpt-3.5-turbo, gpt-4, gpt-4o, gpt-4o-mini, gpt-4.1-mini, claude-3-sonnet). Docs and examples
+  use a current model name.
+  - Now required (raise `ValueError` when missing): `LLMAgent(model=)`, `agent(model=)`,
+    `orchestrator(model=)` and `captain(model=)` (unless `manager=` is passed);
+    `agent_comms.DEFAULT_MODEL` is removed; `LightRAGConfig.model_name` and `.embedding_model`
+    (checked on first use); `HistorySummarizer(model=)`; `OrchestratorSupervisor(model_name=)`;
+    `AgentChain(use_supervisor=True)` needs `supervisor_model=`; a `synthesizer_config` needs a
+    `"model"` key; `PromptEngineer(evaluator_model=)` and the `--evaluator-model` flag;
+    `StateAgent(model_name=)` and `create_state_agent(model_name=)`; a model step in
+    `DynamicChainBuilder` needs a `"model"`; an agentic step in `PromptChain` with no `models`
+    and no step `model_name`; YAML `orchestration.router.model` in router mode;
+    `create_from_template(model_override=)`; `promptchain query` and TUI messages need a model
+    (`--model`, `/model` or Ctrl+N); `POST /chat/turn` needs `model` or `BRIDGE_MODEL`.
+  - Now off when unset: `BranchingConfig.judge_model` (hypotheses keep their own confidence);
+    `MultiHopConfig.synthesizer_model` (no decomposition, answers are concatenated);
+    `AgenticStepProcessor(summarizer_model=)` and `ContextManagementConfig.summarizer_model`
+    (history summarization off, even with `enable_summarization=True`).
+  - Now `None` until set, and checked where a model is used: `ChainDefinition.llm_model`,
+    `ChainFactory(default_model=)`, `ChainExecutor(default_model=)`, `ChainBuilder` and
+    `ChainBuilder.create_chain(llm_model=)`, `promptchain chain create --llm`,
+    `RouterConfig.model`, `Session.default_model`, `Agent.model_name`, `Config.default_model`.
+    Agent templates carry no model. Stored sessions keep the model they hold; no data is
+    migrated. A session with no model stores an empty string. The router in multi-agent mode
+    falls back to the session default model.
+
 ### Added
 - **Pattern config fields and validation** (`promptchain/integrations/lightrag/`):
   `SpeculativeConfig.max_cache_size` bounds the result cache (oldest entry evicted first; default

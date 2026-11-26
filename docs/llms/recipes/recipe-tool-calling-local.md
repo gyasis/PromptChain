@@ -32,7 +32,7 @@ def list_cities(country: str) -> str:
 
 async def main():
     chain = PromptChain(
-        models=["openai/gpt-4o"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Tell me the weather in two French cities."],
         verbose=True,
     )

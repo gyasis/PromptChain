@@ -47,7 +47,7 @@ asyncio.run(main())
 ```
 
 Real tiers: `cascade([PromptChain(models=["ollama/small"], instructions=["{input}"]),
-PromptChain(models=["openai/gpt-4.1"], instructions=["{input}"])], check=..., name="answer")`.
+PromptChain(models=["ollama_chat/glm-5.3-flash:cloud"], instructions=["{input}"])], check=..., name="answer")`.
 
 ## Cascade vs two-tier vs `route_on`
 

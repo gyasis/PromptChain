@@ -126,7 +126,7 @@ class AgentBuilder:
     def __init__(self, config=None):
         self.config = config or self._default_config()
         self.top_models = {
-            'gpt4.1': 'openai/gpt-4.1',
+            'gpt4.1': 'ollama_chat/glm-5.3-flash:cloud',
             'claude_opus': 'anthropic/claude-4-opus-20240229',
             'gemini_pro': 'google/gemini-2.5-pro'
         }
@@ -273,7 +273,7 @@ SCORING_PROFILES = {
 ```python
 TOP_MODELS = {
     'gpt4.1': {
-        'model_id': 'openai/gpt-4.1',
+        'model_id': 'ollama_chat/glm-5.3-flash:cloud',
         'strengths': ['coding', 'structured_tasks', 'efficiency', 'instruction_following'],
         'context_window': 128000,
         'cost_per_1k_tokens': 0.03,

@@ -611,7 +611,7 @@ def test_chain_execution():
     mock_callback = Mock()
 
     chain = PromptChain(
-        models=["openai/gpt-4"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=["Test: {input}"]
     )
     chain.register_callback(mock_callback)

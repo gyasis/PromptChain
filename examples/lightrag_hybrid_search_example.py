@@ -21,7 +21,7 @@ async def example_rrf_fusion():
     # Initialize LightRAG
     config = LightRAGConfig(
         working_dir="./lightrag_data",
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
     integration = LightRAGIntegration(config=config)
 

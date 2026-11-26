@@ -37,7 +37,7 @@ from promptchain.utils.trace_export import TraceRecorder, write_jsonl
 
 async def main():
     chain = PromptChain(
-        models=["openai/gpt-4o-mini"] * 2,
+        models=["ollama_chat/glm-5.3-flash:cloud"] * 2,
         instructions=["Summarize the following text. {input}", "Shorten the following text. {input}"],
     )
     recorder = TraceRecorder()
@@ -62,7 +62,7 @@ Each line of `traces.jsonl` is one model call:
 ```json
 {"prompt": [{"role": "user", "content": "Summarize the following text.\n\nSome document text"}],
  "completion": [{"role": "assistant", "content": "A long summary."}],
- "model": "openai/gpt-4o-mini", "step": 1}
+ "model": "ollama_chat/glm-5.3-flash:cloud", "step": 1}
 ```
 
 Rules for the recorder:
@@ -111,7 +111,7 @@ records = records_from_agentic(history, reward=1.0)
 write_jsonl(records, "agentic.jsonl")
 
 # With a real processor, pass the object. It reads .internal_history after the run:
-#   processor = AgenticStepProcessor(objective="...", model_name="openai/gpt-4o-mini")
+#   processor = AgenticStepProcessor(objective="...", model_name="ollama_chat/glm-5.3-flash:cloud")
 #   ... run it inside a chain ...
 #   records = records_from_agentic(processor, tools=chain.tools, reward=1.0)
 ```

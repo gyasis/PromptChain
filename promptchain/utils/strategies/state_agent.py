@@ -361,19 +361,33 @@ class StateAgent(AgenticStepProcessor):
         },
     ]
 
-    def __init__(self, agent_chain: AgentChain, verbose: bool = False):
+    def __init__(
+        self,
+        agent_chain: AgentChain,
+        verbose: bool = False,
+        model_name: Optional[str] = None,
+    ):
         """
         Initialize the StateAgent with a reference to the AgentChain it will manipulate.
 
         Args:
             agent_chain: The AgentChain instance this agent will work with
             verbose: Whether to enable verbose logging
+            model_name: Model for the agent's reasoning and its summaries (required)
+
+        Raises:
+            ValueError: If ``model_name`` is not given.
         """
+        if not model_name:
+            raise ValueError(
+                "StateAgent requires `model_name`: pass the model that runs its "
+                "reasoning and summaries."
+            )
         # Initialize the AgenticStepProcessor parent class
         super().__init__(
             objective=STATE_AGENT_PROMPT,
             max_internal_steps=7,
-            model_name="openai/gpt-4o-mini",
+            model_name=model_name,
             model_params={"temperature": 0.2, "tool_choice": "auto"},
         )
 
@@ -415,7 +429,7 @@ class StateAgent(AgenticStepProcessor):
 
         # Initialize a lightweight PromptChain for general LLM processing
         self.prompt_chain: PromptChain = PromptChain(
-            models=[{"name": "openai/gpt-4o-mini", "params": {"temperature": 0.2}}],
+            models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
             instructions=[],
             verbose=self.verbose,
         )
@@ -1103,7 +1117,7 @@ INTER-SESSION ANALYSIS:
 
         # Use a separate PromptChain for the inter-session analysis
         analyzer = PromptChain(
-            models=[{"name": "openai/gpt-4o-mini", "params": {"temperature": 0.2}}],
+            models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
             instructions=[inter_session_summarization_prompt],
             verbose=self.verbose,
         )
@@ -1930,7 +1944,7 @@ Provide a comprehensive yet concise summary organized into these sections:
 
             # Use a temporary PromptChain for summarization
             summary_chain = PromptChain(
-                models=[{"name": "openai/gpt-4o-mini", "params": {"temperature": 0.2}}],
+                models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
                 instructions=[summary_prompt],
                 verbose=self.verbose,
             )
@@ -2121,7 +2135,7 @@ Provide a brief (3-5 sentences) analysis of how these sessions relate to each ot
         try:
             # Use a temporary PromptChain for analysis
             analysis_chain = PromptChain(
-                models=[{"name": "openai/gpt-4o-mini", "params": {"temperature": 0.2}}],
+                models=[{"name": self.model_name, "params": {"temperature": 0.2}}],
                 instructions=[analysis_prompt],
                 verbose=self.verbose,
             )
@@ -2917,19 +2931,22 @@ Provide a brief (3-5 sentences) analysis of how these sessions relate to each ot
 
 
 # Function to create a state agent PromptChain that can be added to an AgentChain
-def create_state_agent(agent_chain: AgentChain, verbose: bool = False) -> PromptChain:
+def create_state_agent(
+    agent_chain: AgentChain, verbose: bool = False, model_name: Optional[str] = None
+) -> PromptChain:
     """
     Create a PromptChain for the state agent that can be added to an AgentChain.
 
     Args:
         agent_chain: The AgentChain this agent will work with
         verbose: Whether to enable verbose logging
+        model_name: Model for the state agent (required, no default)
 
     Returns:
         A configured PromptChain for the state agent
     """
     # Create the StateAgent instance
-    state_agent = StateAgent(agent_chain, verbose)
+    state_agent = StateAgent(agent_chain, verbose, model_name=model_name)
 
     # Create a PromptChain that wraps the AgenticStepProcessor
     state_agent_chain = PromptChain(

@@ -193,7 +193,7 @@ Read the complete contents of a file.
 from promptchain.tools.file_operations import file_read
 
 content = file_read("config.json")
-# Returns: '{"api_key": "...", "model": "gpt-4"}'
+# Returns: '{"api_key": "...", "model": "ollama_chat/glm-5.3-flash:cloud"}'
 ```
 
 **Error Messages:**
@@ -452,7 +452,7 @@ from promptchain.tools.file_operations import (
 
 # Create agent
 agent = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[agentic_step],
     verbose=True
 )
@@ -649,7 +649,7 @@ file_write("myproject/src/main.py", code)
 # Write config file
 config = '''{
     "api_key": "your_key_here",
-    "model": "gpt-4",
+    "model": "ollama_chat/glm-5.3-flash:cloud",
     "temperature": 0.7
 }'''
 file_write("myproject/config/settings.json", config)

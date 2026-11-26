@@ -43,7 +43,7 @@ Extend YAML translator to create AgenticStepProcessor instances from agentic_ste
    ```python
    # If agentic_step.model_name not specified, inherit from parent agent
    if "model_name" not in agentic_config:
-       agentic_config["model_name"] = agent_config.get("model", "openai/gpt-4")
+       agentic_config["model_name"] = agent_config.get("model", "ollama_chat/glm-5.3-flash:cloud")
    ```
 
 5. **Validation Requirements**
@@ -58,7 +58,7 @@ Extend YAML translator to create AgenticStepProcessor instances from agentic_ste
 ```yaml
 agents:
   researcher:
-    model: "openai/gpt-4"
+    model: "ollama_chat/glm-5.3-flash:cloud"
     instructions:
       - "Prepare: {input}"
       - agentic_step:
@@ -75,7 +75,7 @@ agents:
       - agentic_step:
           objective: "Complex analysis"
           max_internal_steps: 8
-          model_name: "anthropic/claude-3-opus-20240229"
+          model_name: "ollama_chat/glm-5.3-flash:cloud"
           history_mode: "progressive"
           temperature: 0.7
           clarification_attempts: 2
@@ -118,7 +118,7 @@ def _parse_instructions(self, instructions_config: list, agent_model: str = None
 
             # Model inheritance
             if "model_name" not in agentic_config:
-                agentic_config["model_name"] = agent_model or "openai/gpt-4"
+                agentic_config["model_name"] = agent_model or "ollama_chat/glm-5.3-flash:cloud"
 
             # Create AgenticStepProcessor
             processor = AgenticStepProcessor(

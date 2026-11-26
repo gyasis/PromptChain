@@ -138,7 +138,7 @@
       <pre><span class="c-com"># inner work: 6-step SEQUENTIAL chain (one pass / doc)</span>
 <span class="c-key">def</span> <span class="c-fn">make_distill_chain</span>():
   <span class="c-key">return</span> PromptChain(
-    models=[<span class="c-str">"openai/gpt-4o-mini"</span>]*<span class="c-str">5</span>,  <span class="c-com"># 5 string steps</span>
+    models=[<span class="c-str">"ollama_chat/glm-5.3-flash:cloud"</span>]*<span class="c-str">5</span>,  <span class="c-com"># 5 string steps</span>
     instructions=[
       <span class="c-str">"Extract key points …{input}"</span>,   <span class="c-com"># 1</span>
       <span class="c-str">"Group into 2-4 themes …{input}"</span>, <span class="c-com"># 2</span>

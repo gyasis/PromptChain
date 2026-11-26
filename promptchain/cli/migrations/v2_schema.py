@@ -184,7 +184,7 @@ def migrate_v1_to_v2(db_path: Path) -> Dict[str, int]:
             "execution_mode": "router",
             "default_agent": None,
             "router_config": {
-                "model": "openai/gpt-4o-mini",
+                "model": None,
                 "decision_prompt_template": "DEFAULT_ROUTER_PROMPT",
                 "timeout_seconds": 10,
             },

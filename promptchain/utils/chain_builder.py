@@ -71,7 +71,7 @@ class ChainBuilder:
         self._version = version
         self._mode = mode
         self._description: Optional[str] = None
-        self._llm_model = "openai/gpt-4.1-mini-2025-04-14"
+        self._llm_model: Optional[str] = None
         self._steps: List[ChainStepDefinition] = []
         self._tags: List[str] = []
         self._guardrails = Guardrails()
@@ -97,7 +97,7 @@ class ChainBuilder:
         return self
 
     def created_by(self, creator: str) -> "ChainBuilder":
-        """Set creator (e.g., 'agent:gpt-4')."""
+        """Set creator (e.g., 'agent:<model-name>')."""
         self._created_by = creator
         return self
 
@@ -264,7 +264,7 @@ class ChainBuilder:
         description: Optional[str] = None,
         version: str = "v1.0",
         mode: str = "strict",
-        llm_model: str = "openai/gpt-4.1-mini-2025-04-14",
+        llm_model: Optional[str] = None,
         tags: Optional[List[str]] = None,
         created_by: str = "agent",
     ) -> Dict[str, Any]:
@@ -280,7 +280,7 @@ class ChainBuilder:
             description: Chain description
             version: Version string
             mode: "strict" or "hybrid"
-            llm_model: LLM model for prompt steps
+            llm_model: LLM model for prompt steps (None = the executor supplies one)
             tags: Optional tags
             created_by: Creator identifier
 
@@ -290,7 +290,8 @@ class ChainBuilder:
         try:
             builder = ChainBuilder(name, version, ChainMode(mode))
             builder.description(description or f"Chain: {name}")
-            builder.llm_model(llm_model)
+            if llm_model:
+                builder.llm_model(llm_model)
             builder.created_by(created_by)
 
             if tags:

@@ -62,7 +62,7 @@ Q: {sq.question_text}")
 MultiHopConfig(
     max_hops=5,                  # Maximum reasoning hops
     max_sub_questions=5,         # Max sub-questions to generate
-    synthesizer_model="openai/gpt-4o-mini",
+    synthesizer_model="ollama_chat/glm-5.3-flash:cloud",
     decompose_first=True         # Decompose before retrieval
 )
 ```

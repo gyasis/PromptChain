@@ -346,7 +346,7 @@ async def create_postgresql_lightrag():
     # LLM function
     def llm_model_func(prompt: str, system_prompt: str = None, **kwargs) -> str:
         return openai_complete_if_cache(
-            model="gpt-4.1-mini",
+            model="ollama_chat/glm-5.3-flash:cloud",
             prompt=prompt,
             system_prompt=system_prompt,
             api_key=os.getenv("OPENAI_API_KEY"),

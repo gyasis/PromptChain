@@ -26,10 +26,10 @@ promptchain
 
 | Template | Model | History | Token Savings | Best For |
 |----------|-------|---------|---------------|----------|
-| **terminal** | gpt-3.5-turbo | 0 tokens | **60%** | Shell commands, quick tasks |
-| **coder** | gpt-4 | 4000 tokens | **40%** | Development, coding, debugging |
-| **analyst** | gpt-4 | 8000 tokens | **20%** | Data analysis, statistics |
-| **researcher** | gpt-4 | 8000 tokens | **20%** | Research, multi-hop reasoning |
+| **terminal** | ollama_chat/glm-5.3-flash:cloud | 0 tokens | **60%** | Shell commands, quick tasks |
+| **coder** | ollama_chat/glm-5.3-flash:cloud | 4000 tokens | **40%** | Development, coding, debugging |
+| **analyst** | ollama_chat/glm-5.3-flash:cloud | 8000 tokens | **20%** | Data analysis, statistics |
+| **researcher** | ollama_chat/glm-5.3-flash:cloud | 8000 tokens | **20%** | Research, multi-hop reasoning |
 
 ```bash
 # Create from template

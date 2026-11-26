@@ -33,7 +33,7 @@ async def basic_multi_hop_example():
     # Initialize LightRAG
     config = LightRAGConfig(
         working_dir="./lightrag_data",
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         embedding_model="text-embedding-3-small",
     )
     integration = LightRAGIntegration(config=config)
@@ -80,7 +80,7 @@ async def decomposed_multi_hop_example():
     # Initialize LightRAG
     config = LightRAGConfig(
         working_dir="./lightrag_data",
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
     )
     integration = LightRAGIntegration(config=config)
 
@@ -89,7 +89,7 @@ async def decomposed_multi_hop_example():
         max_hops=7,
         max_sub_questions=5,
         decompose_first=True,  # Decompose question first
-        synthesizer_model="openai/gpt-4o-mini",
+        synthesizer_model="ollama_chat/glm-5.3-flash:cloud",
         emit_events=True,
     )
 

@@ -70,7 +70,7 @@ def break_on_keywords(step: int, output: str) -> Tuple[bool, str, Any]:
 
 # Usage
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze this problem: {input}",
         "Propose solutions for this problem: {input}"
@@ -101,7 +101,7 @@ def break_after_steps(max_steps: int):
 
 # Usage
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Step 1: Outline a story about: {input}",
         "Step 2: Develop the characters: {input}",
@@ -304,7 +304,7 @@ def negative_sentiment_condition(output: str, step_info: dict) -> bool:
     return "negative sentiment" in output.lower()
 
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Write a review of: {input}",
         analyze_sentiment,  # Function that might trigger the break
@@ -320,7 +320,7 @@ Combine multiple breakers to create sophisticated interruption logic:
 
 ```python
 chain = PromptChain(
-    models=["openai/gpt-4"],
+    models=["ollama_chat/glm-5.3-flash:cloud"],
     instructions=[
         "Analyze this financial data: {input}",
         "Make predictions based on the analysis: {input}",
@@ -410,7 +410,7 @@ def create_global_chain_monitor(builder: DynamicChainBuilder, max_running_chains
 
 # Usage
 builder = DynamicChainBuilder(
-    base_model="openai/gpt-4",
+    base_model="ollama_chat/glm-5.3-flash:cloud",
     base_instruction="Process the task: {instruction} with this input: {input}"
 )
 

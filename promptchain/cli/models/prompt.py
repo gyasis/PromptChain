@@ -68,7 +68,7 @@ class AgentTemplate:
 
     Attributes:
         name: Template display name
-        model: LLM model name (e.g., 'gpt-4', 'claude-3-opus')
+        model: LLM model name (provider/model form)
         prompt_id: ID of associated prompt template
         strategy: Optional strategy ID to apply
         description: Template description

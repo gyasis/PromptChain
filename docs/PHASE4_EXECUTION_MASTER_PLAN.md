@@ -179,7 +179,7 @@ pytest tests/cli/integration/test_multihop_reasoning_tools.py -v
 cat > /tmp/test_agentic_config.yml <<EOF
 agents:
   researcher:
-    model: "openai/gpt-4o-mini"
+    model: "ollama_chat/glm-5.3-flash:cloud"
     description: "Research agent with multi-hop reasoning"
     instructions:
       - "Prepare research strategy: {input}"
@@ -191,7 +191,7 @@ agents:
 
 router:
   type: "single_agent_dispatch"
-  model: "openai/gpt-4o-mini"
+  model: "ollama_chat/glm-5.3-flash:cloud"
 
 execution_mode: "router"
 EOF
@@ -292,7 +292,7 @@ promptchain --config /tmp/test_agentic_config.yml
 **Mitigation**: Use Textual's `@work` decorator, test with background agents
 
 ### Risk 3: Token Budget Overrun
-**Mitigation**: Use fast models (gpt-4o-mini), clear prompts, focused scopes
+**Mitigation**: Use fast models (ollama_chat/glm-5.3-flash:cloud), clear prompts, focused scopes
 
 ### Risk 4: Agent Coordination Delays
 **Mitigation**: Clear synchronization points, explicit wait commands

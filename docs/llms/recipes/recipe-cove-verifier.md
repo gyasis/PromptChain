@@ -103,7 +103,7 @@ async def tool_executor(call):
 async def main():
     step = AgenticStepProcessor(
         objective="Inspect the config and clean up the backup",
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         max_internal_steps=3,
         enable_cove=True,
         cove_confidence_threshold=0.7,       # skip calls below this
@@ -113,7 +113,7 @@ async def main():
     print(executed)                          # ['read_file']  (delete_file was skipped)
 
     # Standalone: you decide what to do with the result.
-    verifier = CoVeVerifier(llm_runner, model_name="openai/gpt-4o-mini")
+    verifier = CoVeVerifier(llm_runner, model_name="ollama_chat/glm-5.3-flash:cloud")
     result = await verifier.verify_tool_call(
         tool_name="delete_file", tool_args={"path": "/data/backup.db"},
         context="User asked to clean up temp files", available_tools=TOOLS)
@@ -134,7 +134,7 @@ asyncio.run(main())
 | Item | Value |
 |---|---|
 | `AgenticStepProcessor(..., enable_cove=False, cove_confidence_threshold=0.7, verifier_context=None, fallback_model=None)`; `fallback_model` is a string or `{"name": ..., "params": {...}}` | CoVe is off by default. `verifier_context` has no effect when `enable_cove=False`. |
-| Verifier model | The step builds the verifier on first use with `fallback_model` if set, else the step's `model_name`, and passes it as `model=` to the step's `llm_runner`. A `PromptChain` runner honours `model=`, so a cheaper `fallback_model` serves the verifier. A bare string keeps the step's `model_params` only when its provider prefix matches the step's model. On another provider the chain logs a warning and drops `api_base`, `api_key` and the other connection keys. To use a model on another provider, give it its own settings: `fallback_model={"name": "openai/gpt-4o-mini", "params": {"temperature": 0}}` (add `api_base` / `api_key` there when it needs them). The dict form also applies to two-tier routing. |
+| Verifier model | The step builds the verifier on first use with `fallback_model` if set, else the step's `model_name`, and passes it as `model=` to the step's `llm_runner`. A `PromptChain` runner honours `model=`, so a cheaper `fallback_model` serves the verifier. A bare string keeps the step's `model_params` only when its provider prefix matches the step's model. On another provider the chain logs a warning and drops `api_base`, `api_key` and the other connection keys. To use a model on another provider, give it its own settings: `fallback_model={"name": "ollama_chat/glm-5.3-flash:cloud", "params": {"temperature": 0}}` (add `api_base` / `api_key` there when it needs them). The dict form also applies to two-tier routing. |
 | `CoVeVerifier(llm_runner, model_name, extra_context=None)` | `llm_runner` is an async callable invoked as `llm_runner(messages=[...], model=model_name)`. It returns a dict with `"content"` or an object with `.content`. |
 | `await verifier.verify_tool_call(tool_name, tool_args, context, available_tools)` | All four args need a value. `available_tools` is the list of tool schemas; for a missing tool name the verifier logs a warning and uses an empty schema. It cuts context to 2000 chars. |
 | Returns `VerificationResult` | `should_execute: bool`, `confidence: float` (clamped 0..1), `assumptions: list`, `risks: list`, `verification_reasoning: str`, `suggested_modifications: dict or None`. |

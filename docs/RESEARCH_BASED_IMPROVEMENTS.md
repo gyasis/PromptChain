@@ -688,13 +688,13 @@ Use expensive model for hard decisions, cheap model for simple ones:
 
 ```python
 # Current:
-response = await llm_runner("gpt-4", messages)  # Always expensive
+response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # Always expensive
 
 # Improved:
 if is_simple_task(messages):
-    response = await llm_runner("gpt-4o-mini", messages)  # 50x cheaper
+    response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # 50x cheaper
 else:
-    response = await llm_runner("gpt-4", messages)  # Only when needed
+    response = await llm_runner("ollama_chat/glm-5.3-flash:cloud", messages)  # Only when needed
 ```
 
 ### Implementation
@@ -707,7 +707,7 @@ def __init__(
     objective: str,
     max_internal_steps: int = 5,
     model_name: str = None,
-    fallback_model: str = "openai/gpt-4o-mini",  # NEW: Fast fallback
+    fallback_model: str = "ollama_chat/glm-5.3-flash:cloud",  # NEW: Fast fallback
     use_smart_routing: bool = True,  # NEW: Auto-select model
     **kwargs
 ):
@@ -811,14 +811,14 @@ response_message = await self._smart_llm_call(
 
 **Benefits**:
 - ✅ **50-80% cost reduction** for simple reasoning steps
-- ✅ **Faster execution** (gpt-4o-mini is 5-10x faster than gpt-4)
+- ✅ **Faster execution** (ollama_chat/glm-5.3-flash:cloud is 5-10x faster than ollama_chat/glm-5.3-flash:cloud)
 - ✅ **Graceful degradation** (if primary model fails, fallback works)
 - ✅ **Opt-in** (can disable smart routing if needed)
 
 **Estimated Savings**:
 - 20 internal steps per task
 - 10 simple steps (routing, formatting) → use mini
-- 10 complex steps (analysis, debugging) → use gpt-4
+- 10 complex steps (analysis, debugging) → use ollama_chat/glm-5.3-flash:cloud
 - **Result**: ~40-50% cost reduction per task
 
 ---

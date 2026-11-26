@@ -27,12 +27,12 @@ async def test_agentic_processor_in_agent_chain():
     processor = AgenticStepProcessor(
         objective="Analyze input and provide detailed reasoning",
         max_internal_steps=4,
-        model_name="openai/gpt-4o-mini"  # Use fast model for testing
+        model_name="ollama_chat/glm-5.3-flash:cloud"  # Use fast model for testing
     )
 
     # Create agent with processor in instructions
     agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Prepare analysis: {input}",
             processor,  # Multi-hop reasoning step
@@ -82,12 +82,12 @@ async def test_agentic_processor_tool_access():
     processor = AgenticStepProcessor(
         objective="Search for information and analyze results",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     # Create agent with tool registration
     agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[processor],
         verbose=True
     )
@@ -136,13 +136,13 @@ async def test_agentic_processor_history_isolation():
     processor = AgenticStepProcessor(
         objective="Multi-step reasoning task",
         max_internal_steps=5,
-        model_name="openai/gpt-4o-mini",
+        model_name="ollama_chat/glm-5.3-flash:cloud",
         history_mode="progressive"  # Builds internal history
     )
 
     # Create agent
     agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Initial prompt: {input}",
             processor,
@@ -183,18 +183,18 @@ async def test_multiple_agentic_processors_in_chain():
     processor1 = AgenticStepProcessor(
         objective="Phase 1: Data collection and initial analysis",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     processor2 = AgenticStepProcessor(
         objective="Phase 2: Synthesis and recommendations",
         max_internal_steps=3,
-        model_name="openai/gpt-4o-mini"
+        model_name="ollama_chat/glm-5.3-flash:cloud"
     )
 
     # Create agent with multiple processors
     agent = PromptChain(
-        models=["openai/gpt-4o-mini"],
+        models=["ollama_chat/glm-5.3-flash:cloud"],
         instructions=[
             "Initialize: {input}",
             processor1,

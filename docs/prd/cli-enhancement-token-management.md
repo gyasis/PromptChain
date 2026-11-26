@@ -71,7 +71,7 @@ formatted = history_manager.get_formatted_history(
 LiteLLM automatically returns token usage in responses:
 
 ```python
-response = litellm.completion(model="gpt-4", messages=[...])
+response = litellm.completion(model="ollama_chat/glm-5.3-flash:cloud", messages=[...])
 
 # Token metrics available in response object
 response.usage.prompt_tokens      # Tokens in input
@@ -172,7 +172,7 @@ Based on research, Claude employs several sophisticated techniques:
 **Specifications:**
 ```
 Status Bar Format:
-[*] Session: my-session | Agent: analyst (gpt-4) | Tokens: 3,247/8,000 (40%) [●●●●○○○○○○] | Messages: 42
+[*] Session: my-session | Agent: analyst (ollama_chat/glm-5.3-flash:cloud) | Tokens: 3,247/8,000 (40%) [●●●●○○○○○○] | Messages: 42
 ```
 
 **Components:**
@@ -308,12 +308,12 @@ Original History: {history}
 
 **Current:**
 ```
-[*] Session: my-session | Agent: default | Model: gpt-4
+[*] Session: my-session | Agent: default | Model: ollama_chat/glm-5.3-flash:cloud
 ```
 
 **Enhanced:**
 ```
-[*] Session: my-session | Agent: analyst (gpt-4-turbo) | Tokens: 3,247/8,000 (40%) | Messages: 42
+[*] Session: my-session | Agent: analyst (ollama_chat/glm-5.3-flash:cloud) | Tokens: 3,247/8,000 (40%) | Messages: 42
 ```
 
 **Specifications:**
@@ -703,7 +703,7 @@ class PerformanceConfig:
 ```python
 # Test token counting accuracy
 def test_token_counter_accuracy():
-    counter = TokenCounter("gpt-4")
+    counter = TokenCounter("ollama_chat/glm-5.3-flash:cloud")
     messages = [
         Message(role="user", content="Hello, how are you?"),
         Message(role="assistant", content="I'm doing well, thank you!")
