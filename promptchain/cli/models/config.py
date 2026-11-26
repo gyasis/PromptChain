@@ -340,6 +340,7 @@ class Config:
         if config_path.exists():
             try:
                 config = cls.load(config_path)
+                config._fill_default_model()
                 config.validate()
                 return config
             except (FileNotFoundError, ValueError):
@@ -348,5 +349,13 @@ class Config:
 
         # Create default config
         config = cls()
+        config._fill_default_model()
         config.validate()
         return config
+
+    def _fill_default_model(self) -> None:
+        """Take ``default_model`` from the models file when config.json sets none."""
+        if not self.default_model:
+            from promptchain.utils.model_roles import configured_default
+
+            self.default_model = configured_default()
