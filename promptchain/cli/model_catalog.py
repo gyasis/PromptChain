@@ -39,9 +39,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-# Mac Studio Ollama endpoint (see ~/.claude/rules/domains/mac-studio.md). Honour
-# OLLAMA_HOST if set, else fall back to the known LAN address.
-DEFAULT_MAC_HOST = os.environ.get("OLLAMA_HOST") or "http://192.168.0.159:11434"
+# Ollama models (local tags and :cloud tags) are called through the endpoint named
+# OLLAMA_ENDPOINT in the user's models config, e.g. the Atelier governor's /llm/ollama.
+OLLAMA_ENDPOINT = "ollama"
 OLLAMA_CLOUD_BASE = "https://ollama.com/v1"
 
 # Models that are embeddings / rerankers / vision-only helpers — not chat
@@ -138,8 +138,26 @@ def _is_chat_model(name: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Source fetchers — each returns [] on any failure (graceful)
 # --------------------------------------------------------------------------- #
+def ollama_api_base() -> Optional[str]:
+    """api_base of ``endpoints.ollama`` in the models config, or None when it is not set."""
+    from promptchain.utils import model_roles
+    try:
+        ep = model_roles.endpoint(OLLAMA_ENDPOINT)
+    except model_roles.ModelConfigError:
+        return None
+    return ep["api_base"].rstrip("/") if ep else None
+
+
+def no_ollama_endpoint_message() -> str:
+    from promptchain.utils import model_roles
+    return (f"Ollama models are hidden: set endpoints.{OLLAMA_ENDPOINT}.api_base in "
+            f"{model_roles.config_path()} (for example the Atelier governor's /llm/ollama route)")
+
+
 def fetch_ollama_local(host: Optional[str] = None, timeout: float = 6.0) -> List[ModelEntry]:
-    host = host or DEFAULT_MAC_HOST
+    host = host or ollama_api_base()
+    if not host:
+        return []
     if not host.startswith("http"):
         host = "http://" + host
     host = host.rstrip("/")
@@ -284,27 +302,24 @@ def _lane_entries(lane: Dict) -> List[ModelEntry]:
 def load_catalog_files(directory: Optional[Path] = None) -> tuple[List[ModelEntry], List[str]]:
     """Read the generated catalog files → (entries, problems). Never raises.
 
-    Cloud tags and local tags are called as ``ollama_chat/<tag>`` against an
-    Ollama endpoint (cloud: ``$OLLAMA_HOST`` or the local daemon, which proxies
-    cloud tags; local: the ``host`` recorded in the file). Lane aliases are
-    called as ``openai/<alias>`` against the governor's OpenAI-compatible route.
+    Cloud tags and local tags are called as ``ollama_chat/<tag>`` against the
+    ``endpoints.ollama`` api_base from the models config; without it they are left
+    out and a problem says how to set it. Lane aliases are called as
+    ``openai/<alias>`` against the governor route recorded in the catalog.
     """
     directory = Path(directory) if directory else catalog_dir()
     problems: List[str] = []
     out: List[ModelEntry] = []
     cloud = _read_json(directory / CLOUD_CATALOG_FILE, problems)
-    if cloud is not None:
-        host = os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
-        if not host.startswith("http"):
-            host = "http://" + host
-        out += _ollama_entries(cloud, "ollama-cloud", host.rstrip("/"), "Ollama Cloud")
+    base = ollama_api_base()
+    if base is None and (cloud is not None or (directory / LOCAL_CATALOG_FILE).is_file()):
+        problems.append(no_ollama_endpoint_message())
+    if cloud is not None and base:
+        out += _ollama_entries(cloud, "ollama-cloud", base, "Ollama Cloud")
     local = _read_json(directory / LOCAL_CATALOG_FILE, problems)
+    if local is not None and base:
+        out += _ollama_entries(local, "ollama-local", base, "Local")
     if local is not None:
-        host = local.get("host")
-        if isinstance(host, str) and host:
-            out += _ollama_entries(local, "ollama-local", host.rstrip("/"), "Local")
-        else:
-            problems.append(f"{directory / LOCAL_CATALOG_FILE} has no host")
         lane = local.get("llamacpp_lane")
         if isinstance(lane, dict):
             out += _lane_entries(lane)

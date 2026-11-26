@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 
 from promptchain.cli import model_catalog as mc
+from promptchain.utils import model_roles
+
+GOV_OLLAMA = "http://gov.test:8799/llm/ollama"
 
 CLOUD = {"models": [
     {"name": "alpha:cloud", "capabilities": ["completion", "thinking", "tools"], "context_length": 1048576},
@@ -21,12 +24,21 @@ LOCAL = {"host": "http://10.0.0.5:11434", "models": [
 }}
 
 
+@pytest.fixture(autouse=True)
+def ollama_endpoint(tmp_path_factory, monkeypatch):
+    cfg = tmp_path_factory.mktemp("cfg") / "models.yaml"
+    cfg.write_text(f"endpoints:\n  ollama: {{api_base: '{GOV_OLLAMA}'}}\n")
+    monkeypatch.setenv("PROMPTCHAIN_MODELS_CONFIG", str(cfg))
+    model_roles.reload()
+    yield cfg
+    model_roles.reload()
+
+
 @pytest.fixture
 def cat_dir(tmp_path, monkeypatch):
     (tmp_path / "models.json").write_text(json.dumps(CLOUD))
     (tmp_path / "local-models.json").write_text(json.dumps(LOCAL))
     monkeypatch.setenv(mc.CATALOG_DIR_ENV, str(tmp_path))
-    monkeypatch.setenv("OLLAMA_HOST", "http://localhost:11434")
     return tmp_path
 
 
@@ -40,7 +52,22 @@ def test_entries_mapped(cat_dir):
     assert a.source == "ollama-cloud" and a.context_length == 1048576
     assert a.capabilities == ["completion", "thinking", "tools"]
     assert a.reasoning["supports"] is True
-    assert by["ollama_chat/small:3b"].api_base == "http://10.0.0.5:11434"
+    assert by["ollama_chat/small:3b"].api_base == GOV_OLLAMA
+    assert by["ollama_chat/alpha:cloud"].api_base == GOV_OLLAMA
+
+
+def test_ollama_entries_hidden_without_endpoint(cat_dir, monkeypatch):
+    monkeypatch.setenv("PROMPTCHAIN_MODELS_CONFIG", str(cat_dir / "absent.yaml"))
+    model_roles.reload()
+    entries, problems = mc.load_catalog_files()
+    assert {e.model_name for e in entries} == {"openai/lane-a", "openai/lane-b"}
+    assert any("endpoints.ollama.api_base" in p for p in problems)
+    assert mc.fetch_ollama_local() == []
+
+
+def test_no_raw_ollama_address_in_picker():
+    src = Path(mc.__file__).read_text()
+    assert ":11434" not in src and "192.168." not in src
 
 
 def test_llamacpp_lane(cat_dir):

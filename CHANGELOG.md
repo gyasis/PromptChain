@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and thinking capabilities and context size. The hand-kept OpenAI/Gemini lists are removed. With no
   catalog, the chooser says so and accepts any typed `provider/model` string.
   `build_catalog(include_api=)` is now `include_files=`.
+  Ollama models (local and `:cloud` tags) are called through `endpoints.ollama` in the models
+  config (for example the Atelier governor's `/llm/ollama`); without it they are hidden and the
+  chooser says how to set it. The hardcoded Mac Studio address and `$OLLAMA_HOST` fallback are gone.
 - Docs: after the mechanical model-name replacement, pages that contrasted two models, quoted
   prices or described a specific model's behaviour were rewritten with models from the catalog.
   Prices for retired models are removed.
