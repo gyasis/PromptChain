@@ -216,6 +216,18 @@ logging.basicConfig(level=logging.INFO)  # Configure basic logging
 logger = logging.getLogger(__name__)
 
 
+# Connection settings that belong to one provider and must not follow a model onto another.
+_PROVIDER_PARAM_KEYS = frozenset(
+    {"api_base", "api_key", "base_url", "api_version", "organization", "extra_headers",
+     "custom_llm_provider", "tool_choice"}
+)
+
+
+def _provider_of(model_name: str) -> str:
+    """Provider prefix of a ``provider/model`` name; empty when the name has no prefix."""
+    return model_name.split("/", 1)[0] if "/" in (model_name or "") else ""
+
+
 def _unwrap_instruction(item: Any) -> Tuple[Any, Optional[List[str]]]:
     """Unwrap a possibly-scoped instruction into ``(instruction, tool_scope)``.
 
@@ -878,6 +890,7 @@ class PromptChain:
             tool_choice: Optional[str] = None,
             agentic_instruction: Optional[Any] = None,
             model: Optional[str] = None,
+            model_params: Optional[Dict[str, Any]] = None,
         ) -> Any:
             # Determine model for agentic step: use model_name if set, else default to first model
             model_name = self.models[0] if self.models else "openai/gpt-4o"  # Default
@@ -892,8 +905,21 @@ class PromptChain:
                 # Also get model_params from the AgenticStepProcessor if available
                 if hasattr(agentic_instruction, "model_params"):
                     params = agentic_instruction.model_params
-            # An explicit per-call model (the CoVe verifier passes fallback_model) wins.
+            # An explicit per-call model (the CoVe verifier, two-tier routing) replaces the name.
+            # Its own params replace the main params. Without them, the main params carry over
+            # only when both models share a provider prefix; connection keys of another
+            # provider (api_base, api_key, ...) are dropped with a warning.
             if model:
+                if model_params is not None:
+                    params = model_params
+                elif _provider_of(model) != _provider_of(model_name):
+                    dropped = sorted(k for k in params if k in _PROVIDER_PARAM_KEYS)
+                    logger.warning(
+                        f"[Agentic Callback] Model '{model}' is on a different provider than "
+                        f"'{model_name}'; dropping provider-specific params {dropped}. "
+                        "Give the fallback its own params with fallback_model={'name': ..., 'params': {...}}."
+                    )
+                    params = {k: v for k, v in params.items() if k not in _PROVIDER_PARAM_KEYS}
                 model_name = model
             if not self.models:
                 logger.warning(
@@ -1296,13 +1322,14 @@ class PromptChain:
                         step_output = await instruction.run_async(
                             initial_input=step_input_content,  # Pass current content
                             available_tools=step_tools,  # Per-step tool scope (chain-scoped if none specified)
-                            llm_runner=lambda messages, tools=None, tool_choice=None, model=None, **kwargs: llm_runner_callback(
+                            llm_runner=lambda messages, tools=None, tool_choice=None, model=None, model_params=None, **kwargs: llm_runner_callback(
                                 messages,
                                 tools,
                                 tool_choice,
                                 agentic_instruction=instruction,
                                 model=model,
-                            ),  # Pass the LLM runner helper. ALL params after `messages` are optional. CoVe at verification.py:137 calls with `messages=, model=` only (no tools, no tool_choice) — `tools=None` and `model=None` both default. **kwargs swallows future-proofing additions. Routing is via agentic_instruction.model_name.
+                                model_params=model_params,
+                            ),  # LLM runner helper. Every parameter after `messages` is optional: the CoVe verifier calls with `messages=, model=` (plus `model_params=` for a dict fallback config). The step's model_name routes ordinary calls; **kwargs absorbs extra arguments.
                             tool_executor=tool_executor_callback,  # Pass the revised tool executor helper
                             callback_manager=self.callback_manager,  # ✅ NEW (v0.4.2): Pass callback_manager for observability
                             user_input_queue=user_input_queue,  # ✅ REACT (v0.4.3): Mid-execution user input

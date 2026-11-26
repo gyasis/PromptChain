@@ -41,6 +41,15 @@ _LANG_RUN = {
 _FENCE = re.compile(r"```([A-Za-z0-9_+-]*)\n(.*?)```", re.S)
 
 
+def _decode(data) -> str:
+    """Text of a captured stream: ``TimeoutExpired`` carries bytes even when ``text=True``."""
+    if data is None:
+        return ""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return data
+
+
 def extract_code_blocks(text: str):
     """Return ``[(lang, code)]`` from markdown fenced blocks (lang defaults to 'python')."""
     return [((lang or "python").lower(), code.strip()) for lang, code in _FENCE.findall(text or "")]
@@ -135,7 +144,8 @@ class DockerExecutor:
         """Run a shell ``command`` string inside the sandbox; return an ExecResult.
 
         The container is named so a timeout can kill it."""
-        name_args = [] if "--name" in self.extra_run_args else ["--name", f"pc-exec-{uuid.uuid4().hex[:12]}"]
+        has_name = any(a == "--name" or str(a).startswith("--name=") for a in self.extra_run_args)
+        name_args = [] if has_name else ["--name", f"pc-exec-{uuid.uuid4().hex[:12]}"]
         argv = self._run_argv() + name_args + [self.image, "sh", "-c", command]
         try:
             p = subprocess.run(argv, capture_output=True, text=True, timeout=self.timeout)
@@ -143,7 +153,7 @@ class DockerExecutor:
         except subprocess.TimeoutExpired as e:
             if name_args:
                 self._kill_container(name_args[1])
-            partial = (e.stdout or "") + (e.stderr or "") if (e.stdout or e.stderr) else ""
+            partial = _decode(e.stdout) + _decode(e.stderr)
             return ExecResult(124, partial + f"\n[timeout after {self.timeout}s]", timed_out=True)
 
     def write_file(self, relpath: str, content: str) -> str:

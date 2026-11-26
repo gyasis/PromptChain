@@ -43,6 +43,7 @@ from typing import List, Dict, Any, Optional, Callable
 import json
 import logging
 import math
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ class CoVeVerifier:
         llm_runner: Callable,
         model_name: str,
         extra_context: Optional[str] = None,
+        model_params: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize CoVe verifier.
@@ -102,10 +104,13 @@ class CoVeVerifier:
                 tool scoping the verifier — which only sees tool name + schema + args —
                 conservatively over-rejects legitimate calls. Empty default preserves
                 backward-compatible behavior.
+            model_params: Optional settings for ``model_name`` (a dict ``fallback_model`` config).
+                When set, the runner also receives ``model_params=``.
         """
         self.llm_runner = llm_runner
         self.model_name = model_name
         self.extra_context = extra_context
+        self.model_params = model_params
         logger.info(f"[CoVe] Initialized with model: {model_name}")
 
     async def verify_tool_call(
@@ -148,9 +153,13 @@ class CoVeVerifier:
 
         try:
             # Call LLM for verification
+            runner_kwargs: Dict[str, Any] = {}
+            if self.model_params:
+                runner_kwargs["model_params"] = self.model_params
             response = await self.llm_runner(
                 messages=[{"role": "user", "content": verification_prompt}],
-                model=self.model_name
+                model=self.model_name,
+                **runner_kwargs,
             )
 
             # Extract response content
@@ -268,12 +277,47 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
         else:
             return getattr(response, "content", str(response))
 
+    @staticmethod
+    def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+        """Find the verdict object in a model reply.
+
+        Drops ``<think>`` blocks, then tries the whole text, each fenced block, and a raw JSON
+        object starting at each ``{``. The first object with a ``should_execute`` key wins; else
+        the first object found. Returns None when the reply holds no JSON object.
+        """
+        text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S | re.I).strip()
+        candidates: List[Any] = []
+        try:
+            candidates.append(json.loads(text))
+        except json.JSONDecodeError:
+            pass
+        for block in re.findall(r"```[a-zA-Z]*\s*(.*?)```", text, flags=re.S):
+            try:
+                candidates.append(json.loads(block.strip()))
+            except json.JSONDecodeError:
+                pass
+        decoder = json.JSONDecoder()
+        for m in re.finditer(r"\{", text):
+            try:
+                obj, _ = decoder.raw_decode(text[m.start():])
+            except json.JSONDecodeError:
+                continue
+            candidates.append(obj)
+        objects = [c for c in candidates if isinstance(c, dict)]
+        for obj in objects:
+            if "should_execute" in obj:
+                return obj
+        if objects:
+            return objects[0]
+        return None if not candidates else {"_not_an_object": True}
+
     def _parse_verification_response(self, response_content: str) -> VerificationResult:
         """
         Parse verification response from LLM.
 
-        Attempts to parse JSON response. If parsing fails, falls back to
-        allowing execution with low confidence.
+        The reply must hold a JSON object with a boolean ``should_execute`` and a finite
+        numeric ``confidence``; anything else is a malformed reply and does not execute.
+        A reply with no JSON at all falls back to keyword heuristics at low confidence.
 
         Args:
             response_content: LLM response content
@@ -282,29 +326,20 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
             VerificationResult
         """
         try:
-            # Try to extract JSON from response
-            # Look for JSON block between ``` markers or parse directly
-            json_str = response_content.strip()
-
-            # Remove markdown code fences if present
-            if json_str.startswith("```"):
-                # Extract content between ``` markers
-                lines = json_str.split("\n")
-                json_str = "\n".join(lines[1:-1]) if len(lines) > 2 else json_str
-                json_str = json_str.replace("```json", "").replace("```", "").strip()
-
-            # Parse JSON
-            result_dict = json.loads(json_str)
-
-            # A reply must carry a real boolean verdict and a finite confidence; anything else is rejected.
-            if not isinstance(result_dict, dict):
+            result_dict = self._extract_json_object(response_content)
+            if result_dict is None:
+                raise json.JSONDecodeError("no JSON object in reply", response_content or "", 0)
+            if result_dict.get("_not_an_object"):
                 return self._malformed_result("reply is not a JSON object")
             should_execute = result_dict.get("should_execute")
             if not isinstance(should_execute, bool):
                 return self._malformed_result(
                     f"should_execute must be a boolean, got {should_execute!r}"
                 )
-            confidence = float(result_dict.get("confidence", 0.5))
+            confidence = result_dict.get("confidence")
+            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+                return self._malformed_result(f"confidence must be a number, got {confidence!r}")
+            confidence = float(confidence)
             if not math.isfinite(confidence):
                 return self._malformed_result(f"confidence must be finite, got {confidence!r}")
 
@@ -321,6 +356,8 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
 
             reasoning = result_dict.get("reasoning", "No reasoning provided")
             suggested_modifications = result_dict.get("suggested_modifications")
+            if not isinstance(suggested_modifications, dict):
+                suggested_modifications = None
 
             return VerificationResult(
                 should_execute=should_execute,
@@ -333,10 +370,10 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
 
         except json.JSONDecodeError as e:
             logger.warning(f"[CoVe] Failed to parse verification response as JSON: {e}")
-            logger.debug(f"[CoVe] Response content: {response_content[:200]}")
+            logger.debug(f"[CoVe] Response content: {(response_content or '')[:200]}")
 
             # Fallback: use heuristics on response text
-            response_lower = response_content.lower()
+            response_lower = (response_content or "").lower()
 
             # Check for negative indicators
             should_execute = not any(
@@ -352,20 +389,12 @@ IMPORTANT: Respond ONLY with valid JSON, no additional text."""
                 confidence=confidence,
                 assumptions=[],
                 risks=["Could not parse verification response"],
-                verification_reasoning=f"Parsing failed, used heuristics. Response: {response_content[:100]}"
+                verification_reasoning=f"Parsing failed, used heuristics. Response: {(response_content or '')[:100]}"
             )
 
         except Exception as e:
             logger.error(f"[CoVe] Unexpected error parsing verification: {e}", exc_info=True)
-
-            # Fallback: allow execution but with low confidence
-            return VerificationResult(
-                should_execute=True,
-                confidence=0.3,
-                assumptions=[],
-                risks=[f"Parsing error: {str(e)}"],
-                verification_reasoning="Error during parsing, allowing execution by default"
-            )
+            return self._malformed_result(f"unexpected parse error: {e}")
 
     @staticmethod
     def _malformed_result(problem: str) -> VerificationResult:

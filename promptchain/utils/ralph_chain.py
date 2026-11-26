@@ -124,7 +124,7 @@ _FAILURE = """
 
 
 def _norm_sig(text: str) -> str:
-    """Normalize test output into a stagnation signature (drop digits/paths/whitespace).
+    """Normalize test output into a stagnation signature (mask digits and hex, collapse whitespace).
 
     The signature comes from the failure itself: the pytest ``E `` lines when present,
     else the tail of the output. The head of the output is a banner shared by every failure.

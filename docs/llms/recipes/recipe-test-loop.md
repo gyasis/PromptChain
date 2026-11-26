@@ -43,7 +43,8 @@ small prompt on every pass.
   root with no memory, CPU or process limits. Inject `executor=DockerExecutor(..., memory="512m",
   pids_limit=256, user="1000:1000", read_only=True)` when that matters.
 - On a Docker `timeout` the executor kills the named container (`pc-exec-...`) and returns
-  `TIMEOUT`.
+  `TIMEOUT` with the partial output. `LocalExecutor` runs the command in its own process group
+  and kills the whole group on `timeout`, so the shell's children do not outlive it.
 - The work dir is a read-write mount. Generated code can overwrite `deps` (your tests). It can also
   force a pass (`os._exit(0)` exits 0 before any assert runs). To catch that, check the pass count in the
   test output (for example `3 passed`). The other option is tests the code cannot reach.
@@ -181,8 +182,9 @@ print(res.result, res.iterations, res.stopped_by)   # STAGNATED 3 stagnated(entr
 | `entropy_threshold` | `k >= 1`: stop with `STAGNATED` when the last `k` failure signatures are identical. The signature comes from the pytest `E ` lines (else the output tail) after masking digits and hex. A shared banner does not make two different failures look alike. Output with no `E ` lines and the same tail still counts as a repeat. Set `entropy_threshold=0` to disable. `1` stops after the first failure. |
 
 The critic is a pre-test review. It never blocks a test run; a failed run only gets its notes
-appended to the failure text. The loop adds the notes unless the first line opens with `APPROVE` or `APPROVED`
-and has no negation, so `DO NOT APPROVE` and `Not approved` get their notes appended.
+appended to the failure text. The loop adds the notes unless the first line is a bare approval: it opens with `APPROVE` or
+`APPROVED` (optionally after `VERDICT:`) and has no `NOT`, `NO`, `CANNOT`, `NEVER`, `n't` or
+`REJECT`. `DO NOT APPROVE`, `Not approved` and `APPROVE, no issues` get their notes appended.
 
 ## Common mistakes
 

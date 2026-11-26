@@ -99,11 +99,15 @@ verdict approves). With no `critique`, `verdict` is `"skipped"`.
 
 ## Verdict rule
 
-AutoResearch approves a verdict only when its first line opens with the token `APPROVE` or
-`APPROVED` and contains no negation (`NOT`, `CANNOT`, `NEVER`, `n't`) and no `REJECT`. Leading
-markdown such as `**APPROVE**` is fine. Everything else is not approved: `"DO NOT APPROVE"`,
-`"Not approved"`, `"Unacceptable: ..."`, `"PASS"`, `"REJECT: style"`. Ask the critic to answer
-`APPROVE` or `REJECT` on the first line.
+AutoResearch strips `<think>` blocks, then approves a verdict only when its first line opens
+with the token `APPROVE` or `APPROVED`, optionally after a `VERDICT:` label and markdown
+(`**Verdict:** APPROVE`). The first line must not contain `NOT`, `NO`, `CANNOT`, `NEVER`, a
+contraction ending in `n't` (`didn't`, `isn't`) or `REJECT`. It ignores later lines.
+
+Approved: `"APPROVE"`, `"Approved."`, `"VERDICT: APPROVE"`. Not approved: `"DO NOT APPROVE"`,
+`"Not approved"`, `"Unacceptable: ..."`, `"PASS"`, `"REJECT: style"`, and also
+`"APPROVE, no failures found"` (contains `NO`). Ask the critic for the bare word `APPROVE` or
+`REJECT` on the first line, and put any explanation on the next lines.
 
 A build that passed its tests but drew a critic rejection gives `verified=False`
 while `winning_code` is still set.

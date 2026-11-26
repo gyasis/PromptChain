@@ -69,9 +69,9 @@ def test_actual_lambda_in_source_has_model_kwarg():
     being silently rewritten back to the broken signature."""
     import promptchain.utils.promptchaining as pcm
     src = inspect.getsource(pcm)
-    # The lambda must accept `tools=None`, `model=None`, AND `**kwargs`.
+    # The lambda must accept `tools=None`, `model=None`, `model_params=None`, AND `**kwargs`.
     # CoVe verifier (verification.py:137) calls with messages= + model= only.
-    assert "lambda messages, tools=None, tool_choice=None, model=None, **kwargs:" in src, (
+    assert "lambda messages, tools=None, tool_choice=None, model=None, model_params=None, **kwargs:" in src, (
         "process_prompt_async's llm_runner lambda regressed. CoVe verifier "
         "(verification.py:137) calls it with messages= + model= ONLY (no tools), "
         "which will TypeError if `tools` is positional and skip every tool call "
