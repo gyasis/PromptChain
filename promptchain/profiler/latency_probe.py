@@ -20,6 +20,7 @@ SCHEMA = "model_measurement/1"
 # Filler sentence repeated to reach each input size; the task line is always the same.
 _FILLER = "The quick brown fox jumps over the lazy dog near the quiet river bank. "
 _TASK = "\n\nIn one word, is the text above about an animal (yes or no)?"
+COLD_LOAD_S = 0.5  # load_duration above this means the weights were (re)loaded for the call
 INPUT_SIZES = {"small": 0, "medium": 40, "large": 160}  # filler repeats
 
 
@@ -45,9 +46,11 @@ def measurement_record(*, kind: str, tag: str, quant: Optional[str], endpoint: s
                        gate: Optional[GateDecision], extra: Optional[dict] = None) -> dict:
     """One line of the measurements store. Thinking tokens are chunk counts (an estimate:
     ollama does not report them separately); output_tokens includes them."""
+    # The pressure poller lags a fresh load, so a near-zero load_s also marks the call warm.
+    warm_effective = warm or (res.load_s is not None and res.load_s < COLD_LOAD_S)
     rec = {
         "schema": SCHEMA, "kind": kind, "model": tag, "quant": quant, "endpoint": endpoint,
-        "ts": datetime.now(timezone.utc).isoformat(), "warm": warm, "input_size": size, "think_param": think,
+        "ts": datetime.now(timezone.utc).isoformat(), "warm": warm_effective, "warm_by_pressure": warm, "input_size": size, "think_param": think,
         "metrics": {
             "ttft_s": res.ttft_s, "ttft_content_s": res.ttft_content_s, "total_s": res.total_s,
             "prompt_tokens": res.prompt_tokens, "output_tokens": res.output_tokens,

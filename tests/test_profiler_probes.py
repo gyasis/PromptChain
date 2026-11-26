@@ -262,3 +262,12 @@ def test_tool_probe_skips_without_capability(tmp_path):
     out = tool_probe.run_tool_probe(GovernorClient("http://gov", make_opener({})), "m", quant=None,
                                     capabilities=["completion"], store=str(tmp_path / "x"))
     assert out["skipped"]
+
+
+def test_warm_effective_uses_load_duration():
+    fast = consume_stream(iter([{"message": {"content": "y"}}, {"done": True, "load_duration": 20_000_000}]))
+    slow = consume_stream(iter([{"message": {"content": "y"}}, {"done": True, "load_duration": 4_000_000_000}]))
+    kw = dict(kind="latency", tag="m", quant=None, endpoint="e", think=None, size="small", gov={}, gate=None)
+    a = latency_probe.measurement_record(warm=False, res=fast, **kw)
+    b = latency_probe.measurement_record(warm=False, res=slow, **kw)
+    assert a["warm"] is True and a["warm_by_pressure"] is False and b["warm"] is False
